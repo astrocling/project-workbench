@@ -75,16 +75,33 @@ export async function POST(req: NextRequest) {
     if (weekStart) weekColumns.push({ key: h, weekStart });
   }
 
-  // Expect columns like: person name, role, project, ... weekly hours
+  // Expect columns like: person name, role, project, client, ... weekly hours
   const nameCol = headers.find((h) =>
     /^(person|name|resource|employee)/i.test(h)
   ) ?? headers[0];
   const roleCol = headers.find((h) => /^role$/i.test(h)) ?? headers[1];
-  const projectCol = headers.find((h) =>
-    /^(project|client)/i.test(h)
-  ) ?? headers[2];
+  // Prefer "Project" for project names so we don't use "Client" column for projects when both exist
+  const projectCol = headers.find((h) => /^project$/i.test(h))
+    ?? headers.find((h) => /project/i.test(h) && h.toLowerCase() !== "client")
+    ?? headers[2];
+  const projectColKey = projectCol?.toLowerCase();
+  const clientCol =
+    headers.find(
+      (h) =>
+        (/^client$/i.test(h) ||
+          /client\s*name/i.test(h) ||
+          /^account$/i.test(h) ||
+          /^customer$/i.test(h)) &&
+        h.toLowerCase() !== projectColKey
+    ) ??
+    headers.find(
+      (h) =>
+        (/client|account|customer/i.test(h) && !/project/i.test(h)) &&
+        h.toLowerCase() !== projectColKey
+    );
 
   const projectNamesSet = new Set<string>();
+  const projectToClientMap = new Map<string, string>();
   const projectAssignmentsMap = new Map<
     string,
     Array<{ personName: string; roleName: string }>
@@ -98,11 +115,15 @@ export async function POST(req: NextRequest) {
     const name = (row[nameCol] ?? "").trim();
     const roleName = (row[roleCol] ?? "").trim();
     const projectName = (row[projectCol] ?? "").trim();
+    const clientName = clientCol ? (row[clientCol] ?? "").trim() : "";
     if (!name || !projectName) continue;
     if (name.toUpperCase() === "SCHEDULED" || name.toUpperCase() === "CAPACITY")
       continue;
 
     projectNamesSet.add(projectName);
+    if (clientName && !projectToClientMap.has(projectName)) {
+      projectToClientMap.set(projectName, clientName);
+    }
     if (!projectAssignmentsMap.has(projectName)) {
       projectAssignmentsMap.set(projectName, []);
     }
@@ -121,6 +142,9 @@ export async function POST(req: NextRequest) {
   const projectFloatHours = JSON.parse(
     JSON.stringify(Object.fromEntries(projectFloatHoursMap))
   ) as Record<string, Array<{ personName: string; roleName: string; weeks: Array<{ weekStart: string; hours: number }> }>>;
+  const projectClients = JSON.parse(
+    JSON.stringify(Object.fromEntries(projectToClientMap))
+  ) as Record<string, string>;
 
   const peopleByKey = new Map<string, string>();
   const projectsByName = new Map<string, string>();
@@ -242,11 +266,12 @@ export async function POST(req: NextRequest) {
   const projectNamesJson = JSON.stringify(projectNames);
   const projectAssignmentsJson = JSON.stringify(projectAssignments);
   const projectFloatHoursJson = JSON.stringify(projectFloatHours);
+  const projectClientsJson = JSON.stringify(projectClients);
 
   const [run] = await prisma.$queryRaw<Array<{ id: string; completedAt: Date }>>`
     INSERT INTO "FloatImportRun" (
       "id", "completedAt", "uploadedByUserId",
-      "unknownRoles", "projectNames", "projectAssignments", "projectFloatHours"
+      "unknownRoles", "projectNames", "projectAssignments", "projectFloatHours", "projectClients"
     )
     VALUES (
       gen_random_uuid()::text,
@@ -255,7 +280,8 @@ export async function POST(req: NextRequest) {
       ${unknownRolesJson}::jsonb,
       ${projectNamesJson}::jsonb,
       ${projectAssignmentsJson}::jsonb,
-      ${projectFloatHoursJson}::jsonb
+      ${projectFloatHoursJson}::jsonb,
+      ${projectClientsJson}::jsonb
     )
     RETURNING id, "completedAt" as "completedAt"
   `;

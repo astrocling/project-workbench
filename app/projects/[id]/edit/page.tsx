@@ -15,13 +15,19 @@ export default function EditProjectPage() {
   const [status, setStatus] = useState<"Active" | "Closed">("Active");
   const [actualsLowThresholdPercent, setActualsLowThresholdPercent] = useState<string>("");
   const [actualsHighThresholdPercent, setActualsHighThresholdPercent] = useState<string>("");
+  const [pmPersonIds, setPmPersonIds] = useState<string[]>([]);
+  const [pgmPersonId, setPgmPersonId] = useState("");
+  const [cadPersonId, setCadPersonId] = useState("");
+  const [eligiblePeople, setEligiblePeople] = useState<{ id: string; name: string }[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/projects/${id}`)
-      .then((r) => r.json())
-      .then((p) => {
+    Promise.all([
+      fetch(`/api/projects/${id}`).then((r) => r.json()),
+      fetch("/api/people/eligible-key-roles").then((r) => r.json()),
+    ])
+      .then(([p, people]) => {
         setName(p.name ?? "");
         setClientName(p.clientName ?? "");
         setStartDate(p.startDate ? new Date(p.startDate).toISOString().slice(0, 10) : "");
@@ -29,6 +35,18 @@ export default function EditProjectPage() {
         setStatus(p.status ?? "Active");
         setActualsLowThresholdPercent(p.actualsLowThresholdPercent != null ? String(p.actualsLowThresholdPercent) : "");
         setActualsHighThresholdPercent(p.actualsHighThresholdPercent != null ? String(p.actualsHighThresholdPercent) : "");
+        const keyRoles = p.projectKeyRoles ?? [];
+        setPmPersonIds(keyRoles.filter((kr: { type: string }) => kr.type === "PM").map((kr: { personId: string }) => kr.personId));
+        setPgmPersonId(keyRoles.find((kr: { type: string }) => kr.type === "PGM")?.personId ?? "");
+        setCadPersonId(keyRoles.find((kr: { type: string }) => kr.type === "CAD")?.personId ?? "");
+        const eligible = Array.isArray(people) ? people : [];
+        const currentIds = new Set(eligible.map((x: { id: string }) => x.id));
+        const fromRoles = (keyRoles as { person: { id: string; name: string } }[])
+          .map((kr) => kr.person)
+          .filter((pers) => !currentIds.has(pers.id));
+        setEligiblePeople(
+          [...eligible, ...fromRoles].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""))
+        );
       })
       .finally(() => setLoading(false));
   }, [id]);
@@ -45,6 +63,9 @@ export default function EditProjectPage() {
         startDate: new Date(startDate).toISOString(),
         endDate: endDate ? new Date(endDate).toISOString() : null,
         status,
+        pmPersonIds: pmPersonIds.filter(Boolean),
+        pgmPersonId: pgmPersonId || null,
+        cadPersonId: cadPersonId || null,
         actualsLowThresholdPercent:
           actualsLowThresholdPercent === ""
             ? null
@@ -131,6 +152,62 @@ export default function EditProjectPage() {
               <option value="Active">Active</option>
               <option value="Closed">Closed</option>
             </select>
+          </div>
+          <div className="border-t pt-4 mt-4 space-y-4">
+            <h3 className="text-sm font-medium text-black">Key roles</h3>
+            <p className="text-sm text-gray-600">
+              Assign PM, PGM, and CAD. Eligible: people with Director or Project Manager role from Float.
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-black">PM (Project Manager)</label>
+              <select
+                multiple
+                value={pmPersonIds}
+                onChange={(e) => {
+                  const opts = Array.from(e.target.selectedOptions, (o) => o.value);
+                  setPmPersonIds(opts);
+                }}
+                className="mt-1 block w-full border border-gray-300 rounded px-3 py-2 min-h-[80px]"
+                title="Hold Ctrl/Cmd to select multiple"
+              >
+                {eligiblePeople.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-0.5">Hold Ctrl/Cmd to select multiple.</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-black">PGM (Program Manager)</label>
+              <select
+                value={pgmPersonId}
+                onChange={(e) => setPgmPersonId(e.target.value)}
+                className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+              >
+                <option value="">— None —</option>
+                {eligiblePeople.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-black">CAD</label>
+              <select
+                value={cadPersonId}
+                onChange={(e) => setCadPersonId(e.target.value)}
+                className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+              >
+                <option value="">— None —</option>
+                {eligiblePeople.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="border-t pt-4 mt-4 space-y-4">
             <h3 className="text-sm font-medium text-black">Weekly actuals validation</h3>

@@ -13,13 +13,24 @@ export default function NewProjectPage() {
   const [status, setStatus] = useState<"Active" | "Closed">("Active");
   const [error, setError] = useState("");
   const [floatProjectNames, setFloatProjectNames] = useState<string[]>([]);
+  const [floatProjectClients, setFloatProjectClients] = useState<Record<string, string>>({});
   const [selectedFloatProject, setSelectedFloatProject] = useState("");
+  const [eligiblePeople, setEligiblePeople] = useState<{ id: string; name: string }[]>([]);
+  const [pmPersonIds, setPmPersonIds] = useState<string[]>([]);
+  const [pgmPersonId, setPgmPersonId] = useState("");
+  const [cadPersonId, setCadPersonId] = useState("");
 
   useEffect(() => {
-    fetch("/api/projects")
-      .then((r) => r.json())
-      .then((data) => setFloatProjectNames(data.floatProjectNames ?? []))
-      .catch(() => setFloatProjectNames([]));
+    Promise.all([
+      fetch("/api/projects").then((r) => r.json()),
+      fetch("/api/people/eligible-key-roles").then((r) => r.json()),
+    ])
+      .then(([data, people]) => {
+        setFloatProjectNames(data.floatProjectNames ?? []);
+        setFloatProjectClients(data.floatProjectClients ?? {});
+        setEligiblePeople(Array.isArray(people) ? people : []);
+      })
+      .catch(() => {});
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -35,6 +46,9 @@ export default function NewProjectPage() {
         endDate: endDate ? new Date(endDate).toISOString() : null,
         status,
         floatProjectName: selectedFloatProject || undefined,
+        pmPersonIds: pmPersonIds.filter(Boolean),
+        pgmPersonId: pgmPersonId || undefined,
+        cadPersonId: cadPersonId || undefined,
       }),
     });
     if (!res.ok) {
@@ -78,9 +92,11 @@ export default function NewProjectPage() {
                     if (v === "__custom__") {
                       setSelectedFloatProject("");
                       setName("");
+                      setClientName("");
                     } else {
                       setSelectedFloatProject(v);
                       setName(v);
+                      setClientName(floatProjectClients[v] ?? "");
                     }
                   }}
                   className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
@@ -143,6 +159,56 @@ export default function NewProjectPage() {
               onChange={(e) => setEndDate(e.target.value)}
               className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-black">PM (Project Manager)</label>
+            <select
+              multiple
+              value={pmPersonIds}
+              onChange={(e) => {
+                const opts = Array.from(e.target.selectedOptions, (o) => o.value);
+                setPmPersonIds(opts);
+              }}
+              className="mt-1 block w-full border border-gray-300 rounded px-3 py-2 min-h-[80px]"
+              title="Hold Ctrl/Cmd to select multiple"
+            >
+              {eligiblePeople.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-0.5">Eligible: Director or Project Manager. Hold Ctrl/Cmd to select multiple.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-black">PGM (Program Manager)</label>
+            <select
+              value={pgmPersonId}
+              onChange={(e) => setPgmPersonId(e.target.value)}
+              className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+            >
+              <option value="">— Select (optional) —</option>
+              {eligiblePeople.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-black">CAD</label>
+            <select
+              value={cadPersonId}
+              onChange={(e) => setCadPersonId(e.target.value)}
+              className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+            >
+              <option value="">— Select (optional) —</option>
+              {eligiblePeople.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-black">Status</label>

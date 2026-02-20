@@ -14,6 +14,9 @@ const updateSchema = z.object({
   actualsHighThresholdPercent: z.number().min(0).max(100).nullable().optional(),
   useSingleRate: z.boolean().optional(),
   singleBillRate: z.number().min(0).nullable().optional(),
+  pmPersonIds: z.array(z.string()).optional(),
+  pgmPersonId: z.string().optional().nullable(),
+  cadPersonId: z.string().optional().nullable(),
 });
 
 export async function GET(
@@ -67,6 +70,27 @@ export async function PATCH(
   if (parsed.data.useSingleRate !== undefined) data.useSingleRate = parsed.data.useSingleRate;
   if (parsed.data.singleBillRate !== undefined) data.singleBillRate = parsed.data.singleBillRate;
   if (parsed.data.useSingleRate === false) data.singleBillRate = null;
+
+  // Update project key roles (PM, PGM, CAD) if provided
+  if (
+    parsed.data.pmPersonIds !== undefined ||
+    parsed.data.pgmPersonId !== undefined ||
+    parsed.data.cadPersonId !== undefined
+  ) {
+    await prisma.projectKeyRole.deleteMany({ where: { projectId: id } });
+    const pmIds = parsed.data.pmPersonIds ?? [];
+    const pgmId = parsed.data.pgmPersonId ?? null;
+    const cadId = parsed.data.cadPersonId ?? null;
+    const keyRoleInserts: Array<{ projectId: string; personId: string; type: "PM" | "PGM" | "CAD" }> = [];
+    for (const personId of pmIds) {
+      if (personId) keyRoleInserts.push({ projectId: id, personId, type: "PM" });
+    }
+    if (pgmId) keyRoleInserts.push({ projectId: id, personId: pgmId, type: "PGM" });
+    if (cadId) keyRoleInserts.push({ projectId: id, personId: cadId, type: "CAD" });
+    for (const kr of keyRoleInserts) {
+      await prisma.projectKeyRole.create({ data: kr });
+    }
+  }
 
   const project = await prisma.project.update({
     where: { id },

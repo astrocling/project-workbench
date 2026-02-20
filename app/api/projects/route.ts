@@ -11,6 +11,9 @@ const createSchema = z.object({
   endDate: z.union([z.string(), z.date()]).optional().nullable(),
   status: z.enum(["Active", "Closed"]).default("Active"),
   floatProjectName: z.string().optional(),
+  pmPersonIds: z.array(z.string()).optional(),
+  pgmPersonId: z.string().optional().nullable(),
+  cadPersonId: z.string().optional().nullable(),
 });
 
 export async function GET() {
@@ -30,10 +33,22 @@ export async function GET() {
     orderBy: { completedAt: "desc" },
   });
 
+  const floatProjectClients = (lastImport?.projectClients as Record<string, string> | null | undefined) ?? {};
+  const existingProjectClients = Object.fromEntries(
+    projects.map((p) => [p.name, p.clientName])
+  );
+  const floatProjectNames = (lastImport?.projectNames as string[]) ?? [];
+
   return NextResponse.json({
     projects,
     floatLastUpdated: lastImport?.completedAt ?? null,
-    floatProjectNames: (lastImport?.projectNames as string[]) ?? [],
+    floatProjectNames,
+    floatProjectClients: Object.fromEntries(
+      floatProjectNames.map((name) => [
+        name,
+        floatProjectClients[name] ?? existingProjectClients[name] ?? "",
+      ])
+    ),
   });
 }
 
@@ -51,7 +66,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });
   }
 
-  const { name, clientName, startDate, endDate, status, floatProjectName } =
+  const { name, clientName, startDate, endDate, status, floatProjectName, pmPersonIds, pgmPersonId, cadPersonId } =
     parsed.data;
   const project = await prisma.project.create({
     data: {
@@ -139,5 +154,22 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json(project);
+  // Create project key roles (PM, PGM, CAD)
+  const keyRoleInserts: Array<{ projectId: string; personId: string; type: "PM" | "PGM" | "CAD" }> = [];
+  for (const personId of pmPersonIds ?? []) {
+    if (personId) keyRoleInserts.push({ projectId: project.id, personId, type: "PM" });
+  }
+  if (pgmPersonId) keyRoleInserts.push({ projectId: project.id, personId: pgmPersonId, type: "PGM" });
+  if (cadPersonId) keyRoleInserts.push({ projectId: project.id, personId: cadPersonId, type: "CAD" });
+  for (const kr of keyRoleInserts) {
+    await prisma.projectKeyRole.create({ data: kr });
+  }
+
+  const created = await prisma.project.findUnique({
+    where: { id: project.id },
+    include: {
+      projectKeyRoles: { include: { person: true } },
+    },
+  });
+  return NextResponse.json(created ?? project);
 }
