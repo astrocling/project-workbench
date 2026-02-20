@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Project Workbench
 
-## Getting Started
+Internal web application to replace an Excel Project Management Workbook for tracking project budget and resourcing.
 
-First, run the development server:
+## Tech Stack
+
+- Next.js 16 (App Router) + TypeScript
+- PostgreSQL + Prisma ORM
+- NextAuth.js (email/password)
+- Tailwind CSS, TanStack Table, Zod, React Hook Form
+
+## Setup
+
+1. **Install dependencies**
+
+   ```bash
+   npm install
+   ```
+
+2. **Configure environment**
+
+   Copy `.env.example` to `.env` and set:
+
+   - `DATABASE_URL` – PostgreSQL connection string (e.g. `postgresql://user:pass@localhost:5432/project_workbench`)
+   - `NEXTAUTH_URL` – App URL (e.g. `http://localhost:3000`)
+   - `NEXTAUTH_SECRET` – Generate with `openssl rand -base64 32`
+   - `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` – For initial admin user
+
+3. **Database**
+
+   Ensure PostgreSQL is running, then:
+
+   ```bash
+   npx prisma migrate dev
+   npx prisma db seed
+   ```
+
+4. **Run**
+
+   ```bash
+   npm run dev
+   ```
+
+   Open [http://localhost:3000](http://localhost:3000). Sign in with the seed admin credentials.
+
+## Tests
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm test
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Sample Data
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npx tsx scripts/sample-data.ts
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Creates a sample project with people, assignments, planned/actual hours, and budget line.
 
-## Learn More
+## Float CSV Import
 
-To learn more about Next.js, take a look at the following resources:
+Admin → Float Import. Expected CSV format:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Columns for person name, role, project
+- Weekly columns with ISO-style date headers (e.g. `2025-02-17`)
+- Project names must match existing projects
+- Unknown roles are recorded and can be added via Admin → Roles

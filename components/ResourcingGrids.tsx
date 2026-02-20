@@ -1,0 +1,674 @@
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import {
+  getAllWeeks,
+  getAsOfDate,
+  getWeekStartDate,
+  isCompletedWeek,
+  formatWeekKey,
+  formatWeekShort,
+  isCurrentWeek,
+  isFutureWeek,
+} from "@/lib/weekUtils";
+import { hasPlanningMismatch, hasMissingActuals } from "@/lib/budgetCalculations";
+
+type Assignment = { personId: string; person: { name: string }; role: { name: string } };
+type PlannedRow = { projectId: string; personId: string; weekStartDate: string; hours: number };
+type ActualRow = { projectId: string; personId: string; weekStartDate: string; hours: number | null };
+type FloatRow = { projectId: string; personId: string; weekStartDate: string; hours: number };
+type ReadyRow = { projectId: string; personId: string; ready: boolean };
+type PTOImpact = { personId: string; weekStartDate: string; type: string };
+
+export function ResourcingGrids({
+  projectId,
+  canEdit,
+  floatLastUpdated,
+}: {
+  projectId: string;
+  canEdit: boolean;
+  floatLastUpdated: Date | null;
+}) {
+  const [project, setProject] = useState<{
+    startDate: string;
+    endDate: string | null;
+  } | null>(null);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [planned, setPlanned] = useState<PlannedRow[]>([]);
+  const [actual, setActual] = useState<ActualRow[]>([]);
+  const [float, setFloat] = useState<FloatRow[]>([]);
+  const [readyForFloat, setReadyForFloat] = useState<ReadyRow[]>([]);
+  const [ptoImpacts, setPtoImpacts] = useState<PTOImpact[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [syncingPlan, setSyncingPlan] = useState(false);
+  const [editingPlanned, setEditingPlanned] = useState<{ personId: string; weekKey: string; str: string } | null>(null);
+  const [editingActual, setEditingActual] = useState<{ personId: string; weekKey: string; str: string } | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const firstWeekColRef = useRef<HTMLTableCellElement>(null);
+
+  useEffect(() => {
+    Promise.all([
+      fetch(`/api/projects/${projectId}`).then((r) => r.json()),
+      fetch(`/api/projects/${projectId}/assignments`).then((r) => r.json()),
+      fetch(`/api/projects/${projectId}/planned-hours`).then((r) => r.json()),
+      fetch(`/api/projects/${projectId}/actual-hours`).then((r) => r.json()),
+      fetch(`/api/projects/${projectId}/float-hours`).then((r) => r.json()),
+      fetch(`/api/projects/${projectId}/ready-for-float`).then((r) => r.json()),
+      fetch(`/api/projects/${projectId}/pto-impacts`).then((r) => r.json()).catch(() => []),
+    ]).then(([p, a, pl, ac, fl, rf, pto]) => {
+      setProject({ startDate: p.startDate, endDate: p.endDate });
+      setAssignments(a);
+      setPlanned(
+        (pl ?? []).map((row: PlannedRow) => ({
+          ...row,
+          hours: Number(row.hours),
+        }))
+      );
+      setActual(
+        (ac ?? []).map((row: ActualRow) => ({
+          ...row,
+          hours: row.hours == null ? null : Number(row.hours),
+        }))
+      );
+      setFloat(
+        (fl ?? []).map((row: FloatRow) => ({
+          ...row,
+          hours: Number(row.hours),
+        }))
+      );
+      setReadyForFloat(rf ?? []);
+      setPtoImpacts(pto ?? []);
+    }).finally(() => setLoading(false));
+  }, [projectId]);
+
+  useEffect(() => {
+    if (loading || !project) return;
+    const start = new Date(project.startDate);
+    const end = project.endDate ? new Date(project.endDate) : new Date();
+    const weeksList = getAllWeeks(start, end);
+    if (weeksList.length === 0) return;
+    const currentWeekStart = getWeekStartDate(new Date());
+    const previousWeekStart = new Date(currentWeekStart);
+    previousWeekStart.setUTCDate(previousWeekStart.getUTCDate() - 7);
+    const prevWeekKey = formatWeekKey(previousWeekStart);
+    const prevWeekIndex = weeksList.findIndex((w) => formatWeekKey(w) === prevWeekKey);
+    const index = prevWeekIndex >= 0 ? prevWeekIndex : 0;
+    const el = scrollContainerRef.current;
+    const col = firstWeekColRef.current;
+    if (el && col) {
+      el.scrollLeft = index * col.offsetWidth;
+    }
+  }, [loading, project?.startDate, project?.endDate]);
+
+  if (loading || !project) return <p className="text-black">Loading grids...</p>;
+
+  const start = new Date(project.startDate);
+  const end = project.endDate ? new Date(project.endDate) : new Date();
+  const weeks = getAllWeeks(start, end);
+  const asOf = getAsOfDate();
+
+  const getPlanned = (personId: string, weekKey: string) => {
+    const row = planned.find(
+      (p) => p.personId === personId && p.weekStartDate.startsWith(weekKey)
+    );
+    return row == null ? 0 : Number(row.hours);
+  };
+  const getActual = (personId: string, weekKey: string) => {
+    const row = actual.find(
+      (a) => a.personId === personId && a.weekStartDate.startsWith(weekKey)
+    );
+    if (row == null) return null;
+    return row.hours == null ? null : Number(row.hours);
+  };
+  const getFloat = (personId: string, weekKey: string) => {
+    const normalized = (d: string) =>
+      d.includes("T") ? d.slice(0, 10) : d;
+    const row = float.find(
+      (f) =>
+        f.personId === personId &&
+        normalized(String(f.weekStartDate)) === weekKey
+    );
+    return row == null ? 0 : Number(row.hours);
+  };
+  const getReady = (personId: string) =>
+    readyForFloat.find((r) => r.personId === personId)?.ready ?? false;
+  const hasPTO = (personId: string, weekKey: string) =>
+    ptoImpacts.some(
+      (x) => x.personId === personId && x.weekStartDate.startsWith(weekKey)
+    );
+  const weekHasAnyPTO = (weekKey: string) =>
+    assignments.some((a) => hasPTO(a.personId, weekKey));
+
+  const plannedRowTotal = (personId: string) =>
+    weeks.reduce((sum, w) => sum + getPlanned(personId, formatWeekKey(w)), 0);
+  const actualRowTotal = (personId: string) =>
+    weeks.reduce(
+      (sum, w) => sum + (getActual(personId, formatWeekKey(w)) ?? 0),
+      0
+    );
+  const floatRowTotal = (personId: string) =>
+    weeks.reduce((sum, w) => sum + getFloat(personId, formatWeekKey(w)), 0);
+
+  const plannedWeekTotal = (weekKey: string) =>
+    assignments.reduce((sum, a) => sum + getPlanned(a.personId, weekKey), 0);
+  const actualWeekTotal = (weekKey: string) =>
+    assignments.reduce(
+      (sum, a) => sum + (getActual(a.personId, weekKey) ?? 0),
+      0
+    );
+  const floatWeekTotal = (weekKey: string) =>
+    assignments.reduce((sum, a) => sum + getFloat(a.personId, weekKey), 0);
+
+  const formatTotal = (n: number) => {
+    const x = Number(n);
+    if (Number.isNaN(x)) return "0";
+    return x % 1 === 0 ? String(x) : x.toFixed(2);
+  };
+
+  const colReady = "2.75rem";
+  const colPerson = "9rem";
+  const colRole = "6rem";
+  const colTotal = "4.5rem";
+  const colWeek = "4rem"; /* wide enough for 12.75 (2 digits, decimal, 2 digits) */
+  const leftRole = "11.75rem";
+  const leftTotal = "17.75rem";
+  const stickyColsWidth = "22.25rem";
+  const tableMinWidth = `calc(${stickyColsWidth} + ${weeks.length} * ${colWeek})`;
+  const sticky = "z-10";
+  const stickyBgHead = "bg-gray-50";
+  const stickyBgBody = "bg-white";
+  const stickyBgFoot = "bg-gray-100";
+  const stickyEdge = "shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)]";
+
+  async function updatePlanned(personId: string, weekKey: string, hours: number) {
+    if (!canEdit) return;
+    await fetch(`/api/projects/${projectId}/planned-hours`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        personId,
+        weekStartDate: weekKey,
+        hours,
+      }),
+    });
+    setPlanned((prev) => {
+      const rest = prev.filter(
+        (p) => !(p.personId === personId && p.weekStartDate.startsWith(weekKey))
+      );
+      return [...rest, { projectId, personId, weekStartDate: weekKey, hours }];
+    });
+  }
+
+  async function updateActual(personId: string, weekKey: string, hours: number | null) {
+    if (!canEdit) return;
+    await fetch(`/api/projects/${projectId}/actual-hours`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        personId,
+        weekStartDate: weekKey,
+        hours,
+      }),
+    });
+    setActual((prev) => {
+      const rest = prev.filter(
+        (a) => !(a.personId === personId && a.weekStartDate.startsWith(weekKey))
+      );
+      return hours !== null
+        ? [...rest, { projectId, personId, weekStartDate: weekKey, hours }]
+        : rest;
+    });
+  }
+
+  async function toggleReady(personId: string, ready: boolean) {
+    if (!canEdit) return;
+    await fetch(`/api/projects/${projectId}/ready-for-float`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ personId, ready }),
+    });
+    setReadyForFloat((prev) => {
+      const rest = prev.filter((r) => r.personId !== personId);
+      return [...rest, { projectId, personId, ready }];
+    });
+  }
+
+  async function syncPlanFromFloat() {
+    if (!canEdit || syncingPlan) return;
+    setSyncingPlan(true);
+    try {
+      const payload = assignments.flatMap((a) =>
+        weeks.map((w) => {
+          const weekKey = formatWeekKey(w);
+          return {
+            personId: a.personId,
+            weekStartDate: weekKey,
+            hours: getFloat(a.personId, weekKey),
+          };
+        })
+      );
+      const res = await fetch(`/api/projects/${projectId}/planned-hours`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const updated = await res.json();
+      const rows = Array.isArray(updated) ? updated : [updated];
+      const normalize = (d: string | Date) =>
+        typeof d === "string" ? (d.includes("T") ? d.slice(0, 10) : d) : (d as Date).toISOString().slice(0, 10);
+      setPlanned(
+        rows.map((r: { projectId: string; personId: string; weekStartDate: string | Date; hours: number }) => ({
+          projectId: r.projectId,
+          personId: r.personId,
+          weekStartDate: normalize(r.weekStartDate),
+          hours: Number(r.hours),
+        }))
+      );
+    } finally {
+      setSyncingPlan(false);
+    }
+  }
+
+  const hoursInput = (
+    personId: string,
+    weekKey: string,
+    value: number | null,
+    isPlanned: boolean,
+    isActual: boolean
+  ) => {
+    const weekDate = new Date(weekKey);
+    const completed = isCompletedWeek(weekDate, asOf);
+    const isCurrWeek = isCurrentWeek(weekDate);
+
+    if (isPlanned) {
+      const future = isFutureWeek(weekDate, asOf);
+      const editable = future || isCurrWeek;
+      const plannedVal = getPlanned(personId, weekKey);
+      const floatVal = getFloat(personId, weekKey);
+      const mismatch = hasPlanningMismatch(weekDate, plannedVal, floatVal, asOf);
+      const isEditing = editingPlanned?.personId === personId && editingPlanned?.weekKey === weekKey;
+      const displayStr = isEditing ? editingPlanned!.str : String(value ?? 0);
+      return (
+        <td
+          key={weekKey}
+          className={`p-1 border overflow-hidden min-w-0 text-center ${mismatch ? "bg-red-100" : ""}`}
+        >
+          {editable && canEdit ? (
+            <input
+              type="text"
+              inputMode="decimal"
+              value={displayStr}
+              onFocus={() => setEditingPlanned({ personId, weekKey, str: String(value ?? 0) })}
+              onChange={(e) => setEditingPlanned((prev) => (prev?.personId === personId && prev?.weekKey === weekKey ? { ...prev, str: e.target.value } : prev))}
+              onBlur={(e) => {
+                const str = e.target.value.trim();
+                const num = str === "" ? 0 : parseFloat(str);
+                updatePlanned(personId, weekKey, Number.isNaN(num) ? 0 : Math.max(0, num));
+                setEditingPlanned(null);
+              }}
+              className="w-full min-w-0 max-w-full border rounded px-1 py-0.5 text-sm text-center box-border [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+          ) : (
+            <span className="inline-block w-full text-center tabular-nums">{value ?? 0}</span>
+          )}
+        </td>
+      );
+    }
+    if (isActual) {
+      const editable = completed && !isCurrWeek;
+      const plannedVal = getPlanned(personId, weekKey);
+      const missing = hasMissingActuals(
+        weekDate,
+        plannedVal,
+        value,
+        asOf
+      );
+      const isEditing = editingActual?.personId === personId && editingActual?.weekKey === weekKey;
+      const displayStr = isEditing ? editingActual!.str : (value != null ? String(value) : "");
+      return (
+        <td
+          key={weekKey}
+          className={`p-1 border overflow-hidden min-w-0 text-center ${missing ? "bg-amber-100" : ""}`}
+        >
+          {editable && canEdit ? (
+            <input
+              type="text"
+              inputMode="decimal"
+              value={displayStr}
+              onFocus={() => setEditingActual({ personId, weekKey, str: value != null ? String(value) : "" })}
+              onChange={(e) => setEditingActual((prev) => (prev?.personId === personId && prev?.weekKey === weekKey ? { ...prev, str: e.target.value } : { personId, weekKey, str: e.target.value }))}
+              onBlur={(e) => {
+                const str = e.target.value.trim();
+                const num = str === "" ? null : parseFloat(str);
+                updateActual(personId, weekKey, num === null || !Number.isNaN(num) ? num : null);
+                setEditingActual(null);
+              }}
+              placeholder="—"
+              className="w-full min-w-0 max-w-full border rounded px-1 py-0.5 text-sm text-center box-border [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+          ) : (
+            <span className="inline-block w-full text-center tabular-nums">{value ?? "—"}</span>
+          )}
+        </td>
+      );
+    }
+    // Float (read-only)
+    const pto = hasPTO(personId, weekKey);
+    return (
+      <td
+        key={weekKey}
+        className={`p-1 border text-center ${pto ? "bg-blue-50" : ""}`}
+        title={pto ? "PTO/Holiday" : undefined}
+      >
+        <span className="inline-block w-full text-center tabular-nums">{value ?? 0}</span>
+      </td>
+    );
+  };
+
+  const freshnessWarning =
+    floatLastUpdated && (() => {
+      const elapsed = (Date.now() - new Date(floatLastUpdated).getTime()) / (60 * 60 * 1000);
+      if (elapsed > 24) return { text: "Float data is over 24 hours old", strong: true };
+      if (elapsed > 6) return { text: "Float data is over 6 hours old", strong: false };
+      return null;
+    })();
+
+  return (
+    <div className="space-y-6">
+      {floatLastUpdated && (
+        <p className="text-sm text-black">
+          Float last updated at {new Date(floatLastUpdated).toLocaleString()}
+          {freshnessWarning && (
+            <span
+              className={`ml-2 ${
+                freshnessWarning.strong ? "text-red-600 font-medium" : "text-amber-600"
+              }`}
+            >
+              ({freshnessWarning.text})
+            </span>
+          )}
+        </p>
+      )}
+
+      <div ref={scrollContainerRef} className="overflow-x-auto space-y-6">
+        <div style={{ minWidth: tableMinWidth }}>
+          <table className="border text-sm border-collapse w-full" style={{ tableLayout: "fixed", minWidth: tableMinWidth }}>
+            <colgroup>
+              <col style={{ width: colReady }} />
+              <col style={{ width: colPerson }} />
+              <col style={{ width: colRole }} />
+              <col style={{ width: colTotal }} />
+              {weeks.map((w) => (
+                <col key={formatWeekKey(w)} style={{ width: colWeek, minWidth: colWeek }} />
+              ))}
+            </colgroup>
+            <thead>
+              <tr className="bg-white">
+                <th
+                  colSpan={4}
+                  className={`p-2 border text-left sticky ${sticky} ${stickyBgHead} ${stickyEdge} z-20 bg-white`}
+                  style={{ left: 0, width: stickyColsWidth, minWidth: stickyColsWidth }}
+                >
+                  <h3 className="font-medium">1. Project Planning Grid</h3>
+                </th>
+                <th colSpan={weeks.length} className="p-0 border-0 bg-transparent" aria-hidden />
+              </tr>
+              <tr className="bg-gray-50">
+                <th className={`p-2 border text-left sticky ${sticky} ${stickyBgHead}`} style={{ left: 0 }}>Ready</th>
+                <th className={`p-2 border text-left sticky ${sticky} ${stickyBgHead}`} style={{ left: colReady }}>Person</th>
+                <th className={`p-2 border text-left sticky ${sticky} ${stickyBgHead}`} style={{ left: leftRole }}>Role</th>
+                <th className={`p-2 border text-center bg-gray-100 sticky ${sticky} ${stickyEdge}`} style={{ left: leftTotal }}>Total</th>
+                {weeks.map((w, wi) => (
+                  <th
+                    key={formatWeekKey(w)}
+                    ref={wi === 0 ? firstWeekColRef : undefined}
+                    className="p-1 border text-center text-xs whitespace-nowrap w-16"
+                    title={formatWeekKey(w)}
+                  >
+                    {formatWeekShort(w)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {assignments.map((a) => (
+                <tr key={a.personId}>
+                  <td className={`p-1 border sticky ${sticky} ${stickyBgBody}`} style={{ left: 0 }}>
+                    {canEdit ? (
+                      <input
+                        type="checkbox"
+                        checked={getReady(a.personId)}
+                        onChange={(e) => toggleReady(a.personId, e.target.checked)}
+                      />
+                    ) : (
+                      getReady(a.personId) ? "✓" : ""
+                    )}
+                  </td>
+                  <td className={`p-2 border sticky ${sticky} ${stickyBgBody}`} style={{ left: colReady }}>{a.person.name}</td>
+                  <td className={`p-2 border sticky ${sticky} ${stickyBgBody}`} style={{ left: leftRole }}>{a.role.name}</td>
+                  <td className={`p-2 border text-center font-medium tabular-nums sticky ${sticky} ${stickyBgBody} ${stickyEdge}`} style={{ left: leftTotal }}>
+                    {formatTotal(plannedRowTotal(a.personId))}
+                  </td>
+                  {weeks.map((w) => {
+                    const k = formatWeekKey(w);
+                    return hoursInput(
+                      a.personId,
+                      k,
+                      getPlanned(a.personId, k),
+                      true,
+                      false
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-gray-100 font-medium">
+                <td className={`p-2 border sticky ${sticky} ${stickyBgFoot}`} style={{ left: 0 }} />
+                <td className={`p-2 border sticky ${sticky} ${stickyBgFoot}`} style={{ left: colReady }} />
+                <td className={`p-2 border sticky ${sticky} ${stickyBgFoot}`} style={{ left: leftRole }}>Total</td>
+                <td className={`p-2 border text-center tabular-nums sticky ${sticky} ${stickyBgFoot} ${stickyEdge}`} style={{ left: leftTotal }}>
+                  {formatTotal(
+                    weeks.reduce((s, w) => s + plannedWeekTotal(formatWeekKey(w)), 0)
+                  )}
+                </td>
+                {weeks.map((w) => {
+                  const k = formatWeekKey(w);
+                  return (
+                    <td key={k} className="p-2 border text-center tabular-nums">
+                      {formatTotal(plannedWeekTotal(k))}
+                    </td>
+                  );
+                })}
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div style={{ minWidth: tableMinWidth }}>
+          <table className="border text-sm border-collapse w-full" style={{ tableLayout: "fixed", minWidth: tableMinWidth }}>
+            <colgroup>
+              <col style={{ width: colReady }} />
+              <col style={{ width: colPerson }} />
+              <col style={{ width: colRole }} />
+              <col style={{ width: colTotal }} />
+              {weeks.map((w) => (
+                <col key={formatWeekKey(w)} style={{ width: colWeek, minWidth: colWeek }} />
+              ))}
+            </colgroup>
+            <thead>
+              <tr className="bg-white">
+                <th
+                  colSpan={4}
+                  className={`p-2 border text-left sticky ${sticky} ${stickyBgHead} ${stickyEdge} z-20 bg-white`}
+                  style={{ left: 0, width: stickyColsWidth, minWidth: stickyColsWidth }}
+                >
+                  <h3 className="font-medium">2. Weekly Actuals Grid</h3>
+                </th>
+                <th colSpan={weeks.length} className="p-0 border-0 bg-transparent" aria-hidden />
+              </tr>
+              <tr className="bg-gray-50">
+                <th className={`p-2 border sticky ${sticky} ${stickyBgHead}`} style={{ left: 0 }} aria-hidden />
+                <th className={`p-2 border text-left sticky ${sticky} ${stickyBgHead}`} style={{ left: colReady }}>Person</th>
+                <th className={`p-2 border text-left sticky ${sticky} ${stickyBgHead}`} style={{ left: leftRole }}>Role</th>
+                <th className={`p-2 border text-center bg-gray-100 sticky ${sticky} ${stickyEdge}`} style={{ left: leftTotal }}>Total</th>
+                {weeks.map((w) => (
+                  <th
+                    key={formatWeekKey(w)}
+                    className="p-1 border text-center text-xs whitespace-nowrap w-16"
+                    title={formatWeekKey(w)}
+                  >
+                    {formatWeekShort(w)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {assignments.map((a) => (
+                <tr key={a.personId}>
+                  <td className={`p-2 border sticky ${sticky} ${stickyBgBody}`} style={{ left: 0 }} />
+                  <td className={`p-2 border sticky ${sticky} ${stickyBgBody}`} style={{ left: colReady }}>{a.person.name}</td>
+                  <td className={`p-2 border sticky ${sticky} ${stickyBgBody}`} style={{ left: leftRole }}>{a.role.name}</td>
+                  <td className={`p-2 border text-center font-medium tabular-nums sticky ${sticky} ${stickyBgBody} ${stickyEdge}`} style={{ left: leftTotal }}>
+                    {formatTotal(actualRowTotal(a.personId))}
+                  </td>
+                  {weeks.map((w) => {
+                    const k = formatWeekKey(w);
+                    return hoursInput(
+                      a.personId,
+                      k,
+                      getActual(a.personId, k),
+                      false,
+                      true
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-gray-100 font-medium">
+                <td className={`p-2 border sticky ${sticky} ${stickyBgFoot}`} style={{ left: 0 }} />
+                <td className={`p-2 border sticky ${sticky} ${stickyBgFoot}`} style={{ left: colReady }} />
+                <td className={`p-2 border sticky ${sticky} ${stickyBgFoot}`} style={{ left: leftRole }}>Total</td>
+                <td className={`p-2 border text-center tabular-nums sticky ${sticky} ${stickyBgFoot} ${stickyEdge}`} style={{ left: leftTotal }}>
+                  {formatTotal(
+                    weeks.reduce((s, w) => s + actualWeekTotal(formatWeekKey(w)), 0)
+                  )}
+                </td>
+                {weeks.map((w) => {
+                  const k = formatWeekKey(w);
+                  return (
+                    <td key={k} className="p-2 border text-center tabular-nums">
+                      {formatTotal(actualWeekTotal(k))}
+                    </td>
+                  );
+                })}
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div style={{ minWidth: tableMinWidth }}>
+          <table className="border text-sm border-collapse w-full" style={{ tableLayout: "fixed", minWidth: tableMinWidth }}>
+            <colgroup>
+              <col style={{ width: colReady }} />
+              <col style={{ width: colPerson }} />
+              <col style={{ width: colRole }} />
+              <col style={{ width: colTotal }} />
+              {weeks.map((w) => (
+                <col key={formatWeekKey(w)} style={{ width: colWeek, minWidth: colWeek }} />
+              ))}
+            </colgroup>
+            <thead>
+              <tr className="bg-white">
+                <th
+                  colSpan={4}
+                  className={`p-2 border text-left sticky ${sticky} ${stickyBgHead} ${stickyEdge} z-20 bg-white`}
+                  style={{ left: 0, width: stickyColsWidth, minWidth: stickyColsWidth }}
+                >
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h3 className="font-medium">3. Float Actuals Grid</h3>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={syncPlanFromFloat}
+                        disabled={syncingPlan}
+                        className="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {syncingPlan ? "Syncing…" : "Sync plan from Float"}
+                      </button>
+                    )}
+                  </div>
+                </th>
+                <th colSpan={weeks.length} className="p-0 border-0 bg-transparent" aria-hidden />
+              </tr>
+              <tr className="bg-gray-50">
+                <th className={`p-2 border sticky ${sticky} ${stickyBgHead}`} style={{ left: 0 }} aria-hidden />
+                <th className={`p-2 border text-left sticky ${sticky} ${stickyBgHead}`} style={{ left: colReady }}>Person</th>
+                <th className={`p-2 border text-left sticky ${sticky} ${stickyBgHead}`} style={{ left: leftRole }}>Role</th>
+                <th className={`p-2 border text-center bg-gray-100 sticky ${sticky} ${stickyEdge}`} style={{ left: leftTotal }}>Total</th>
+                {weeks.map((w) => {
+                  const k = formatWeekKey(w);
+                  const colPTO = weekHasAnyPTO(k);
+                  return (
+                    <th
+                      key={k}
+                      className={`p-1 border text-center text-xs whitespace-nowrap w-16 ${colPTO ? "bg-blue-50" : ""}`}
+                      title={k}
+                    >
+                      {formatWeekShort(w)}
+                      {colPTO && " *"}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {assignments.map((a) => (
+                <tr key={a.personId}>
+                  <td className={`p-2 border sticky ${sticky} ${stickyBgBody}`} style={{ left: 0 }} />
+                  <td className={`p-2 border sticky ${sticky} ${stickyBgBody}`} style={{ left: colReady }}>{a.person.name}</td>
+                  <td className={`p-2 border sticky ${sticky} ${stickyBgBody}`} style={{ left: leftRole }}>{a.role.name}</td>
+                  <td className={`p-2 border text-center font-medium tabular-nums sticky ${sticky} ${stickyBgBody} ${stickyEdge}`} style={{ left: leftTotal }}>
+                    {formatTotal(floatRowTotal(a.personId))}
+                  </td>
+                  {weeks.map((w) => {
+                    const k = formatWeekKey(w);
+                    return hoursInput(
+                      a.personId,
+                      k,
+                      getFloat(a.personId, k),
+                      false,
+                      false
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-gray-100 font-medium">
+                <td className={`p-2 border sticky ${sticky} ${stickyBgFoot}`} style={{ left: 0 }} />
+                <td className={`p-2 border sticky ${sticky} ${stickyBgFoot}`} style={{ left: colReady }} />
+                <td className={`p-2 border sticky ${sticky} ${stickyBgFoot}`} style={{ left: leftRole }}>Total</td>
+                <td className={`p-2 border text-center tabular-nums sticky ${sticky} ${stickyBgFoot} ${stickyEdge}`} style={{ left: leftTotal }}>
+                  {formatTotal(
+                    weeks.reduce((s, w) => s + floatWeekTotal(formatWeekKey(w)), 0)
+                  )}
+                </td>
+                {weeks.map((w) => {
+                  const k = formatWeekKey(w);
+                  return (
+                    <td key={k} className="p-2 border text-center tabular-nums">
+                      {formatTotal(floatWeekTotal(k))}
+                    </td>
+                  );
+                })}
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}

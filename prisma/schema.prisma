@@ -1,0 +1,229 @@
+// Prisma schema for Project Workbench
+// PostgreSQL + Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  Admin
+  Editor
+  Viewer
+}
+
+enum ProjectStatus {
+  Active
+  Closed
+}
+
+enum BudgetLineType {
+  SOW
+  CO
+  Other
+}
+
+enum KeyRoleType {
+  PM
+  PGM
+  CAD
+}
+
+enum PTOHolidayType {
+  PTO
+  Holiday
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         UserRole
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Person {
+  id         String   @id @default(cuid())
+  name       String
+  email      String?
+  externalId String?  @unique // Float ID
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  projectAssignments   ProjectAssignment[]
+  plannedHours         PlannedHours[]
+  actualHours          ActualHours[]
+  floatScheduledHours  FloatScheduledHours[]
+  ptoHolidayImpacts   PTOHolidayImpact[]
+  projectKeyRoles      ProjectKeyRole[]
+  readyForFloatUpdates ReadyForFloatUpdate[]
+}
+
+model Role {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  projectAssignments ProjectAssignment[]
+  projectRoleRates   ProjectRoleRate[]
+}
+
+model Project {
+  id         String        @id @default(cuid())
+  name       String
+  clientName String
+  startDate  DateTime
+  endDate    DateTime?
+  status     ProjectStatus @default(Active)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  assignments          ProjectAssignment[]
+  projectRoleRates     ProjectRoleRate[]
+  projectKeyRoles      ProjectKeyRole[]
+  plannedHours         PlannedHours[]
+  actualHours          ActualHours[]
+  floatScheduledHours  FloatScheduledHours[]
+  budgetLines          BudgetLine[]
+  readyForFloatUpdates ReadyForFloatUpdate[]
+}
+
+model ProjectAssignment {
+  projectId       String
+  personId        String
+  roleId          String
+  billRateOverride Decimal? @db.Decimal(10, 2)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  role    Role    @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@id([projectId, personId])
+}
+
+model ProjectRoleRate {
+  projectId String
+  roleId    String
+  billRate  Decimal @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  role    Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, roleId])
+}
+
+model ProjectKeyRole {
+  projectId String
+  personId  String
+  type      KeyRoleType
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, personId, type])
+}
+
+model PlannedHours {
+  projectId     String
+  personId      String
+  weekStartDate DateTime @db.Date
+  hours         Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, personId, weekStartDate])
+}
+
+model ActualHours {
+  projectId     String
+  personId      String
+  weekStartDate DateTime  @db.Date
+  hours         Decimal?  @db.Decimal(10, 2) // null = missing (distinct from 0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, personId, weekStartDate])
+}
+
+model FloatScheduledHours {
+  projectId     String
+  personId      String
+  weekStartDate DateTime @db.Date
+  hours         Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, personId, weekStartDate])
+}
+
+model PTOHolidayImpact {
+  personId      String
+  weekStartDate DateTime   @db.Date
+  type          PTOHolidayType
+  createdAt     DateTime   @default(now())
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([personId, weekStartDate])
+}
+
+model BudgetLine {
+  id        String         @id @default(cuid())
+  projectId String
+  type      BudgetLineType
+  label     String
+  lowHours  Decimal        @db.Decimal(10, 2)
+  highHours Decimal        @db.Decimal(10, 2)
+  lowDollars  Decimal      @db.Decimal(12, 2)
+  highDollars Decimal      @db.Decimal(12, 2)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model ReadyForFloatUpdate {
+  projectId String
+  personId  String
+  ready     Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, personId])
+}
+
+model FloatImportRun {
+  id                 String   @id @default(cuid())
+  completedAt        DateTime
+  uploadedByUserId   String?
+  unknownRoles       Json     @default("[]") // string array of role names
+  projectNames       Json     @default("[]") // string[] of unique project names from CSV
+  projectAssignments Json     @default("{}") // { "ProjectName": [{ personName, roleName }] }
+  createdAt          DateTime @default(now())
+
+  @@index([completedAt])
+}
