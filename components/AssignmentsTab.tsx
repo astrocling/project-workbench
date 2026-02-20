@@ -22,8 +22,10 @@ export function AssignmentsTab({
   const [people, setPeople] = useState<Person[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [selectedPerson, setSelectedPerson] = useState("");
-  const [selectedRole, setSelectedRole] = useState("");
   const [loading, setLoading] = useState(true);
+  const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
+  const [editRoleId, setEditRoleId] = useState("");
+  const [editRateOverride, setEditRateOverride] = useState<string>("");
 
   useEffect(() => {
     Promise.all([
@@ -34,16 +36,15 @@ export function AssignmentsTab({
       setAssignments(a);
       setPeople(p);
       setRoles(r);
-      if (r.length) setSelectedRole(r[0].id);
     }).finally(() => setLoading(false));
   }, [projectId]);
 
   async function addAssignment() {
-    if (!selectedPerson || !selectedRole || !canEdit) return;
+    if (!selectedPerson || !canEdit) return;
     const res = await fetch(`/api/projects/${projectId}/assignments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ personId: selectedPerson, roleId: selectedRole }),
+      body: JSON.stringify({ personId: selectedPerson }),
     });
     if (res.ok) {
       const a = await res.json();
@@ -60,11 +61,47 @@ export function AssignmentsTab({
     );
     if (res.ok) {
       setAssignments((prev) => prev.filter((x) => x.personId !== personId));
+      if (editingPersonId === personId) setEditingPersonId(null);
+    }
+  }
+
+  function startEdit(a: Assignment) {
+    setEditingPersonId(a.personId);
+    setEditRoleId(a.role.id);
+    setEditRateOverride(a.billRateOverride != null ? String(a.billRateOverride) : "");
+  }
+
+  function cancelEdit() {
+    setEditingPersonId(null);
+  }
+
+  async function saveEdit(personId: string) {
+    if (!canEdit) return;
+    const rateVal = editRateOverride.trim();
+    const billRateOverride =
+      rateVal === "" ? null : (parseFloat(rateVal) || null);
+    const res = await fetch(`/api/projects/${projectId}/assignments`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        personId,
+        roleId: editRoleId,
+        billRateOverride,
+      }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setAssignments((prev) =>
+        prev.map((x) => (x.personId === personId ? updated : x))
+      );
+      setEditingPersonId(null);
     }
   }
 
   const availablePeople = people.filter(
-    (p) => !assignments.some((a) => a.personId === p.id)
+    (p) =>
+      p.name.toLowerCase() !== "name" &&
+      !assignments.some((a) => a.personId === p.id)
   );
 
   if (loading) return <p className="text-black">Loading...</p>;
@@ -84,20 +121,6 @@ export function AssignmentsTab({
               {availablePeople.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm text-black">Role</label>
-            <select
-              value={selectedRole}
-              onChange={(e) => setSelectedRole(e.target.value)}
-              className="mt-1 border rounded px-2 py-1"
-            >
-              {roles.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
                 </option>
               ))}
             </select>
@@ -122,24 +145,84 @@ export function AssignmentsTab({
           </tr>
         </thead>
         <tbody>
-          {assignments.map((a) => (
-            <tr key={a.personId} className="border-t">
-              <td className="p-2">{a.person.name}</td>
-              <td className="p-2">{a.role.name}</td>
-              <td className="p-2">{a.billRateOverride ?? "—"}</td>
-              {canEdit && (
+          {assignments.map((a) => {
+            const isEditing = canEdit && editingPersonId === a.personId;
+            return (
+              <tr key={a.personId} className="border-t">
+                <td className="p-2">{a.person.name}</td>
                 <td className="p-2">
-                  <button
-                    type="button"
-                    onClick={() => removeAssignment(a.personId)}
-                    className="text-red-600 hover:underline text-sm"
-                  >
-                    Remove
-                  </button>
+                  {isEditing ? (
+                    <select
+                      value={editRoleId}
+                      onChange={(e) => setEditRoleId(e.target.value)}
+                      className="border rounded px-2 py-1 w-full max-w-[180px]"
+                    >
+                      {roles.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    a.role.name
+                  )}
                 </td>
-              )}
-            </tr>
-          ))}
+                <td className="p-2">
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={editRateOverride}
+                      onChange={(e) => setEditRateOverride(e.target.value)}
+                      placeholder="—"
+                      className="border rounded px-2 py-1 w-24"
+                    />
+                  ) : (
+                    a.billRateOverride ?? "—"
+                  )}
+                </td>
+                {canEdit && (
+                  <td className="p-2 space-x-2">
+                    {isEditing ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => saveEdit(a.personId)}
+                          className="text-blue-600 hover:underline text-sm"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEdit}
+                          className="text-gray-600 hover:underline text-sm"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => startEdit(a)}
+                          className="text-blue-600 hover:underline text-sm"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeAssignment(a.personId)}
+                          className="text-red-600 hover:underline text-sm"
+                        >
+                          Remove
+                        </button>
+                      </>
+                    )}
+                  </td>
+                )}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
       {assignments.length === 0 && (

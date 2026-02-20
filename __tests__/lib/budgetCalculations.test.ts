@@ -35,6 +35,54 @@ describe("computeBudgetRollups", () => {
     expect(result.actualDollarsToDate).toBe(80 * 150);
     expect(result.forecastHours).toBe(80 + 40); // actuals + planned future
     expect(result.forecastDollars).toBe(80 * 150 + 40 * 150);
+    // Current week is 2025-02-17 (one row), no future weeks
+    expect(result.projectedCurrentWeekHours).toBe(40);
+    expect(result.projectedCurrentWeekDollars).toBe(40 * 150);
+    expect(result.projectedFutureWeeksHours).toBe(0);
+    expect(result.projectedFutureWeeksDollars).toBe(0);
+    expect(result.forecastHours).toBe(
+      result.actualHoursToDate + result.projectedCurrentWeekHours + result.projectedFutureWeeksHours
+    );
+    expect(result.forecastDollars).toBe(
+      result.actualDollarsToDate +
+        result.projectedCurrentWeekDollars +
+        result.projectedFutureWeeksDollars
+    );
+  });
+
+  it("splits projected into current week and future weeks", () => {
+    const projectStart = new Date("2025-02-03");
+    const projectEnd = new Date("2025-03-31");
+    const asOf = new Date("2025-02-16T23:59:59Z"); // completed: 02-03, 02-10. Current: 02-17, future: 02-24, 03-03, ...
+
+    const weeklyRows = [
+      { weekStartDate: new Date("2025-02-03"), plannedHours: 40, actualHours: 40, rate: 100 },
+      { weekStartDate: new Date("2025-02-10"), plannedHours: 40, actualHours: 40, rate: 100 },
+      { weekStartDate: new Date("2025-02-17"), plannedHours: 30, actualHours: null, rate: 100 },
+      { weekStartDate: new Date("2025-02-24"), plannedHours: 40, actualHours: null, rate: 100 },
+      { weekStartDate: new Date("2025-03-03"), plannedHours: 40, actualHours: null, rate: 100 },
+    ];
+
+    const result = computeBudgetRollups(
+      projectStart,
+      projectEnd,
+      weeklyRows,
+      [{ lowHours: 500, highHours: 500, lowDollars: 50000, highDollars: 50000 }],
+      asOf
+    );
+
+    expect(result.actualHoursToDate).toBe(80);
+    expect(result.projectedCurrentWeekHours).toBe(30);
+    expect(result.projectedFutureWeeksHours).toBe(80);
+    expect(result.forecastHours).toBe(80 + 30 + 80);
+    expect(result.forecastHours).toBe(
+      result.actualHoursToDate + result.projectedCurrentWeekHours + result.projectedFutureWeeksHours
+    );
+    expect(result.forecastDollars).toBe(
+      result.actualDollarsToDate +
+        result.projectedCurrentWeekDollars +
+        result.projectedFutureWeeksDollars
+    );
   });
 
   it("marks missingActuals when completed week has planned>0 and null actuals", () => {

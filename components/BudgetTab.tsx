@@ -20,6 +20,10 @@ type Rollups = {
   forecastHours: number;
   forecastDollars: number;
   forecastIncomplete: boolean;
+  projectedCurrentWeekHours: number;
+  projectedCurrentWeekDollars: number;
+  projectedFutureWeeksHours: number;
+  projectedFutureWeeksDollars: number;
   burnPercentLowHours: number | null;
   burnPercentHighHours: number | null;
   burnPercentLowDollars: number | null;
@@ -121,6 +125,43 @@ export function BudgetTab({
               )}
             </p>
           </div>
+        </div>
+      )}
+
+      {rollups && (
+        <div className="bg-white p-4 rounded border">
+          <p className="text-sm font-medium text-black mb-3">Actuals and projected</p>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-black border-b">
+                <th className="pb-2 pr-4"></th>
+                <th className="pb-2 text-right">Hours</th>
+                <th className="pb-2 text-right">Dollars</th>
+              </tr>
+            </thead>
+            <tbody className="text-black">
+              <tr className="border-b">
+                <td className="py-1.5 pr-4">Actuals to date</td>
+                <td className="py-1.5 text-right">{(rollups.actualHoursToDate ?? 0).toFixed(1)}</td>
+                <td className="py-1.5 text-right">${(rollups.actualDollarsToDate ?? 0).toLocaleString()}</td>
+              </tr>
+              <tr className="border-b">
+                <td className="py-1.5 pr-4">Projected (current week)</td>
+                <td className="py-1.5 text-right">{(rollups.projectedCurrentWeekHours ?? 0).toFixed(1)}</td>
+                <td className="py-1.5 text-right">${(rollups.projectedCurrentWeekDollars ?? 0).toLocaleString()}</td>
+              </tr>
+              <tr className="border-b">
+                <td className="py-1.5 pr-4">Projected (future weeks)</td>
+                <td className="py-1.5 text-right">{(rollups.projectedFutureWeeksHours ?? 0).toFixed(1)}</td>
+                <td className="py-1.5 text-right">${(rollups.projectedFutureWeeksDollars ?? 0).toLocaleString()}</td>
+              </tr>
+              <tr className="font-medium">
+                <td className="pt-2 pr-4">Total</td>
+                <td className="pt-2 text-right">{(rollups.forecastHours ?? 0).toFixed(1)}</td>
+                <td className="pt-2 text-right">${(rollups.forecastDollars ?? 0).toLocaleString()}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       )}
 

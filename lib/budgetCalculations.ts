@@ -34,6 +34,10 @@ export type BudgetResult = {
   forecastHours: number;
   forecastDollars: number;
   forecastIncomplete: boolean;
+  projectedCurrentWeekHours: number;
+  projectedCurrentWeekDollars: number;
+  projectedFutureWeeksHours: number;
+  projectedFutureWeeksDollars: number;
   burnPercentLowHours: number | null;
   burnPercentHighHours: number | null;
   burnPercentLowDollars: number | null;
@@ -77,6 +81,14 @@ export function computeBudgetRollups(
   const futureKeys = new Set(
     currentAndFutureWeeks.map((w) => toDateOnly(w).toISOString().slice(0, 10))
   );
+  const currentWeekKey = new Set<string>();
+  const futureWeeksKeys = new Set<string>();
+  if (currentAndFutureWeeks.length > 0) {
+    currentWeekKey.add(toDateOnly(currentAndFutureWeeks[0]!).toISOString().slice(0, 10));
+    for (let i = 1; i < currentAndFutureWeeks.length; i++) {
+      futureWeeksKeys.add(toDateOnly(currentAndFutureWeeks[i]!).toISOString().slice(0, 10));
+    }
+  }
 
   let plannedHoursToDate = 0;
   let actualHoursToDate = 0;
@@ -98,10 +110,21 @@ export function computeBudgetRollups(
 
   let forecastHours = actualHoursToDate;
   let forecastDollars = actualDollarsToDate;
+  let projectedCurrentWeekHours = 0;
+  let projectedCurrentWeekDollars = 0;
+  let projectedFutureWeeksHours = 0;
+  let projectedFutureWeeksDollars = 0;
 
   for (const row of weeklyRows) {
     const key = toDateOnly(row.weekStartDate).toISOString().slice(0, 10);
-    if (futureKeys.has(key)) {
+    if (currentWeekKey.has(key)) {
+      projectedCurrentWeekHours += row.plannedHours;
+      projectedCurrentWeekDollars += row.plannedHours * row.rate;
+      forecastHours += row.plannedHours;
+      forecastDollars += row.plannedHours * row.rate;
+    } else if (futureWeeksKeys.has(key)) {
+      projectedFutureWeeksHours += row.plannedHours;
+      projectedFutureWeeksDollars += row.plannedHours * row.rate;
       forecastHours += row.plannedHours;
       forecastDollars += row.plannedHours * row.rate;
     }
@@ -129,6 +152,10 @@ export function computeBudgetRollups(
     forecastHours,
     forecastDollars,
     forecastIncomplete: missingActuals,
+    projectedCurrentWeekHours,
+    projectedCurrentWeekDollars,
+    projectedFutureWeeksHours,
+    projectedFutureWeeksDollars,
     burnPercentLowHours,
     burnPercentHighHours,
     burnPercentLowDollars,
