@@ -79,6 +79,10 @@ model Project {
   startDate  DateTime
   endDate    DateTime?
   status     ProjectStatus @default(Active)
+  /// Actuals under resourced by more than this % → purple (default 10)
+  actualsLowThresholdPercent  Int?
+  /// Actuals over resourced by more than this % → red (default 5)
+  actualsHighThresholdPercent Int?
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
 

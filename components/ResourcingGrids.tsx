@@ -32,6 +32,8 @@ export function ResourcingGrids({
   const [project, setProject] = useState<{
     startDate: string;
     endDate: string | null;
+    actualsLowThresholdPercent: number | null;
+    actualsHighThresholdPercent: number | null;
   } | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [planned, setPlanned] = useState<PlannedRow[]>([]);
@@ -56,7 +58,12 @@ export function ResourcingGrids({
       fetch(`/api/projects/${projectId}/ready-for-float`).then((r) => r.json()),
       fetch(`/api/projects/${projectId}/pto-impacts`).then((r) => r.json()).catch(() => []),
     ]).then(([p, a, pl, ac, fl, rf, pto]) => {
-      setProject({ startDate: p.startDate, endDate: p.endDate });
+      setProject({
+        startDate: p.startDate,
+        endDate: p.endDate,
+        actualsLowThresholdPercent: p.actualsLowThresholdPercent ?? null,
+        actualsHighThresholdPercent: p.actualsHighThresholdPercent ?? null,
+      });
       setAssignments(a);
       setPlanned(
         (pl ?? []).map((row: PlannedRow) => ({
@@ -149,6 +156,9 @@ export function ResourcingGrids({
   const floatRowTotal = (personId: string) =>
     weeks.reduce((sum, w) => sum + getFloat(personId, formatWeekKey(w)), 0);
 
+  const sortedAssignments = [...assignments].sort((a, b) =>
+    (a.person.name || "").localeCompare(b.person.name || "", undefined, { sensitivity: "base" })
+  );
   const plannedWeekTotal = (weekKey: string) =>
     assignments.reduce((sum, a) => sum + getPlanned(a.personId, weekKey), 0);
   const actualWeekTotal = (weekKey: string) =>
@@ -163,6 +173,18 @@ export function ResourcingGrids({
     const x = Number(n);
     if (Number.isNaN(x)) return "0";
     return x % 1 === 0 ? String(x) : x.toFixed(2);
+  };
+
+  const lowThresh = project.actualsLowThresholdPercent ?? 10;
+  const highThresh = project.actualsHighThresholdPercent ?? 5;
+  const actualsTotalVarianceClass = (weekKey: string) => {
+    const weekDate = new Date(weekKey);
+    if (isFutureWeek(weekDate, asOf)) return "";
+    const planned = plannedWeekTotal(weekKey);
+    const actual = actualWeekTotal(weekKey);
+    if (actual < planned && planned > 0 && (planned - actual) / planned > lowThresh / 100) return "bg-purple-200";
+    if (actual > planned && (actual - planned) / (planned || 1) > highThresh / 100) return "bg-red-200";
+    return "";
   };
 
   const colReady = "2.75rem";
@@ -317,6 +339,7 @@ export function ResourcingGrids({
     }
     if (isActual) {
       const editable = completed && !isCurrWeek;
+      const future = isFutureWeek(weekDate, asOf);
       const plannedVal = getPlanned(personId, weekKey);
       const missing = hasMissingActuals(
         weekDate,
@@ -324,12 +347,23 @@ export function ResourcingGrids({
         value,
         asOf
       );
+      const lowThresh = project.actualsLowThresholdPercent ?? 10;
+      const highThresh = project.actualsHighThresholdPercent ?? 5;
+      const actualVal = value ?? 0;
+      const varianceClass =
+        !future && !missing
+          ? actualVal < plannedVal && plannedVal > 0 && (plannedVal - actualVal) / plannedVal > lowThresh / 100
+            ? "bg-purple-200"
+            : actualVal > plannedVal && (actualVal - plannedVal) / (plannedVal || 1) > highThresh / 100
+              ? "bg-red-200"
+              : ""
+          : "";
       const isEditing = editingActual?.personId === personId && editingActual?.weekKey === weekKey;
       const displayStr = isEditing ? editingActual!.str : (value != null ? String(value) : "");
       return (
         <td
           key={weekKey}
-          className={`p-1 border overflow-hidden min-w-0 text-center ${missing ? "bg-amber-100" : ""}`}
+          className={`p-1 border overflow-hidden min-w-0 text-center ${missing ? "bg-amber-100" : ""} ${varianceClass}`}
         >
           {editable && canEdit ? (
             <input
@@ -432,7 +466,7 @@ export function ResourcingGrids({
               </tr>
             </thead>
             <tbody>
-              {assignments.map((a) => (
+              {sortedAssignments.map((a) => (
                 <tr key={a.personId}>
                   <td className={`p-1 border sticky ${sticky} ${stickyBgBody}`} style={{ left: 0 }}>
                     {canEdit ? (
@@ -525,7 +559,7 @@ export function ResourcingGrids({
               </tr>
             </thead>
             <tbody>
-              {assignments.map((a) => (
+              {sortedAssignments.map((a) => (
                 <tr key={a.personId}>
                   <td className={`p-2 border sticky ${sticky} ${stickyBgBody}`} style={{ left: 0 }} />
                   <td className={`p-2 border sticky ${sticky} ${stickyBgBody}`} style={{ left: colReady }}>{a.person.name}</td>
@@ -559,7 +593,7 @@ export function ResourcingGrids({
                 {weeks.map((w) => {
                   const k = formatWeekKey(w);
                   return (
-                    <td key={k} className="p-2 border text-center tabular-nums">
+                    <td key={k} className={`p-2 border text-center tabular-nums ${actualsTotalVarianceClass(k)}`}>
                       {formatTotal(actualWeekTotal(k))}
                     </td>
                   );
@@ -625,7 +659,7 @@ export function ResourcingGrids({
               </tr>
             </thead>
             <tbody>
-              {assignments.map((a) => (
+              {sortedAssignments.map((a) => (
                 <tr key={a.personId}>
                   <td className={`p-2 border sticky ${sticky} ${stickyBgBody}`} style={{ left: 0 }} />
                   <td className={`p-2 border sticky ${sticky} ${stickyBgBody}`} style={{ left: colReady }}>{a.person.name}</td>

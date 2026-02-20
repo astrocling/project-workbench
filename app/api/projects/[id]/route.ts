@@ -10,6 +10,8 @@ const updateSchema = z.object({
   startDate: z.union([z.string(), z.date()]).optional(),
   endDate: z.union([z.string(), z.date()]).optional().nullable(),
   status: z.enum(["Active", "Closed"]).optional(),
+  actualsLowThresholdPercent: z.number().min(0).max(100).nullable().optional(),
+  actualsHighThresholdPercent: z.number().min(0).max(100).nullable().optional(),
 });
 
 export async function GET(
@@ -58,6 +60,8 @@ export async function PATCH(
   if (parsed.data.startDate != null) data.startDate = parsed.data.startDate instanceof Date ? parsed.data.startDate : new Date(parsed.data.startDate);
   if (parsed.data.endDate !== undefined) data.endDate = parsed.data.endDate ? (parsed.data.endDate instanceof Date ? parsed.data.endDate : new Date(parsed.data.endDate)) : null;
   if (parsed.data.status != null) data.status = parsed.data.status;
+  if (parsed.data.actualsLowThresholdPercent !== undefined) data.actualsLowThresholdPercent = parsed.data.actualsLowThresholdPercent;
+  if (parsed.data.actualsHighThresholdPercent !== undefined) data.actualsHighThresholdPercent = parsed.data.actualsHighThresholdPercent;
 
   const project = await prisma.project.update({
     where: { id },

@@ -13,6 +13,8 @@ export default function EditProjectPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [status, setStatus] = useState<"Active" | "Closed">("Active");
+  const [actualsLowThresholdPercent, setActualsLowThresholdPercent] = useState<string>("");
+  const [actualsHighThresholdPercent, setActualsHighThresholdPercent] = useState<string>("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -25,6 +27,8 @@ export default function EditProjectPage() {
         setStartDate(p.startDate ? new Date(p.startDate).toISOString().slice(0, 10) : "");
         setEndDate(p.endDate ? new Date(p.endDate).toISOString().slice(0, 10) : "");
         setStatus(p.status ?? "Active");
+        setActualsLowThresholdPercent(p.actualsLowThresholdPercent != null ? String(p.actualsLowThresholdPercent) : "");
+        setActualsHighThresholdPercent(p.actualsHighThresholdPercent != null ? String(p.actualsHighThresholdPercent) : "");
       })
       .finally(() => setLoading(false));
   }, [id]);
@@ -41,6 +45,20 @@ export default function EditProjectPage() {
         startDate: new Date(startDate).toISOString(),
         endDate: endDate ? new Date(endDate).toISOString() : null,
         status,
+        actualsLowThresholdPercent:
+          actualsLowThresholdPercent === ""
+            ? null
+            : (() => {
+                const n = Number(actualsLowThresholdPercent);
+                return Number.isFinite(n) && n >= 0 && n <= 100 ? n : null;
+              })(),
+        actualsHighThresholdPercent:
+          actualsHighThresholdPercent === ""
+            ? null
+            : (() => {
+                const n = Number(actualsHighThresholdPercent);
+                return Number.isFinite(n) && n >= 0 && n <= 100 ? n : null;
+              })(),
       }),
     });
     if (!res.ok) {
@@ -113,6 +131,40 @@ export default function EditProjectPage() {
               <option value="Active">Active</option>
               <option value="Closed">Closed</option>
             </select>
+          </div>
+          <div className="border-t pt-4 mt-4 space-y-4">
+            <h3 className="text-sm font-medium text-black">Weekly actuals validation</h3>
+            <p className="text-sm text-gray-600">
+              Thresholds for highlighting cells in the Resourcing grid. Leave blank to use defaults.
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-black">Under-resourced threshold (%)</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={1}
+                value={actualsLowThresholdPercent}
+                onChange={(e) => setActualsLowThresholdPercent(e.target.value)}
+                placeholder="10"
+                className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+              />
+              <p className="text-xs text-gray-500 mt-0.5">If actual is lower than resourced by more than this %, cell is purple. Default: 10.</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-black">Over-resourced threshold (%)</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={1}
+                value={actualsHighThresholdPercent}
+                onChange={(e) => setActualsHighThresholdPercent(e.target.value)}
+                placeholder="5"
+                className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+              />
+              <p className="text-xs text-gray-500 mt-0.5">If actual is higher than resourced by more than this %, cell is red. Default: 5.</p>
+            </div>
           </div>
           <div className="flex gap-2 pt-4">
             <button
