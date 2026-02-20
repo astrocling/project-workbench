@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import Papa from "papaparse";
-import { parseFloatWeekHeader } from "@/lib/weekUtils";
+import { parseFloatWeekHeader, formatWeekKey } from "@/lib/weekUtils";
 
 /** Store week start as Monday 00:00 UTC so DB date matches grid week keys regardless of server timezone. */
 function toUTCMonday(weekStart: Date): Date {
@@ -89,6 +89,10 @@ export async function POST(req: NextRequest) {
     string,
     Array<{ personName: string; roleName: string }>
   >();
+  const projectFloatHoursMap = new Map<
+    string,
+    Array<{ personName: string; roleName: string; weeks: Array<{ weekStart: string; hours: number }> }>
+  >();
 
   for (const row of rows) {
     const name = (row[nameCol] ?? "").trim();
@@ -114,6 +118,9 @@ export async function POST(req: NextRequest) {
   const projectAssignments = JSON.parse(
     JSON.stringify(Object.fromEntries(projectAssignmentsMap))
   ) as Record<string, Array<{ personName: string; roleName: string }>>;
+  const projectFloatHours = JSON.parse(
+    JSON.stringify(Object.fromEntries(projectFloatHoursMap))
+  ) as Record<string, Array<{ personName: string; roleName: string; weeks: Array<{ weekStart: string; hours: number }> }>>;
 
   const peopleByKey = new Map<string, string>();
   const projectsByName = new Map<string, string>();
@@ -143,6 +150,18 @@ export async function POST(req: NextRequest) {
       });
     }
     peopleByKey.set(`${name}-${projectName}`.toLowerCase(), person.id);
+
+    // Store float hour data for all projects (for backfilling when project is created after import)
+    const weeks: Array<{ weekStart: string; hours: number }> = [];
+    for (const { key, weekStart } of weekColumns) {
+      const val = parseFloat((row[key] ?? "0").replace(/[^0-9.-]/g, "")) || 0;
+      const weekStartUTC = toUTCMonday(weekStart);
+      weeks.push({ weekStart: formatWeekKey(weekStartUTC), hours: val });
+    }
+    if (!projectFloatHoursMap.has(projectName)) {
+      projectFloatHoursMap.set(projectName, []);
+    }
+    projectFloatHoursMap.get(projectName)!.push({ personName: name, roleName, weeks });
 
     const projectId = projectsByName.get(projectName.toLowerCase());
     if (!projectId) continue;
@@ -222,11 +241,12 @@ export async function POST(req: NextRequest) {
   const unknownRolesJson = JSON.stringify(unknownRoles);
   const projectNamesJson = JSON.stringify(projectNames);
   const projectAssignmentsJson = JSON.stringify(projectAssignments);
+  const projectFloatHoursJson = JSON.stringify(projectFloatHours);
 
   const [run] = await prisma.$queryRaw<Array<{ id: string; completedAt: Date }>>`
     INSERT INTO "FloatImportRun" (
       "id", "completedAt", "uploadedByUserId",
-      "unknownRoles", "projectNames", "projectAssignments"
+      "unknownRoles", "projectNames", "projectAssignments", "projectFloatHours"
     )
     VALUES (
       gen_random_uuid()::text,
@@ -234,7 +254,8 @@ export async function POST(req: NextRequest) {
       ${uploadedByUserId},
       ${unknownRolesJson}::jsonb,
       ${projectNamesJson}::jsonb,
-      ${projectAssignmentsJson}::jsonb
+      ${projectAssignmentsJson}::jsonb,
+      ${projectFloatHoursJson}::jsonb
     )
     RETURNING id, "completedAt" as "completedAt"
   `;

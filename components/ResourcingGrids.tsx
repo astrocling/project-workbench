@@ -43,6 +43,8 @@ export function ResourcingGrids({
   const [ptoImpacts, setPtoImpacts] = useState<PTOImpact[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncingPlan, setSyncingPlan] = useState(false);
+  const [backfillingFloat, setBackfillingFloat] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [editingPlanned, setEditingPlanned] = useState<{ personId: string; weekKey: string; str: string } | null>(null);
   const [editingActual, setEditingActual] = useState<{ personId: string; weekKey: string; str: string } | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -86,7 +88,7 @@ export function ResourcingGrids({
       setReadyForFloat(rf ?? []);
       setPtoImpacts(pto ?? []);
     }).finally(() => setLoading(false));
-  }, [projectId]);
+  }, [projectId, refreshTrigger]);
 
   useEffect(() => {
     if (loading || !project) return;
@@ -262,6 +264,24 @@ export function ResourcingGrids({
       const rest = prev.filter((r) => r.personId !== personId);
       return [...rest, { projectId, personId, ready }];
     });
+  }
+
+  async function backfillFloat() {
+    if (!canEdit || backfillingFloat) return;
+    setBackfillingFloat(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/backfill-float`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.detail ?? data.error ?? "Backfill failed");
+        return;
+      }
+      setRefreshTrigger((t) => t + 1);
+    } finally {
+      setBackfillingFloat(false);
+    }
   }
 
   async function syncPlanFromFloat() {
@@ -636,14 +656,25 @@ export function ResourcingGrids({
                   <div className="flex items-center gap-3 flex-wrap">
                     <h3 className="font-medium">3. Float Actuals Grid</h3>
                     {canEdit && (
-                      <button
-                        type="button"
-                        onClick={syncPlanFromFloat}
-                        disabled={syncingPlan}
-                        className="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {syncingPlan ? "Syncing…" : "Sync plan from Float"}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={backfillFloat}
+                          disabled={backfillingFloat}
+                          className="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Import float hour data from the last CSV upload for this project"
+                        >
+                          {backfillingFloat ? "Backfilling…" : "Backfill float data"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={syncPlanFromFloat}
+                          disabled={syncingPlan}
+                          className="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {syncingPlan ? "Syncing…" : "Sync plan from Float"}
+                        </button>
+                      </>
                     )}
                   </div>
                 </th>

@@ -230,6 +230,8 @@ model FloatImportRun {
   unknownRoles       Json     @default("[]") // string array of role names
   projectNames       Json     @default("[]") // string[] of unique project names from CSV
   projectAssignments Json     @default("{}") // { "ProjectName": [{ personName, roleName }] }
+  /// Float hour data keyed by project name for backfilling when projects are created after import
+  projectFloatHours  Json     @default("{}") // { "ProjectName": [{ personName, roleName, weeks: [{ weekStart, hours }] }] }
   createdAt          DateTime @default(now())
 
   @@index([completedAt])

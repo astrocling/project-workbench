@@ -96,6 +96,47 @@ export async function POST(req: NextRequest) {
         update: { roleId },
       });
     }
+
+    // Backfill FloatScheduledHours from import (for projects created after import)
+    const projectFloatHours =
+      (lastImport?.projectFloatHours as Record<
+        string,
+        Array<{
+          personName: string;
+          roleName: string;
+          weeks: Array<{ weekStart: string; hours: number }>;
+        }>
+      >) ?? {};
+    const floatKey = Object.keys(projectFloatHours).find(
+      (k) => k.toLowerCase() === floatProjectName.toLowerCase()
+    );
+    const floatList = floatKey ? projectFloatHours[floatKey] : [];
+    for (const { personName, weeks } of floatList) {
+      const person = await prisma.person.findFirst({
+        where: { name: { equals: personName, mode: "insensitive" } },
+      });
+      if (!person) continue;
+      for (const { weekStart, hours } of weeks) {
+        if (!hours) continue;
+        const weekStartDate = new Date(weekStart + "T00:00:00.000Z");
+        await prisma.floatScheduledHours.upsert({
+          where: {
+            projectId_personId_weekStartDate: {
+              projectId: project.id,
+              personId: person.id,
+              weekStartDate,
+            },
+          },
+          create: {
+            projectId: project.id,
+            personId: person.id,
+            weekStartDate,
+            hours,
+          },
+          update: { hours },
+        });
+      }
+    }
   }
 
   return NextResponse.json(project);
