@@ -46,6 +46,11 @@ export type BudgetResult = {
   remainingHoursHigh: number;
   remainingDollarsLow: number;
   remainingDollarsHigh: number;
+  /** Budget minus forecast: expected hours/dollars left after spend to date + future allocations */
+  remainingAfterForecastHoursLow: number;
+  remainingAfterForecastHoursHigh: number;
+  remainingAfterForecastDollarsLow: number;
+  remainingAfterForecastDollarsHigh: number;
 };
 
 function toDateOnly(d: Date): Date {
@@ -164,6 +169,10 @@ export function computeBudgetRollups(
     remainingHoursHigh: totalBudgetHighHours - actualHoursToDate,
     remainingDollarsLow: totalBudgetLowDollars - actualDollarsToDate,
     remainingDollarsHigh: totalBudgetHighDollars - actualDollarsToDate,
+    remainingAfterForecastHoursLow: totalBudgetLowHours - forecastHours,
+    remainingAfterForecastHoursHigh: totalBudgetHighHours - forecastHours,
+    remainingAfterForecastDollarsLow: totalBudgetLowDollars - forecastDollars,
+    remainingAfterForecastDollarsHigh: totalBudgetHighDollars - forecastDollars,
   };
 }
 

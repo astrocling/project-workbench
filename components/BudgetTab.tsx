@@ -2,6 +2,66 @@
 
 import { useState, useEffect } from "react";
 
+function roundToQuarter(hours: number): number {
+  return Math.round(hours * 4) / 4;
+}
+
+function formatHours(hours: number): string {
+  return roundToQuarter(hours).toFixed(2).replace(/\.?0+$/, "");
+}
+
+function formatDollars(dollars: number): string {
+  return dollars.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function BudgetBurnPieChart({ burnPercent }: { burnPercent: number | null }) {
+  const size = 160;
+  const r = 56;
+  const stroke = 24;
+  const circumference = 2 * Math.PI * r;
+  const clamped = burnPercent == null ? 0 : Math.min(100, Math.max(0, burnPercent));
+  const dash = (clamped / 100) * circumference;
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="-rotate-90" aria-hidden>
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke="#e5e7eb"
+            strokeWidth={stroke}
+          />
+          {clamped > 0 && (
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              stroke="#2563eb"
+              strokeWidth={stroke}
+              strokeDasharray={`${dash} ${circumference}`}
+              strokeLinecap="round"
+            />
+          )}
+        </svg>
+        <div
+          className="absolute inset-0 flex items-center justify-center text-lg font-semibold text-black"
+          aria-live="polite"
+        >
+          {burnPercent != null ? `${burnPercent.toFixed(1)}%` : "—"}
+        </div>
+      </div>
+      <p className="text-xs text-black">Budget burn (hours)</p>
+    </div>
+  );
+}
+
 type BudgetLine = {
   id: string;
   type: string;
@@ -32,6 +92,20 @@ type Rollups = {
   remainingHoursHigh: number;
   remainingDollarsLow: number;
   remainingDollarsHigh: number;
+  remainingAfterForecastHoursLow: number;
+  remainingAfterForecastHoursHigh: number;
+  remainingAfterForecastDollarsLow: number;
+  remainingAfterForecastDollarsHigh: number;
+};
+
+type PeopleSummaryRow = {
+  personName: string;
+  roleName: string;
+  rate: number;
+  projectedHours: number;
+  projectedRevenue: number;
+  actualHours: number;
+  actualRevenue: number;
 };
 
 export function BudgetTab({
@@ -43,6 +117,7 @@ export function BudgetTab({
 }) {
   const [budgetLines, setBudgetLines] = useState<BudgetLine[]>([]);
   const [rollups, setRollups] = useState<Rollups | null>(null);
+  const [peopleSummary, setPeopleSummary] = useState<PeopleSummaryRow[]>([]);
   const [newLabel, setNewLabel] = useState("");
   const [newType, setNewType] = useState<"SOW" | "CO" | "Other">("SOW");
   const [newLowHours, setNewLowHours] = useState("");
@@ -57,6 +132,7 @@ export function BudgetTab({
       .then((d) => {
         setBudgetLines(d.budgetLines ?? []);
         setRollups(d.rollups ?? null);
+        setPeopleSummary(d.peopleSummary ?? []);
       })
       .finally(() => setLoading(false));
   }
@@ -99,18 +175,18 @@ export function BudgetTab({
       {rollups && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-white p-4 rounded border">
-            <p className="text-sm text-black">Planned to date</p>
-            <p className="font-medium">{rollups.plannedHoursToDate.toFixed(1)} hrs</p>
-          </div>
-          <div className="bg-white p-4 rounded border">
-            <p className="text-sm text-black">Actual to date</p>
-            <p className="font-medium">{rollups.actualHoursToDate.toFixed(1)} hrs</p>
-            <p className="text-sm text-black">${rollups.actualDollarsToDate.toLocaleString()}</p>
+            <p className="text-sm text-black">To date</p>
+            <p className="font-medium text-black">
+              {formatHours(rollups.actualHoursToDate ?? 0)} / {formatHours(rollups.plannedHoursToDate ?? 0)} hrs
+            </p>
+            <p className="text-sm text-black">
+              ${formatDollars(rollups.actualDollarsToDate ?? 0)} / ${formatDollars(rollups.forecastDollars ?? 0)}
+            </p>
           </div>
           <div className="bg-white p-4 rounded border">
             <p className="text-sm text-black">Forecast hours</p>
             <p className="font-medium">
-              {rollups.forecastHours.toFixed(1)}
+              {formatHours(rollups.forecastHours ?? 0)}
               {rollups.forecastIncomplete && (
                 <span className="text-amber-600 text-xs ml-1">(Incomplete)</span>
               )}
@@ -119,7 +195,7 @@ export function BudgetTab({
           <div className="bg-white p-4 rounded border">
             <p className="text-sm text-black">Forecast dollars</p>
             <p className="font-medium">
-              ${rollups.forecastDollars.toLocaleString()}
+              ${formatDollars(rollups.forecastDollars ?? 0)}
               {rollups.forecastIncomplete && (
                 <span className="text-amber-600 text-xs ml-1">(Incomplete)</span>
               )}
@@ -130,40 +206,78 @@ export function BudgetTab({
 
       {rollups && (
         <div className="bg-white p-4 rounded border">
-          <p className="text-sm font-medium text-black mb-3">Actuals and projected</p>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-black border-b">
-                <th className="pb-2 pr-4"></th>
-                <th className="pb-2 text-right">Hours</th>
-                <th className="pb-2 text-right">Dollars</th>
-              </tr>
-            </thead>
-            <tbody className="text-black">
-              <tr className="border-b">
-                <td className="py-1.5 pr-4">Actuals to date</td>
-                <td className="py-1.5 text-right">{(rollups.actualHoursToDate ?? 0).toFixed(1)}</td>
-                <td className="py-1.5 text-right">${(rollups.actualDollarsToDate ?? 0).toLocaleString()}</td>
-              </tr>
-              <tr className="border-b">
-                <td className="py-1.5 pr-4">Projected (current week)</td>
-                <td className="py-1.5 text-right">{(rollups.projectedCurrentWeekHours ?? 0).toFixed(1)}</td>
-                <td className="py-1.5 text-right">${(rollups.projectedCurrentWeekDollars ?? 0).toLocaleString()}</td>
-              </tr>
-              <tr className="border-b">
-                <td className="py-1.5 pr-4">Projected (future weeks)</td>
-                <td className="py-1.5 text-right">{(rollups.projectedFutureWeeksHours ?? 0).toFixed(1)}</td>
-                <td className="py-1.5 text-right">${(rollups.projectedFutureWeeksDollars ?? 0).toLocaleString()}</td>
-              </tr>
-              <tr className="font-medium">
-                <td className="pt-2 pr-4">Total</td>
-                <td className="pt-2 text-right">{(rollups.forecastHours ?? 0).toFixed(1)}</td>
-                <td className="pt-2 text-right">${(rollups.forecastDollars ?? 0).toLocaleString()}</td>
-              </tr>
-            </tbody>
-          </table>
+          <p className="text-sm font-medium text-black mb-3">Percent budget burn</p>
+          <BudgetBurnPieChart burnPercent={rollups.burnPercentHighHours} />
         </div>
       )}
+
+      {rollups && (() => {
+        const totalBudgetHours =
+          (rollups.remainingHoursHigh ?? 0) + (rollups.actualHoursToDate ?? 0);
+        const forecastHours = rollups.forecastHours ?? 0;
+        const remainingHours = totalBudgetHours - forecastHours;
+        return (
+          <div className="bg-white p-4 rounded border">
+            <p className="text-sm font-medium text-black mb-2">Expected remaining</p>
+            <p className="text-black text-sm mb-1">
+              Based on spend to date and future allocations:
+            </p>
+            <p className="font-medium text-black">{formatHours(remainingHours)} hrs left</p>
+          </div>
+        );
+      })()}
+
+      {peopleSummary.length > 0 && (() => {
+        const totals = peopleSummary.reduce(
+          (acc, row) => ({
+            projectedHours: acc.projectedHours + row.projectedHours,
+            projectedRevenue: acc.projectedRevenue + row.projectedRevenue,
+            actualHours: acc.actualHours + row.actualHours,
+            actualRevenue: acc.actualRevenue + row.actualRevenue,
+          }),
+          { projectedHours: 0, projectedRevenue: 0, actualHours: 0, actualRevenue: 0 }
+        );
+        return (
+          <div className="bg-white rounded border overflow-hidden">
+            <p className="text-sm font-medium text-black p-4 pb-2">People on project</p>
+            <table className="w-full text-sm border-t">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="text-left p-2">Person</th>
+                  <th className="text-left p-2">Role</th>
+                  <th className="text-right p-2">Rate</th>
+                  <th className="text-right p-2">Projected hrs</th>
+                  <th className="text-right p-2">Projected revenue</th>
+                  <th className="text-right p-2">Actual hrs</th>
+                  <th className="text-right p-2">Actual revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {peopleSummary.map((row, i) => (
+                  <tr key={i} className="border-t">
+                    <td className="p-2 text-black">{row.personName}</td>
+                    <td className="p-2 text-black">{row.roleName}</td>
+                    <td className="p-2 text-right text-black">${formatDollars(row.rate)}</td>
+                    <td className="p-2 text-right text-black">{formatHours(row.projectedHours)}</td>
+                    <td className="p-2 text-right text-black">${formatDollars(row.projectedRevenue)}</td>
+                    <td className="p-2 text-right text-black">{formatHours(row.actualHours)}</td>
+                    <td className="p-2 text-right text-black">${formatDollars(row.actualRevenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t bg-gray-50 font-medium">
+                  <td className="p-2 text-black" colSpan={3}>Total</td>
+                  <td className="p-2 text-right text-black">{formatHours(totals.projectedHours)}</td>
+                  <td className="p-2 text-right text-black">${formatDollars(totals.projectedRevenue)}</td>
+                  <td className="p-2 text-right text-black">{formatHours(totals.actualHours)}</td>
+                  <td className="p-2 text-right text-black">${formatDollars(totals.actualRevenue)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        );
+      })()}
 
       {rollups?.missingActuals && (
         <p className="text-amber-700 bg-amber-50 p-2 rounded text-sm">
@@ -245,10 +359,10 @@ export function BudgetTab({
             <tr key={bl.id} className="border-t">
               <td className="p-2">{bl.type}</td>
               <td className="p-2">{bl.label}</td>
-              <td className="p-2 text-right">{Number(bl.lowHours).toFixed(1)}</td>
-              <td className="p-2 text-right">{Number(bl.highHours).toFixed(1)}</td>
-              <td className="p-2 text-right">${Number(bl.lowDollars).toLocaleString()}</td>
-              <td className="p-2 text-right">${Number(bl.highDollars).toLocaleString()}</td>
+              <td className="p-2 text-right">{formatHours(Number(bl.lowHours))}</td>
+              <td className="p-2 text-right">{formatHours(Number(bl.highHours))}</td>
+              <td className="p-2 text-right">${formatDollars(Number(bl.lowDollars))}</td>
+              <td className="p-2 text-right">${formatDollars(Number(bl.highDollars))}</td>
             </tr>
           ))}
         </tbody>

@@ -83,6 +83,8 @@ describe("computeBudgetRollups", () => {
         result.projectedCurrentWeekDollars +
         result.projectedFutureWeeksDollars
     );
+    expect(result.remainingAfterForecastHoursLow).toBe(500 - (80 + 30 + 80));
+    expect(result.remainingAfterForecastDollarsLow).toBe(50000 - (8000 + 3000 + 8000));
   });
 
   it("marks missingActuals when completed week has planned>0 and null actuals", () => {

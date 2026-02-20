@@ -29,7 +29,7 @@ export async function GET(
     where: { id },
     include: {
       budgetLines: true,
-      assignments: { include: { role: true } },
+      assignments: { include: { role: true, person: true } },
       plannedHours: true,
       actualHours: true,
     },
@@ -104,9 +104,45 @@ export async function GET(
     budgetLines
   );
 
+  const peopleSummary: Array<{
+    personName: string;
+    roleName: string;
+    rate: number;
+    projectedHours: number;
+    projectedRevenue: number;
+    actualHours: number;
+    actualRevenue: number;
+  }> = [];
+  for (const a of project.assignments) {
+    let projectedHours = 0;
+    let actualHoursSum = 0;
+    for (const weekDate of allWeeks) {
+      const wk = weekDate.toISOString().slice(0, 10);
+      const ph = project.plannedHours.find(
+        (p) => p.personId === a.personId && p.weekStartDate.toISOString().slice(0, 10) === wk
+      );
+      const ah = project.actualHours.find(
+        (h) => h.personId === a.personId && h.weekStartDate.toISOString().slice(0, 10) === wk
+      );
+      projectedHours += ph ? Number(ph.hours) : 0;
+      if (ah?.hours != null) actualHoursSum += Number(ah.hours);
+    }
+    const rate = rateByRole.get(`${a.personId}-${a.roleId}`) ?? 0;
+    peopleSummary.push({
+      personName: a.person.name,
+      roleName: a.role.name,
+      rate,
+      projectedHours,
+      projectedRevenue: projectedHours * rate,
+      actualHours: actualHoursSum,
+      actualRevenue: actualHoursSum * rate,
+    });
+  }
+
   return NextResponse.json({
     budgetLines: project.budgetLines,
     rollups,
+    peopleSummary,
   });
 }
 
