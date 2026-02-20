@@ -187,6 +187,15 @@ export function ResourcingGrids({
     return "";
   };
 
+  const planningFloatTotalVarianceClass = (weekKey: string) => {
+    const hasAnyMismatch = assignments.some(
+      (a) =>
+        Math.round(getPlanned(a.personId, weekKey) * 100) !==
+        Math.round(getFloat(a.personId, weekKey) * 100)
+    );
+    return hasAnyMismatch ? "bg-red-200" : "";
+  };
+
   const colReady = "2.75rem";
   const colPerson = "9rem";
   const colRole = "6rem";
@@ -389,11 +398,14 @@ export function ResourcingGrids({
     }
     // Float (read-only)
     const pto = hasPTO(personId, weekKey);
+    const plannedVal = getPlanned(personId, weekKey);
+    const floatVal = value ?? 0;
+    const mismatch = hasPlanningMismatch(weekDate, plannedVal, floatVal, asOf);
     return (
       <td
         key={weekKey}
-        className={`p-1 border text-center ${pto ? "bg-blue-50" : ""}`}
-        title={pto ? "PTO/Holiday" : undefined}
+        className={`p-1 border text-center ${pto ? "bg-blue-50" : ""} ${mismatch ? "bg-red-100" : ""}`}
+        title={pto ? "PTO/Holiday" : mismatch ? "Planned ≠ Float" : undefined}
       >
         <span className="inline-block w-full text-center tabular-nums">{value ?? 0}</span>
       </td>
@@ -510,7 +522,7 @@ export function ResourcingGrids({
                 {weeks.map((w) => {
                   const k = formatWeekKey(w);
                   return (
-                    <td key={k} className="p-2 border text-center tabular-nums">
+                    <td key={k} className={`p-2 border text-center tabular-nums ${planningFloatTotalVarianceClass(k)}`}>
                       {formatTotal(plannedWeekTotal(k))}
                     </td>
                   );
@@ -693,7 +705,7 @@ export function ResourcingGrids({
                 {weeks.map((w) => {
                   const k = formatWeekKey(w);
                   return (
-                    <td key={k} className="p-2 border text-center tabular-nums">
+                    <td key={k} className={`p-2 border text-center tabular-nums ${planningFloatTotalVarianceClass(k)}`}>
                       {formatTotal(floatWeekTotal(k))}
                     </td>
                   );
