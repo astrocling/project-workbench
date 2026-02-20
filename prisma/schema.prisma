@@ -83,6 +83,9 @@ model Project {
   actualsLowThresholdPercent  Int?
   /// Actuals over resourced by more than this % → red (default 5)
   actualsHighThresholdPercent Int?
+  /// Use one bill rate for all roles instead of per-role rate card
+  useSingleRate  Boolean   @default(false)
+  singleBillRate Decimal?  @db.Decimal(10, 2)
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
 

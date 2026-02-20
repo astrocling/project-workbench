@@ -37,11 +37,17 @@ export async function GET(
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Build weekly rows for each assignment
+  const singleRate =
+    project.useSingleRate && project.singleBillRate != null
+      ? Number(project.singleBillRate)
+      : null;
   const rateByRole = new Map<string, number>();
   for (const a of project.assignments) {
     const override = a.billRateOverride ? Number(a.billRateOverride) : null;
     if (override != null) {
       rateByRole.set(`${a.personId}-${a.roleId}`, override);
+    } else if (singleRate != null) {
+      rateByRole.set(`${a.personId}-${a.roleId}`, singleRate);
     } else {
       const prr = await prisma.projectRoleRate.findUnique({
         where: {

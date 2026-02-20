@@ -59,3 +59,30 @@ export async function PATCH(
   });
   return NextResponse.json(rate);
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const role = (session.user as { role?: string }).role;
+  if (role !== "Admin" && role !== "Editor") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const { searchParams } = new URL(req.url);
+  const roleId = searchParams.get("roleId");
+  if (!roleId) {
+    return NextResponse.json({ error: "roleId required" }, { status: 400 });
+  }
+
+  await prisma.projectRoleRate.deleteMany({
+    where: {
+      projectId: id,
+      roleId,
+    },
+  });
+  return NextResponse.json({ ok: true });
+}

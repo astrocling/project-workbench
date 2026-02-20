@@ -12,6 +12,8 @@ const updateSchema = z.object({
   status: z.enum(["Active", "Closed"]).optional(),
   actualsLowThresholdPercent: z.number().min(0).max(100).nullable().optional(),
   actualsHighThresholdPercent: z.number().min(0).max(100).nullable().optional(),
+  useSingleRate: z.boolean().optional(),
+  singleBillRate: z.number().min(0).nullable().optional(),
 });
 
 export async function GET(
@@ -62,10 +64,18 @@ export async function PATCH(
   if (parsed.data.status != null) data.status = parsed.data.status;
   if (parsed.data.actualsLowThresholdPercent !== undefined) data.actualsLowThresholdPercent = parsed.data.actualsLowThresholdPercent;
   if (parsed.data.actualsHighThresholdPercent !== undefined) data.actualsHighThresholdPercent = parsed.data.actualsHighThresholdPercent;
+  if (parsed.data.useSingleRate !== undefined) data.useSingleRate = parsed.data.useSingleRate;
+  if (parsed.data.singleBillRate !== undefined) data.singleBillRate = parsed.data.singleBillRate;
+  if (parsed.data.useSingleRate === false) data.singleBillRate = null;
 
   const project = await prisma.project.update({
     where: { id },
     data: data as Parameters<typeof prisma.project.update>[0]["data"],
+    include: {
+      assignments: { include: { person: true, role: true } },
+      projectRoleRates: { include: { role: true } },
+      projectKeyRoles: { include: { person: true } },
+    },
   });
   return NextResponse.json(project);
 }
