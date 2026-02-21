@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ResourcingGrids } from "@/components/ResourcingGrids";
 import { BudgetTab } from "@/components/BudgetTab";
 import { RatesTab } from "@/components/RatesTab";
@@ -35,11 +35,7 @@ export function ProjectDetailTabs({
     missingActuals: boolean;
   } | null>(null);
 
-  useEffect(() => {
-    if (tab !== "budget") {
-      setBudgetStatus(null);
-      return;
-    }
+  const refetchBudgetStatus = useCallback(() => {
     fetch(`/api/projects/${projectId}/budget`)
       .then((r) => r.json())
       .then((d) => {
@@ -48,8 +44,16 @@ export function ProjectDetailTabs({
           missingActuals: d.rollups?.missingActuals ?? false,
         });
       })
-      .catch(() => setBudgetStatus(null));
-  }, [tab, projectId]);
+      .catch(() => {});
+  }, [projectId]);
+
+  useEffect(() => {
+    if (tab !== "budget" && tab !== "resourcing" && tab !== "overview") {
+      setBudgetStatus(null);
+      return;
+    }
+    refetchBudgetStatus();
+  }, [tab, projectId, refetchBudgetStatus]);
 
   const freshnessWarning =
     floatLastUpdated && (() => {
@@ -84,7 +88,7 @@ export function ProjectDetailTabs({
           ))}
         </nav>
         {tab === "budget" && budgetStatus && (
-          <p className="text-body-sm text-surface-700 dark:text-surface-200 flex items-center gap-3">
+          <p className="text-body-sm text-surface-700 dark:text-surface-200 flex items-center gap-3 flex-wrap">
             <span>
               Actuals through week of{" "}
               {budgetStatus.lastWeekWithActuals
@@ -103,7 +107,8 @@ export function ProjectDetailTabs({
           </p>
         )}
         {tab !== "budget" && (
-        <p className="text-body-sm text-surface-700 dark:text-surface-200 flex items-center gap-3">
+          <div className="space-y-1">
+            <p className="text-body-sm text-surface-700 dark:text-surface-200 flex items-center gap-3 flex-wrap">
           <span>Float last updated: {floatLastUpdated ? new Date(floatLastUpdated).toLocaleString() : "Never"}</span>
           {freshnessWarning && (
             <span
@@ -116,7 +121,32 @@ export function ProjectDetailTabs({
               Float Stale
             </span>
           )}
-        </p>
+          {tab === "resourcing" && budgetStatus?.missingActuals && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide uppercase ring-2 shadow-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 ring-amber-400 dark:ring-amber-500">
+                  Actuals Stale
+                </span>
+              )}
+            </p>
+            {tab === "overview" && (
+          <p className="text-body-sm text-surface-700 dark:text-surface-200 flex items-center gap-3 flex-wrap">
+            <span>
+              Actuals through week of{" "}
+              {budgetStatus?.lastWeekWithActuals
+                ? new Date(budgetStatus.lastWeekWithActuals + "T12:00:00").toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : "—"}
+            </span>
+            {budgetStatus?.missingActuals && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide uppercase ring-2 shadow-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 ring-amber-400 dark:ring-amber-500">
+                Actuals Stale
+              </span>
+            )}
+            </p>
+            )}
+          </div>
         )}
       </div>
 
@@ -130,6 +160,7 @@ export function ProjectDetailTabs({
           projectId={projectId}
           canEdit={canEdit}
           floatLastUpdated={floatLastUpdated}
+          onActualsUpdated={refetchBudgetStatus}
         />
       )}
       {tab === "budget" && <BudgetTab projectId={projectId} canEdit={canEdit} />}

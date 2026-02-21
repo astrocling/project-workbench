@@ -177,10 +177,10 @@ export function BudgetTab({
           <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 border-t-2 border-t-jblue-500">
             <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider mt-1">To date</p>
             <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
-              {formatHours(rollups.actualHoursToDate ?? 0)} / {formatHours(rollups.plannedHoursToDate ?? 0)} hrs
+              ${formatDollars(rollups.actualDollarsToDate ?? 0)} / ${formatDollars((rollups.remainingDollarsHigh ?? 0) + (rollups.actualDollarsToDate ?? 0))}
             </p>
             <p className="text-body-sm text-surface-500 dark:text-surface-400 mt-1">
-              ${formatDollars(rollups.actualDollarsToDate ?? 0)} / ${formatDollars(rollups.forecastDollars ?? 0)}
+              {formatHours(rollups.actualHoursToDate ?? 0)} / {formatHours((rollups.remainingHoursHigh ?? 0) + (rollups.actualHoursToDate ?? 0))} hrs
             </p>
           </div>
           <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 border-t-2 border-t-jblue-500">

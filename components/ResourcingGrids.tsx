@@ -24,10 +24,12 @@ export function ResourcingGrids({
   projectId,
   canEdit,
   floatLastUpdated,
+  onActualsUpdated,
 }: {
   projectId: string;
   canEdit: boolean;
   floatLastUpdated: Date | null;
+  onActualsUpdated?: () => void;
 }) {
   const [project, setProject] = useState<{
     startDate: string;
@@ -266,7 +268,7 @@ export function ResourcingGrids({
 
   async function updateActual(personId: string, weekKey: string, hours: number | null) {
     if (!canEdit) return;
-    await fetch(`/api/projects/${projectId}/actual-hours`, {
+    const res = await fetch(`/api/projects/${projectId}/actual-hours`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -275,6 +277,7 @@ export function ResourcingGrids({
         hours,
       }),
     });
+    if (res.ok) onActualsUpdated?.();
     setActual((prev) => {
       const rest = prev.filter(
         (a) => !(a.personId === personId && a.weekStartDate.startsWith(weekKey))
