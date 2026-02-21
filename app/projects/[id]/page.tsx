@@ -5,6 +5,7 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { getAsOfDate } from "@/lib/weekUtils";
 import { ProjectDetailTabs } from "./ProjectDetailTabs";
+import { ThemeToggle } from "@/components/ThemeProvider";
 
 export default async function ProjectDetailPage({
   params,
@@ -37,23 +38,31 @@ export default async function ProjectDetailPage({
   const canEdit = (session.user as { role?: string })?.role === "Admin" || (session.user as { role?: string })?.role === "Editor";
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b px-6 py-4 flex justify-between items-center">
+    <div className="min-h-screen bg-surface-50 dark:bg-dark-bg">
+      <header className="sticky top-0 z-30 h-14 flex items-center justify-between px-6 bg-white/80 dark:bg-dark-bg/90 backdrop-blur-md border-b border-surface-200 dark:border-dark-border">
         <div>
-          <Link href="/projects" className="text-blue-600 hover:underline text-sm">
+          <Link
+            href="/projects"
+            className="text-label-md text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200"
+          >
             ← Projects
           </Link>
-          <h1 className="text-xl font-semibold mt-1">{project.name}</h1>
-          <p className="text-sm text-black">{project.clientName} · {project.status}</p>
+          <h1 className="text-display-md font-bold text-surface-900 dark:text-white mt-1">
+            {project.name}
+          </h1>
+          <p className="text-body-sm text-surface-500 dark:text-surface-400">
+            {project.clientName} · {project.status}
+          </p>
         </div>
         <div className="flex gap-4 items-center">
-          <span className="text-sm text-black">
+          <span className="text-label-md text-surface-500 dark:text-surface-400">
             As-of: {getAsOfDate().toISOString().slice(0, 10)}
           </span>
+          <ThemeToggle />
           {canEdit && (
             <Link
               href={`/projects/${id}/edit`}
-              className="text-blue-600 hover:underline text-sm"
+              className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
             >
               Edit
             </Link>
@@ -61,7 +70,7 @@ export default async function ProjectDetailPage({
         </div>
       </header>
 
-      <main className="p-6 max-w-7xl mx-auto">
+      <main className="px-8 py-6 max-w-[1440px] mx-auto">
         <ProjectDetailTabs
           projectId={id}
           tab={tab}

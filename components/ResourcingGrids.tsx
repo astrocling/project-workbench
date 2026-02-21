@@ -109,7 +109,7 @@ export function ResourcingGrids({
     }
   }, [loading, project?.startDate, project?.endDate]);
 
-  if (loading || !project) return <p className="text-black">Loading grids...</p>;
+  if (loading || !project) return <p className="text-body-sm text-surface-700 dark:text-surface-200">Loading grids...</p>;
 
   const start = new Date(project.startDate);
   const end = project.endDate ? new Date(project.endDate) : new Date();
@@ -184,8 +184,8 @@ export function ResourcingGrids({
     if (isFutureWeek(weekDate, asOf)) return "";
     const planned = plannedWeekTotal(weekKey);
     const actual = actualWeekTotal(weekKey);
-    if (actual < planned && planned > 0 && (planned - actual) / planned > lowThresh / 100) return "bg-purple-200";
-    if (actual > planned && (actual - planned) / (planned || 1) > highThresh / 100) return "bg-red-200";
+    if (actual < planned && planned > 0 && (planned - actual) / planned > lowThresh / 100) return "bg-jblue-100 dark:bg-jblue-500/15";
+    if (actual > planned && (actual - planned) / (planned || 1) > highThresh / 100) return "bg-jred-100 dark:bg-jred-900/20";
     return "";
   };
 
@@ -195,7 +195,7 @@ export function ResourcingGrids({
         Math.round(getPlanned(a.personId, weekKey) * 100) !==
         Math.round(getFloat(a.personId, weekKey) * 100)
     );
-    return hasAnyMismatch ? "bg-red-200" : "";
+    return hasAnyMismatch ? "bg-jred-100 dark:bg-jred-900/20" : "";
   };
 
   const colReady = "2.75rem";
@@ -208,10 +208,10 @@ export function ResourcingGrids({
   const stickyColsWidth = "22.25rem";
   const tableMinWidth = `calc(${stickyColsWidth} + ${weeks.length} * ${colWeek})`;
   const sticky = "z-10";
-  const stickyBgHead = "bg-gray-50";
-  const stickyBgBody = "bg-white";
-  const stickyBgFoot = "bg-gray-100";
-  const stickyEdge = "shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)]";
+  const stickyBgHead = "bg-surface-50 dark:bg-dark-raised";
+  const stickyBgBody = "bg-white dark:bg-dark-surface";
+  const stickyBgFoot = "bg-surface-100 dark:bg-dark-raised";
+  const stickyEdge = "shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)] dark:shadow-[2px_0_4px_-1px_rgba(0,0,0,0.3)]";
 
   async function updatePlanned(personId: string, weekKey: string, hours: number) {
     if (!canEdit) return;
@@ -343,7 +343,7 @@ export function ResourcingGrids({
       return (
         <td
           key={weekKey}
-          className={`p-1 border overflow-hidden min-w-0 text-center ${mismatch ? "bg-red-100" : ""}`}
+          className={`p-1 border overflow-hidden min-w-0 text-center border-surface-200 dark:border-dark-border ${mismatch ? "bg-jred-100 dark:bg-jred-900/20" : ""}`}
         >
           {editable && canEdit ? (
             <input
@@ -382,9 +382,9 @@ export function ResourcingGrids({
       const varianceClass =
         !future && !missing
           ? actualVal < plannedVal && plannedVal > 0 && (plannedVal - actualVal) / plannedVal > lowThresh / 100
-            ? "bg-purple-200"
+            ? "bg-jblue-100 dark:bg-jblue-500/15"
             : actualVal > plannedVal && (actualVal - plannedVal) / (plannedVal || 1) > highThresh / 100
-              ? "bg-red-200"
+              ? "bg-jred-100 dark:bg-jred-900/20"
               : ""
           : "";
       const isEditing = editingActual?.personId === personId && editingActual?.weekKey === weekKey;
@@ -392,7 +392,7 @@ export function ResourcingGrids({
       return (
         <td
           key={weekKey}
-          className={`p-1 border overflow-hidden min-w-0 text-center ${missing ? "bg-amber-100" : ""} ${varianceClass}`}
+          className={`p-1 border overflow-hidden min-w-0 text-center border-surface-200 dark:border-dark-border ${missing ? "bg-amber-100 dark:bg-amber-900/20" : ""} ${varianceClass}`}
         >
           {editable && canEdit ? (
             <input
@@ -424,7 +424,7 @@ export function ResourcingGrids({
     return (
       <td
         key={weekKey}
-        className={`p-1 border text-center ${pto ? "bg-blue-50" : ""} ${mismatch ? "bg-red-100" : ""}`}
+        className={`p-1 border text-center border-surface-200 dark:border-dark-border ${pto ? "bg-jblue-50 dark:bg-jblue-500/10" : ""} ${mismatch ? "bg-jred-100 dark:bg-jred-900/20" : ""}`}
         title={pto ? "PTO/Holiday" : mismatch ? "Planned ≠ Float" : undefined}
       >
         <span className="inline-block w-full text-center tabular-nums">{value ?? 0}</span>
@@ -443,12 +443,12 @@ export function ResourcingGrids({
   return (
     <div className="space-y-6">
       {floatLastUpdated && (
-        <p className="text-sm text-black">
+        <p className="text-body-sm text-surface-700 dark:text-surface-200">
           Float last updated at {new Date(floatLastUpdated).toLocaleString()}
           {freshnessWarning && (
             <span
               className={`ml-2 ${
-                freshnessWarning.strong ? "text-red-600 font-medium" : "text-amber-600"
+                freshnessWarning.strong ? "text-jred-700 dark:text-jred-400 font-medium" : "text-amber-600 dark:text-amber-400"
               }`}
             >
               ({freshnessWarning.text})
@@ -458,7 +458,7 @@ export function ResourcingGrids({
       )}
 
       <div ref={scrollContainerRef} className="overflow-x-auto space-y-6">
-        <div style={{ minWidth: tableMinWidth }}>
+        <div className="rounded-lg border border-surface-200 dark:border-dark-border overflow-hidden shadow-card-light dark:shadow-card-dark bg-white dark:bg-dark-surface" style={{ minWidth: tableMinWidth }}>
           <table className="border text-sm border-collapse w-full" style={{ tableLayout: "fixed", minWidth: tableMinWidth }}>
             <colgroup>
               <col style={{ width: colReady }} />
@@ -470,21 +470,21 @@ export function ResourcingGrids({
               ))}
             </colgroup>
             <thead>
-              <tr className="bg-white">
+              <tr>
                 <th
                   colSpan={4}
-                  className={`p-2 border text-left sticky ${sticky} ${stickyBgHead} ${stickyEdge} z-20 bg-white`}
+                  className={`p-2 border text-left sticky ${sticky} ${stickyBgBody} ${stickyEdge} z-20 border-surface-200 dark:border-dark-border`}
                   style={{ left: 0, width: stickyColsWidth, minWidth: stickyColsWidth }}
                 >
-                  <h3 className="font-medium">1. Project Planning Grid</h3>
+                  <h3 className="text-display-md font-bold text-surface-900 dark:text-white">1. Project Planning Grid</h3>
                 </th>
                 <th colSpan={weeks.length} className="p-0 border-0 bg-transparent" aria-hidden />
               </tr>
-              <tr className="bg-gray-50">
+              <tr className={stickyBgHead}>
                 <th className={`p-2 border text-left sticky ${sticky} ${stickyBgHead}`} style={{ left: 0 }}>Ready</th>
                 <th className={`p-2 border text-left sticky ${sticky} ${stickyBgHead}`} style={{ left: colReady }}>Person</th>
                 <th className={`p-2 border text-left sticky ${sticky} ${stickyBgHead}`} style={{ left: leftRole }}>Role</th>
-                <th className={`p-2 border text-center bg-gray-100 sticky ${sticky} ${stickyEdge}`} style={{ left: leftTotal }}>Total</th>
+                <th className={`p-2 border text-center sticky ${sticky} ${stickyBgFoot} ${stickyEdge} border-surface-200 dark:border-dark-border`} style={{ left: leftTotal }}>Total</th>
                 {weeks.map((w, wi) => (
                   <th
                     key={formatWeekKey(w)}
@@ -506,6 +506,7 @@ export function ResourcingGrids({
                         type="checkbox"
                         checked={getReady(a.personId)}
                         onChange={(e) => toggleReady(a.personId, e.target.checked)}
+                        className="accent-jblue-500 h-4 w-4 rounded border-surface-300 dark:border-dark-muted"
                       />
                     ) : (
                       getReady(a.personId) ? "✓" : ""
@@ -530,7 +531,7 @@ export function ResourcingGrids({
               ))}
             </tbody>
             <tfoot>
-              <tr className="bg-gray-100 font-medium">
+              <tr className={`${stickyBgFoot} font-medium`}>
                 <td className={`p-2 border sticky ${sticky} ${stickyBgFoot}`} style={{ left: 0 }} />
                 <td className={`p-2 border sticky ${sticky} ${stickyBgFoot}`} style={{ left: colReady }} />
                 <td className={`p-2 border sticky ${sticky} ${stickyBgFoot}`} style={{ left: leftRole }}>Total</td>
@@ -552,7 +553,7 @@ export function ResourcingGrids({
           </table>
         </div>
 
-        <div style={{ minWidth: tableMinWidth }}>
+        <div className="rounded-lg border border-surface-200 dark:border-dark-border overflow-hidden shadow-card-light dark:shadow-card-dark bg-white dark:bg-dark-surface" style={{ minWidth: tableMinWidth }}>
           <table className="border text-sm border-collapse w-full" style={{ tableLayout: "fixed", minWidth: tableMinWidth }}>
             <colgroup>
               <col style={{ width: colReady }} />
@@ -564,21 +565,21 @@ export function ResourcingGrids({
               ))}
             </colgroup>
             <thead>
-              <tr className="bg-white">
+              <tr>
                 <th
                   colSpan={4}
-                  className={`p-2 border text-left sticky ${sticky} ${stickyBgHead} ${stickyEdge} z-20 bg-white`}
+                  className={`p-2 border text-left sticky ${sticky} ${stickyBgBody} ${stickyEdge} z-20 border-surface-200 dark:border-dark-border`}
                   style={{ left: 0, width: stickyColsWidth, minWidth: stickyColsWidth }}
                 >
-                  <h3 className="font-medium">2. Weekly Actuals Grid</h3>
+                  <h3 className="text-display-md font-bold text-surface-900 dark:text-white">2. Weekly Actuals Grid</h3>
                 </th>
                 <th colSpan={weeks.length} className="p-0 border-0 bg-transparent" aria-hidden />
               </tr>
-              <tr className="bg-gray-50">
+              <tr className={stickyBgHead}>
                 <th className={`p-2 border sticky ${sticky} ${stickyBgHead}`} style={{ left: 0 }} aria-hidden />
                 <th className={`p-2 border text-left sticky ${sticky} ${stickyBgHead}`} style={{ left: colReady }}>Person</th>
                 <th className={`p-2 border text-left sticky ${sticky} ${stickyBgHead}`} style={{ left: leftRole }}>Role</th>
-                <th className={`p-2 border text-center bg-gray-100 sticky ${sticky} ${stickyEdge}`} style={{ left: leftTotal }}>Total</th>
+                <th className={`p-2 border text-center sticky ${sticky} ${stickyBgFoot} ${stickyEdge} border-surface-200 dark:border-dark-border`} style={{ left: leftTotal }}>Total</th>
                 {weeks.map((w) => (
                   <th
                     key={formatWeekKey(w)}
@@ -613,7 +614,7 @@ export function ResourcingGrids({
               ))}
             </tbody>
             <tfoot>
-              <tr className="bg-gray-100 font-medium">
+              <tr className={`${stickyBgFoot} font-medium`}>
                 <td className={`p-2 border sticky ${sticky} ${stickyBgFoot}`} style={{ left: 0 }} />
                 <td className={`p-2 border sticky ${sticky} ${stickyBgFoot}`} style={{ left: colReady }} />
                 <td className={`p-2 border sticky ${sticky} ${stickyBgFoot}`} style={{ left: leftRole }}>Total</td>
@@ -635,7 +636,7 @@ export function ResourcingGrids({
           </table>
         </div>
 
-        <div style={{ minWidth: tableMinWidth }}>
+        <div className="rounded-lg border border-surface-200 dark:border-dark-border overflow-hidden shadow-card-light dark:shadow-card-dark bg-white dark:bg-dark-surface" style={{ minWidth: tableMinWidth }}>
           <table className="border text-sm border-collapse w-full" style={{ tableLayout: "fixed", minWidth: tableMinWidth }}>
             <colgroup>
               <col style={{ width: colReady }} />
@@ -647,21 +648,21 @@ export function ResourcingGrids({
               ))}
             </colgroup>
             <thead>
-              <tr className="bg-white">
+              <tr>
                 <th
                   colSpan={4}
-                  className={`p-2 border text-left sticky ${sticky} ${stickyBgHead} ${stickyEdge} z-20 bg-white`}
+                  className={`p-2 border text-left sticky ${sticky} ${stickyBgBody} ${stickyEdge} z-20 border-surface-200 dark:border-dark-border`}
                   style={{ left: 0, width: stickyColsWidth, minWidth: stickyColsWidth }}
                 >
                   <div className="flex items-center gap-3 flex-wrap">
-                    <h3 className="font-medium">3. Float Actuals Grid</h3>
+                    <h3 className="text-display-md font-bold text-surface-900 dark:text-white">3. Float Actuals Grid</h3>
                     {canEdit && (
                       <>
                         <button
                           type="button"
                           onClick={backfillFloat}
                           disabled={backfillingFloat}
-                          className="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-transparent hover:bg-surface-100 dark:hover:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
                           title="Import float hour data from the last CSV upload for this project"
                         >
                           {backfillingFloat ? "Backfilling…" : "Backfill float data"}
@@ -670,7 +671,7 @@ export function ResourcingGrids({
                           type="button"
                           onClick={syncPlanFromFloat}
                           disabled={syncingPlan}
-                          className="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-transparent hover:bg-surface-100 dark:hover:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
                         >
                           {syncingPlan ? "Syncing…" : "Sync plan from Float"}
                         </button>
@@ -680,18 +681,18 @@ export function ResourcingGrids({
                 </th>
                 <th colSpan={weeks.length} className="p-0 border-0 bg-transparent" aria-hidden />
               </tr>
-              <tr className="bg-gray-50">
+              <tr className={stickyBgHead}>
                 <th className={`p-2 border sticky ${sticky} ${stickyBgHead}`} style={{ left: 0 }} aria-hidden />
                 <th className={`p-2 border text-left sticky ${sticky} ${stickyBgHead}`} style={{ left: colReady }}>Person</th>
                 <th className={`p-2 border text-left sticky ${sticky} ${stickyBgHead}`} style={{ left: leftRole }}>Role</th>
-                <th className={`p-2 border text-center bg-gray-100 sticky ${sticky} ${stickyEdge}`} style={{ left: leftTotal }}>Total</th>
+                <th className={`p-2 border text-center sticky ${sticky} ${stickyBgFoot} ${stickyEdge} border-surface-200 dark:border-dark-border`} style={{ left: leftTotal }}>Total</th>
                 {weeks.map((w) => {
                   const k = formatWeekKey(w);
                   const colPTO = weekHasAnyPTO(k);
                   return (
                     <th
                       key={k}
-                      className={`p-1 border text-center text-xs whitespace-nowrap w-16 ${colPTO ? "bg-blue-50" : ""}`}
+                      className={`p-1 border text-center text-xs whitespace-nowrap w-16 border-surface-200 dark:border-dark-border ${colPTO ? "bg-jblue-50 dark:bg-jblue-500/10" : ""}`}
                       title={k}
                     >
                       {formatWeekShort(w)}
@@ -724,7 +725,7 @@ export function ResourcingGrids({
               ))}
             </tbody>
             <tfoot>
-              <tr className="bg-gray-100 font-medium">
+              <tr className={`${stickyBgFoot} font-medium`}>
                 <td className={`p-2 border sticky ${sticky} ${stickyBgFoot}`} style={{ left: 0 }} />
                 <td className={`p-2 border sticky ${sticky} ${stickyBgFoot}`} style={{ left: colReady }} />
                 <td className={`p-2 border sticky ${sticky} ${stickyBgFoot}`} style={{ left: leftRole }}>Total</td>

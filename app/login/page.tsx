@@ -3,6 +3,7 @@
 import { signIn } from "next-auth/react";
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ThemeToggle } from "@/components/ThemeProvider";
 
 function LoginForm() {
   const router = useRouter();
@@ -29,18 +30,21 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-surface-50 dark:bg-dark-bg relative">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       <form
         onSubmit={handleSubmit}
-        className="bg-white p-8 shadow rounded-lg w-full max-w-sm space-y-4"
+        className="bg-white dark:bg-dark-surface p-8 rounded-xl border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark w-full max-w-sm space-y-4"
       >
-        <h1 className="text-xl font-semibold">Project Workbench</h1>
-        <p className="text-sm text-black">Sign in with your email</p>
+        <h1 className="text-display-md font-bold text-surface-900 dark:text-white">Project Workbench</h1>
+        <p className="text-body-sm text-surface-500 dark:text-surface-400">Sign in with your email</p>
         {error && (
-          <p className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</p>
+          <p className="text-body-sm text-jred-700 dark:text-jred-400 bg-jred-50 dark:bg-jred-900/20 p-3 rounded-md">{error}</p>
         )}
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-black">
+          <label htmlFor="email" className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">
             Email
           </label>
           <input
@@ -49,11 +53,11 @@ function LoginForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+            className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
           />
         </div>
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-black">
+          <label htmlFor="password" className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">
             Password
           </label>
           <input
@@ -62,12 +66,12 @@ function LoginForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+            className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
           />
         </div>
         <button
           type="submit"
-          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+          className="w-full h-9 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm hover:shadow-card-hover transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
         >
           Sign in
         </button>
@@ -78,7 +82,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50">Loading...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-surface-50 dark:bg-dark-bg text-surface-700 dark:text-surface-200">Loading...</div>}>
       <LoginForm />
     </Suspense>
   );

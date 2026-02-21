@@ -197,7 +197,7 @@ export function RatesTab({
     }, 800);
   }
 
-  if (loading) return <p className="text-black">Loading...</p>;
+  if (loading) return <p className="text-body-sm text-surface-700 dark:text-surface-200">Loading...</p>;
 
   const useSingleRate = project?.useSingleRate === true;
   const missingRateRoles = useSingleRate
@@ -210,7 +210,7 @@ export function RatesTab({
     <div className="space-y-4">
       {missingRateRoles.length > 0 && (
         <div
-          className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800"
+          className="rounded-md border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 p-3 text-body-sm text-amber-800 dark:text-amber-400"
           role="alert"
         >
           <p className="font-medium">
@@ -224,13 +224,13 @@ export function RatesTab({
         </div>
       )}
       <div className="flex items-center gap-3">
-        <label className="flex items-center gap-2 text-sm text-black cursor-pointer">
+        <label className="flex items-center gap-2 text-body-sm text-surface-800 dark:text-surface-100 cursor-pointer">
           <input
             type="checkbox"
             checked={useSingleRate}
             onChange={(e) => setUseSingleRate(e.target.checked)}
             disabled={!canEdit}
-            className="rounded border-gray-300"
+            className="rounded border-surface-300 dark:border-dark-muted accent-jblue-500"
           />
           Use single rate for all roles
         </label>
@@ -238,7 +238,7 @@ export function RatesTab({
 
       {useSingleRate ? (
         <div className="space-y-2 max-w-xs">
-          <label className="block text-sm font-medium text-black">
+          <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">
             Bill rate ($)
           </label>
           <div className="flex items-center gap-2">
@@ -255,72 +255,74 @@ export function RatesTab({
               onBlur={() =>
                 singleRateEditing && saveSingleRate(singleRateEditing)
               }
-              className="border rounded px-2 py-1 w-24 border-gray-300"
+              className="h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 w-24 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
               readOnly={!canEdit}
             />
           </div>
-          <p className="text-xs text-gray-600">
+          <p className="text-label-md text-surface-500 dark:text-surface-400">
             This rate applies to all resourced roles on the project.
           </p>
         </div>
       ) : (
-        <table className="w-full text-sm border max-w-xl border-gray-200">
-          <thead>
-            <tr className="bg-gray-50">
-              <th className="text-left p-2">Role</th>
-              <th className="text-left p-2">Bill Rate ($)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {roles.map((role) => {
-              const existing = rateByRole.get(role.id);
-              const val =
-                editing[role.id] ??
-                (existing ? String(existing.billRate) : "");
-              const isMissing = missingRateRoleIds.has(role.id);
-              return (
-                <tr
-                  key={role.id}
-                  className={`border-t border-gray-200 ${
-                    isMissing ? "bg-amber-50" : ""
-                  }`}
-                >
-                  <td className="p-2">
-                    <span className="font-medium">{role.name}</span>
-                    {isMissing && (
-                      <span className="ml-2 text-xs font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
-                        Missing rate
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-2">
-                    {canEdit ? (
-                      <input
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={val}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setEditing((x) => ({ ...x, [role.id]: v }));
-                          scheduleSaveRate(role.id, v);
-                        }}
-                        onBlur={() =>
-                          val.trim() === ""
-                            ? removeRate(role.id)
-                            : val && saveRate(role.id, val)
-                        }
-                        className="border rounded px-2 py-1 w-24 border-gray-300"
-                      />
+        <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border overflow-hidden shadow-card-light dark:shadow-card-dark max-w-xl">
+          <table className="w-full text-body-sm border-collapse">
+            <thead>
+              <tr className="bg-surface-50 dark:bg-dark-raised border-b border-surface-200 dark:border-dark-border">
+                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Role</th>
+                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Bill Rate ($)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {roles.map((role) => {
+                const existing = rateByRole.get(role.id);
+                const val =
+                  editing[role.id] ??
+                  (existing ? String(existing.billRate) : "");
+                const isMissing = missingRateRoleIds.has(role.id);
+                return (
+                  <tr
+                    key={role.id}
+                    className={`border-b border-surface-100 dark:border-dark-border/60 last:border-0 ${
+                      isMissing ? "bg-amber-50 dark:bg-amber-900/20" : ""
+                    } hover:bg-jblue-500/[0.03] dark:hover:bg-jblue-500/[0.06] transition-colors duration-100`}
+                  >
+                    <td className="px-4 py-3">
+                      <span className="font-medium text-surface-800 dark:text-white">{role.name}</span>
+                      {isMissing && (
+                        <span className="ml-2 text-label-sm font-semibold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 rounded-full">
+                          Missing rate
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {canEdit ? (
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          value={val}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setEditing((x) => ({ ...x, [role.id]: v }));
+                            scheduleSaveRate(role.id, v);
+                          }}
+                          onBlur={() =>
+                            val.trim() === ""
+                              ? removeRate(role.id)
+                              : val && saveRate(role.id, val)
+                          }
+                          className="h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 w-24 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+                        />
                     ) : (
-                      existing ? existing.billRate : "—"
+                      <span className="tabular-nums text-surface-700 dark:text-surface-200">{existing ? existing.billRate : "—"}</span>
                     )}
                   </td>
                 </tr>
               );
             })}
           </tbody>
-        </table>
+          </table>
+        </div>
       )}
     </div>
   );

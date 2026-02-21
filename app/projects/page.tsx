@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAsOfDate } from "@/lib/weekUtils";
+import { ThemeToggle } from "@/components/ThemeProvider";
 
 export default async function ProjectsPage() {
   const session = await getServerSession(authOptions);
@@ -21,37 +22,42 @@ export default async function ProjectsPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b px-6 py-4 flex justify-between items-center">
-        <h1 className="text-xl font-semibold">Project Workbench</h1>
+    <div className="min-h-screen bg-surface-50 dark:bg-dark-bg">
+      <header className="sticky top-0 z-30 h-14 flex items-center justify-between px-6 bg-white/80 dark:bg-dark-bg/90 backdrop-blur-md border-b border-surface-200 dark:border-dark-border">
+        <h1 className="text-display-md font-bold text-surface-900 dark:text-white">
+          Project Workbench
+        </h1>
         <div className="flex gap-4 items-center">
-          <span className="text-sm text-black">
+          <span className="text-label-md text-surface-500 dark:text-surface-400">
             As-of: {getAsOfDate().toISOString().slice(0, 10)}
           </span>
+          <ThemeToggle />
           {(session.user as { role?: string })?.role === "Admin" && (
             <Link
               href="/admin/float-import"
-              className="text-sm text-blue-600 hover:underline"
+              className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
             >
               Admin
             </Link>
           )}
           <Link
             href="/api/auth/signout"
-            className="text-sm text-blue-600 hover:underline"
+            className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
           >
             Sign out
           </Link>
         </div>
       </header>
 
-      <main className="p-6 max-w-6xl mx-auto">
+      <main className="px-8 py-6 max-w-[1440px] mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-medium">Projects</h2>
+          <h2 className="text-display-lg font-bold text-surface-900 dark:text-white">
+            Projects
+          </h2>
           {(session.user as { role?: string })?.role !== "Viewer" && (
             <Link
               href="/projects/new"
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              className="h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm hover:shadow-card-hover transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
             >
               New Project
             </Link>
@@ -59,21 +65,33 @@ export default async function ProjectsPage() {
         </div>
 
         {lastImport && (
-          <p className="text-sm text-black mb-4">
+          <p className="text-body-sm text-surface-700 dark:text-surface-200 mb-4">
             Float last updated: {new Date(lastImport.completedAt).toLocaleString()}
           </p>
         )}
 
-        <div className="bg-white rounded border overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border overflow-hidden shadow-card-light dark:shadow-card-dark">
+          <table className="w-full text-body-sm border-collapse">
             <thead>
-              <tr className="bg-gray-50 border-b">
-                <th className="text-left p-3 font-medium">Name</th>
-                <th className="text-left p-3 font-medium">Client</th>
-                <th className="text-left p-3 font-medium">Status</th>
-                <th className="text-left p-3 font-medium">PMs</th>
-                <th className="text-left p-3 font-medium">PGM</th>
-                <th className="text-left p-3 font-medium">CAD</th>
+              <tr className="bg-surface-50 dark:bg-dark-raised border-b border-surface-200 dark:border-dark-border">
+                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
+                  Name
+                </th>
+                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
+                  Client
+                </th>
+                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
+                  Status
+                </th>
+                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
+                  PMs
+                </th>
+                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
+                  PGM
+                </th>
+                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
+                  CAD
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -82,29 +100,42 @@ export default async function ProjectsPage() {
                 const pgm = p.projectKeyRoles.find((kr) => kr.type === "PGM");
                 const cad = p.projectKeyRoles.find((kr) => kr.type === "CAD");
                 return (
-                  <tr key={p.id} className="border-b hover:bg-gray-50">
-                    <td className="p-3">
+                  <tr
+                    key={p.id}
+                    className="border-b border-surface-100 dark:border-dark-border/60 last:border-0 hover:bg-jblue-500/[0.03] dark:hover:bg-jblue-500/[0.06] transition-colors duration-100"
+                  >
+                    <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
                       <Link
                         href={`/projects/${p.id}`}
-                        className="text-blue-600 hover:underline"
+                        className="font-medium text-surface-800 dark:text-white text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200"
                       >
                         {p.name}
                       </Link>
                     </td>
-                    <td className="p-3">{p.clientName}</td>
-                    <td className="p-3">{p.status}</td>
-                    <td className="p-3">
+                    <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
+                      {p.clientName}
+                    </td>
+                    <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
+                      {p.status}
+                    </td>
+                    <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
                       {pms.map((kr) => kr.person.name).join(", ") || "—"}
                     </td>
-                    <td className="p-3">{pgm?.person.name ?? "—"}</td>
-                    <td className="p-3">{cad?.person.name ?? "—"}</td>
+                    <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
+                      {pgm?.person.name ?? "—"}
+                    </td>
+                    <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
+                      {cad?.person.name ?? "—"}
+                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
           {projects.length === 0 && (
-            <p className="p-8 text-center text-black">No projects yet.</p>
+            <p className="p-8 text-center text-surface-700 dark:text-surface-300">
+              No projects yet.
+            </p>
           )}
         </div>
       </main>

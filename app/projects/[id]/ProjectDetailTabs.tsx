@@ -31,15 +31,15 @@ export function ProjectDetailTabs({
 
   return (
     <div>
-      <nav className="flex gap-2 border-b mb-6">
+      <nav className="flex gap-2 border-b border-surface-200 dark:border-dark-border mb-6">
         {TABS.map((t) => (
           <Link
             key={t.id}
             href={`${base}?tab=${t.id}`}
-            className={`px-4 py-2 -mb-px border-b-2 ${
+            className={`px-4 py-2 -mb-px border-b-2 transition-colors ${
               tab === t.id
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-black hover:text-black"
+                ? "border-jblue-500 text-jblue-600 dark:text-jblue-400 font-semibold"
+                : "border-transparent text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-dark-raised rounded-t-md"
             }`}
           >
             {t.label}
@@ -49,10 +49,10 @@ export function ProjectDetailTabs({
 
       {tab === "overview" && (
         <div className="space-y-4">
-          <p className="text-sm text-black">
+          <p className="text-body-sm text-surface-700 dark:text-surface-200">
             Float last updated: {floatLastUpdated ? new Date(floatLastUpdated).toLocaleString() : "Never"}
           </p>
-          <p className="text-black">Budget summary and Float freshness. See Budget tab for details.</p>
+          <p className="text-body-md text-surface-700 dark:text-surface-200">Budget summary and Float freshness. See Budget tab for details.</p>
         </div>
       )}
       {tab === "resourcing" && (

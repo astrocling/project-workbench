@@ -90,64 +90,64 @@ export default function EditProjectPage() {
     router.refresh();
   }
 
-  if (loading) return <div className="p-6">Loading...</div>;
+  if (loading) return <div className="p-6 text-body-sm text-surface-700 dark:text-surface-200">Loading...</div>;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b px-6 py-4">
-        <Link href={`/projects/${id}`} className="text-blue-600 hover:underline">
+    <div className="min-h-screen bg-surface-50 dark:bg-dark-bg">
+      <header className="bg-white/80 dark:bg-dark-bg/90 backdrop-blur-md border-b border-surface-200 dark:border-dark-border px-6 py-4">
+        <Link href={`/projects/${id}`} className="text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium">
           ← Back to project
         </Link>
       </header>
-      <main className="p-6 max-w-xl">
-        <h1 className="text-xl font-semibold mb-6">Edit Project</h1>
-        <form onSubmit={handleSubmit} className="space-y-4 bg-white p-6 rounded border">
+      <main className="p-8 max-w-xl">
+        <h1 className="text-display-md font-bold text-surface-900 dark:text-white mb-6">Edit Project</h1>
+        <form onSubmit={handleSubmit} className="space-y-4 bg-white dark:bg-dark-surface p-6 rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark">
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</p>
+            <p className="text-body-sm text-jred-700 dark:text-jred-400 bg-jred-50 dark:bg-jred-900/20 p-3 rounded-md">{error}</p>
           )}
           <div>
-            <label className="block text-sm font-medium text-black">Name</label>
+            <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Name</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+              className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-black">Client</label>
+            <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Client</label>
             <input
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
               required
-              className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+              className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-black">Start Date</label>
+            <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Start Date</label>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               required
-              className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+              className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-black">End Date (optional)</label>
+            <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">End Date (optional)</label>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+              className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-black">Status</label>
+            <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Status</label>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as "Active" | "Closed")}
-              className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+              className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
             >
               <option value="Active">Active</option>
               <option value="Closed">Closed</option>
@@ -159,7 +159,7 @@ export default function EditProjectPage() {
               Assign PM, PGM, and CAD. Eligible: people with Director or Project Manager role from Float.
             </p>
             <div>
-              <label className="block text-sm font-medium text-black">PM (Project Manager)</label>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">PM (Project Manager)</label>
               <select
                 multiple
                 value={pmPersonIds}
@@ -167,7 +167,7 @@ export default function EditProjectPage() {
                   const opts = Array.from(e.target.selectedOptions, (o) => o.value);
                   setPmPersonIds(opts);
                 }}
-                className="mt-1 block w-full border border-gray-300 rounded px-3 py-2 min-h-[80px]"
+                className="mt-1 block w-full min-h-[80px] px-3 py-2 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
                 title="Hold Ctrl/Cmd to select multiple"
               >
                 {eligiblePeople.map((p) => (
@@ -179,11 +179,11 @@ export default function EditProjectPage() {
               <p className="text-xs text-gray-500 mt-0.5">Hold Ctrl/Cmd to select multiple.</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-black">PGM (Program Manager)</label>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">PGM (Program Manager)</label>
               <select
                 value={pgmPersonId}
                 onChange={(e) => setPgmPersonId(e.target.value)}
-                className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+                className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
               >
                 <option value="">— None —</option>
                 {eligiblePeople.map((p) => (
@@ -194,11 +194,11 @@ export default function EditProjectPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-black">CAD</label>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">CAD</label>
               <select
                 value={cadPersonId}
                 onChange={(e) => setCadPersonId(e.target.value)}
-                className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+                className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
               >
                 <option value="">— None —</option>
                 {eligiblePeople.map((p) => (
@@ -215,7 +215,7 @@ export default function EditProjectPage() {
               Thresholds for highlighting cells in the Resourcing grid. Leave blank to use defaults.
             </p>
             <div>
-              <label className="block text-sm font-medium text-black">Under-resourced threshold (%)</label>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Under-resourced threshold (%)</label>
               <input
                 type="number"
                 min={0}
@@ -224,12 +224,12 @@ export default function EditProjectPage() {
                 value={actualsLowThresholdPercent}
                 onChange={(e) => setActualsLowThresholdPercent(e.target.value)}
                 placeholder="10"
-                className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+                className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
               />
               <p className="text-xs text-gray-500 mt-0.5">If actual is lower than resourced by more than this %, cell is purple. Default: 10.</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-black">Over-resourced threshold (%)</label>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Over-resourced threshold (%)</label>
               <input
                 type="number"
                 min={0}
@@ -238,7 +238,7 @@ export default function EditProjectPage() {
                 value={actualsHighThresholdPercent}
                 onChange={(e) => setActualsHighThresholdPercent(e.target.value)}
                 placeholder="5"
-                className="mt-1 block w-full border border-gray-300 rounded px-3 py-2"
+                className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
               />
               <p className="text-xs text-gray-500 mt-0.5">If actual is higher than resourced by more than this %, cell is red. Default: 5.</p>
             </div>
@@ -246,13 +246,13 @@ export default function EditProjectPage() {
           <div className="flex gap-2 pt-4">
             <button
               type="submit"
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              className="h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
             >
               Save
             </button>
             <Link
               href={`/projects/${id}`}
-              className="px-4 py-2 border rounded hover:bg-gray-50"
+              className="h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-transparent hover:bg-surface-100 dark:hover:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm"
             >
               Cancel
             </Link>

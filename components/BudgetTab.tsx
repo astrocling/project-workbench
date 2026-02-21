@@ -34,7 +34,7 @@ function BudgetBurnPieChart({ burnPercent }: { burnPercent: number | null }) {
             cy={size / 2}
             r={r}
             fill="none"
-            stroke="#e5e7eb"
+            stroke="#E2E5EC"
             strokeWidth={stroke}
           />
           {clamped > 0 && (
@@ -43,7 +43,7 @@ function BudgetBurnPieChart({ burnPercent }: { burnPercent: number | null }) {
               cy={size / 2}
               r={r}
               fill="none"
-              stroke="#2563eb"
+              stroke="#1941FA"
               strokeWidth={stroke}
               strokeDasharray={`${dash} ${circumference}`}
               strokeLinecap="round"
@@ -51,13 +51,13 @@ function BudgetBurnPieChart({ burnPercent }: { burnPercent: number | null }) {
           )}
         </svg>
         <div
-          className="absolute inset-0 flex items-center justify-center text-lg font-semibold text-black"
+          className="absolute inset-0 flex items-center justify-center text-title-lg font-semibold text-surface-900 dark:text-white tabular-nums"
           aria-live="polite"
         >
           {burnPercent != null ? `${burnPercent.toFixed(1)}%` : "—"}
         </div>
       </div>
-      <p className="text-xs text-black">Budget burn (hours)</p>
+      <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider">Budget burn (hours)</p>
     </div>
   );
 }
@@ -168,36 +168,36 @@ export function BudgetTab({
     }
   }
 
-  if (loading) return <p className="text-black">Loading...</p>;
+  if (loading) return <p className="text-body-sm text-surface-700 dark:text-surface-200">Loading...</p>;
 
   return (
     <div className="space-y-6">
       {rollups && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white p-4 rounded border">
-            <p className="text-sm text-black">To date</p>
-            <p className="font-medium text-black">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 border-t-2 border-t-jblue-500">
+            <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider mt-1">To date</p>
+            <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
               {formatHours(rollups.actualHoursToDate ?? 0)} / {formatHours(rollups.plannedHoursToDate ?? 0)} hrs
             </p>
-            <p className="text-sm text-black">
+            <p className="text-body-sm text-surface-500 dark:text-surface-400 mt-1">
               ${formatDollars(rollups.actualDollarsToDate ?? 0)} / ${formatDollars(rollups.forecastDollars ?? 0)}
             </p>
           </div>
-          <div className="bg-white p-4 rounded border">
-            <p className="text-sm text-black">Forecast hours</p>
-            <p className="font-medium">
+          <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 border-t-2 border-t-jblue-500">
+            <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider mt-1">Forecast hours</p>
+            <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
               {formatHours(rollups.forecastHours ?? 0)}
               {rollups.forecastIncomplete && (
-                <span className="text-amber-600 text-xs ml-1">(Incomplete)</span>
+                <span className="text-amber-600 dark:text-amber-400 text-label-md font-semibold ml-1">(Incomplete)</span>
               )}
             </p>
           </div>
-          <div className="bg-white p-4 rounded border">
-            <p className="text-sm text-black">Forecast dollars</p>
-            <p className="font-medium">
+          <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 border-t-2 border-t-jblue-500">
+            <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider mt-1">Forecast dollars</p>
+            <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
               ${formatDollars(rollups.forecastDollars ?? 0)}
               {rollups.forecastIncomplete && (
-                <span className="text-amber-600 text-xs ml-1">(Incomplete)</span>
+                <span className="text-amber-600 dark:text-amber-400 text-label-md font-semibold ml-1">(Incomplete)</span>
               )}
             </p>
           </div>
@@ -205,8 +205,8 @@ export function BudgetTab({
       )}
 
       {rollups && (
-        <div className="bg-white p-4 rounded border">
-          <p className="text-sm font-medium text-black mb-3">Percent budget burn</p>
+        <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
+          <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-3">Percent budget burn</p>
           <BudgetBurnPieChart burnPercent={rollups.burnPercentHighHours} />
         </div>
       )}
@@ -217,12 +217,12 @@ export function BudgetTab({
         const forecastHours = rollups.forecastHours ?? 0;
         const remainingHours = totalBudgetHours - forecastHours;
         return (
-          <div className="bg-white p-4 rounded border">
-            <p className="text-sm font-medium text-black mb-2">Expected remaining</p>
-            <p className="text-black text-sm mb-1">
+          <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
+            <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-2">Expected remaining</p>
+            <p className="text-body-sm text-surface-500 dark:text-surface-400 mb-1">
               Based on spend to date and future allocations:
             </p>
-            <p className="font-medium text-black">{formatHours(remainingHours)} hrs left</p>
+            <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums">{formatHours(remainingHours)} hrs left</p>
           </div>
         );
       })()}
@@ -238,40 +238,40 @@ export function BudgetTab({
           { projectedHours: 0, projectedRevenue: 0, actualHours: 0, actualRevenue: 0 }
         );
         return (
-          <div className="bg-white rounded border overflow-hidden">
-            <p className="text-sm font-medium text-black p-4 pb-2">People on project</p>
-            <table className="w-full text-sm border-t">
+          <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark overflow-hidden">
+            <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 p-5 pb-2">People on project</p>
+            <table className="w-full text-body-sm border-collapse">
               <thead>
-                <tr className="bg-gray-50">
-                  <th className="text-left p-2">Person</th>
-                  <th className="text-left p-2">Role</th>
-                  <th className="text-right p-2">Rate</th>
-                  <th className="text-right p-2">Projected hrs</th>
-                  <th className="text-right p-2">Projected revenue</th>
-                  <th className="text-right p-2">Actual hrs</th>
-                  <th className="text-right p-2">Actual revenue</th>
+                <tr className="bg-surface-50 dark:bg-dark-raised border-b border-surface-200 dark:border-dark-border">
+                  <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Person</th>
+                  <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Role</th>
+                  <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Rate</th>
+                  <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Projected hrs</th>
+                  <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Projected revenue</th>
+                  <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Actual hrs</th>
+                  <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Actual revenue</th>
                 </tr>
               </thead>
               <tbody>
                 {peopleSummary.map((row, i) => (
-                  <tr key={i} className="border-t">
-                    <td className="p-2 text-black">{row.personName}</td>
-                    <td className="p-2 text-black">{row.roleName}</td>
-                    <td className="p-2 text-right text-black">${formatDollars(row.rate)}</td>
-                    <td className="p-2 text-right text-black">{formatHours(row.projectedHours)}</td>
-                    <td className="p-2 text-right text-black">${formatDollars(row.projectedRevenue)}</td>
-                    <td className="p-2 text-right text-black">{formatHours(row.actualHours)}</td>
-                    <td className="p-2 text-right text-black">${formatDollars(row.actualRevenue)}</td>
+                  <tr key={i} className="border-b border-surface-100 dark:border-dark-border/60 last:border-0 hover:bg-jblue-500/[0.03] dark:hover:bg-jblue-500/[0.06] transition-colors duration-100">
+                    <td className="px-4 py-3 font-medium text-surface-800 dark:text-white">{row.personName}</td>
+                    <td className="px-4 py-3 text-surface-700 dark:text-surface-200">{row.roleName}</td>
+                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">${formatDollars(row.rate)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">{formatHours(row.projectedHours)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">${formatDollars(row.projectedRevenue)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">{formatHours(row.actualHours)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">${formatDollars(row.actualRevenue)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t bg-gray-50 font-medium">
-                  <td className="p-2 text-black" colSpan={3}>Total</td>
-                  <td className="p-2 text-right text-black">{formatHours(totals.projectedHours)}</td>
-                  <td className="p-2 text-right text-black">${formatDollars(totals.projectedRevenue)}</td>
-                  <td className="p-2 text-right text-black">{formatHours(totals.actualHours)}</td>
-                  <td className="p-2 text-right text-black">${formatDollars(totals.actualRevenue)}</td>
+                <tr className="border-t border-surface-200 dark:border-dark-border bg-surface-100 dark:bg-dark-raised font-medium">
+                  <td className="px-4 py-3 text-surface-800 dark:text-surface-100" colSpan={3}>Total</td>
+                  <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">{formatHours(totals.projectedHours)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">${formatDollars(totals.projectedRevenue)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">{formatHours(totals.actualHours)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">${formatDollars(totals.actualRevenue)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -280,7 +280,7 @@ export function BudgetTab({
       })()}
 
       {rollups?.missingActuals && (
-        <p className="text-amber-700 bg-amber-50 p-2 rounded text-sm">
+        <p className="text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-3 rounded-md text-body-sm">
           Missing actuals for some completed weeks with planned hours. Forecast marked incomplete.
         </p>
       )}
@@ -291,12 +291,12 @@ export function BudgetTab({
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
             placeholder="Label"
-            className="border rounded px-2 py-1"
+            className="h-9 w-full px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400 max-w-[12rem]"
           />
           <select
             value={newType}
             onChange={(e) => setNewType(e.target.value as "SOW" | "CO" | "Other")}
-            className="border rounded px-2 py-1"
+            className="h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 appearance-none pr-8 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
           >
             <option value="SOW">SOW</option>
             <option value="CO">CO</option>
@@ -308,7 +308,7 @@ export function BudgetTab({
             value={newLowHours}
             onChange={(e) => setNewLowHours(e.target.value)}
             placeholder="Low hrs"
-            className="border rounded px-2 py-1 w-20"
+            className="h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 w-20 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
           />
           <input
             type="number"
@@ -316,7 +316,7 @@ export function BudgetTab({
             value={newHighHours}
             onChange={(e) => setNewHighHours(e.target.value)}
             placeholder="High hrs"
-            className="border rounded px-2 py-1 w-20"
+            className="h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 w-20 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
           />
           <input
             type="number"
@@ -324,7 +324,7 @@ export function BudgetTab({
             value={newLowDollars}
             onChange={(e) => setNewLowDollars(e.target.value)}
             placeholder="Low $"
-            className="border rounded px-2 py-1 w-24"
+            className="h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 w-24 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
           />
           <input
             type="number"
@@ -332,41 +332,43 @@ export function BudgetTab({
             value={newHighDollars}
             onChange={(e) => setNewHighDollars(e.target.value)}
             placeholder="High $"
-            className="border rounded px-2 py-1 w-24"
+            className="h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 w-24 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
           />
           <button
             type="submit"
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            className="h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm hover:shadow-card-hover transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
           >
             Add
           </button>
         </form>
       )}
 
-      <table className="w-full text-sm border">
-        <thead>
-          <tr className="bg-gray-50">
-            <th className="text-left p-2">Type</th>
-            <th className="text-left p-2">Label</th>
-            <th className="text-right p-2">Low Hrs</th>
-            <th className="text-right p-2">High Hrs</th>
-            <th className="text-right p-2">Low $</th>
-            <th className="text-right p-2">High $</th>
-          </tr>
-        </thead>
-        <tbody>
-          {budgetLines.map((bl) => (
-            <tr key={bl.id} className="border-t">
-              <td className="p-2">{bl.type}</td>
-              <td className="p-2">{bl.label}</td>
-              <td className="p-2 text-right">{formatHours(Number(bl.lowHours))}</td>
-              <td className="p-2 text-right">{formatHours(Number(bl.highHours))}</td>
-              <td className="p-2 text-right">${formatDollars(Number(bl.lowDollars))}</td>
-              <td className="p-2 text-right">${formatDollars(Number(bl.highDollars))}</td>
+      <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border overflow-hidden shadow-card-light dark:shadow-card-dark">
+        <table className="w-full text-body-sm border-collapse">
+          <thead>
+            <tr className="bg-surface-50 dark:bg-dark-raised border-b border-surface-200 dark:border-dark-border">
+              <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Type</th>
+              <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Label</th>
+              <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Low Hrs</th>
+              <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">High Hrs</th>
+              <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Low $</th>
+              <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">High $</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {budgetLines.map((bl) => (
+              <tr key={bl.id} className="border-b border-surface-100 dark:border-dark-border/60 last:border-0 hover:bg-jblue-500/[0.03] dark:hover:bg-jblue-500/[0.06] transition-colors duration-100">
+                <td className="px-4 py-3 text-surface-700 dark:text-surface-200">{bl.type}</td>
+                <td className="px-4 py-3 font-medium text-surface-800 dark:text-white">{bl.label}</td>
+                <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">{formatHours(Number(bl.lowHours))}</td>
+                <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">{formatHours(Number(bl.highHours))}</td>
+                <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">${formatDollars(Number(bl.lowDollars))}</td>
+                <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">${formatDollars(Number(bl.highDollars))}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
