@@ -204,6 +204,65 @@
   }
 }
 
+/* Resourcing grid sticky columns - fully opaque, borders stay visible when scrolling */
+.resourcing-sticky-body,
+.resourcing-sticky-even,
+.resourcing-sticky-odd,
+.resourcing-sticky-head,
+.resourcing-sticky-foot {
+  position: sticky !important;
+  z-index: 30;
+  box-shadow: inset 0 0 0 1px #e2e5ec;
+}
+.dark .resourcing-sticky-body,
+.dark .resourcing-sticky-even,
+.dark .resourcing-sticky-odd,
+.dark .resourcing-sticky-head,
+.dark .resourcing-sticky-foot {
+  box-shadow: inset 0 0 0 1px #1e2e47;
+}
+.resourcing-sticky-body {
+  background-color: #ffffff !important;
+}
+.dark .resourcing-sticky-body {
+  background-color: #0e1628 !important;
+}
+.resourcing-sticky-even {
+  background-color: #ffffff !important;
+}
+.resourcing-sticky-odd {
+  background-color: #f7f8fa !important;
+}
+.resourcing-sticky-head {
+  background-color: #f7f8fa !important;
+}
+.resourcing-sticky-foot {
+  background-color: #eff1f5 !important;
+}
+.dark .resourcing-sticky-even {
+  background-color: #0e1628 !important;
+}
+.dark .resourcing-sticky-odd {
+  background-color: #152035 !important;
+}
+.dark .resourcing-sticky-head {
+  background-color: #152035 !important;
+}
+.dark .resourcing-sticky-foot {
+  background-color: #152035 !important;
+}
+
+/* Total header cell - same outline as Role, plus right-edge shadow (no stickyEdge to avoid override) */
+th.resourcing-total-header {
+  outline: 1px solid #000000 !important;
+  outline-offset: -1px !important;
+  box-shadow: 2px 0 4px -1px rgba(0, 0, 0, 0.08) !important;
+}
+.dark th.resourcing-total-header {
+  outline-color: #ffffff !important;
+  box-shadow: 2px 0 4px -1px rgba(0, 0, 0, 0.3) !important;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;
