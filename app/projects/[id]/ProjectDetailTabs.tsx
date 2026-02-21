@@ -29,29 +29,56 @@ export function ProjectDetailTabs({
   const pathname = usePathname();
   const base = pathname;
 
+  const freshnessWarning =
+    floatLastUpdated && (() => {
+      const elapsed = (Date.now() - new Date(floatLastUpdated).getTime()) / (60 * 60 * 1000);
+      if (elapsed > 24) return { strong: true };
+      if (elapsed > 6) return { strong: false };
+      return null;
+    })();
+
   return (
     <div>
-      <nav className="flex gap-2 border-b border-surface-200 dark:border-dark-border mb-6">
-        {TABS.map((t) => (
-          <Link
-            key={t.id}
-            href={`${base}?tab=${t.id}`}
-            className={`px-4 py-2 -mb-px border-b-2 transition-colors ${
-              tab === t.id
-                ? "border-jblue-500 text-jblue-600 dark:text-jblue-400 font-semibold"
-                : "border-transparent text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-dark-raised rounded-t-md"
-            }`}
-          >
-            {t.label}
-          </Link>
-        ))}
-      </nav>
+      <div className="sticky top-16 z-20 -mx-8 -mt-6 px-8 pt-6 pb-4 mb-6 bg-surface-50 dark:bg-dark-bg border-b border-surface-200 dark:border-dark-border">
+        <Link
+          href="/projects"
+          className="block text-label-md text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 mb-3"
+        >
+          ← Projects
+        </Link>
+        <nav className="flex gap-2 mb-3">
+          {TABS.map((t) => (
+            <Link
+              key={t.id}
+              href={`${base}?tab=${t.id}`}
+              className={`px-4 py-2 -mb-px border-b-2 transition-colors ${
+                tab === t.id
+                  ? "border-jblue-500 text-jblue-600 dark:text-jblue-400 font-semibold"
+                  : "border-transparent text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-dark-raised rounded-t-md"
+              }`}
+            >
+              {t.label}
+            </Link>
+          ))}
+        </nav>
+        <p className="text-body-sm text-surface-700 dark:text-surface-200 flex items-center gap-3">
+          <span>Float last updated: {floatLastUpdated ? new Date(floatLastUpdated).toLocaleString() : "Never"}</span>
+          {freshnessWarning && (
+            <span
+              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide uppercase ring-2 shadow-md ${
+                freshnessWarning.strong
+                  ? "bg-jred-100 text-jred-700 dark:bg-jred-900/30 dark:text-jred-400 ring-jred-400 dark:ring-jred-500"
+                  : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 ring-amber-400 dark:ring-amber-500"
+              }`}
+            >
+              Float Stale
+            </span>
+          )}
+        </p>
+      </div>
 
       {tab === "overview" && (
         <div className="space-y-4">
-          <p className="text-body-sm text-surface-700 dark:text-surface-200">
-            Float last updated: {floatLastUpdated ? new Date(floatLastUpdated).toLocaleString() : "Never"}
-          </p>
           <p className="text-body-md text-surface-700 dark:text-surface-200">Budget summary and Float freshness. See Budget tab for details.</p>
         </div>
       )}

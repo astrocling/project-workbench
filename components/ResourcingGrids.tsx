@@ -232,7 +232,7 @@ export function ResourcingGrids({
   const leftTotal = "17.75rem";
   const stickyColsWidth = "22.25rem";
   const tableMinWidth = `calc(${stickyColsWidth} + ${weeks.length} * ${colWeek})`;
-  const sticky = "sticky z-30";
+  const sticky = "sticky z-10";
   const stickyBgHead = "bg-surface-50 dark:bg-dark-raised";
   const stickyBgBody = "bg-white dark:bg-dark-surface";
   const stickyBgFoot = "bg-surface-100 dark:bg-dark-raised";
@@ -464,31 +464,8 @@ export function ResourcingGrids({
     );
   };
 
-  const freshnessWarning =
-    floatLastUpdated && (() => {
-      const elapsed = (Date.now() - new Date(floatLastUpdated).getTime()) / (60 * 60 * 1000);
-      if (elapsed > 24) return { text: "Float data is over 24 hours old", strong: true };
-      if (elapsed > 6) return { text: "Float data is over 6 hours old", strong: false };
-      return null;
-    })();
-
   return (
     <div className="space-y-6">
-      {floatLastUpdated && (
-        <p className="text-body-sm text-surface-700 dark:text-surface-200">
-          Float last updated at {new Date(floatLastUpdated).toLocaleString()}
-          {freshnessWarning && (
-            <span
-              className={`ml-2 ${
-                freshnessWarning.strong ? "text-jred-700 dark:text-jred-400 font-medium" : "text-amber-600 dark:text-amber-400"
-              }`}
-            >
-              ({freshnessWarning.text})
-            </span>
-          )}
-        </p>
-      )}
-
       <div ref={scrollContainerRef} className="overflow-x-auto space-y-6">
         <div className="rounded-lg border border-surface-200 dark:border-dark-border overflow-clip shadow-card-light dark:shadow-card-dark bg-white dark:bg-dark-surface" style={{ minWidth: tableMinWidth }}>
           <table className="border-separate border-spacing-0 text-sm w-full" style={{ tableLayout: "fixed", minWidth: tableMinWidth }}>

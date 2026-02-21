@@ -39,21 +39,10 @@ export default async function ProjectDetailPage({
 
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-dark-bg">
-      <header className="sticky top-0 z-30 h-14 flex items-center justify-between px-6 bg-white/80 dark:bg-dark-bg/90 backdrop-blur-md border-b border-surface-200 dark:border-dark-border">
-        <div>
-          <Link
-            href="/projects"
-            className="text-label-md text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200"
-          >
-            ← Projects
-          </Link>
-          <h1 className="text-display-md font-bold text-surface-900 dark:text-white mt-1">
-            {project.name}
-          </h1>
-          <p className="text-body-sm text-surface-500 dark:text-surface-400">
-            {project.clientName} · {project.status}
-          </p>
-        </div>
+      <header className="sticky top-0 z-30 flex items-center justify-between px-6 py-4 bg-surface-50 dark:bg-dark-bg border-b border-surface-200 dark:border-dark-border">
+        <h1 className="text-display-md font-bold text-surface-900 dark:text-white">
+          {project.name}
+        </h1>
         <div className="flex gap-4 items-center">
           <span className="text-label-md text-surface-500 dark:text-surface-400">
             As-of: {getAsOfDate().toISOString().slice(0, 10)}

@@ -211,7 +211,7 @@
 .resourcing-sticky-head,
 .resourcing-sticky-foot {
   position: sticky !important;
-  z-index: 30;
+  z-index: 10;
   box-shadow: inset 0 0 0 1px #e2e5ec;
 }
 .dark .resourcing-sticky-body,
