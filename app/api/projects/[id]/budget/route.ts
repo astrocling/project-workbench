@@ -104,6 +104,15 @@ export async function GET(
     budgetLines
   );
 
+  // Last week (by weekStartDate) that has at least one actual hour
+  const weeksWithActuals = weeklyRows
+    .filter((r) => r.actualHours != null)
+    .map((r) => r.weekStartDate.getTime());
+  const lastWeekWithActuals =
+    weeksWithActuals.length > 0
+      ? new Date(Math.max(...weeksWithActuals)).toISOString().slice(0, 10)
+      : null;
+
   const peopleSummary: Array<{
     personName: string;
     roleName: string;
@@ -142,6 +151,7 @@ export async function GET(
   return NextResponse.json({
     budgetLines: project.budgetLines,
     rollups,
+    lastWeekWithActuals,
     peopleSummary,
   });
 }

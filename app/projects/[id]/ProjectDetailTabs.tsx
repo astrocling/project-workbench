@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { ResourcingGrids } from "@/components/ResourcingGrids";
 import { BudgetTab } from "@/components/BudgetTab";
 import { RatesTab } from "@/components/RatesTab";
@@ -28,6 +29,27 @@ export function ProjectDetailTabs({
 }) {
   const pathname = usePathname();
   const base = pathname;
+
+  const [budgetStatus, setBudgetStatus] = useState<{
+    lastWeekWithActuals: string | null;
+    missingActuals: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    if (tab !== "budget") {
+      setBudgetStatus(null);
+      return;
+    }
+    fetch(`/api/projects/${projectId}/budget`)
+      .then((r) => r.json())
+      .then((d) => {
+        setBudgetStatus({
+          lastWeekWithActuals: d.lastWeekWithActuals ?? null,
+          missingActuals: d.rollups?.missingActuals ?? false,
+        });
+      })
+      .catch(() => setBudgetStatus(null));
+  }, [tab, projectId]);
 
   const freshnessWarning =
     floatLastUpdated && (() => {
@@ -61,6 +83,26 @@ export function ProjectDetailTabs({
             </Link>
           ))}
         </nav>
+        {tab === "budget" && budgetStatus && (
+          <p className="text-body-sm text-surface-700 dark:text-surface-200 flex items-center gap-3">
+            <span>
+              Actuals through week of{" "}
+              {budgetStatus.lastWeekWithActuals
+                ? new Date(budgetStatus.lastWeekWithActuals + "T12:00:00").toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : "—"}
+            </span>
+            {budgetStatus.missingActuals && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide uppercase ring-2 shadow-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 ring-amber-400 dark:ring-amber-500">
+                Actuals Stale
+              </span>
+            )}
+          </p>
+        )}
+        {tab !== "budget" && (
         <p className="text-body-sm text-surface-700 dark:text-surface-200 flex items-center gap-3">
           <span>Float last updated: {floatLastUpdated ? new Date(floatLastUpdated).toLocaleString() : "Never"}</span>
           {freshnessWarning && (
@@ -75,6 +117,7 @@ export function ProjectDetailTabs({
             </span>
           )}
         </p>
+        )}
       </div>
 
       {tab === "overview" && (
