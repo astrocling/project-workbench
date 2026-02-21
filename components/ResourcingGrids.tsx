@@ -547,9 +547,9 @@ export function ResourcingGrids({
                       getReady(a.personId) ? "✓" : ""
                     )}
                   </td>
-                  <td className={`p-2 border ${sticky} ${stickyOpaque}`} style={{ left: colReady }}>{a.person.name}</td>
-                  <td className={`p-2 border ${sticky} ${stickyOpaque}`} style={{ left: leftRole }}>{a.role.name}</td>
-                  <td className={`p-2 border text-center font-medium tabular-nums ${sticky} ${stickyOpaque} ${stickyEdge}`} style={{ left: leftTotal }}>
+                  <td className={`p-2 border ${sticky} ${stickyOpaque} ${getReady(a.personId) ? "resourcing-ready" : ""}`} style={{ left: colReady }}>{a.person.name}</td>
+                  <td className={`p-2 border ${sticky} ${stickyOpaque} ${getReady(a.personId) ? "resourcing-ready" : ""}`} style={{ left: leftRole }}>{a.role.name}</td>
+                  <td className={`p-2 border text-center font-medium tabular-nums ${sticky} ${stickyOpaque} ${stickyEdge} ${getReady(a.personId) ? "resourcing-ready" : ""}`} style={{ left: leftTotal }}>
                     {formatTotal(plannedRowTotal(a.personId))}
                   </td>
                   {weeks.map((w) => {
@@ -634,9 +634,9 @@ export function ResourcingGrids({
                 return (
                 <tr key={a.personId} className={rowBg}>
                   <td className={`p-2 border ${sticky} ${stickyOpaque}`} style={{ left: 0 }} />
-                  <td className={`p-2 border ${sticky} ${stickyOpaque}`} style={{ left: colReady }}>{a.person.name}</td>
-                  <td className={`p-2 border ${sticky} ${stickyOpaque}`} style={{ left: leftRole }}>{a.role.name}</td>
-                  <td className={`p-2 border text-center font-medium tabular-nums ${sticky} ${stickyOpaque} ${stickyEdge}`} style={{ left: leftTotal }}>
+                  <td className={`p-2 border ${sticky} ${stickyOpaque} ${getReady(a.personId) ? "resourcing-ready" : ""}`} style={{ left: colReady }}>{a.person.name}</td>
+                  <td className={`p-2 border ${sticky} ${stickyOpaque} ${getReady(a.personId) ? "resourcing-ready" : ""}`} style={{ left: leftRole }}>{a.role.name}</td>
+                  <td className={`p-2 border text-center font-medium tabular-nums ${sticky} ${stickyOpaque} ${stickyEdge} ${getReady(a.personId) ? "resourcing-ready" : ""}`} style={{ left: leftTotal }}>
                     {formatTotal(actualRowTotal(a.personId))}
                   </td>
                   {weeks.map((w) => {
@@ -749,9 +749,9 @@ export function ResourcingGrids({
                 return (
                 <tr key={a.personId} className={rowBg}>
                   <td className={`p-2 border ${sticky} ${stickyOpaque}`} style={{ left: 0 }} />
-                  <td className={`p-2 border ${sticky} ${stickyOpaque}`} style={{ left: colReady }}>{a.person.name}</td>
-                  <td className={`p-2 border ${sticky} ${stickyOpaque}`} style={{ left: leftRole }}>{a.role.name}</td>
-                  <td className={`p-2 border text-center font-medium tabular-nums ${sticky} ${stickyOpaque} ${stickyEdge}`} style={{ left: leftTotal }}>
+                  <td className={`p-2 border ${sticky} ${stickyOpaque} ${getReady(a.personId) ? "resourcing-ready" : ""}`} style={{ left: colReady }}>{a.person.name}</td>
+                  <td className={`p-2 border ${sticky} ${stickyOpaque} ${getReady(a.personId) ? "resourcing-ready" : ""}`} style={{ left: leftRole }}>{a.role.name}</td>
+                  <td className={`p-2 border text-center font-medium tabular-nums ${sticky} ${stickyOpaque} ${stickyEdge} ${getReady(a.personId) ? "resourcing-ready" : ""}`} style={{ left: leftTotal }}>
                     {formatTotal(floatRowTotal(a.personId))}
                   </td>
                   {weeks.map((w) => {
