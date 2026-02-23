@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
+import { getSessionPermissionLevel, canAccessAdmin } from "@/lib/auth";
 
 export default function NewProjectPage() {
   const router = useRouter();
@@ -73,7 +74,7 @@ export default function NewProjectPage() {
           ← Projects
         </Link>
         <div className="flex gap-4 items-center">
-          {(session?.user as { role?: string })?.role === "Admin" && (
+          {canAccessAdmin(getSessionPermissionLevel(session?.user)) && (
             <Link
               href="/admin/float-import"
               className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"

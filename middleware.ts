@@ -6,7 +6,9 @@ export default withAuth(
     const path = req.nextUrl.pathname;
 
     if (path.startsWith("/admin")) {
-      if (token?.role !== "Admin") {
+      // Support old JWTs that still have role; new logins have permissions
+      const level = token?.permissions ?? (token as { role?: string })?.role;
+      if (level !== "Admin") {
         return Response.redirect(new URL("/projects", req.url));
       }
     }

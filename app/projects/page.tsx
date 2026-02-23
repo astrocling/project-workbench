@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
+import { getSessionPermissionLevel, canAccessAdmin, requirePermission } from "@/lib/auth";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAsOfDate } from "@/lib/weekUtils";
@@ -32,7 +33,7 @@ export default async function ProjectsPage() {
             As-of: {getAsOfDate().toISOString().slice(0, 10)}
           </span>
           <ThemeToggle />
-          {(session.user as { role?: string })?.role === "Admin" && (
+          {canAccessAdmin(getSessionPermissionLevel(session.user)) && (
             <Link
               href="/admin/float-import"
               className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
@@ -54,7 +55,7 @@ export default async function ProjectsPage() {
           <h2 className="text-display-lg font-bold text-surface-900 dark:text-white">
             Projects
           </h2>
-          {(session.user as { role?: string })?.role !== "Viewer" && (
+          {requirePermission(getSessionPermissionLevel(session.user), ["User", "Admin"]) && (
             <Link
               href="/projects/new"
               className="h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm hover:shadow-card-hover transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"

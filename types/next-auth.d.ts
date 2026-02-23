@@ -1,17 +1,19 @@
 import "next-auth";
-import type { UserRole } from "@prisma/client";
+import type { PermissionLevel } from "@prisma/client";
 
 declare module "next-auth" {
   interface User {
     id?: string;
-    role?: UserRole;
+    permissions?: PermissionLevel;
   }
 
   interface Session {
     user: {
       id?: string;
       email?: string | null;
-      role?: UserRole;
+      permissions?: PermissionLevel;
+      /** @deprecated Use permissions. Kept for backward compatibility with existing JWTs. */
+      role?: string;
     };
   }
 }
@@ -19,6 +21,6 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     id?: string;
-    role?: UserRole;
+    permissions?: PermissionLevel;
   }
 }

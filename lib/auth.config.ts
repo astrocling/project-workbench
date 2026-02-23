@@ -1,5 +1,5 @@
 import type { NextAuthOptions } from "next-auth";
-import type { UserRole } from "@prisma/client";
+import type { PermissionLevel } from "@prisma/client";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
@@ -27,7 +27,7 @@ export const authOptions: NextAuthOptions = {
         return {
           id: user.id,
           email: user.email,
-          role: user.role,
+          permissions: user.permissions,
         };
       },
     }),
@@ -36,14 +36,16 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as { role?: UserRole }).role;
+        token.permissions = (user as { permissions?: PermissionLevel }).permissions;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         (session.user as { id?: string }).id = token.id as string;
-        (session.user as { role?: string }).role = token.role as string;
+        // Support old JWTs that still have role; new logins have permissions
+        (session.user as { permissions?: string }).permissions =
+          (token.permissions as string) ?? (token as { role?: string }).role as string;
       }
       return session;
     },

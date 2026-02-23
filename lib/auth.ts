@@ -1,23 +1,32 @@
-import type { UserRole } from "@prisma/client";
+import type { PermissionLevel } from "@prisma/client";
 
-export type AppUserRole = UserRole;
+export type AppPermissionLevel = PermissionLevel;
 
-export function requireRole(
-  userRole: AppUserRole | undefined | null,
-  allowed: AppUserRole[]
+/** Get effective permission level from session user (supports both permissions and legacy role). */
+export function getSessionPermissionLevel(
+  user: { permissions?: string; role?: string } | null | undefined
+): AppPermissionLevel | undefined {
+  if (!user) return undefined;
+  const level = user.permissions ?? (user as { role?: string }).role;
+  return level === "Admin" || level === "User" ? level : undefined;
+}
+
+export function requirePermission(
+  permissions: AppPermissionLevel | undefined | null,
+  allowed: AppPermissionLevel[]
 ): boolean {
-  if (!userRole) return false;
-  return allowed.includes(userRole);
+  if (!permissions) return false;
+  return allowed.includes(permissions);
 }
 
-export function canEditProject(userRole: AppUserRole | undefined | null): boolean {
-  return requireRole(userRole, ["Admin", "Editor"]);
+export function canEditProject(permissions: AppPermissionLevel | undefined | null): boolean {
+  return requirePermission(permissions, ["User", "Admin"]);
 }
 
-export function canAccessAdmin(userRole: AppUserRole | undefined | null): boolean {
-  return requireRole(userRole, ["Admin"]);
+export function canAccessAdmin(permissions: AppPermissionLevel | undefined | null): boolean {
+  return requirePermission(permissions, ["Admin"]);
 }
 
-export function canUploadFloat(userRole: AppUserRole | undefined | null): boolean {
-  return requireRole(userRole, ["Admin"]);
+export function canUploadFloat(permissions: AppPermissionLevel | undefined | null): boolean {
+  return requirePermission(permissions, ["Admin"]);
 }

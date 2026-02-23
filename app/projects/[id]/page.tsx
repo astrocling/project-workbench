@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
+import { getSessionPermissionLevel, canAccessAdmin, canEditProject } from "@/lib/auth";
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { getAsOfDate } from "@/lib/weekUtils";
@@ -35,7 +36,8 @@ export default async function ProjectDetailPage({
     orderBy: { completedAt: "desc" },
   });
 
-  const canEdit = (session.user as { role?: string })?.role === "Admin" || (session.user as { role?: string })?.role === "Editor";
+  const permissionLevel = getSessionPermissionLevel(session.user);
+  const canEdit = canEditProject(permissionLevel);
 
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-dark-bg">
@@ -48,7 +50,7 @@ export default async function ProjectDetailPage({
             As-of: {getAsOfDate().toISOString().slice(0, 10)}
           </span>
           <ThemeToggle />
-          {(session.user as { role?: string })?.role === "Admin" && (
+          {canAccessAdmin(permissionLevel) && (
             <Link
               href="/admin/float-import"
               className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"

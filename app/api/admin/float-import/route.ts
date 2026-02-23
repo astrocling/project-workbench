@@ -19,8 +19,8 @@ function toUTCMonday(weekStart: Date): Date {
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const role = (session.user as { role?: string }).role;
-  if (role !== "Admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const permissions = (session.user as { permissions?: string }).permissions;
+  if (permissions !== "Admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const lastRun = await prisma.floatImportRun.findFirst({
     orderBy: { completedAt: "desc" },
@@ -32,8 +32,8 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const role = (session.user as { role?: string }).role;
-    if (role !== "Admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const permissions = (session.user as { permissions?: string }).permissions;
+    if (permissions !== "Admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const formData = await req.formData();
   const file = formData.get("file") as File | null;

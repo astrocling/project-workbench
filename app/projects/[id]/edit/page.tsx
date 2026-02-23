@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
+import { getSessionPermissionLevel, canAccessAdmin } from "@/lib/auth";
 import { PersonCombobox, PersonMultiCombobox } from "@/components/PersonCombobox";
 
 export default function EditProjectPage() {
@@ -108,7 +109,7 @@ export default function EditProjectPage() {
           ← Back to project
         </Link>
         <div className="flex gap-4 items-center">
-          {(session?.user as { role?: string })?.role === "Admin" && (
+          {canAccessAdmin(getSessionPermissionLevel(session?.user)) && (
             <Link
               href="/admin/float-import"
               className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"

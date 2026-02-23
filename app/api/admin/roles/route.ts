@@ -7,8 +7,8 @@ import { z } from "zod";
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const role = (session.user as { role?: string }).role;
-  if (role !== "Admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const permissions = (session.user as { permissions?: string }).permissions;
+  if (permissions !== "Admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const roles = await prisma.role.findMany({ orderBy: { name: "asc" } });
   const lastImport = await prisma.floatImportRun.findFirst({
@@ -25,8 +25,8 @@ const addSchema = z.object({
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const role = (session.user as { role?: string }).role;
-  if (role !== "Admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const permissions = (session.user as { permissions?: string }).permissions;
+  if (permissions !== "Admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
   const parsed = addSchema.safeParse(body);
