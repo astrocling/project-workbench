@@ -16,6 +16,8 @@ export default function NewProjectPage() {
   const [floatProjectClients, setFloatProjectClients] = useState<Record<string, string>>({});
   const [selectedFloatProject, setSelectedFloatProject] = useState("");
   const [eligiblePeople, setEligiblePeople] = useState<{ id: string; name: string }[]>([]);
+  const [sowLink, setSowLink] = useState("");
+  const [estimateLink, setEstimateLink] = useState("");
   const [pmPersonIds, setPmPersonIds] = useState<string[]>([]);
   const [pgmPersonId, setPgmPersonId] = useState("");
   const [cadPersonId, setCadPersonId] = useState("");
@@ -46,6 +48,8 @@ export default function NewProjectPage() {
         endDate: endDate ? new Date(endDate).toISOString() : null,
         status,
         floatProjectName: selectedFloatProject || undefined,
+        sowLink: sowLink.trim() || undefined,
+        estimateLink: estimateLink.trim() || undefined,
         pmPersonIds: pmPersonIds.filter(Boolean),
         pgmPersonId: pgmPersonId || undefined,
         cadPersonId: cadPersonId || undefined,
@@ -220,6 +224,26 @@ export default function NewProjectPage() {
               <option value="Active">Active</option>
               <option value="Closed">Closed</option>
             </select>
+          </div>
+          <div>
+            <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">SOW link (optional)</label>
+            <input
+              type="text"
+              value={sowLink}
+              onChange={(e) => setSowLink(e.target.value)}
+              placeholder="https://..."
+              className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+            />
+          </div>
+          <div>
+            <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Estimate link (optional)</label>
+            <input
+              type="text"
+              value={estimateLink}
+              onChange={(e) => setEstimateLink(e.target.value)}
+              placeholder="https://..."
+              className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+            />
           </div>
           <div className="flex gap-2 pt-4">
             <button

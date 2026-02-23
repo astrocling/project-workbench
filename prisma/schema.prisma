@@ -86,6 +86,9 @@ model Project {
   /// Use one bill rate for all roles instead of per-role rate card
   useSingleRate  Boolean   @default(false)
   singleBillRate Decimal?  @db.Decimal(10, 2)
+  notes          String?   @db.Text
+  sowLink        String?
+  estimateLink   String?
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
 

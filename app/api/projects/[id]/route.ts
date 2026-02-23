@@ -14,6 +14,9 @@ const updateSchema = z.object({
   actualsHighThresholdPercent: z.number().min(0).max(100).nullable().optional(),
   useSingleRate: z.boolean().optional(),
   singleBillRate: z.number().min(0).nullable().optional(),
+  notes: z.string().nullable().optional(),
+  sowLink: z.union([z.string(), z.null()]).optional(),
+  estimateLink: z.union([z.string(), z.null()]).optional(),
   pmPersonIds: z.array(z.string()).optional(),
   pgmPersonId: z.string().optional().nullable(),
   cadPersonId: z.string().optional().nullable(),
@@ -70,6 +73,19 @@ export async function PATCH(
   if (parsed.data.useSingleRate !== undefined) data.useSingleRate = parsed.data.useSingleRate;
   if (parsed.data.singleBillRate !== undefined) data.singleBillRate = parsed.data.singleBillRate;
   if (parsed.data.useSingleRate === false) data.singleBillRate = null;
+  if (parsed.data.notes !== undefined) data.notes = parsed.data.notes;
+  const normLink = (v: string | null | undefined): string | null => {
+    if (v == null) return null;
+    const raw = String(v).trim();
+    if (!raw) return null;
+    return raw.startsWith("http://") || raw.startsWith("https://") ? raw : `https://${raw}`;
+  };
+  if (Object.prototype.hasOwnProperty.call(body, "sowLink")) {
+    data.sowLink = normLink(parsed.data.sowLink ?? (body as { sowLink?: string | null }).sowLink);
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "estimateLink")) {
+    data.estimateLink = normLink(parsed.data.estimateLink ?? (body as { estimateLink?: string | null }).estimateLink);
+  }
 
   // Update project key roles (PM, PGM, CAD) if provided
   if (

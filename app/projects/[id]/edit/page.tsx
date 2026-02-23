@@ -18,6 +18,8 @@ export default function EditProjectPage() {
   const [pmPersonIds, setPmPersonIds] = useState<string[]>([]);
   const [pgmPersonId, setPgmPersonId] = useState("");
   const [cadPersonId, setCadPersonId] = useState("");
+  const [sowLink, setSowLink] = useState("");
+  const [estimateLink, setEstimateLink] = useState("");
   const [eligiblePeople, setEligiblePeople] = useState<{ id: string; name: string }[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -39,6 +41,8 @@ export default function EditProjectPage() {
         setPmPersonIds(keyRoles.filter((kr: { type: string }) => kr.type === "PM").map((kr: { personId: string }) => kr.personId));
         setPgmPersonId(keyRoles.find((kr: { type: string }) => kr.type === "PGM")?.personId ?? "");
         setCadPersonId(keyRoles.find((kr: { type: string }) => kr.type === "CAD")?.personId ?? "");
+        setSowLink(p.sowLink ?? "");
+        setEstimateLink(p.estimateLink ?? "");
         const eligible = Array.isArray(people) ? people : [];
         const currentIds = new Set(eligible.map((x: { id: string }) => x.id));
         const fromRoles = (keyRoles as { person: { id: string; name: string } }[])
@@ -80,6 +84,8 @@ export default function EditProjectPage() {
                 const n = Number(actualsHighThresholdPercent);
                 return Number.isFinite(n) && n >= 0 && n <= 100 ? n : null;
               })(),
+        sowLink: sowLink.trim() || null,
+        estimateLink: estimateLink.trim() || null,
       }),
     });
     if (!res.ok) {
@@ -152,6 +158,26 @@ export default function EditProjectPage() {
               <option value="Active">Active</option>
               <option value="Closed">Closed</option>
             </select>
+          </div>
+          <div>
+            <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">SOW link (optional)</label>
+            <input
+              type="text"
+              value={sowLink}
+              onChange={(e) => setSowLink(e.target.value)}
+              placeholder="https://..."
+              className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+            />
+          </div>
+          <div>
+            <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Estimate link (optional)</label>
+            <input
+              type="text"
+              value={estimateLink}
+              onChange={(e) => setEstimateLink(e.target.value)}
+              placeholder="https://..."
+              className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+            />
           </div>
           <div className="border-t pt-4 mt-4 space-y-4">
             <h3 className="text-sm font-medium text-black">Key roles</h3>
