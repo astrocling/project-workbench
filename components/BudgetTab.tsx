@@ -193,7 +193,7 @@ export function BudgetTab({
               <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
                 ${formatDollars(rollups.actualDollarsToDate ?? 0)} / ${formatDollars((rollups.remainingDollarsHigh ?? 0) + (rollups.actualDollarsToDate ?? 0))}
               </p>
-              <p className="text-body-sm text-surface-500 dark:text-surface-400 mt-1">
+              <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
                 {formatHours(rollups.actualHoursToDate ?? 0)} / {formatHours((rollups.remainingHoursHigh ?? 0) + (rollups.actualHoursToDate ?? 0))} hrs
               </p>
             </div>
@@ -204,15 +204,42 @@ export function BudgetTab({
             {(() => {
               const totalBudgetHours =
                 (rollups.remainingHoursHigh ?? 0) + (rollups.actualHoursToDate ?? 0);
-              const forecastHours = rollups.forecastHours ?? 0;
-              const remainingHours = totalBudgetHours - forecastHours;
+              const totalBudgetDollars =
+                (rollups.remainingDollarsHigh ?? 0) + (rollups.actualDollarsToDate ?? 0);
+              const projectedBurnHours = rollups.projectedBurnHours ?? 0;
+              const projectedBurnDollars = rollups.projectedBurnDollars ?? 0;
+              const remainingHours = rollups.remainingAfterProjectedBurnHoursHigh ?? totalBudgetHours - projectedBurnHours;
+              const remainingDollars = rollups.remainingAfterProjectedBurnDollarsHigh ?? totalBudgetDollars - projectedBurnDollars;
+              const bufferPercentHours =
+                totalBudgetHours > 0 ? (remainingHours / totalBudgetHours) * 100 : null;
+              const isLowBuffer =
+                bufferPercentHours != null && (bufferPercentHours < 5 || bufferPercentHours < 0);
               return (
                 <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
-                  <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-2">Expected remaining</p>
-                  <p className="text-body-sm text-surface-500 dark:text-surface-400 mb-1">
-                    Based on spend to date and future allocations:
+                  <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-3">Expected remaining</p>
+                  <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider mt-1">Projected burn</p>
+                  <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
+                    ${formatDollars(projectedBurnDollars)}
                   </p>
-                  <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums">{formatHours(remainingHours)} hrs left</p>
+                  <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
+                    {formatHours(projectedBurnHours)} hrs
+                  </p>
+                  <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider mt-4">Projected remaining</p>
+                  <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
+                    ${formatDollars(remainingDollars)}
+                  </p>
+                  <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
+                    {formatHours(remainingHours)} hrs
+                  </p>
+                  <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider mt-4">Buffer</p>
+                  <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
+                    {bufferPercentHours != null ? `${bufferPercentHours.toFixed(1)}%` : "—"}
+                  </p>
+                  {isLowBuffer && (
+                    <p className="text-body-sm font-semibold text-amber-600 dark:text-amber-400 mt-2">
+                      {bufferPercentHours != null && bufferPercentHours < 0 ? "Over budget" : "Low buffer"}
+                    </p>
+                  )}
                 </div>
               );
             })()}

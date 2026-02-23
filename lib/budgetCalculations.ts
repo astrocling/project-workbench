@@ -140,6 +140,14 @@ export function computeBudgetRollups(
   const totalBudgetLowDollars = budgetLines.reduce((s, b) => s + b.lowDollars, 0);
   const totalBudgetHighDollars = budgetLines.reduce((s, b) => s + b.highDollars, 0);
 
+  let projectedBurnHours = 0;
+  let projectedBurnDollars = 0;
+  for (const row of weeklyRows) {
+    const hours = row.actualHours ?? row.plannedHours;
+    projectedBurnHours += hours;
+    projectedBurnDollars += hours * row.rate;
+  }
+
   const burnPercentLowHours =
     totalBudgetLowHours > 0 ? (actualHoursToDate / totalBudgetLowHours) * 100 : null;
   const burnPercentHighHours =
@@ -173,6 +181,12 @@ export function computeBudgetRollups(
     remainingAfterForecastHoursHigh: totalBudgetHighHours - forecastHours,
     remainingAfterForecastDollarsLow: totalBudgetLowDollars - forecastDollars,
     remainingAfterForecastDollarsHigh: totalBudgetHighDollars - forecastDollars,
+    projectedBurnHours,
+    projectedBurnDollars,
+    remainingAfterProjectedBurnHoursLow: totalBudgetLowHours - projectedBurnHours,
+    remainingAfterProjectedBurnHoursHigh: totalBudgetHighHours - projectedBurnHours,
+    remainingAfterProjectedBurnDollarsLow: totalBudgetLowDollars - projectedBurnDollars,
+    remainingAfterProjectedBurnDollarsHigh: totalBudgetHighDollars - projectedBurnDollars,
   };
 }
 
