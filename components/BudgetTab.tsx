@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { RevenueRecoveryCard } from "@/components/RevenueRecoveryCard";
 
 function roundToQuarter(hours: number): number {
   return Math.round(hours * 4) / 4;
@@ -170,64 +171,72 @@ export function BudgetTab({
 
   if (loading) return <p className="text-body-sm text-surface-700 dark:text-surface-200">Loading...</p>;
 
+  const actualsStalePill = (
+    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide uppercase ring-2 shadow-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 ring-amber-400 dark:ring-amber-500">
+      Actuals Stale
+    </span>
+  );
+  const missingActuals = rollups?.missingActuals ?? false;
+
   return (
-    <div className="space-y-6">
-      {rollups && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 border-t-2 border-t-jblue-500">
-            <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider mt-1">To date</p>
-            <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
-              ${formatDollars(rollups.actualDollarsToDate ?? 0)} / ${formatDollars((rollups.remainingDollarsHigh ?? 0) + (rollups.actualDollarsToDate ?? 0))}
-            </p>
-            <p className="text-body-sm text-surface-500 dark:text-surface-400 mt-1">
-              {formatHours(rollups.actualHoursToDate ?? 0)} / {formatHours((rollups.remainingHoursHigh ?? 0) + (rollups.actualHoursToDate ?? 0))} hrs
-            </p>
+    <div className="space-y-10">
+      {/* Budget section: first two cards + expected remaining */}
+      <section className="space-y-4">
+        <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100 border-b border-surface-200 dark:border-dark-border pb-2 flex items-center gap-2 flex-wrap">
+          Budget
+          {missingActuals && actualsStalePill}
+        </h2>
+        {rollups && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 border-t-2 border-t-jblue-500">
+              <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider mt-1">To date</p>
+              <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
+                ${formatDollars(rollups.actualDollarsToDate ?? 0)} / ${formatDollars((rollups.remainingDollarsHigh ?? 0) + (rollups.actualDollarsToDate ?? 0))}
+              </p>
+              <p className="text-body-sm text-surface-500 dark:text-surface-400 mt-1">
+                {formatHours(rollups.actualHoursToDate ?? 0)} / {formatHours((rollups.remainingHoursHigh ?? 0) + (rollups.actualHoursToDate ?? 0))} hrs
+              </p>
+            </div>
+            <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
+              <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-3">% Budget Burn</p>
+              <BudgetBurnPieChart burnPercent={rollups.burnPercentHighHours} />
+            </div>
+            {(() => {
+              const totalBudgetHours =
+                (rollups.remainingHoursHigh ?? 0) + (rollups.actualHoursToDate ?? 0);
+              const forecastHours = rollups.forecastHours ?? 0;
+              const remainingHours = totalBudgetHours - forecastHours;
+              return (
+                <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
+                  <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-2">Expected remaining</p>
+                  <p className="text-body-sm text-surface-500 dark:text-surface-400 mb-1">
+                    Based on spend to date and future allocations:
+                  </p>
+                  <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums">{formatHours(remainingHours)} hrs left</p>
+                </div>
+              );
+            })()}
           </div>
-          <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 border-t-2 border-t-jblue-500">
-            <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider mt-1">Forecast hours</p>
-            <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
-              {formatHours(rollups.forecastHours ?? 0)}
-              {rollups.forecastIncomplete && (
-                <span className="text-amber-600 dark:text-amber-400 text-label-md font-semibold ml-1">(Incomplete)</span>
-              )}
-            </p>
-          </div>
-          <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 border-t-2 border-t-jblue-500">
-            <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider mt-1">Forecast dollars</p>
-            <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
-              ${formatDollars(rollups.forecastDollars ?? 0)}
-              {rollups.forecastIncomplete && (
-                <span className="text-amber-600 dark:text-amber-400 text-label-md font-semibold ml-1">(Incomplete)</span>
-              )}
-            </p>
-          </div>
-        </div>
-      )}
+        )}
+      </section>
 
-      {rollups && (
-        <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
-          <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-3">Percent budget burn</p>
-          <BudgetBurnPieChart burnPercent={rollups.burnPercentHighHours} />
-        </div>
-      )}
+      {/* Revenue Recovery section: 3 cards + horizontal chart */}
+      <section className="space-y-4">
+        <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100 border-b border-surface-200 dark:border-dark-border pb-2 flex items-center gap-2 flex-wrap">
+          Revenue Recovery
+          {missingActuals && actualsStalePill}
+        </h2>
+        <RevenueRecoveryCard projectId={projectId} />
+      </section>
 
-      {rollups && (() => {
-        const totalBudgetHours =
-          (rollups.remainingHoursHigh ?? 0) + (rollups.actualHoursToDate ?? 0);
-        const forecastHours = rollups.forecastHours ?? 0;
-        const remainingHours = totalBudgetHours - forecastHours;
-        return (
-          <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
-            <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-2">Expected remaining</p>
-            <p className="text-body-sm text-surface-500 dark:text-surface-400 mb-1">
-              Based on spend to date and future allocations:
-            </p>
-            <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums">{formatHours(remainingHours)} hrs left</p>
-          </div>
-        );
-      })()}
-
-      {peopleSummary.length > 0 && (() => {
+      {/* People section */}
+      {peopleSummary.length > 0 && (
+      <section className="space-y-4">
+        <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100 border-b border-surface-200 dark:border-dark-border pb-2 flex items-center gap-2 flex-wrap">
+          People
+          {missingActuals && actualsStalePill}
+        </h2>
+        {(() => {
         const totals = peopleSummary.reduce(
           (acc, row) => ({
             projectedHours: acc.projectedHours + row.projectedHours,
@@ -278,14 +287,15 @@ export function BudgetTab({
           </div>
         );
       })()}
-
-      {rollups?.missingActuals && (
-        <p className="text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-3 rounded-md text-body-sm">
-          Missing actuals for some completed weeks with planned hours. Forecast marked incomplete.
-        </p>
+      </section>
       )}
 
-      {canEdit && (
+      {/* Contract section: contract chart + adding interface */}
+      <section className="space-y-4">
+        <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100 border-b border-surface-200 dark:border-dark-border pb-2">
+          Contract
+        </h2>
+        {canEdit && (
         <form onSubmit={addLine} className="flex flex-wrap gap-2 items-end">
           <input
             value={newLabel}
@@ -369,6 +379,7 @@ export function BudgetTab({
           </tbody>
         </table>
       </div>
+      </section>
     </div>
   );
 }
