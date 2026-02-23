@@ -14,6 +14,7 @@ const TABS = [
   { id: "budget", label: "Budget" },
   { id: "rates", label: "Rates" },
   { id: "assignments", label: "Assignments" },
+  { id: "edit", label: "Edit", hrefOnly: true },
 ] as const;
 
 export function ProjectDetailTabs({
@@ -51,6 +52,11 @@ export function ProjectDetailTabs({
   const [projectNotesSaving, setProjectNotesSaving] = useState(false);
   const [sowLink, setSowLink] = useState<string | null>(null);
   const [estimateLink, setEstimateLink] = useState<string | null>(null);
+  const [keyRoleNames, setKeyRoleNames] = useState<{
+    pm: string[];
+    pgm: string | null;
+    ad: string | null;
+  }>({ pm: [], pgm: null, ad: null });
 
   const refetchBudgetStatus = useCallback(() => {
     fetch(`/api/projects/${projectId}/budget`)
@@ -73,6 +79,7 @@ export function ProjectDetailTabs({
       setProjectNotesDirty(false);
       setSowLink(null);
       setEstimateLink(null);
+      setKeyRoleNames({ pm: [], pgm: null, ad: null });
       return;
     }
     fetch(`/api/projects/${projectId}/revenue-recovery`)
@@ -90,11 +97,20 @@ export function ProjectDetailTabs({
         setSowLink(p.sowLink ?? null);
         setEstimateLink(p.estimateLink ?? null);
         setProjectNotesDirty(false);
+        const keyRoles = p.projectKeyRoles ?? [];
+        const pm = keyRoles
+          .filter((kr: { type: string }) => kr.type === "PM")
+          .map((kr: { person?: { name?: string } }) => kr.person?.name)
+          .filter(Boolean);
+        const pgm = keyRoles.find((kr: { type: string }) => kr.type === "PGM")?.person?.name ?? null;
+        const ad = keyRoles.find((kr: { type: string }) => kr.type === "CAD")?.person?.name ?? null;
+        setKeyRoleNames({ pm, pgm, ad });
       })
       .catch(() => {
         setProjectNotes(null);
         setSowLink(null);
         setEstimateLink(null);
+        setKeyRoleNames({ pm: [], pgm: null, ad: null });
       });
   }, [tab, projectId]);
 
@@ -136,19 +152,23 @@ export function ProjectDetailTabs({
           ← Projects
         </Link>
         <nav className="flex gap-2 mb-3">
-          {TABS.map((t) => (
-            <Link
-              key={t.id}
-              href={`${base}?tab=${t.id}`}
-              className={`px-4 py-2 -mb-px border-b-2 transition-colors ${
-                tab === t.id
-                  ? "border-jblue-500 text-jblue-600 dark:text-jblue-400 font-semibold"
-                  : "border-transparent text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-dark-raised rounded-t-md"
-              }`}
-            >
-              {t.label}
-            </Link>
-          ))}
+          {TABS.filter((t) => t.id !== "edit" || canEdit).map((t) => {
+            const href = "hrefOnly" in t && t.hrefOnly ? `/projects/${projectId}/edit` : `${base}?tab=${t.id}`;
+            const isActive = "hrefOnly" in t && t.hrefOnly ? false : tab === t.id;
+            return (
+              <Link
+                key={t.id}
+                href={href}
+                className={`px-4 py-2 -mb-px border-b-2 transition-colors ${
+                  isActive
+                    ? "border-jblue-500 text-jblue-600 dark:text-jblue-400 font-semibold"
+                    : "border-transparent text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-dark-raised rounded-t-md"
+                }`}
+              >
+                {t.label}
+              </Link>
+            );
+          })}
         </nav>
         <div className="text-body-sm text-surface-700 dark:text-surface-200 space-y-1">
           <p className="flex items-center gap-3 flex-wrap">
@@ -187,6 +207,20 @@ export function ProjectDetailTabs({
 
       {tab === "overview" && (
         <div className="space-y-6">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-body-sm text-surface-700 dark:text-surface-200">
+            <span>
+              <span className="font-semibold text-surface-800 dark:text-surface-100">PM:</span>{" "}
+              {keyRoleNames.pm.length > 0 ? keyRoleNames.pm.join(", ") : "—"}
+            </span>
+            <span>
+              <span className="font-semibold text-surface-800 dark:text-surface-100">PGM:</span>{" "}
+              {keyRoleNames.pgm ?? "—"}
+            </span>
+            <span>
+              <span className="font-semibold text-surface-800 dark:text-surface-100">AD:</span>{" "}
+              {keyRoleNames.ad ?? "—"}
+            </span>
+          </div>
           <div className="flex flex-wrap gap-3">
             {sowLink ? (
               <a

@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 
 export default function NewProjectPage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [name, setName] = useState("");
   const [clientName, setClientName] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -66,10 +68,26 @@ export default function NewProjectPage() {
 
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-dark-bg">
-      <header className="bg-white/80 dark:bg-dark-bg/90 backdrop-blur-md border-b border-surface-200 dark:border-dark-border px-6 py-4">
+      <header className="sticky top-0 z-30 flex items-center justify-between bg-white/80 dark:bg-dark-bg/90 backdrop-blur-md border-b border-surface-200 dark:border-dark-border px-6 py-4">
         <Link href="/projects" className="text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium">
           ← Projects
         </Link>
+        <div className="flex gap-4 items-center">
+          {(session?.user as { role?: string })?.role === "Admin" && (
+            <Link
+              href="/admin/float-import"
+              className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
+            >
+              Admin
+            </Link>
+          )}
+          <Link
+            href="/api/auth/signout"
+            className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
+          >
+            Sign out
+          </Link>
+        </div>
       </header>
       <main className="p-8 max-w-xl">
         <h1 className="text-display-md font-bold text-surface-900 dark:text-white mb-6">New Project</h1>

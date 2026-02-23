@@ -2,11 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
+import { PersonCombobox, PersonMultiCombobox } from "@/components/PersonCombobox";
 
 export default function EditProjectPage() {
   const router = useRouter();
   const params = useParams();
+  const { data: session } = useSession();
   const id = params.id as string;
   const [name, setName] = useState("");
   const [clientName, setClientName] = useState("");
@@ -100,10 +103,26 @@ export default function EditProjectPage() {
 
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-dark-bg">
-      <header className="bg-white/80 dark:bg-dark-bg/90 backdrop-blur-md border-b border-surface-200 dark:border-dark-border px-6 py-4">
+      <header className="sticky top-0 z-30 flex items-center justify-between bg-white/80 dark:bg-dark-bg/90 backdrop-blur-md border-b border-surface-200 dark:border-dark-border px-6 py-4">
         <Link href={`/projects/${id}`} className="text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium">
           ← Back to project
         </Link>
+        <div className="flex gap-4 items-center">
+          {(session?.user as { role?: string })?.role === "Admin" && (
+            <Link
+              href="/admin/float-import"
+              className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
+            >
+              Admin
+            </Link>
+          )}
+          <Link
+            href="/api/auth/signout"
+            className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
+          >
+            Sign out
+          </Link>
+        </div>
       </header>
       <main className="p-8 max-w-xl">
         <h1 className="text-display-md font-bold text-surface-900 dark:text-white mb-6">Edit Project</h1>
@@ -180,59 +199,54 @@ export default function EditProjectPage() {
             />
           </div>
           <div className="border-t pt-4 mt-4 space-y-4">
-            <h3 className="text-sm font-medium text-black">Key roles</h3>
-            <p className="text-sm text-gray-600">
-              Assign PM, PGM, and CAD. Eligible: people with Director or Project Manager role from Float.
+            <h3 className="text-sm font-medium text-surface-900 dark:text-white">Key roles</h3>
+            <p className="text-sm text-surface-600 dark:text-surface-400">
+              Assign PM, PGM, and AD. Eligible: people with Director or Project Manager role from Float.
+            </p>
+            <p className="text-body-sm text-surface-700 dark:text-surface-200">
+              <span className="font-semibold text-surface-800 dark:text-surface-100">Currently assigned:</span>{" "}
+              PM: {pmPersonIds.length ? pmPersonIds.map((id) => eligiblePeople.find((p) => p.id === id)?.name ?? "—").join(", ") : "—"}
+              {" · "}
+              PGM: {pgmPersonId ? (eligiblePeople.find((p) => p.id === pgmPersonId)?.name ?? "—") : "—"}
+              {" · "}
+              AD: {cadPersonId ? (eligiblePeople.find((p) => p.id === cadPersonId)?.name ?? "—") : "—"}
             </p>
             <div>
               <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">PM (Project Manager)</label>
-              <select
-                multiple
-                value={pmPersonIds}
-                onChange={(e) => {
-                  const opts = Array.from(e.target.selectedOptions, (o) => o.value);
-                  setPmPersonIds(opts);
-                }}
-                className="mt-1 block w-full min-h-[80px] px-3 py-2 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
-                title="Hold Ctrl/Cmd to select multiple"
-              >
-                {eligiblePeople.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-gray-500 mt-0.5">Hold Ctrl/Cmd to select multiple.</p>
+              <div className="mt-1">
+                <PersonMultiCombobox
+                  value={pmPersonIds}
+                  onChange={setPmPersonIds}
+                  options={eligiblePeople}
+                  placeholder="Type to search and add..."
+                  aria-label="PM (Project Manager)"
+                />
+              </div>
+              <p className="text-xs text-surface-500 dark:text-surface-400 mt-0.5">Type a name and select to add. Remove with × on each chip.</p>
             </div>
             <div>
               <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">PGM (Program Manager)</label>
-              <select
-                value={pgmPersonId}
-                onChange={(e) => setPgmPersonId(e.target.value)}
-                className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
-              >
-                <option value="">— None —</option>
-                {eligiblePeople.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+              <div className="mt-1">
+                <PersonCombobox
+                  value={pgmPersonId}
+                  onChange={setPgmPersonId}
+                  options={eligiblePeople}
+                  placeholder="Type to search..."
+                  aria-label="PGM (Program Manager)"
+                />
+              </div>
             </div>
             <div>
-              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">CAD</label>
-              <select
-                value={cadPersonId}
-                onChange={(e) => setCadPersonId(e.target.value)}
-                className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
-              >
-                <option value="">— None —</option>
-                {eligiblePeople.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">AD</label>
+              <div className="mt-1">
+                <PersonCombobox
+                  value={cadPersonId}
+                  onChange={setCadPersonId}
+                  options={eligiblePeople}
+                  placeholder="Type to search..."
+                  aria-label="AD"
+                />
+              </div>
             </div>
           </div>
           <div className="border-t pt-4 mt-4 space-y-4">

@@ -48,14 +48,20 @@ export default async function ProjectDetailPage({
             As-of: {getAsOfDate().toISOString().slice(0, 10)}
           </span>
           <ThemeToggle />
-          {canEdit && (
+          {(session.user as { role?: string })?.role === "Admin" && (
             <Link
-              href={`/projects/${id}/edit`}
+              href="/admin/float-import"
               className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
             >
-              Edit
+              Admin
             </Link>
           )}
+          <Link
+            href="/api/auth/signout"
+            className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
+          >
+            Sign out
+          </Link>
         </div>
       </header>
 
