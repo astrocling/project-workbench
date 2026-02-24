@@ -41,17 +41,17 @@ export default function EditProjectPage() {
         setStatus(p.status ?? "Active");
         setActualsLowThresholdPercent(p.actualsLowThresholdPercent != null ? String(p.actualsLowThresholdPercent) : "");
         setActualsHighThresholdPercent(p.actualsHighThresholdPercent != null ? String(p.actualsHighThresholdPercent) : "");
-        const keyRoles = p.projectKeyRoles ?? [];
-        setPmPersonIds(keyRoles.filter((kr: { type: string }) => kr.type === "PM").map((kr: { personId: string }) => kr.personId));
-        setPgmPersonId(keyRoles.find((kr: { type: string }) => kr.type === "PGM")?.personId ?? "");
-        setCadPersonId(keyRoles.find((kr: { type: string }) => kr.type === "CAD")?.personId ?? "");
+        const keyRoles = (p.projectKeyRoles ?? []) as { type: string; personId: string; person: { id: string; name: string } }[];
+        setPmPersonIds(keyRoles.filter((kr) => kr.type === "PM").map((kr) => kr.personId));
+        setPgmPersonId(keyRoles.find((kr) => kr.type === "PGM")?.personId ?? "");
+        setCadPersonId(keyRoles.find((kr) => kr.type === "CAD")?.personId ?? "");
         setSowLink(p.sowLink ?? "");
         setEstimateLink(p.estimateLink ?? "");
         const eligible = Array.isArray(people) ? people : [];
         const currentIds = new Set(eligible.map((x: { id: string }) => x.id));
-        const fromRoles = (keyRoles as { person: { id: string; name: string } }[])
+        const fromRoles = keyRoles
           .map((kr) => kr.person)
-          .filter((pers) => !currentIds.has(pers.id));
+          .filter((p) => p && !currentIds.has(p.id));
         setEligiblePeople(
           [...eligible, ...fromRoles].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""))
         );
@@ -201,17 +201,6 @@ export default function EditProjectPage() {
           </div>
           <div className="border-t pt-4 mt-4 space-y-4">
             <h3 className="text-sm font-medium text-surface-900 dark:text-white">Key roles</h3>
-            <p className="text-sm text-surface-600 dark:text-surface-400">
-              Assign PM, PGM, and AD. Eligible: people with Director or Project Manager role from Float.
-            </p>
-            <p className="text-body-sm text-surface-700 dark:text-surface-200">
-              <span className="font-semibold text-surface-800 dark:text-surface-100">Currently assigned:</span>{" "}
-              PM: {pmPersonIds.length ? pmPersonIds.map((id) => eligiblePeople.find((p) => p.id === id)?.name ?? "—").join(", ") : "—"}
-              {" · "}
-              PGM: {pgmPersonId ? (eligiblePeople.find((p) => p.id === pgmPersonId)?.name ?? "—") : "—"}
-              {" · "}
-              AD: {cadPersonId ? (eligiblePeople.find((p) => p.id === cadPersonId)?.name ?? "—") : "—"}
-            </p>
             <div>
               <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">PM (Project Manager)</label>
               <div className="mt-1">
@@ -223,7 +212,7 @@ export default function EditProjectPage() {
                   aria-label="PM (Project Manager)"
                 />
               </div>
-              <p className="text-xs text-surface-500 dark:text-surface-400 mt-0.5">Type a name and select to add. Remove with × on each chip.</p>
+              <p className="text-xs text-surface-500 dark:text-surface-400 mt-0.5">Type to search; remove with × on each chip.</p>
             </div>
             <div>
               <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">PGM (Program Manager)</label>
@@ -238,14 +227,14 @@ export default function EditProjectPage() {
               </div>
             </div>
             <div>
-              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">AD</label>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">CAD (Client Account Director)</label>
               <div className="mt-1">
                 <PersonCombobox
                   value={cadPersonId}
                   onChange={setCadPersonId}
                   options={eligiblePeople}
                   placeholder="Type to search..."
-                  aria-label="AD"
+                  aria-label="CAD (Client Account Director)"
                 />
               </div>
             </div>

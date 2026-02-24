@@ -201,7 +201,6 @@ export default function NewProjectPage() {
                 </option>
               ))}
             </select>
-            <p className="text-label-md text-surface-500 dark:text-surface-400 mt-0.5">Eligible: Director or Project Manager. Hold Ctrl/Cmd to select multiple.</p>
           </div>
           <div>
             <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">PGM (Program Manager)</label>
@@ -219,7 +218,7 @@ export default function NewProjectPage() {
             </select>
           </div>
           <div>
-            <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">CAD</label>
+            <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">CAD (Client Account Director)</label>
             <select
               value={cadPersonId}
               onChange={(e) => setCadPersonId(e.target.value)}
