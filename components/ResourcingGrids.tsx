@@ -12,6 +12,7 @@ import {
   isFutureWeek,
 } from "@/lib/weekUtils";
 import { hasPlanningMismatch, hasMissingActuals } from "@/lib/budgetCalculations";
+import { Toggle } from "@/components/Toggle";
 
 type Assignment = { personId: string; person: { name: string }; role: { name: string } };
 type PlannedRow = { projectId: string; personId: string; weekStartDate: string; hours: number };
@@ -225,14 +226,14 @@ export function ResourcingGrids({
     return hasAnyMismatch ? "bg-jred-100 dark:bg-jred-900/20" : "";
   };
 
-  const colReady = "2.75rem";
+  const colReady = "4rem"; /* wide enough for "Ready" header */
   const colPerson = "9rem";
   const colRole = "6rem";
   const colTotal = "4.5rem";
   const colWeek = "4rem"; /* wide enough for 12.75 (2 digits, decimal, 2 digits) */
-  const leftRole = "11.75rem";
-  const leftTotal = "17.75rem";
-  const stickyColsWidth = "22.25rem";
+  const leftRole = "13rem";
+  const leftTotal = "19rem";
+  const stickyColsWidth = "23.5rem";
   const tableMinWidth = `calc(${stickyColsWidth} + ${weeks.length} * ${colWeek})`;
   const sticky = "sticky z-10";
   const stickyBgHead = "bg-surface-50 dark:bg-dark-raised";
@@ -493,7 +494,7 @@ export function ResourcingGrids({
                 <th colSpan={weeks.length} className="p-0 border-0 bg-transparent" aria-hidden />
               </tr>
               <tr className={stickyBgHead}>
-                <th className={`p-2 border text-left ${sticky} ${stickyOpaqueHead}`} style={{ left: 0 }}>Ready</th>
+                <th className={`p-2 border text-center ${sticky} ${stickyOpaqueHead}`} style={{ left: 0 }}>Ready</th>
                 <th className={`p-2 border text-left ${sticky} ${stickyOpaqueHead}`} style={{ left: colReady }}>Person</th>
                 <th className={`p-2 border text-left ${sticky} ${stickyOpaqueHead}`} style={{ left: leftRole }}>Role</th>
                 <th className={`p-2 text-center ${sticky} ${stickyOpaqueFoot} resourcing-total-header`} style={{ left: leftTotal }}>Total</th>
@@ -515,13 +516,13 @@ export function ResourcingGrids({
                 const stickyOpaque = idx % 2 === 0 ? stickyOpaqueEven : stickyOpaqueOdd;
                 return (
                 <tr key={a.personId} className={rowBg}>
-                  <td className={`p-1 border ${sticky} ${stickyOpaque}`} style={{ left: 0 }}>
+                  <td className={`p-1 border text-center ${sticky} ${stickyOpaque}`} style={{ left: 0 }}>
                     {canEdit ? (
-                      <input
-                        type="checkbox"
+                      <Toggle
+                        size="sm"
                         checked={getReady(a.personId)}
-                        onChange={(e) => toggleReady(a.personId, e.target.checked)}
-                        className="accent-jblue-500 h-4 w-4 rounded border-surface-300 dark:border-dark-muted"
+                        onChange={(ready) => toggleReady(a.personId, ready)}
+                        aria-label={`${a.person.name} ready for float`}
                       />
                     ) : (
                       getReady(a.personId) ? "✓" : ""

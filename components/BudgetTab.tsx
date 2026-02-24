@@ -404,6 +404,15 @@ export function BudgetTab({
               </tr>
             ))}
           </tbody>
+          <tfoot>
+            <tr className="border-t border-surface-200 dark:border-dark-border bg-surface-100 dark:bg-dark-raised font-medium">
+              <td className="px-4 py-3 text-surface-800 dark:text-surface-100" colSpan={2}>Total</td>
+              <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">{formatHours(budgetLines.reduce((s, bl) => s + Number(bl.lowHours), 0))}</td>
+              <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">{formatHours(budgetLines.reduce((s, bl) => s + Number(bl.highHours), 0))}</td>
+              <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">${formatDollars(budgetLines.reduce((s, bl) => s + Number(bl.lowDollars), 0))}</td>
+              <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">${formatDollars(budgetLines.reduce((s, bl) => s + Number(bl.highDollars), 0))}</td>
+            </tr>
+          </tfoot>
         </table>
       </div>
       </section>

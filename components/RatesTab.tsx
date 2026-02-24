@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Toggle } from "@/components/Toggle";
 
 type Role = { id: string; name: string };
 type ProjectRoleRate = { roleId: string; role: Role; billRate: number };
@@ -224,16 +225,12 @@ export function RatesTab({
         </div>
       )}
       <div className="flex items-center gap-3">
-        <label className="flex items-center gap-2 text-body-sm text-surface-800 dark:text-surface-100 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={useSingleRate}
-            onChange={(e) => setUseSingleRate(e.target.checked)}
-            disabled={!canEdit}
-            className="rounded border-surface-300 dark:border-dark-muted accent-jblue-500"
-          />
-          Use single rate for all roles
-        </label>
+        <Toggle
+          checked={useSingleRate}
+          onChange={setUseSingleRate}
+          disabled={!canEdit}
+          label="Use single rate for all roles"
+        />
       </div>
 
       {useSingleRate ? (
