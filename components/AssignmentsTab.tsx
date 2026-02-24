@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { PersonCombobox } from "@/components/PersonCombobox";
 
 type Person = { id: string; name: string; email?: string | null };
 type Role = { id: string; name: string };
@@ -28,15 +29,39 @@ export function AssignmentsTab({
   const [editRateOverride, setEditRateOverride] = useState<string>("");
 
   useEffect(() => {
-    Promise.all([
-      fetch(`/api/projects/${projectId}/assignments`).then((r) => r.json()),
-      fetch("/api/people").then((r) => r.json()),
-      fetch("/api/roles").then((r) => r.json()),
-    ]).then(([a, p, r]) => {
-      setAssignments(a);
-      setPeople(p);
-      setRoles(r);
-    }).finally(() => setLoading(false));
+    async function load() {
+      try {
+        const [assignmentsRes, peopleRes, rolesRes] = await Promise.all([
+          fetch(`/api/projects/${projectId}/assignments`),
+          fetch("/api/people"),
+          fetch("/api/roles"),
+        ]);
+        const parseJson = async (res: Response, fallback: unknown) => {
+          const text = await res.text();
+          if (!text) return fallback;
+          try {
+            return JSON.parse(text);
+          } catch {
+            return fallback;
+          }
+        };
+        const [a, p, r] = await Promise.all([
+          parseJson(assignmentsRes, []),
+          parseJson(peopleRes, []),
+          parseJson(rolesRes, []),
+        ]);
+        setAssignments(Array.isArray(a) ? a : []);
+        setPeople(Array.isArray(p) ? p : []);
+        setRoles(Array.isArray(r) ? r : []);
+      } catch {
+        setAssignments([]);
+        setPeople([]);
+        setRoles([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, [projectId]);
 
   async function addAssignment() {
@@ -110,20 +135,15 @@ export function AssignmentsTab({
     <div className="space-y-4">
       {canEdit && (
         <div className="flex gap-2 items-end flex-wrap">
-          <div>
+          <div className="min-w-[200px]">
             <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Person</label>
-            <select
+            <PersonCombobox
               value={selectedPerson}
-              onChange={(e) => setSelectedPerson(e.target.value)}
-              className="mt-1 h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
-            >
-              <option value="">Select...</option>
-              {availablePeople.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedPerson}
+              options={availablePeople}
+              placeholder="Type to search..."
+              aria-label="Select person to add"
+            />
           </div>
           <button
             type="button"

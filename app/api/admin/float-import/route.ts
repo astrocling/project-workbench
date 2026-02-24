@@ -100,6 +100,14 @@ export async function POST(req: NextRequest) {
         h.toLowerCase() !== projectColKey
     );
 
+  // Holiday section at bottom: first column has header "Holidays" (or similar), then holiday names
+  const holidaySectionHeaders = ["holidays", "holiday", "time off"];
+  const holidaysStartIndex = rows.findIndex((row) =>
+    holidaySectionHeaders.includes((row[nameCol] ?? "").trim().toLowerCase())
+  );
+  const peopleRows =
+    holidaysStartIndex >= 0 ? rows.slice(0, holidaysStartIndex) : rows;
+
   const projectNamesSet = new Set<string>();
   const projectToClientMap = new Map<string, string>();
   const projectAssignmentsMap = new Map<
@@ -111,7 +119,7 @@ export async function POST(req: NextRequest) {
     Array<{ personName: string; roleName: string; weeks: Array<{ weekStart: string; hours: number }> }>
   >();
 
-  for (const row of rows) {
+  for (const row of peopleRows) {
     const name = (row[nameCol] ?? "").trim();
     const roleName = (row[roleCol] ?? "").trim();
     const projectName = (row[projectCol] ?? "").trim();
@@ -148,13 +156,14 @@ export async function POST(req: NextRequest) {
 
   const peopleByKey = new Map<string, string>();
   const projectsByName = new Map<string, string>();
+  const newPersonNames: string[] = [];
 
   const projects = await prisma.project.findMany();
   for (const p of projects) {
     projectsByName.set(p.name.toLowerCase(), p.id);
   }
 
-  for (const row of rows) {
+  for (const row of peopleRows) {
     const name = (row[nameCol] ?? "").trim();
     const roleName = (row[roleCol] ?? "").trim();
     const projectName = (row[projectCol] ?? "").trim();
@@ -172,6 +181,7 @@ export async function POST(req: NextRequest) {
       person = await prisma.person.create({
         data: { name },
       });
+      if (!newPersonNames.includes(name)) newPersonNames.push(name);
     }
     peopleByKey.set(`${name}-${projectName}`.toLowerCase(), person.id);
 
@@ -231,7 +241,7 @@ export async function POST(req: NextRequest) {
   }
 
   // PTO/holiday: Float CSV format varies. If weekly columns contain "PTO"/"Holiday" text, record impact.
-  for (const row of rows) {
+  for (const row of peopleRows) {
     const name = (row[nameCol] ?? "").trim();
     if (!name) continue;
     const person = await prisma.person.findFirst({
@@ -263,6 +273,7 @@ export async function POST(req: NextRequest) {
   const completedAt = new Date();
   const uploadedByUserId = (session.user as { id?: string }).id ?? null;
   const unknownRolesJson = JSON.stringify(unknownRoles);
+  const newPersonNamesJson = JSON.stringify(newPersonNames);
   const projectNamesJson = JSON.stringify(projectNames);
   const projectAssignmentsJson = JSON.stringify(projectAssignments);
   const projectFloatHoursJson = JSON.stringify(projectFloatHours);
@@ -271,13 +282,14 @@ export async function POST(req: NextRequest) {
   const [run] = await prisma.$queryRaw<Array<{ id: string; completedAt: Date }>>`
     INSERT INTO "FloatImportRun" (
       "id", "completedAt", "uploadedByUserId",
-      "unknownRoles", "projectNames", "projectAssignments", "projectFloatHours", "projectClients"
+      "unknownRoles", "newPersonNames", "projectNames", "projectAssignments", "projectFloatHours", "projectClients"
     )
     VALUES (
       gen_random_uuid()::text,
       ${completedAt}::timestamptz,
       ${uploadedByUserId},
       ${unknownRolesJson}::jsonb,
+      ${newPersonNamesJson}::jsonb,
       ${projectNamesJson}::jsonb,
       ${projectAssignmentsJson}::jsonb,
       ${projectFloatHoursJson}::jsonb,
