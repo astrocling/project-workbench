@@ -97,6 +97,10 @@ type Rollups = {
   remainingAfterForecastHoursHigh: number;
   remainingAfterForecastDollarsLow: number;
   remainingAfterForecastDollarsHigh: number;
+  projectedBurnHours?: number;
+  projectedBurnDollars?: number;
+  remainingAfterProjectedBurnHoursHigh?: number;
+  remainingAfterProjectedBurnDollarsHigh?: number;
 };
 
 type PeopleSummaryRow = {

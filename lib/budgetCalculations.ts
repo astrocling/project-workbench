@@ -51,6 +51,12 @@ export type BudgetResult = {
   remainingAfterForecastHoursHigh: number;
   remainingAfterForecastDollarsLow: number;
   remainingAfterForecastDollarsHigh: number;
+  projectedBurnHours: number;
+  projectedBurnDollars: number;
+  remainingAfterProjectedBurnHoursLow: number;
+  remainingAfterProjectedBurnHoursHigh: number;
+  remainingAfterProjectedBurnDollarsLow: number;
+  remainingAfterProjectedBurnDollarsHigh: number;
 };
 
 function toDateOnly(d: Date): Date {

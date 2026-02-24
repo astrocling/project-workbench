@@ -8,7 +8,7 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
-  const admin = await prisma.user.findFirst({ where: { role: "Admin" } });
+  const admin = await prisma.user.findFirst({ where: { permissions: "Admin" } });
   if (!admin) {
     console.error("Run prisma db seed first to create admin user.");
     process.exit(1);

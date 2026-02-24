@@ -6,8 +6,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAsOfDate } from "@/lib/weekUtils";
 import { ThemeToggle } from "@/components/ThemeProvider";
+import { AtRiskTable } from "@/components/AtRiskTable";
 
-const FILTER_VALUES = ["my", "active", "closed", "all"] as const;
+const FILTER_VALUES = ["my", "active", "closed", "all", "atRisk"] as const;
 type FilterValue = (typeof FILTER_VALUES)[number];
 
 function normalizeFilter(raw: string | undefined): FilterValue {
@@ -26,47 +27,59 @@ export default async function ProjectsPage({
   const { filter: rawFilter } = await searchParams;
   const filter = normalizeFilter(rawFilter);
 
-  let currentPersonId: string | null = null;
-  if (filter === "my" && session.user?.id) {
-    const userEmail = session.user.email ?? undefined;
-    let person =
-      userEmail &&
-      (await prisma.person.findFirst({
-        where: { email: { equals: userEmail, mode: "insensitive" } },
-      }));
-    if (!person && session.user?.id) {
-      const user = await prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { firstName: true, lastName: true },
-      });
-      const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
-      if (fullName) {
-        person = await prisma.person.findFirst({
-          where: { name: { equals: fullName, mode: "insensitive" } },
+  let projects: Awaited<
+    ReturnType<
+      typeof prisma.project.findMany<{
+        include: { projectKeyRoles: { include: { person: true } } };
+      }>
+    >
+  > = [];
+
+  if (filter !== "atRisk") {
+    let currentPersonId: string | null = null;
+    if (filter === "my" && session.user?.id) {
+      const userEmail = session.user.email ?? undefined;
+      let person: Awaited<
+        ReturnType<typeof prisma.person.findFirst<{ where: { email: { equals: string; mode: "insensitive" } } }>>
+      > = userEmail
+        ? await prisma.person.findFirst({
+            where: { email: { equals: userEmail, mode: "insensitive" } },
+          })
+        : null;
+      if (!person && session.user?.id) {
+        const user = await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { firstName: true, lastName: true },
         });
+        const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
+        if (fullName) {
+          person = await prisma.person.findFirst({
+            where: { name: { equals: fullName, mode: "insensitive" } },
+          });
+        }
       }
+      currentPersonId = person?.id ?? null;
     }
-    currentPersonId = person?.id ?? null;
+
+    const where =
+      filter === "my"
+        ? currentPersonId
+          ? { projectKeyRoles: { some: { personId: currentPersonId } } }
+          : { id: "no-match-my-projects" }
+        : filter === "active"
+          ? { status: "Active" as const }
+          : filter === "closed"
+            ? { status: "Closed" as const }
+            : {};
+
+    projects = await prisma.project.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      include: {
+        projectKeyRoles: { include: { person: true } },
+      },
+    });
   }
-
-  const where =
-    filter === "my"
-      ? currentPersonId
-        ? { projectKeyRoles: { some: { personId: currentPersonId } } }
-        : { id: "no-match-my-projects" }
-      : filter === "active"
-        ? { status: "Active" as const }
-        : filter === "closed"
-          ? { status: "Closed" as const }
-          : {};
-
-  const projects = await prisma.project.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-    include: {
-      projectKeyRoles: { include: { person: true } },
-    },
-  });
 
   const lastImport = await prisma.floatImportRun.findFirst({
     orderBy: { completedAt: "desc" },
@@ -122,6 +135,7 @@ export default async function ProjectsPage({
               ["active", "Active Projects"],
               ["closed", "Closed Projects"],
               ["all", "All Projects"],
+              ["atRisk", "At Risk"],
             ] as const
           ).map(([value, label]) => {
             const isActive = filter === value;
@@ -147,74 +161,78 @@ export default async function ProjectsPage({
           </p>
         )}
 
-        <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border overflow-hidden shadow-card-light dark:shadow-card-dark">
-          <table className="w-full text-body-sm border-collapse">
-            <thead>
-              <tr className="bg-surface-50 dark:bg-dark-raised border-b border-surface-200 dark:border-dark-border">
-                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
-                  Name
-                </th>
-                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
-                  Client
-                </th>
-                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
-                  Status
-                </th>
-                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
-                  PMs
-                </th>
-                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
-                  PGM
-                </th>
-                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
-                  CAD
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {projects.map((p) => {
-                const pms = p.projectKeyRoles.filter((kr) => kr.type === "PM");
-                const pgm = p.projectKeyRoles.find((kr) => kr.type === "PGM");
-                const cad = p.projectKeyRoles.find((kr) => kr.type === "CAD");
-                return (
-                  <tr
-                    key={p.id}
-                    className="border-b border-surface-100 dark:border-dark-border/60 last:border-0 hover:bg-jblue-500/[0.03] dark:hover:bg-jblue-500/[0.06] transition-colors duration-100"
-                  >
-                    <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
-                      <Link
-                        href={`/projects/${p.id}`}
-                        className="font-medium text-surface-800 dark:text-white text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200"
-                      >
-                        {p.name}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
-                      {p.clientName}
-                    </td>
-                    <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
-                      {p.status}
-                    </td>
-                    <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
-                      {pms.map((kr) => kr.person.name).join(", ") || "—"}
-                    </td>
-                    <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
-                      {pgm?.person.name ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
-                      {cad?.person.name ?? "—"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {projects.length === 0 && (
-            <p className="p-8 text-center text-surface-700 dark:text-surface-300">
-              {filter === "all" ? "No projects yet." : "No projects match this filter."}
-            </p>
-          )}
-        </div>
+        {filter === "atRisk" ? (
+          <AtRiskTable />
+        ) : (
+          <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border overflow-hidden shadow-card-light dark:shadow-card-dark">
+            <table className="w-full text-body-sm border-collapse">
+              <thead>
+                <tr className="bg-surface-50 dark:bg-dark-raised border-b border-surface-200 dark:border-dark-border">
+                  <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
+                    Name
+                  </th>
+                  <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
+                    Client
+                  </th>
+                  <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
+                    Status
+                  </th>
+                  <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
+                    PMs
+                  </th>
+                  <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
+                    PGM
+                  </th>
+                  <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
+                    CAD
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {projects.map((p) => {
+                  const pms = p.projectKeyRoles.filter((kr) => kr.type === "PM");
+                  const pgm = p.projectKeyRoles.find((kr) => kr.type === "PGM");
+                  const cad = p.projectKeyRoles.find((kr) => kr.type === "CAD");
+                  return (
+                    <tr
+                      key={p.id}
+                      className="border-b border-surface-100 dark:border-dark-border/60 last:border-0 hover:bg-jblue-500/[0.03] dark:hover:bg-jblue-500/[0.06] transition-colors duration-100"
+                    >
+                      <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
+                        <Link
+                          href={`/projects/${p.id}`}
+                          className="font-medium text-surface-800 dark:text-white text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200"
+                        >
+                          {p.name}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
+                        {p.clientName}
+                      </td>
+                      <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
+                        {p.status}
+                      </td>
+                      <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
+                        {pms.map((kr) => kr.person.name).join(", ") || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
+                        {pgm?.person.name ?? "—"}
+                      </td>
+                      <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
+                        {cad?.person.name ?? "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {projects.length === 0 && (
+              <p className="p-8 text-center text-surface-700 dark:text-surface-300">
+                {filter === "all" ? "No projects yet." : "No projects match this filter."}
+              </p>
+            )}
+          </div>
+        )}
       </main>
     </div>
   );
