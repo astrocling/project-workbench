@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
   const weekColumns: { key: string; weekStart: Date }[] = [];
   const unknownRoles: string[] = [];
   const knownRoles = await prisma.role.findMany();
-  const roleNames = new Set(knownRoles.map((r) => r.name));
+  const roleNames = new Set(knownRoles.map((r: { name: string }) => r.name));
 
   for (const h of headers) {
     const weekStart = parseFloatWeekHeader(h);
