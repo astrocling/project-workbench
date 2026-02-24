@@ -7,11 +7,61 @@ import { redirect } from "next/navigation";
 import { getAsOfDate } from "@/lib/weekUtils";
 import { ThemeToggle } from "@/components/ThemeProvider";
 
-export default async function ProjectsPage() {
+const FILTER_VALUES = ["my", "active", "closed", "all"] as const;
+type FilterValue = (typeof FILTER_VALUES)[number];
+
+function normalizeFilter(raw: string | undefined): FilterValue {
+  if (raw && FILTER_VALUES.includes(raw as FilterValue)) return raw as FilterValue;
+  return "my";
+}
+
+export default async function ProjectsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string }>;
+}) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
+  const { filter: rawFilter } = await searchParams;
+  const filter = normalizeFilter(rawFilter);
+
+  let currentPersonId: string | null = null;
+  if (filter === "my" && session.user?.id) {
+    const userEmail = session.user.email ?? undefined;
+    let person =
+      userEmail &&
+      (await prisma.person.findFirst({
+        where: { email: { equals: userEmail, mode: "insensitive" } },
+      }));
+    if (!person && session.user?.id) {
+      const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { firstName: true, lastName: true },
+      });
+      const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
+      if (fullName) {
+        person = await prisma.person.findFirst({
+          where: { name: { equals: fullName, mode: "insensitive" } },
+        });
+      }
+    }
+    currentPersonId = person?.id ?? null;
+  }
+
+  const where =
+    filter === "my"
+      ? currentPersonId
+        ? { projectKeyRoles: { some: { personId: currentPersonId } } }
+        : { id: "no-match-my-projects" }
+      : filter === "active"
+        ? { status: "Active" as const }
+        : filter === "closed"
+          ? { status: "Closed" as const }
+          : {};
+
   const projects = await prisma.project.findMany({
+    where,
     orderBy: { createdAt: "desc" },
     include: {
       projectKeyRoles: { include: { person: true } },
@@ -64,6 +114,32 @@ export default async function ProjectsPage() {
             </Link>
           )}
         </div>
+
+        <nav className="flex gap-1 mb-4" aria-label="Project filter">
+          {(
+            [
+              ["my", "My Projects"],
+              ["active", "Active Projects"],
+              ["closed", "Closed Projects"],
+              ["all", "All Projects"],
+            ] as const
+          ).map(([value, label]) => {
+            const isActive = filter === value;
+            return (
+              <Link
+                key={value}
+                href={`/projects?filter=${value}`}
+                className={`px-4 py-2 rounded-md text-body-sm font-medium transition-colors ${
+                  isActive
+                    ? "bg-jblue-500 text-white dark:bg-jblue-600 dark:text-white"
+                    : "text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-dark-raised"
+                }`}
+              >
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
 
         {lastImport && (
           <p className="text-body-sm text-surface-700 dark:text-surface-200 mb-4">
@@ -135,7 +211,7 @@ export default async function ProjectsPage() {
           </table>
           {projects.length === 0 && (
             <p className="p-8 text-center text-surface-700 dark:text-surface-300">
-              No projects yet.
+              {filter === "all" ? "No projects yet." : "No projects match this filter."}
             </p>
           )}
         </div>
