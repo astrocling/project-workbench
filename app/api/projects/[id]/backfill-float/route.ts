@@ -3,10 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { getProjectId } from "@/lib/slug";
-import { getProjectDataFromImport } from "@/lib/floatImportUtils";
+import { getProjectDataFromAllImports } from "@/lib/floatImportUtils";
 
 /**
- * Backfill FloatScheduledHours for an existing project from the last float import.
+ * Backfill FloatScheduledHours for an existing project from all float imports.
  * Use when a project was created after the import (or before projectFloatHours was stored).
  * Matches by project name (normalized: trim, collapse spaces, case-insensitive).
  */
@@ -27,24 +27,33 @@ export async function POST(
   const project = await prisma.project.findUnique({ where: { id } });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
-  const lastImport = await prisma.floatImportRun.findFirst({
-    orderBy: { completedAt: "desc" },
+  const allRuns = await prisma.floatImportRun.findMany({
+    orderBy: { completedAt: "asc" },
+    select: {
+      completedAt: true,
+      projectNames: true,
+      projectAssignments: true,
+      projectFloatHours: true,
+    },
   });
-  const { floatList } = getProjectDataFromImport(
-    lastImport,
-    project.name
+  const { floatList } = getProjectDataFromAllImports(allRuns, project.name);
+  const availableInImport = Array.from(
+    new Set(
+      allRuns.flatMap((run) => {
+        const hours = run.projectFloatHours as Record<string, unknown[]> | undefined;
+        return hours ? Object.keys(hours) : [];
+      })
+    )
   );
-  const projectFloatHours =
-    (lastImport?.projectFloatHours as Record<string, unknown[]> | undefined) ?? {};
-  const availableInImport = Object.keys(projectFloatHours);
 
   if (floatList.length === 0) {
     return NextResponse.json(
       {
         error: "No float data found",
-        detail: lastImport
-          ? `No float data for "${project.name}" in the most recent import. Check that the project name matches (including spaces). Re-import the Float CSV if needed.`
-          : "No Float import has been run yet. Upload a Float CSV in Admin first, then try again.",
+        detail:
+          allRuns.length > 0
+            ? `No float data for "${project.name}" in any import. Check that the project name matches (including spaces). Re-import the Float CSV if needed.`
+            : "No Float import has been run yet. Upload a Float CSV in Admin first, then try again.",
         projectName: project.name,
         availableInImport: availableInImport.length > 0 ? availableInImport : undefined,
       },

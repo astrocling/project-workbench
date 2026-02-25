@@ -30,6 +30,9 @@ type FloatImportRunLike = {
   projectFloatHours?: unknown;
 };
 
+/** Run with completedAt for merging (latest run wins per week). */
+export type FloatImportRunWithDate = FloatImportRunLike & { completedAt: Date };
+
 export function getProjectDataFromImport(
   lastImport: FloatImportRunLike | null | undefined,
   projectName: string
@@ -80,6 +83,73 @@ export function getProjectDataFromImport(
     }
     if (Array.isArray(projectFloatHours[matchedKey])) {
       floatList.push(...projectFloatHours[matchedKey]);
+    }
+  }
+
+  return { assignmentsList, floatList, matchedKey };
+}
+
+/**
+ * Merge project data from multiple Float import runs (e.g. all runs ordered by completedAt asc).
+ * Assignments: union of all runs, dedupe by person; role "last run wins".
+ * Float hours: for each (personName, weekStart), keep the value from the run with the latest completedAt.
+ * Use for project create and backfill-float so projects get full history across 12-month exports.
+ */
+export function getProjectDataFromAllImports(
+  runs: FloatImportRunWithDate[],
+  projectName: string
+): {
+  assignmentsList: AssignmentItem[];
+  floatList: FloatHourItem[];
+  matchedKey: string | null;
+} {
+  const assignmentsByPerson = new Map<string, AssignmentItem>(); // key: personName lowercase
+  const hoursByPerson = new Map<
+    string,
+    { personName: string; weekMap: Map<string, number> }
+  >(); // personKey -> { personName (last seen), weekMap }
+  let matchedKey: string | null = null;
+
+  if (!projectName?.trim() || runs.length === 0) {
+    return { assignmentsList: [], floatList: [], matchedKey: null };
+  }
+
+  for (const run of runs) {
+    const { assignmentsList, floatList, matchedKey: key } = getProjectDataFromImport(
+      run,
+      projectName
+    );
+    if (key) matchedKey = key;
+
+    for (const a of assignmentsList) {
+      const k = a.personName.trim().toLowerCase();
+      assignmentsByPerson.set(k, { personName: a.personName, roleName: a.roleName });
+    }
+
+    for (const item of floatList) {
+      const personName = item.personName;
+      const personKey = personName.trim().toLowerCase();
+      if (!hoursByPerson.has(personKey)) {
+        hoursByPerson.set(personKey, { personName, weekMap: new Map() });
+      }
+      const entry = hoursByPerson.get(personKey)!;
+      entry.personName = personName;
+      for (const w of item.weeks ?? []) {
+        if (w.weekStart != null && w.hours != null) {
+          entry.weekMap.set(w.weekStart, w.hours);
+        }
+      }
+    }
+  }
+
+  const assignmentsList = Array.from(assignmentsByPerson.values());
+  const floatList: FloatHourItem[] = [];
+  for (const { personName, weekMap } of hoursByPerson.values()) {
+    const weeks = Array.from(weekMap.entries())
+      .map(([weekStart, hours]) => ({ weekStart, hours }))
+      .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+    if (weeks.length > 0) {
+      floatList.push({ personName, roleName: "", weeks });
     }
   }
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
-import { getProjectDataFromImport } from "@/lib/floatImportUtils";
+import { getProjectDataFromAllImports } from "@/lib/floatImportUtils";
 import { slugify, ensureUniqueSlug } from "@/lib/slug";
 import { z } from "zod";
 
@@ -94,8 +94,8 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Backfill assignments and float hours from the most recent Float import when the new
-  // project name matches a project in that import (so resourcing data is available immediately).
+  // Backfill assignments and float hours from all Float import runs when the new
+  // project name matches a project in any import (so resourcing data is available immediately).
   let backfillStats: {
     matched: boolean;
     assignmentsCreated: number;
@@ -106,16 +106,17 @@ export async function POST(req: NextRequest) {
   } = { matched: false, assignmentsCreated: 0, floatHoursCreated: 0 };
   const nameToLookup = (floatProjectName ?? name)?.trim();
   if (nameToLookup) {
-    const lastImport = await prisma.floatImportRun.findFirst({
-      orderBy: { completedAt: "desc" },
+    const allRuns = await prisma.floatImportRun.findMany({
+      orderBy: { completedAt: "asc" },
       select: {
+        completedAt: true,
         projectNames: true,
         projectAssignments: true,
         projectFloatHours: true,
       },
     });
-    const { assignmentsList, floatList } = getProjectDataFromImport(
-      lastImport,
+    const { assignmentsList, floatList } = getProjectDataFromAllImports(
+      allRuns,
       nameToLookup
     );
 
