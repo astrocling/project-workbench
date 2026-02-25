@@ -100,13 +100,7 @@ export async function POST(req: NextRequest) {
         h.toLowerCase() !== projectColKey
     );
 
-  // Holiday section at bottom: first column has header "Holidays" (or similar), then holiday names
-  const holidaySectionHeaders = ["holidays", "holiday", "time off"];
-  const holidaysStartIndex = rows.findIndex((row) =>
-    holidaySectionHeaders.includes((row[nameCol] ?? "").trim().toLowerCase())
-  );
-  const peopleRows =
-    holidaysStartIndex >= 0 ? rows.slice(0, holidaysStartIndex) : rows;
+  const peopleRows = rows;
 
   const projectNamesSet = new Set<string>();
   const projectToClientMap = new Map<string, string>();
@@ -235,36 +229,6 @@ export async function POST(req: NextRequest) {
         },
         update: { hours: val },
       });
-    }
-  }
-
-  // PTO/holiday: Float CSV format varies. If weekly columns contain "PTO"/"Holiday" text, record impact.
-  for (const row of peopleRows) {
-    const name = (row[nameCol] ?? "").trim();
-    if (!name) continue;
-    const person = await prisma.person.findFirst({
-      where: { name: { equals: name, mode: "insensitive" } },
-    });
-    if (!person) continue;
-    for (const { key, weekStart } of weekColumns) {
-      const val = (row[key] ?? "").toString().trim().toLowerCase();
-      if (["pto", "holiday", "off", "vacation", "time off"].some((t) => val.includes(t))) {
-        const weekStartUTC = toUTCMonday(weekStart);
-        await prisma.pTOHolidayImpact.upsert({
-          where: {
-            personId_weekStartDate: {
-              personId: person.id,
-              weekStartDate: weekStartUTC,
-            },
-          },
-          create: {
-            personId: person.id,
-            weekStartDate: weekStartUTC,
-            type: "PTO",
-          },
-          update: {},
-        });
-      }
     }
   }
 
