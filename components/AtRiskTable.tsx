@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 type AtRiskProject = {
   id: string;
+  slug: string;
   name: string;
   clientName: string;
   status: string;
@@ -68,7 +69,7 @@ export function AtRiskTable() {
             >
               <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
                 <Link
-                  href={`/projects/${p.id}`}
+                  href={`/projects/${p.slug}`}
                   className="font-medium text-surface-800 dark:text-white text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200"
                 >
                   {p.name}

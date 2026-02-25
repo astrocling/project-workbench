@@ -11,7 +11,7 @@ export default function EditProjectPage() {
   const router = useRouter();
   const params = useParams();
   const { data: session } = useSession();
-  const id = params.id as string;
+  const slug = params.slug as string;
   const [name, setName] = useState("");
   const [clientName, setClientName] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -31,7 +31,7 @@ export default function EditProjectPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch(`/api/projects/${id}`).then((r) => r.json()),
+      fetch(`/api/projects/${slug}`).then((r) => r.json()),
       fetch("/api/people/eligible-key-roles").then((r) => r.json()),
     ])
       .then(([p, people]) => {
@@ -58,12 +58,12 @@ export default function EditProjectPage() {
         );
       })
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [slug]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    const res = await fetch(`/api/projects/${id}`, {
+    const res = await fetch(`/api/projects/${slug}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -97,7 +97,8 @@ export default function EditProjectPage() {
       setError(await res.text());
       return;
     }
-    router.push(`/projects/${id}`);
+    const data = await res.json();
+    router.push(`/projects/${data.slug ?? slug}`);
     router.refresh();
   }
 
@@ -105,7 +106,7 @@ export default function EditProjectPage() {
     if (!canEdit || backfillingFloat) return;
     setBackfillingFloat(true);
     try {
-      const res = await fetch(`/api/projects/${id}/backfill-float`, { method: "POST" });
+      const res = await fetch(`/api/projects/${slug}/backfill-float`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const detail = data.detail ?? data.error ?? "Backfill failed";
@@ -122,9 +123,7 @@ export default function EditProjectPage() {
     }
   }
 
-  if (loading) return <div className="p-6 text-body-sm text-surface-700 dark:text-surface-200">Loading...</div>;
-
-  let permissionLevel: ReturnType<typeof getSessionPermissionLevel> = undefined;
+  let permissionLevel: ReturnType<typeof getSessionPermissionLevel> | undefined;
   try {
     const user = session?.user;
     permissionLevel = user != null ? getSessionPermissionLevel(user as { permissions?: string; role?: string }) : undefined;
@@ -133,10 +132,18 @@ export default function EditProjectPage() {
   }
   const canEdit = canEditProject(permissionLevel);
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-surface-50 dark:bg-dark-bg flex items-center justify-center">
+        <p className="text-body-sm text-surface-500 dark:text-surface-400">Loading…</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-dark-bg">
       <header className="sticky top-0 z-30 flex items-center justify-between bg-white/80 dark:bg-dark-bg/90 backdrop-blur-md border-b border-surface-200 dark:border-dark-border px-6 py-4">
-        <Link href={`/projects/${id}`} className="text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium">
+        <Link href={`/projects/${slug}`} className="text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium">
           ← Back to project
         </Link>
         <div className="flex gap-4 items-center">
@@ -312,7 +319,7 @@ export default function EditProjectPage() {
               Save
             </button>
             <Link
-              href={`/projects/${id}`}
+              href={`/projects/${slug}`}
               className="h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-transparent hover:bg-surface-100 dark:hover:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm"
             >
               Cancel

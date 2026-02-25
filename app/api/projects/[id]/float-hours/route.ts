@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
+import { getProjectId } from "@/lib/slug";
 import { formatWeekKey } from "@/lib/weekUtils";
 
 /**
@@ -16,7 +17,9 @@ export async function GET(
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id } = await params;
+  const { id: idOrSlug } = await params;
+  const id = await getProjectId(idOrSlug);
+  if (!id) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const rows = await prisma.floatScheduledHours.findMany({
     where: { projectId: id },
   });

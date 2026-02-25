@@ -214,6 +214,7 @@ export async function GET() {
 
   const results: Array<{
     id: string;
+    slug: string;
     name: string;
     clientName: string;
     status: string;
@@ -237,6 +238,7 @@ export async function GET() {
 
     results.push({
       id: project.id,
+      slug: project.slug,
       name: project.name,
       clientName: project.clientName,
       status: project.status,

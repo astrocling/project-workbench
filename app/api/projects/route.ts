@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { getProjectDataFromImport } from "@/lib/floatImportUtils";
+import { slugify, ensureUniqueSlug } from "@/lib/slug";
 import { z } from "zod";
 
 const createSchema = z.object({
@@ -76,8 +77,13 @@ export async function POST(req: NextRequest) {
     if (!raw) return null;
     return raw.startsWith("http://") || raw.startsWith("https://") ? raw : `https://${raw}`;
   };
+  const existingSlugs = new Set(
+    (await prisma.project.findMany({ select: { slug: true } })).map((p) => p.slug).filter(Boolean)
+  );
+  const slug = ensureUniqueSlug(slugify(name), existingSlugs);
   const project = await prisma.project.create({
     data: {
+      slug,
       name,
       clientName,
       startDate: startDate instanceof Date ? startDate : new Date(startDate),

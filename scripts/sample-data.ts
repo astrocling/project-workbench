@@ -32,6 +32,7 @@ async function main() {
 
   const project = await prisma.project.create({
     data: {
+      slug: "sample-project",
       name: "Sample Project",
       clientName: "Sample Client",
       startDate: new Date("2025-02-03"),

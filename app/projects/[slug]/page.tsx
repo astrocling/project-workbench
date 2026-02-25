@@ -8,21 +8,34 @@ import { getAsOfDate } from "@/lib/weekUtils";
 import { ProjectDetailTabs } from "./ProjectDetailTabs";
 import { ThemeToggle } from "@/components/ThemeProvider";
 
+const CUID_REGEX = /^c[a-z0-9]{24}$/i;
+
 export default async function ProjectDetailPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ slug: string }>;
   searchParams: Promise<{ tab?: string }>;
 }) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  const { id } = await params;
+  const { slug: slugParam } = await params;
   const { tab = "overview" } = await searchParams;
 
+  // Backward compatibility: if URL looks like old cuid, resolve by id and redirect to slug
+  if (CUID_REGEX.test(slugParam)) {
+    const byId = await prisma.project.findUnique({
+      where: { id: slugParam },
+      select: { slug: true },
+    });
+    if (byId?.slug) {
+      redirect(`/projects/${byId.slug}`);
+    }
+  }
+
   const project = await prisma.project.findUnique({
-    where: { id },
+    where: { slug: slugParam },
     include: {
       assignments: { include: { person: true, role: true } },
       projectRoleRates: { include: { role: true } },
@@ -69,7 +82,8 @@ export default async function ProjectDetailPage({
 
       <main className="px-8 py-6 max-w-[1440px] mx-auto">
         <ProjectDetailTabs
-          projectId={id}
+          projectId={project.id}
+          projectSlug={project.slug}
           tab={tab}
           canEdit={!!canEdit}
           floatLastUpdated={lastImport?.completedAt ?? null}
