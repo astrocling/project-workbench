@@ -112,6 +112,11 @@ export async function POST(req: NextRequest) {
     string,
     Array<{ personName: string; roleName: string; weeks: Array<{ weekStart: string; hours: number }> }>
   >();
+  /** Merged float hours by (projectName, personName) with summed hours per week. */
+  const mergedFloatByProjectPerson = new Map<
+    string,
+    { projectName: string; personName: string; roleName: string; weekMap: Map<string, number> }
+  >();
 
   for (const row of peopleRows) {
     const name = (row[nameCol] ?? "").trim();
@@ -130,9 +135,10 @@ export async function POST(req: NextRequest) {
       projectAssignmentsMap.set(projectName, []);
     }
     const arr = projectAssignmentsMap.get(projectName)!;
-    if (
-      !arr.some((a) => a.personName.toLowerCase() === name.toLowerCase())
-    ) {
+    const existing = arr.find((a) => a.personName.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      existing.roleName = roleName;
+    } else {
       arr.push({ personName: name, roleName });
     }
   }
@@ -177,17 +183,26 @@ export async function POST(req: NextRequest) {
     }
     peopleByKey.set(`${name}-${projectName}`.toLowerCase(), person.id);
 
-    // Store float hour data for all projects (for backfilling when project is created after import)
-    const weeks: Array<{ weekStart: string; hours: number }> = [];
+    // Merge float hour data by (project, person): sum hours per week for backfill storage
+    const mergeKey = `${projectName}|${name}`.toLowerCase();
+    let entry = mergedFloatByProjectPerson.get(mergeKey);
+    if (!entry) {
+      entry = {
+        projectName,
+        personName: name,
+        roleName,
+        weekMap: new Map<string, number>(),
+      };
+      mergedFloatByProjectPerson.set(mergeKey, entry);
+    } else {
+      entry.roleName = roleName;
+    }
     for (const { key, weekStart } of weekColumns) {
       const val = parseFloat((row[key] ?? "0").replace(/[^0-9.-]/g, "")) || 0;
       const weekStartUTC = toUTCMonday(weekStart);
-      weeks.push({ weekStart: formatWeekKey(weekStartUTC), hours: val });
+      const weekKey = formatWeekKey(weekStartUTC);
+      entry.weekMap.set(weekKey, (entry.weekMap.get(weekKey) ?? 0) + val);
     }
-    if (!projectFloatHoursMap.has(projectName)) {
-      projectFloatHoursMap.set(projectName, []);
-    }
-    projectFloatHoursMap.get(projectName)!.push({ personName: name, roleName, weeks });
 
     const projectId = projectsByName.get(projectName.toLowerCase());
     if (!projectId) continue;
@@ -209,25 +224,49 @@ export async function POST(req: NextRequest) {
       },
       update: { roleId: role.id },
     });
+  }
 
-    for (const { key, weekStart } of weekColumns) {
-      const val = parseFloat((row[key] ?? "0").replace(/[^0-9.-]/g, "")) || 0;
-      const weekStartUTC = toUTCMonday(weekStart);
+  // Build projectFloatHoursMap from merged data (one entry per project+person, summed hours)
+  for (const entry of mergedFloatByProjectPerson.values()) {
+    const weeks = Array.from(entry.weekMap.entries())
+      .map(([weekStart, hours]) => ({ weekStart, hours }))
+      .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+    if (weeks.length === 0) continue;
+    if (!projectFloatHoursMap.has(entry.projectName)) {
+      projectFloatHoursMap.set(entry.projectName, []);
+    }
+    projectFloatHoursMap.get(entry.projectName)!.push({
+      personName: entry.personName,
+      roleName: entry.roleName,
+      weeks,
+    });
+  }
+
+  // Write FloatScheduledHours from merged data (summed hours per project+person+week)
+  for (const entry of mergedFloatByProjectPerson.values()) {
+    const projectId = projectsByName.get(entry.projectName.toLowerCase());
+    if (!projectId) continue;
+    const person = await prisma.person.findFirst({
+      where: { name: { equals: entry.personName, mode: "insensitive" } },
+    });
+    if (!person) continue;
+    for (const [weekStart, hours] of entry.weekMap) {
+      const weekStartDate = new Date(weekStart + "T00:00:00.000Z");
       await prisma.floatScheduledHours.upsert({
         where: {
           projectId_personId_weekStartDate: {
             projectId,
             personId: person.id,
-            weekStartDate: weekStartUTC,
+            weekStartDate,
           },
         },
         create: {
           projectId,
           personId: person.id,
-          weekStartDate: weekStartUTC,
-          hours: val,
+          weekStartDate: weekStartDate,
+          hours,
         },
-        update: { hours: val },
+        update: { hours },
       });
     }
   }
