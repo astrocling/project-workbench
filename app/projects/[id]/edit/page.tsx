@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { getSessionPermissionLevel, canAccessAdmin } from "@/lib/auth";
+import { getSessionPermissionLevel, canAccessAdmin, canEditProject } from "@/lib/auth";
 import { PersonCombobox, PersonMultiCombobox } from "@/components/PersonCombobox";
 
 export default function EditProjectPage() {
@@ -27,6 +27,7 @@ export default function EditProjectPage() {
   const [eligiblePeople, setEligiblePeople] = useState<{ id: string; name: string }[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [backfillingFloat, setBackfillingFloat] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -100,7 +101,37 @@ export default function EditProjectPage() {
     router.refresh();
   }
 
+  async function backfillFloat() {
+    if (!canEdit || backfillingFloat) return;
+    setBackfillingFloat(true);
+    try {
+      const res = await fetch(`/api/projects/${id}/backfill-float`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const detail = data.detail ?? data.error ?? "Backfill failed";
+        const available = data.availableInImport as string[] | undefined;
+        const msg = Array.isArray(available) && available.length > 0
+          ? `${detail}\n\nNames in last import: ${available.join(", ")}`
+          : detail;
+        alert(msg);
+        return;
+      }
+      router.refresh();
+    } finally {
+      setBackfillingFloat(false);
+    }
+  }
+
   if (loading) return <div className="p-6 text-body-sm text-surface-700 dark:text-surface-200">Loading...</div>;
+
+  let permissionLevel: ReturnType<typeof getSessionPermissionLevel> = undefined;
+  try {
+    const user = session?.user;
+    permissionLevel = user != null ? getSessionPermissionLevel(user as { permissions?: string; role?: string }) : undefined;
+  } catch {
+    permissionLevel = undefined;
+  }
+  const canEdit = canEditProject(permissionLevel);
 
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-dark-bg">
@@ -109,7 +140,7 @@ export default function EditProjectPage() {
           ← Back to project
         </Link>
         <div className="flex gap-4 items-center">
-          {canAccessAdmin(getSessionPermissionLevel(session?.user)) && (
+          {canAccessAdmin(permissionLevel) && (
             <Link
               href="/admin/float-import"
               className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
@@ -273,7 +304,7 @@ export default function EditProjectPage() {
               <p className="text-xs text-gray-500 mt-0.5">If actual is higher than resourced by more than this %, cell is red. Default: 5.</p>
             </div>
           </div>
-          <div className="flex gap-2 pt-4">
+          <div className="flex gap-2 pt-4 flex-wrap items-center">
             <button
               type="submit"
               className="h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
@@ -286,6 +317,17 @@ export default function EditProjectPage() {
             >
               Cancel
             </Link>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={backfillFloat}
+                disabled={backfillingFloat}
+                title="Import float hour data from the last CSV upload for this project"
+                className="h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-transparent hover:bg-surface-100 dark:hover:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
+              >
+                {backfillingFloat ? "Backfilling…" : "Backfill float data"}
+              </button>
+            )}
           </div>
         </form>
       </main>

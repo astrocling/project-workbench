@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
+import { getProjectDataFromImport } from "@/lib/floatImportUtils";
 import { z } from "zod";
 
 const createSchema = z.object({
@@ -87,23 +88,49 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  if (floatProjectName) {
+  // Backfill assignments and float hours from the most recent Float import when the new
+  // project name matches a project in that import (so resourcing data is available immediately).
+  let backfillStats: {
+    matched: boolean;
+    assignmentsCreated: number;
+    floatHoursCreated: number;
+    floatListLength?: number;
+    totalWeekEntries?: number;
+    floatHoursNote?: string;
+  } = { matched: false, assignmentsCreated: 0, floatHoursCreated: 0 };
+  const nameToLookup = (floatProjectName ?? name)?.trim();
+  if (nameToLookup) {
     const lastImport = await prisma.floatImportRun.findFirst({
       orderBy: { completedAt: "desc" },
+      select: {
+        projectNames: true,
+        projectAssignments: true,
+        projectFloatHours: true,
+      },
     });
-    const assignments =
-      (lastImport?.projectAssignments as Record<
-        string,
-        Array<{ personName: string; roleName: string }>
-      >) ?? {};
-    const key = Object.keys(assignments).find(
-      (k) => k.toLowerCase() === floatProjectName.toLowerCase()
+    const { assignmentsList, floatList } = getProjectDataFromImport(
+      lastImport,
+      nameToLookup
     );
-    const list = key ? assignments[key] : [];
+
+    backfillStats.floatListLength = floatList.length;
+    backfillStats.totalWeekEntries = floatList.reduce(
+      (sum, item) => sum + (item.weeks?.length ?? 0),
+      0
+    );
+
+    if (assignmentsList.length > 0 || floatList.length > 0) {
+      backfillStats = { ...backfillStats, matched: true };
+    }
+    if (assignmentsList.length > 0 && backfillStats.floatHoursCreated === 0) {
+      backfillStats.floatHoursNote =
+        "Assignments came from the last import, but no float hours were stored for that run. Re-upload the Float CSV in Admin so the next import stores float hours; then use Backfill on this project’s Edit page.";
+    }
+
     const knownRoles = await prisma.role.findMany();
     const roleByName = new Map(knownRoles.map((r) => [r.name.toLowerCase(), r.id]));
 
-    for (const { personName, roleName } of list) {
+    for (const { personName, roleName } of assignmentsList) {
       const roleId = roleByName.get(roleName.toLowerCase());
       if (!roleId) continue;
       let person = await prisma.person.findFirst({
@@ -119,29 +146,16 @@ export async function POST(req: NextRequest) {
         create: { projectId: project.id, personId: person.id, roleId },
         update: { roleId },
       });
+      backfillStats.assignmentsCreated += 1;
     }
 
-    // Backfill FloatScheduledHours from import (for projects created after import)
-    const projectFloatHours =
-      (lastImport?.projectFloatHours as Record<
-        string,
-        Array<{
-          personName: string;
-          roleName: string;
-          weeks: Array<{ weekStart: string; hours: number }>;
-        }>
-      >) ?? {};
-    const floatKey = Object.keys(projectFloatHours).find(
-      (k) => k.toLowerCase() === floatProjectName.toLowerCase()
-    );
-    const floatList = floatKey ? projectFloatHours[floatKey] : [];
     for (const { personName, weeks } of floatList) {
       const person = await prisma.person.findFirst({
         where: { name: { equals: personName, mode: "insensitive" } },
       });
       if (!person) continue;
       for (const { weekStart, hours } of weeks) {
-        if (!hours) continue;
+        if (hours == null || hours === undefined) continue;
         const weekStartDate = new Date(weekStart + "T00:00:00.000Z");
         await prisma.floatScheduledHours.upsert({
           where: {
@@ -159,7 +173,13 @@ export async function POST(req: NextRequest) {
           },
           update: { hours },
         });
+        backfillStats.floatHoursCreated += 1;
       }
+    }
+
+    if (backfillStats.assignmentsCreated > 0 && backfillStats.floatHoursCreated === 0) {
+      backfillStats.floatHoursNote =
+        "Assignments came from the last import, but no float hours were stored for that run. Re-upload the Float CSV in Admin so the next import stores float hours; then use Backfill on this project's Edit page.";
     }
   }
 
@@ -180,5 +200,8 @@ export async function POST(req: NextRequest) {
       projectKeyRoles: { include: { person: true } },
     },
   });
-  return NextResponse.json(created ?? project);
+
+  const data = created ?? project;
+  const response = Object.assign({}, data, { backfillFromImport: backfillStats });
+  return NextResponse.json(response);
 }
