@@ -30,3 +30,8 @@ export function canAccessAdmin(permissions: AppPermissionLevel | undefined | nul
 export function canUploadFloat(permissions: AppPermissionLevel | undefined | null): boolean {
   return requirePermission(permissions, ["Admin"]);
 }
+
+/** Only super users (Admin) can delete projects. */
+export function canDeleteProject(permissions: AppPermissionLevel | undefined | null): boolean {
+  return requirePermission(permissions, ["Admin"]);
+}

@@ -127,8 +127,8 @@ export async function DELETE(
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const permissions = (session.user as { permissions?: string }).permissions;
-  if (permissions !== "Admin" && permissions !== "User") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (permissions !== "Admin") {
+    return NextResponse.json({ error: "Forbidden: only super users can delete projects" }, { status: 403 });
   }
 
   const { id } = await params;

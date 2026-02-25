@@ -1,12 +1,13 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
-import { getSessionPermissionLevel, canAccessAdmin, requirePermission } from "@/lib/auth";
+import { getSessionPermissionLevel, canAccessAdmin, requirePermission, canDeleteProject } from "@/lib/auth";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAsOfDate } from "@/lib/weekUtils";
 import { ThemeToggle } from "@/components/ThemeProvider";
 import { AtRiskTable } from "@/components/AtRiskTable";
+import { DeleteProjectButton } from "@/components/DeleteProjectButton";
 
 const FILTER_VALUES = ["my", "active", "closed", "all", "atRisk"] as const;
 type FilterValue = (typeof FILTER_VALUES)[number];
@@ -84,6 +85,9 @@ export default async function ProjectsPage({
   const lastImport = await prisma.floatImportRun.findFirst({
     orderBy: { completedAt: "desc" },
   });
+
+  const permissionLevel = getSessionPermissionLevel(session.user);
+  const canDelete = canDeleteProject(permissionLevel);
 
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-dark-bg">
@@ -186,6 +190,11 @@ export default async function ProjectsPage({
                   <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
                     CAD
                   </th>
+                  {canDelete && (
+                    <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold w-24">
+                      Actions
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -221,6 +230,11 @@ export default async function ProjectsPage({
                       <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
                         {cad?.person.name ?? "—"}
                       </td>
+                      {canDelete && (
+                        <td className="px-4 py-3">
+                          <DeleteProjectButton projectId={p.id} projectName={p.name} />
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
