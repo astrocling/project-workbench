@@ -19,7 +19,6 @@ type PlannedRow = { projectId: string; personId: string; weekStartDate: string; 
 type ActualRow = { projectId: string; personId: string; weekStartDate: string; hours: number | null };
 type FloatRow = { projectId: string; personId: string; weekStartDate: string; hours: number };
 type ReadyRow = { projectId: string; personId: string; ready: boolean };
-type PTOImpact = { personId: string; weekStartDate: string; type: string };
 
 export function ResourcingGrids({
   projectId,
@@ -43,7 +42,6 @@ export function ResourcingGrids({
   const [actual, setActual] = useState<ActualRow[]>([]);
   const [float, setFloat] = useState<FloatRow[]>([]);
   const [readyForFloat, setReadyForFloat] = useState<ReadyRow[]>([]);
-  const [ptoImpacts, setPtoImpacts] = useState<PTOImpact[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncingPlan, setSyncingPlan] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -60,8 +58,7 @@ export function ResourcingGrids({
       fetch(`/api/projects/${projectId}/actual-hours`).then((r) => r.json()),
       fetch(`/api/projects/${projectId}/float-hours`).then((r) => r.json()),
       fetch(`/api/projects/${projectId}/ready-for-float`).then((r) => r.json()),
-      fetch(`/api/projects/${projectId}/pto-impacts`).then((r) => r.json()).catch(() => []),
-    ]).then(([p, a, pl, ac, fl, rf, pto]) => {
+    ]).then(([p, a, pl, ac, fl, rf]) => {
       setProject({
         startDate: p.startDate,
         endDate: p.endDate,
@@ -88,7 +85,6 @@ export function ResourcingGrids({
         }))
       );
       setReadyForFloat(rf ?? []);
-      setPtoImpacts(pto ?? []);
     }).finally(() => setLoading(false));
   }, [projectId, refreshTrigger]);
 
@@ -168,12 +164,6 @@ export function ResourcingGrids({
   };
   const getReady = (personId: string) =>
     readyForFloat.find((r) => r.personId === personId)?.ready ?? false;
-  const hasPTO = (personId: string, weekKey: string) =>
-    ptoImpacts.some(
-      (x) => x.personId === personId && x.weekStartDate.startsWith(weekKey)
-    );
-  const weekHasAnyPTO = (weekKey: string) =>
-    assignments.some((a) => hasPTO(a.personId, weekKey));
 
   const plannedRowTotal = (personId: string) =>
     weeks.reduce((sum, w) => sum + getPlanned(personId, formatWeekKey(w)), 0);
@@ -434,15 +424,14 @@ export function ResourcingGrids({
       );
     }
     // Float (read-only)
-    const pto = hasPTO(personId, weekKey);
     const plannedVal = getPlanned(personId, weekKey);
     const floatVal = value ?? 0;
     const mismatch = hasPlanningMismatch(weekDate, plannedVal, floatVal, asOf);
     return (
       <td
         key={weekKey}
-        className={`relative z-0 p-1 border text-center border-surface-200 dark:border-dark-border ${pto ? "bg-jblue-50 dark:bg-jblue-500/10" : ""} ${mismatch ? "bg-jred-100 dark:bg-jred-900/20" : ""}`}
-        title={pto ? "PTO/Holiday" : mismatch ? "Planned ≠ Float" : undefined}
+        className={`relative z-0 p-1 border text-center border-surface-200 dark:border-dark-border ${mismatch ? "bg-jred-100 dark:bg-jred-900/20" : ""}`}
+        title={mismatch ? "Planned ≠ Float" : undefined}
       >
         <span className="inline-block w-full text-center tabular-nums">{value ?? 0}</span>
       </td>
@@ -471,7 +460,6 @@ export function ResourcingGrids({
                   style={{ left: 0, width: stickyColsWidth, minWidth: stickyColsWidth }}
                 >
                   <h3 className="text-display-md font-bold text-surface-900 dark:text-white">1. Project Planning Grid</h3>
-                  <p className="text-body-sm text-surface-600 dark:text-surface-400 mt-0.5">* = week with PTO/holiday; blue outline = person has PTO that week</p>
                 </th>
                 <th colSpan={weeks.length} className="p-0 border-0 bg-transparent" aria-hidden />
               </tr>
@@ -680,15 +668,13 @@ export function ResourcingGrids({
                 <th className={`p-2 text-center ${sticky} ${stickyOpaqueFoot} resourcing-total-header`} style={{ left: leftTotal }}>Total</th>
                 {weeks.map((w) => {
                   const k = formatWeekKey(w);
-                  const colPTO = weekHasAnyPTO(k);
                   return (
                     <th
                       key={k}
-                      className={`p-1 border text-center text-xs whitespace-nowrap w-16 border-surface-200 dark:border-dark-border ${colPTO ? "bg-jblue-50 dark:bg-jblue-500/10" : ""}`}
+                      className="p-1 border text-center text-xs whitespace-nowrap w-16 border-surface-200 dark:border-dark-border"
                       title={k}
                     >
                       {formatWeekShort(w)}
-                      {colPTO && " *"}
                     </th>
                   );
                 })}
