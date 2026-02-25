@@ -46,7 +46,6 @@ export function ResourcingGrids({
   const [ptoImpacts, setPtoImpacts] = useState<PTOImpact[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncingPlan, setSyncingPlan] = useState(false);
-  const [backfillingFloat, setBackfillingFloat] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [editingPlanned, setEditingPlanned] = useState<{ personId: string; weekKey: string; str: string } | null>(null);
   const [editingActual, setEditingActual] = useState<{ personId: string; weekKey: string; str: string } | null>(null);
@@ -302,24 +301,6 @@ export function ResourcingGrids({
     });
   }
 
-  async function backfillFloat() {
-    if (!canEdit || backfillingFloat) return;
-    setBackfillingFloat(true);
-    try {
-      const res = await fetch(`/api/projects/${projectId}/backfill-float`, {
-        method: "POST",
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        alert(data.detail ?? data.error ?? "Backfill failed");
-        return;
-      }
-      setRefreshTrigger((t) => t + 1);
-    } finally {
-      setBackfillingFloat(false);
-    }
-  }
-
   async function syncPlanFromFloat() {
     if (!canEdit || syncingPlan) return;
     setSyncingPlan(true);
@@ -490,6 +471,7 @@ export function ResourcingGrids({
                   style={{ left: 0, width: stickyColsWidth, minWidth: stickyColsWidth }}
                 >
                   <h3 className="text-display-md font-bold text-surface-900 dark:text-white">1. Project Planning Grid</h3>
+                  <p className="text-body-sm text-surface-600 dark:text-surface-400 mt-0.5">* = week with PTO/holiday; blue outline = person has PTO that week</p>
                 </th>
                 <th colSpan={weeks.length} className="p-0 border-0 bg-transparent" aria-hidden />
               </tr>
@@ -678,17 +660,7 @@ export function ResourcingGrids({
                   <div className="flex items-center gap-3 flex-wrap">
                     <h3 className="text-display-md font-bold text-surface-900 dark:text-white">3. Float Actuals Grid</h3>
                     {canEdit && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={backfillFloat}
-                          disabled={backfillingFloat}
-                          className="h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-transparent hover:bg-surface-100 dark:hover:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
-                          title="Import float hour data from the last CSV upload for this project"
-                        >
-                          {backfillingFloat ? "Backfilling…" : "Backfill float data"}
-                        </button>
-                        <button
+                      <button
                           type="button"
                           onClick={syncPlanFromFloat}
                           disabled={syncingPlan}
@@ -696,7 +668,6 @@ export function ResourcingGrids({
                         >
                           {syncingPlan ? "Syncing…" : "Sync plan from Float"}
                         </button>
-                      </>
                     )}
                   </div>
                 </th>

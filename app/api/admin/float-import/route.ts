@@ -147,9 +147,7 @@ export async function POST(req: NextRequest) {
   const projectAssignments = JSON.parse(
     JSON.stringify(Object.fromEntries(projectAssignmentsMap))
   ) as Record<string, Array<{ personName: string; roleName: string }>>;
-  const projectFloatHours = JSON.parse(
-    JSON.stringify(Object.fromEntries(projectFloatHoursMap))
-  ) as Record<string, Array<{ personName: string; roleName: string; weeks: Array<{ weekStart: string; hours: number }> }>>;
+  // projectFloatHours is built after the loop below that fills projectFloatHoursMap
   const projectClients = JSON.parse(
     JSON.stringify(Object.fromEntries(projectToClientMap))
   ) as Record<string, string>;
@@ -269,6 +267,11 @@ export async function POST(req: NextRequest) {
       }
     }
   }
+
+  // Build projectFloatHours after the loop that populated projectFloatHoursMap (used for backfilling new projects)
+  const projectFloatHours = JSON.parse(
+    JSON.stringify(Object.fromEntries(projectFloatHoursMap))
+  ) as Record<string, Array<{ personName: string; roleName: string; weeks: Array<{ weekStart: string; hours: number }> }>>;
 
   const completedAt = new Date();
   const uploadedByUserId = (session.user as { id?: string }).id ?? null;

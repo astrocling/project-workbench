@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
+import { getProjectDataFromImport } from "@/lib/floatImportUtils";
 
 /**
  * Backfill FloatScheduledHours for an existing project from the last float import.
  * Use when a project was created after the import (or before projectFloatHours was stored).
- * Matches by project name (case-insensitive) in the import's projectFloatHours.
+ * Matches by project name (normalized: trim, collapse spaces, case-insensitive).
  */
 export async function POST(
   _req: NextRequest,
@@ -26,29 +27,23 @@ export async function POST(
   const lastImport = await prisma.floatImportRun.findFirst({
     orderBy: { completedAt: "desc" },
   });
-  const projectFloatHours =
-    (lastImport?.projectFloatHours as Record<
-      string,
-      Array<{
-        personName: string;
-        roleName: string;
-        weeks: Array<{ weekStart: string; hours: number }>;
-      }>
-    >) ?? {};
-
-  const floatKey = Object.keys(projectFloatHours).find(
-    (k) => k.toLowerCase() === project.name.toLowerCase()
+  const { floatList } = getProjectDataFromImport(
+    lastImport,
+    project.name
   );
-  const floatList = floatKey ? projectFloatHours[floatKey] : [];
+  const projectFloatHours =
+    (lastImport?.projectFloatHours as Record<string, unknown[]> | undefined) ?? {};
+  const availableInImport = Object.keys(projectFloatHours);
 
   if (floatList.length === 0) {
     return NextResponse.json(
       {
         error: "No float data found",
-        detail:
-          "The last import has no float data for this project name. Re-import the Float CSV first, then try again.",
+        detail: lastImport
+          ? `No float data for "${project.name}" in the most recent import. Check that the project name matches (including spaces). Re-import the Float CSV if needed.`
+          : "No Float import has been run yet. Upload a Float CSV in Admin first, then try again.",
         projectName: project.name,
-        availableInImport: Object.keys(projectFloatHours),
+        availableInImport: availableInImport.length > 0 ? availableInImport : undefined,
       },
       { status: 404 }
     );
