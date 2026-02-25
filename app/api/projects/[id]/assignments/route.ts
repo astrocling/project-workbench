@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
+import { getProjectId } from "@/lib/slug";
 import { z } from "zod";
 
 const addSchema = z.object({
@@ -27,7 +28,9 @@ export async function GET(
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id } = await params;
+  const { id: idOrSlug } = await params;
+  const id = await getProjectId(idOrSlug);
+  if (!id) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const assignments = await prisma.projectAssignment.findMany({
     where: { projectId: id },
     include: { person: true, role: true },
@@ -46,7 +49,9 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await params;
+  const { id: idOrSlug } = await params;
+  const id = await getProjectId(idOrSlug);
+  if (!id) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const body = await req.json();
   const parsed = addSchema.safeParse(body);
   if (!parsed.success) {
@@ -125,7 +130,9 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await params;
+  const { id: idOrSlug } = await params;
+  const id = await getProjectId(idOrSlug);
+  if (!id) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const body = await req.json();
   const parsed = patchSchema.safeParse(body);
   if (!parsed.success) {
@@ -160,7 +167,9 @@ export async function DELETE(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await params;
+  const { id: idOrSlug } = await params;
+  const id = await getProjectId(idOrSlug);
+  if (!id) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const { searchParams } = new URL(req.url);
   const personId = searchParams.get("personId");
   if (!personId) {

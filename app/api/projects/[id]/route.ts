@@ -2,7 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
+import { slugify, ensureUniqueSlug } from "@/lib/slug";
 import { z } from "zod";
+
+async function resolveProject(idOrSlug: string) {
+  const project = await prisma.project.findFirst({
+    where: {
+      OR: [{ id: idOrSlug }, { slug: idOrSlug }],
+    },
+    include: {
+      assignments: { include: { person: true, role: true } },
+      projectRoleRates: { include: { role: true } },
+      projectKeyRoles: { include: { person: true } },
+    },
+  });
+  return project;
+}
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
@@ -29,17 +44,8 @@ export async function GET(
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id } = await params;
-  const project = await prisma.project.findUnique({
-    where: { id },
-    include: {
-      assignments: {
-        include: { person: true, role: true },
-      },
-      projectRoleRates: { include: { role: true } },
-      projectKeyRoles: { include: { person: true } },
-    },
-  });
+  const { id: idOrSlug } = await params;
+  const project = await resolveProject(idOrSlug);
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(project);
 }
@@ -55,7 +61,11 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await params;
+  const { id: idOrSlug } = await params;
+  const existing = await resolveProject(idOrSlug);
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const id = existing.id;
+
   const body = await req.json();
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
@@ -85,6 +95,14 @@ export async function PATCH(
   }
   if (Object.prototype.hasOwnProperty.call(body, "estimateLink")) {
     data.estimateLink = normLink(parsed.data.estimateLink ?? (body as { estimateLink?: string | null }).estimateLink);
+  }
+
+  // Regenerate slug when name changes
+  if (parsed.data.name != null) {
+    const existingSlugs = new Set(
+      (await prisma.project.findMany({ where: { id: { not: id } }, select: { slug: true } })).map((p) => p.slug).filter(Boolean)
+    );
+    data.slug = ensureUniqueSlug(slugify(parsed.data.name), existingSlugs);
   }
 
   // Update project key roles (PM, PGM, CAD) if provided
@@ -131,7 +149,9 @@ export async function DELETE(
     return NextResponse.json({ error: "Forbidden: only super users can delete projects" }, { status: 403 });
   }
 
-  const { id } = await params;
-  await prisma.project.delete({ where: { id } });
+  const { id: idOrSlug } = await params;
+  const project = await resolveProject(idOrSlug);
+  if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  await prisma.project.delete({ where: { id: project.id } });
   return NextResponse.json({ ok: true });
 }

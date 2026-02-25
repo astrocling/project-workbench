@@ -19,11 +19,13 @@ const TABS = [
 
 export function ProjectDetailTabs({
   projectId,
+  projectSlug,
   tab,
   canEdit,
   floatLastUpdated,
 }: {
   projectId: string;
+  projectSlug: string;
   tab: string;
   canEdit: boolean;
   floatLastUpdated: Date | null;
@@ -153,7 +155,7 @@ export function ProjectDetailTabs({
         </Link>
         <nav className="flex gap-2 mb-3">
           {TABS.filter((t) => t.id !== "edit" || canEdit).map((t) => {
-            const href = "hrefOnly" in t && t.hrefOnly ? `/projects/${projectId}/edit` : `${base}?tab=${t.id}`;
+            const href = "hrefOnly" in t && t.hrefOnly ? `/projects/${projectSlug}/edit` : `${base}?tab=${t.id}`;
             const isActive = "hrefOnly" in t && t.hrefOnly ? false : tab === t.id;
             return (
               <Link

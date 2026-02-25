@@ -63,7 +63,7 @@ export default function NewProjectPage() {
       return;
     }
     const project = await res.json();
-    router.push(`/projects/${project.id}`);
+    router.push(`/projects/${project.slug}`);
     router.refresh();
   }
 

@@ -23,10 +23,11 @@ type FloatHourItem = {
   weeks: Array<{ weekStart: string; hours: number }>;
 };
 
+/** Accepts Prisma FloatImportRun (JSON columns are JsonValue) or similar. */
 type FloatImportRunLike = {
-  projectNames?: string[] | null;
-  projectAssignments?: Record<string, AssignmentItem[]> | null;
-  projectFloatHours?: Record<string, FloatHourItem[]> | null;
+  projectNames?: unknown;
+  projectAssignments?: unknown;
+  projectFloatHours?: unknown;
 };
 
 export function getProjectDataFromImport(
