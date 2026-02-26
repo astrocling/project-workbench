@@ -28,6 +28,10 @@ function LoginForm() {
       password,
       redirect: false,
     });
+    if (res?.status === 429) {
+      setError("Too many login attempts. Try again later.");
+      return;
+    }
     if (res?.error) {
       setError("Invalid email or password");
       return;

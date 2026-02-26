@@ -2,6 +2,7 @@ import { timingSafeEqual, createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { runSeed } from "@/lib/seed";
+import { getClientIp, seedRatelimit } from "@/lib/ratelimit";
 
 /** Constant-time comparison: use SHA-256 hashes so both sides have equal length (32 bytes). */
 function secureCompare(a: string, b: string): boolean {
@@ -30,6 +31,15 @@ export async function POST(request: Request) {
   const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
   if (!token || !secureCompare(token, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const ip = getClientIp(request.headers);
+  const { success } = await seedRatelimit.limit(ip);
+  if (!success) {
+    return NextResponse.json(
+      { error: "Too many seed requests. Try again later." },
+      { status: 429 }
+    );
   }
 
   try {

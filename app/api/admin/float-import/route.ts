@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import Papa from "papaparse";
 import { parseFloatWeekHeader, formatWeekKey } from "@/lib/weekUtils";
+import { floatImportRatelimit, getClientIp } from "@/lib/ratelimit";
 
 /** Max CSV upload size (10 MB) to avoid high memory use and long processing. */
 const MAX_FLOAT_CSV_BYTES = 10 * 1024 * 1024;
@@ -37,6 +38,15 @@ export async function POST(req: NextRequest) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const permissions = (session.user as { permissions?: string }).permissions;
     if (permissions !== "Admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+    const rateLimitId = (session.user as { id?: string }).id ?? getClientIp(req.headers);
+    const { success } = await floatImportRatelimit.limit(rateLimitId);
+    if (!success) {
+      return NextResponse.json(
+        { error: "Too many import requests. Try again later." },
+        { status: 429 }
+      );
+    }
 
     const formData = await req.formData();
   const file = formData.get("file") as File | null;

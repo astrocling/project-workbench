@@ -64,6 +64,8 @@ In Vercel, set these environment variables for your project (Project → Setting
 
 Redeploy after adding or changing environment variables.
 
+**Rate limiting (optional but recommended in production):** Login, seed, and float-import are rate-limited when [Upstash Redis](https://upstash.com) is configured. Set **`UPSTASH_REDIS_REST_URL`** and **`UPSTASH_REDIS_REST_TOKEN`** in Vercel (from your [Upstash Console](https://console.upstash.com/redis)). Limits: login 10 attempts per 15 min per IP; seed 5 per hour per IP; float-import 20 per 15 min per user. Without these env vars, rate limiting is skipped (e.g. local dev).
+
 **Database migrations and seed on Vercel**
 
 The build script runs **migrations** and **seed** on every deploy, so you don’t need to use the Neon dashboard or run anything locally:
