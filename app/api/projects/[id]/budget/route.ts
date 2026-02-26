@@ -192,3 +192,35 @@ export async function POST(
   });
   return NextResponse.json(line);
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const permissions = (session.user as { permissions?: string }).permissions;
+  if (permissions !== "Admin" && permissions !== "User") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id: idOrSlug } = await params;
+  const id = await getProjectId(idOrSlug);
+  if (!id) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const body = await req.json();
+  const lineId = typeof body?.lineId === "string" ? body.lineId : null;
+  if (!lineId) {
+    return NextResponse.json({ error: "lineId required" }, { status: 400 });
+  }
+
+  const line = await prisma.budgetLine.findFirst({
+    where: { id: lineId, projectId: id },
+  });
+  if (!line) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  await prisma.budgetLine.delete({ where: { id: lineId } });
+  return new NextResponse(null, { status: 204 });
+}

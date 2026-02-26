@@ -173,6 +173,19 @@ export function BudgetTab({
     }
   }
 
+  async function deleteLine(lineId: string) {
+    if (!canEdit) return;
+    const res = await fetch(`/api/projects/${projectId}/budget`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lineId }),
+    });
+    if (res.ok) {
+      setBudgetLines((prev) => prev.filter((bl) => bl.id !== lineId));
+      load();
+    }
+  }
+
   if (loading) return <p className="text-body-sm text-surface-700 dark:text-surface-200">Loading...</p>;
 
   const actualsStalePill = (
@@ -329,12 +342,14 @@ export function BudgetTab({
         {canEdit && (
         <form onSubmit={addLine} className="flex flex-wrap gap-2 items-end">
           <input
+            required
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
             placeholder="Label"
             className="h-9 w-full px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400 max-w-[12rem]"
           />
           <select
+            required
             value={newType}
             onChange={(e) => setNewType(e.target.value as "SOW" | "CO" | "Other")}
             className="h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 appearance-none pr-8 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
@@ -344,32 +359,40 @@ export function BudgetTab({
             <option value="Other">Other</option>
           </select>
           <input
+            required
             type="number"
             min={0}
+            step="any"
             value={newLowHours}
             onChange={(e) => setNewLowHours(e.target.value)}
             placeholder="Low hrs"
             className="h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 w-20 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
           />
           <input
+            required
             type="number"
             min={0}
+            step="any"
             value={newHighHours}
             onChange={(e) => setNewHighHours(e.target.value)}
             placeholder="High hrs"
             className="h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 w-20 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
           />
           <input
+            required
             type="number"
             min={0}
+            step="any"
             value={newLowDollars}
             onChange={(e) => setNewLowDollars(e.target.value)}
             placeholder="Low $"
             className="h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 w-24 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
           />
           <input
+            required
             type="number"
             min={0}
+            step="any"
             value={newHighDollars}
             onChange={(e) => setNewHighDollars(e.target.value)}
             placeholder="High $"
@@ -394,6 +417,7 @@ export function BudgetTab({
               <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">High Hrs</th>
               <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Low $</th>
               <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">High $</th>
+              {canEdit && <th className="w-10 px-2 py-3" aria-label="Delete row" />}
             </tr>
           </thead>
           <tbody>
@@ -405,6 +429,20 @@ export function BudgetTab({
                 <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">{formatHours(Number(bl.highHours))}</td>
                 <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">${formatDollars(Number(bl.lowDollars))}</td>
                 <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">${formatDollars(Number(bl.highDollars))}</td>
+                {canEdit && (
+                  <td className="px-2 py-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => deleteLine(bl.id)}
+                      className="inline-flex items-center justify-center w-8 h-8 rounded text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                      aria-label={`Delete ${bl.label || "contract"}`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5" aria-hidden>
+                        <path fillRule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -415,6 +453,7 @@ export function BudgetTab({
               <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">{formatHours(budgetLines.reduce((s, bl) => s + Number(bl.highHours), 0))}</td>
               <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">${formatDollars(budgetLines.reduce((s, bl) => s + Number(bl.lowDollars), 0))}</td>
               <td className="px-4 py-3 text-right tabular-nums font-semibold text-surface-700 dark:text-surface-200">${formatDollars(budgetLines.reduce((s, bl) => s + Number(bl.highDollars), 0))}</td>
+              {canEdit && <td className="px-2 py-3" />}
             </tr>
           </tfoot>
         </table>
