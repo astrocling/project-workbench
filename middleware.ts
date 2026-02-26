@@ -27,12 +27,16 @@ const withAuthMiddleware = withAuth(
   }
 );
 
-const LOGIN_PATHS = ["/api/auth/signin/credentials", "/api/auth/callback/credentials"];
+/** Any POST to auth that could be credentials sign-in (NextAuth may use signin or callback path). */
+function isLoginPost(path: string, method: string): boolean {
+  if (method !== "POST") return false;
+  if (!path.startsWith("/api/auth/")) return false;
+  return path.includes("signin") || path.includes("callback");
+}
 
 export default async function middleware(req: NextRequest, event: NextFetchEvent) {
   const path = req.nextUrl.pathname;
-  const isLoginPost = req.method === "POST" && LOGIN_PATHS.includes(path);
-  if (isLoginPost) {
+  if (isLoginPost(path, req.method)) {
     const ip = getClientIp(req.headers);
     const { success } = await loginRatelimit.limit(ip);
     if (!success) {

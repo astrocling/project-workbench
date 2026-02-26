@@ -6,15 +6,34 @@ const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
 
 const hasRedis = Boolean(redisUrl && redisToken);
 
-/** No-op limiter when Upstash is not configured (e.g. local dev). Always allows. */
-const noopLimiter = {
-  limit: async () => ({ success: true as const }),
-};
+/** In-memory sliding window for dev when Upstash is not set. Not shared across instances. */
+function createMemoryLoginLimiter(): {
+  limit: (identifier: string) => Promise<{ success: boolean }>;
+} {
+  const windowMs = 15 * 60 * 1000;
+  const max = 10;
+  const hits = new Map<string, number[]>();
+
+  return {
+    limit: async (identifier: string) => {
+      const now = Date.now();
+      const times = hits.get(identifier) ?? [];
+      const cutoff = now - windowMs;
+      const recent = times.filter((t) => t > cutoff);
+      if (recent.length >= max) {
+        return { success: false };
+      }
+      recent.push(now);
+      hits.set(identifier, recent);
+      return { success: true };
+    },
+  };
+}
 
 function createLoginLimiter(): {
   limit: (identifier: string) => Promise<{ success: boolean }>;
 } {
-  if (!hasRedis) return noopLimiter;
+  if (!hasRedis) return createMemoryLoginLimiter();
   const redis = new Redis({ url: redisUrl!, token: redisToken! });
   const ratelimit = new Ratelimit({
     redis,
@@ -23,6 +42,11 @@ function createLoginLimiter(): {
   });
   return ratelimit;
 }
+
+/** No-op limiter when Upstash is not configured. Always allows. */
+const noopLimiter = {
+  limit: async () => ({ success: true as const }),
+};
 
 function createSeedLimiter(): {
   limit: (identifier: string) => Promise<{ success: boolean }>;
