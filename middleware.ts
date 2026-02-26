@@ -1,6 +1,6 @@
 import type { NextFetchEvent, NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { withAuth } from "next-auth/middleware";
+import { type NextRequestWithAuth, withAuth } from "next-auth/middleware";
 import { getClientIp, loginRatelimit } from "@/lib/ratelimit";
 
 const withAuthMiddleware = withAuth(
@@ -46,7 +46,7 @@ export default async function middleware(req: NextRequest, event: NextFetchEvent
       );
     }
   }
-  return withAuthMiddleware(req, event);
+  return withAuthMiddleware(req as NextRequestWithAuth, event);
 }
 
 export const config = {
