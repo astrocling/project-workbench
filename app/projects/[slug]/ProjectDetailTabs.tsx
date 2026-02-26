@@ -54,6 +54,8 @@ export function ProjectDetailTabs({
   const [projectNotesSaving, setProjectNotesSaving] = useState(false);
   const [sowLink, setSowLink] = useState<string | null>(null);
   const [estimateLink, setEstimateLink] = useState<string | null>(null);
+  const [floatLink, setFloatLink] = useState<string | null>(null);
+  const [metricLink, setMetricLink] = useState<string | null>(null);
   const [keyRoleNames, setKeyRoleNames] = useState<{
     pm: string[];
     pgm: string | null;
@@ -81,6 +83,8 @@ export function ProjectDetailTabs({
       setProjectNotesDirty(false);
       setSowLink(null);
       setEstimateLink(null);
+      setFloatLink(null);
+      setMetricLink(null);
       setKeyRoleNames({ pm: [], pgm: null, ad: null });
       return;
     }
@@ -98,6 +102,8 @@ export function ProjectDetailTabs({
         setProjectNotes(p.notes ?? null);
         setSowLink(p.sowLink ?? null);
         setEstimateLink(p.estimateLink ?? null);
+        setFloatLink(p.floatLink ?? null);
+        setMetricLink(p.metricLink ?? null);
         setProjectNotesDirty(false);
         const keyRoles = p.projectKeyRoles ?? [];
         const pm = keyRoles
@@ -112,6 +118,8 @@ export function ProjectDetailTabs({
         setProjectNotes(null);
         setSowLink(null);
         setEstimateLink(null);
+        setFloatLink(null);
+        setMetricLink(null);
         setKeyRoleNames({ pm: [], pgm: null, ad: null });
       });
   }, [tab, projectId]);
@@ -265,6 +273,52 @@ export function ProjectDetailTabs({
                 aria-disabled="true"
               >
                 Open Estimate
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </span>
+            )}
+            {floatLink ? (
+              <a
+                href={floatLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
+              >
+                Open Float
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            ) : (
+              <span
+                className="inline-flex items-center gap-2 h-9 px-4 rounded-md bg-surface-200 dark:bg-dark-raised text-surface-500 dark:text-surface-400 font-semibold text-body-sm cursor-not-allowed select-none"
+                aria-disabled="true"
+              >
+                Open Float
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </span>
+            )}
+            {metricLink ? (
+              <a
+                href={metricLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
+              >
+                Open Metric
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            ) : (
+              <span
+                className="inline-flex items-center gap-2 h-9 px-4 rounded-md bg-surface-200 dark:bg-dark-raised text-surface-500 dark:text-surface-400 font-semibold text-body-sm cursor-not-allowed select-none"
+                aria-disabled="true"
+              >
+                Open Metric
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>

@@ -24,6 +24,8 @@ export default function EditProjectPage() {
   const [cadPersonId, setCadPersonId] = useState("");
   const [sowLink, setSowLink] = useState("");
   const [estimateLink, setEstimateLink] = useState("");
+  const [floatLink, setFloatLink] = useState("");
+  const [metricLink, setMetricLink] = useState("");
   const [eligiblePeople, setEligiblePeople] = useState<{ id: string; name: string }[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -48,6 +50,8 @@ export default function EditProjectPage() {
         setCadPersonId(keyRoles.find((kr) => kr.type === "CAD")?.personId ?? "");
         setSowLink(p.sowLink ?? "");
         setEstimateLink(p.estimateLink ?? "");
+        setFloatLink(p.floatLink ?? "");
+        setMetricLink(p.metricLink ?? "");
         const eligible = Array.isArray(people) ? people : [];
         const currentIds = new Set(eligible.map((x: { id: string }) => x.id));
         const fromRoles = keyRoles
@@ -91,6 +95,8 @@ export default function EditProjectPage() {
               })(),
         sowLink: sowLink.trim() || null,
         estimateLink: estimateLink.trim() || null,
+        floatLink: floatLink.trim() || null,
+        metricLink: metricLink.trim() || null,
       }),
     });
     if (!res.ok) {
@@ -198,11 +204,12 @@ export default function EditProjectPage() {
             />
           </div>
           <div>
-            <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">End Date (optional)</label>
+            <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">End Date</label>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
+              required
               className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
             />
           </div>
@@ -233,6 +240,26 @@ export default function EditProjectPage() {
               type="text"
               value={estimateLink}
               onChange={(e) => setEstimateLink(e.target.value)}
+              placeholder="https://..."
+              className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+            />
+          </div>
+          <div>
+            <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Float link (optional)</label>
+            <input
+              type="text"
+              value={floatLink}
+              onChange={(e) => setFloatLink(e.target.value)}
+              placeholder="https://..."
+              className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+            />
+          </div>
+          <div>
+            <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Metric link (optional)</label>
+            <input
+              type="text"
+              value={metricLink}
+              onChange={(e) => setMetricLink(e.target.value)}
               placeholder="https://..."
               className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
             />

@@ -47,12 +47,12 @@ Each project has a detail page with several tabs. The header shows the **as-of d
 
 | Tab | Purpose |
 |-----|---------|
-| **Overview** | Summary, key roles (PM, PGM, CAD), project notes, SOW and estimate links, and a snapshot of budget and revenue recovery. |
+| **Overview** | Summary, key roles (PM, PGM, CAD), project notes, SOW, Estimate, Float, and Metric links, and a snapshot of budget and revenue recovery. |
 | **Resourcing** | Planned hours, actual hours, and Float scheduled hours by person and week. Use this to compare plan vs actual vs Float and spot gaps. |
 | **Budget** | Budget lines (e.g. SOW, CO, Other) with low/high hours and dollars, and burn to date. |
 | **Rates** | Per-role rate card for the project, or a single bill rate if the project uses one rate for all roles. |
 | **Assignments** | People assigned to the project, their roles, and any bill-rate overrides. |
-| **Edit** | Edit project name, client, dates, status, single rate, notes, SOW/estimate links, resourcing thresholds, and key roles. |
+| **Edit** | Edit project name, client, dates, status, single rate, notes, SOW/Estimate/Float/Metric links, resourcing thresholds, and key roles. |
 
 Only users with edit permission can change data; the **Edit** tab may be read-only for some viewers.
 
@@ -65,9 +65,9 @@ Only users with edit permission can change data; the **Edit** tab may be read-on
    - **Slug** — Short URL-friendly identifier (e.g. `acme-2025`).
    - **Name** — Full project name.
    - **Client** — Client or account name.
-   - **Start date** and **End date** (optional).
+   - **Start date** and **End date** (required).
    - **Status** — Active or Closed.
-   - Optional: single bill rate, notes, SOW link, estimate link, and resourcing thresholds.
+   - Optional: single bill rate, notes, SOW link, estimate link, Float link, Metric link, and resourcing thresholds.
 3. Submit to create the project. You can then add assignments, key roles, budget lines, and rates from the project detail page.
 
 If you use **Float Import** first, you can create projects from the import data; project names in the CSV must match the names you give here (or you can create projects and later run a backfill to apply Float data).

@@ -32,6 +32,8 @@ const updateSchema = z.object({
   notes: z.string().nullable().optional(),
   sowLink: z.union([z.string(), z.null()]).optional(),
   estimateLink: z.union([z.string(), z.null()]).optional(),
+  floatLink: z.union([z.string(), z.null()]).optional(),
+  metricLink: z.union([z.string(), z.null()]).optional(),
   pmPersonIds: z.array(z.string()).optional(),
   pgmPersonId: z.string().optional().nullable(),
   cadPersonId: z.string().optional().nullable(),
@@ -95,6 +97,12 @@ export async function PATCH(
   }
   if (Object.prototype.hasOwnProperty.call(body, "estimateLink")) {
     data.estimateLink = normLink(parsed.data.estimateLink ?? (body as { estimateLink?: string | null }).estimateLink);
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "floatLink")) {
+    data.floatLink = normLink(parsed.data.floatLink ?? (body as { floatLink?: string | null }).floatLink);
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "metricLink")) {
+    data.metricLink = normLink(parsed.data.metricLink ?? (body as { metricLink?: string | null }).metricLink);
   }
 
   // Regenerate slug when name changes

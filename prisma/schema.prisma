@@ -99,6 +99,8 @@ model Project {
   notes          String?   @db.Text
   sowLink        String?
   estimateLink   String?
+  floatLink      String?
+  metricLink     String?
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
 

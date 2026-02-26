@@ -25,7 +25,7 @@ The schema is defined in `prisma/schema.prisma`. Main entities:
 | **User** | App login (email, password hash, permissions: User/Admin, optional position role). |
 | **Person** | Resource (name, email, active). Used for assignments and Float import; may be linked to User by email/name for “My projects”. |
 | **Role** | Role type (e.g. Project Manager, FE Developer). Used on assignments and in Float CSV. |
-| **Project** | Project (slug, name, client, start/end dates, status, optional single rate, notes, SOW/estimate links, resourcing thresholds). |
+| **Project** | Project (slug, name, client, start/end dates, status, optional single rate, notes, SOW/estimate/float/metric links, resourcing thresholds). |
 | **ProjectAssignment** | Person assigned to a project in a role; optional bill-rate override. |
 | **ProjectRoleRate** | Per-role bill rate for a project (rate card). |
 | **ProjectKeyRole** | Key role assignment (PM, PGM, CAD) per project and person. |

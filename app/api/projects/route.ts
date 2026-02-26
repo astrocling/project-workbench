@@ -10,11 +10,13 @@ const createSchema = z.object({
   name: z.string().min(1),
   clientName: z.string().min(1),
   startDate: z.union([z.string(), z.date()]),
-  endDate: z.union([z.string(), z.date()]).optional().nullable(),
+  endDate: z.union([z.string(), z.date()]),
   status: z.enum(["Active", "Closed"]).default("Active"),
   floatProjectName: z.string().optional(),
   sowLink: z.string().max(2048).nullable().optional(),
   estimateLink: z.string().max(2048).nullable().optional(),
+  floatLink: z.string().max(2048).nullable().optional(),
+  metricLink: z.string().max(2048).nullable().optional(),
   pmPersonIds: z.array(z.string()).optional(),
   pgmPersonId: z.string().optional().nullable(),
   cadPersonId: z.string().optional().nullable(),
@@ -70,7 +72,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });
   }
 
-  const { name, clientName, startDate, endDate, status, floatProjectName, sowLink, estimateLink, pmPersonIds, pgmPersonId, cadPersonId } =
+  const { name, clientName, startDate, endDate, status, floatProjectName, sowLink, estimateLink, floatLink, metricLink, pmPersonIds, pgmPersonId, cadPersonId } =
     parsed.data;
   const norm = (s: string | null | undefined) => {
     const raw = s?.trim();
@@ -87,10 +89,12 @@ export async function POST(req: NextRequest) {
       name,
       clientName,
       startDate: startDate instanceof Date ? startDate : new Date(startDate),
-      endDate: endDate ? (endDate instanceof Date ? endDate : new Date(endDate)) : null,
+      endDate: endDate instanceof Date ? endDate : new Date(endDate),
       status: status as "Active" | "Closed",
       sowLink: norm(sowLink),
       estimateLink: norm(estimateLink),
+      floatLink: norm(floatLink),
+      metricLink: norm(metricLink),
     },
   });
 
