@@ -68,10 +68,17 @@ Redeploy after adding or changing environment variables.
 
 **Database migrations and seed on Vercel**
 
-The build script runs **migrations** and **seed** on every deploy, so you don’t need to use the Neon dashboard or run anything locally:
+The Vercel **build** runs only `next build` (no database connection during build), which avoids connection timeouts (e.g. Prisma P1002) in the build environment. Run migrations and seed separately:
 
-1. On each deploy, Vercel runs `prisma migrate deploy` (creates/updates tables) and `prisma db seed` (creates roles + admin user) using your project’s `DATABASE_URL` (e.g. from the Neon integration).
-2. Set **`SEED_ADMIN_EMAIL`** and **`SEED_ADMIN_PASSWORD`** in Vercel for production; they are required (default credentials are not used in production). Then log in with those credentials.
+1. **Option A – From your machine (recommended):** After the first deploy (or when the schema changes), run once with your production `DATABASE_URL` in `.env`:
+   ```bash
+   npx prisma migrate deploy && npx prisma db seed
+   ```
+   Or use the script: `npm run db:deploy`.
+
+2. **Option B – One-time seed via API:** If the database already has tables (e.g. from a previous deploy or manual migrate) but no admin user, use the [One-time seed via API](#one-time-seed-via-api-no-redeploy) below.
+
+3. Set **`SEED_ADMIN_EMAIL`** and **`SEED_ADMIN_PASSWORD`** in Vercel for production; they are required when seeding (default credentials are not used in production).
 
 **One-time seed via API (no redeploy)**
 

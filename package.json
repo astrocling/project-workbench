@@ -8,7 +8,8 @@
   "scripts": {
     "postinstall": "prisma generate",
     "dev": "next dev",
-    "build": "prisma migrate deploy && prisma db seed && next build",
+    "build": "next build",
+    "db:deploy": "prisma migrate deploy && prisma db seed",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
