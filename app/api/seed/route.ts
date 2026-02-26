@@ -1,6 +1,15 @@
+import { timingSafeEqual, createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { runSeed } from "@/lib/seed";
+
+/** Constant-time comparison: use SHA-256 hashes so both sides have equal length (32 bytes). */
+function secureCompare(a: string, b: string): boolean {
+  const hashA = createHash("sha256").update(a, "utf8").digest();
+  const hashB = createHash("sha256").update(b, "utf8").digest();
+  if (hashA.length !== hashB.length) return false;
+  return timingSafeEqual(hashA, hashB);
+}
 
 /**
  * One-time seed endpoint for production (e.g. Neon via Vercel).
@@ -19,7 +28,7 @@ export async function POST(request: Request) {
 
   const auth = request.headers.get("authorization");
   const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
-  if (token !== secret) {
+  if (!token || !secureCompare(token, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

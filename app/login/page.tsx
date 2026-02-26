@@ -5,10 +5,17 @@ import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ThemeToggle } from "@/components/ThemeProvider";
 
+/** Allow only relative paths (same-origin). Reject protocol-relative or absolute URLs. */
+function safeCallbackUrl(raw: string | null): string {
+  const url = (raw ?? "/projects").trim();
+  if (url === "" || url[0] !== "/" || url.startsWith("//")) return "/projects";
+  return url;
+}
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/projects";
+  const callbackUrl = safeCallbackUrl(searchParams.get("callbackUrl"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");

@@ -4,8 +4,19 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 
+const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET;
+
+if (process.env.NODE_ENV === "production") {
+  if (!NEXTAUTH_SECRET || NEXTAUTH_SECRET.length < 32) {
+    throw new Error(
+      "NEXTAUTH_SECRET must be set and at least 32 characters in production. " +
+        "Generate one with: openssl rand -base64 32"
+    );
+  }
+}
+
 export const authOptions: NextAuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: NEXTAUTH_SECRET,
   providers: [
     CredentialsProvider({
       name: "credentials",
