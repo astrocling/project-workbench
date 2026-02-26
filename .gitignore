@@ -13,6 +13,9 @@
 # testing
 /coverage
 
+#notes
+JAKALA_Design_Spec.md
+CODE_REVIEW.md
 # next.js
 /.next/
 /out/
