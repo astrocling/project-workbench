@@ -440,7 +440,7 @@ export function ResourcingGrids({
 
   return (
     <div className="space-y-6">
-      <div ref={scrollContainerRef} className="overflow-x-auto space-y-6">
+      <div ref={scrollContainerRef} className="overflow-x-auto overscroll-x-contain space-y-6">
         <div className="rounded-lg border border-surface-200 dark:border-dark-border overflow-clip shadow-card-light dark:shadow-card-dark bg-white dark:bg-dark-surface" style={{ minWidth: tableMinWidth }}>
           <table className="border-separate border-spacing-0 text-sm w-full" style={{ tableLayout: "fixed", minWidth: tableMinWidth }}>
             <colgroup>
