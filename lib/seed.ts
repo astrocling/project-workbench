@@ -39,8 +39,18 @@ export async function runSeed(prisma: PrismaClient): Promise<{ roles: number; ad
     });
   }
 
-  const email = process.env.SEED_ADMIN_EMAIL ?? "admin@example.com";
-  const password = process.env.SEED_ADMIN_PASSWORD ?? "changeme";
+  const email = process.env.SEED_ADMIN_EMAIL ?? (process.env.NODE_ENV === "production" ? "" : "admin@example.com");
+  const password = process.env.SEED_ADMIN_PASSWORD ?? (process.env.NODE_ENV === "production" ? "" : "changeme");
+
+  if (process.env.NODE_ENV === "production") {
+    if (!email?.trim() || !password) {
+      throw new Error(
+        "SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD are required in production. " +
+          "Set them in your environment (e.g. Vercel) and do not use default credentials."
+      );
+    }
+  }
+
   const passwordHash = await bcrypt.hash(password, 10);
 
   await prisma.user.upsert({

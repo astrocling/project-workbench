@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import Papa from "papaparse";
 import { parseFloatWeekHeader, formatWeekKey } from "@/lib/weekUtils";
 
+/** Max CSV upload size (10 MB) to avoid high memory use and long processing. */
+const MAX_FLOAT_CSV_BYTES = 10 * 1024 * 1024;
+
 /** Store week start as Monday 00:00 UTC so DB date matches grid week keys regardless of server timezone. */
 function toUTCMonday(weekStart: Date): Date {
   return new Date(
@@ -39,6 +42,15 @@ export async function POST(req: NextRequest) {
   const file = formData.get("file") as File | null;
   if (!file) {
     return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+  }
+
+  if (file.size > MAX_FLOAT_CSV_BYTES) {
+    return NextResponse.json(
+      {
+        error: `File too large. Maximum size is ${MAX_FLOAT_CSV_BYTES / 1024 / 1024} MB.`,
+      },
+      { status: 413 }
+    );
   }
 
   const text = await file.text();

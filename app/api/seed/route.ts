@@ -15,7 +15,7 @@ function secureCompare(a: string, b: string): boolean {
  * One-time seed endpoint for production (e.g. Neon via Vercel).
  * Set SEED_SECRET in Vercel, then:
  *   curl -X POST "https://your-app.vercel.app/api/seed" -H "Authorization: Bearer YOUR_SEED_SECRET"
- * Optionally set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD in Vercel for the admin user.
+ * In production, SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD are required (no default credentials).
  */
 export async function POST(request: Request) {
   const secret = process.env.SEED_SECRET;

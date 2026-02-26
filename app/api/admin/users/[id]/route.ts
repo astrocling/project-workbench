@@ -35,6 +35,30 @@ export async function PATCH(
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
+  const currentUserId = (session.user as { id?: string }).id;
+  const isSelf = currentUserId && id === currentUserId;
+
+  if (parsed.data.permissions !== undefined) {
+    const newLevel = parsed.data.permissions === "Admin" ? PermissionLevel.Admin : PermissionLevel.User;
+    if (isSelf && newLevel === PermissionLevel.User) {
+      return NextResponse.json(
+        { error: "Cannot demote yourself. Ask another admin to change your role." },
+        { status: 400 }
+      );
+    }
+    if (newLevel === PermissionLevel.User && existing.permissions === PermissionLevel.Admin) {
+      const otherAdmins = await prisma.user.count({
+        where: { permissions: PermissionLevel.Admin, id: { not: id } },
+      });
+      if (otherAdmins === 0) {
+        return NextResponse.json(
+          { error: "Cannot remove the last admin. Promote another user to Admin first." },
+          { status: 400 }
+        );
+      }
+    }
+  }
+
   const data: {
     firstName?: string | null;
     lastName?: string | null;
