@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { AppFooter } from "@/components/AppFooter";
 import { EnvironmentBanner } from "@/components/EnvironmentBanner";
 import { SessionProvider } from "@/components/SessionProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -22,6 +23,7 @@ export default function RootLayout({
         <EnvironmentBanner />
         <ThemeProvider>
           <SessionProvider>{children}</SessionProvider>
+          <AppFooter />
         </ThemeProvider>
         <Analytics />
         <SpeedInsights />
