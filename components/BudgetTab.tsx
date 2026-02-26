@@ -58,7 +58,7 @@ function BudgetBurnPieChart({ burnPercent }: { burnPercent: number | null }) {
           {burnPercent != null ? `${burnPercent.toFixed(1)}%` : "—"}
         </div>
       </div>
-      <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider">Budget burn (hours)</p>
+      <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider">Budget burn ($)</p>
     </div>
   );
 }
@@ -216,7 +216,7 @@ export function BudgetTab({
             </div>
             <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
               <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-3">% Budget Burn</p>
-              <BudgetBurnPieChart burnPercent={rollups.burnPercentHighHours} />
+              <BudgetBurnPieChart burnPercent={rollups.burnPercentHighDollars} />
             </div>
             {(() => {
               const totalBudgetHours =
