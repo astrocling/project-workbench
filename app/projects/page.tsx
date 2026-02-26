@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
@@ -17,6 +18,18 @@ function normalizeFilter(raw: string | undefined): FilterValue {
   return "my";
 }
 
+async function getCachedLastImport() {
+  return unstable_cache(
+    async () => {
+      return prisma.floatImportRun.findFirst({
+        orderBy: { completedAt: "desc" },
+      });
+    },
+    ["float-last-import"],
+    { revalidate: 60 }
+  )();
+}
+
 export default async function ProjectsPage({
   searchParams,
 }: {
@@ -28,42 +41,35 @@ export default async function ProjectsPage({
   const { filter: rawFilter } = await searchParams;
   const filter = normalizeFilter(rawFilter);
 
-  let projects: Awaited<
-    ReturnType<
-      typeof prisma.project.findMany<{
-        include: { projectKeyRoles: { include: { person: true } } };
-      }>
-    >
-  > = [];
-
-  if (filter !== "atRisk") {
-    let currentPersonId: string | null = null;
-    if (filter === "my" && session.user?.id) {
-      const userEmail = session.user.email ?? undefined;
-      let person: Awaited<
-        ReturnType<typeof prisma.person.findFirst<{ where: { email: { equals: string; mode: "insensitive" } } }>>
-      > = userEmail
-        ? await prisma.person.findFirst({
-            where: { email: { equals: userEmail, mode: "insensitive" } },
-          })
-        : null;
-      if (!person && session.user?.id) {
-        const user = await prisma.user.findUnique({
-          where: { id: session.user.id },
-          select: { firstName: true, lastName: true },
+  let currentPersonId: string | null = null;
+  if (filter === "my" && session.user?.id) {
+    const userEmail = session.user.email ?? undefined;
+    let person: Awaited<
+      ReturnType<typeof prisma.person.findFirst<{ where: { email: { equals: string; mode: "insensitive" } } }>>
+    > = userEmail
+      ? await prisma.person.findFirst({
+          where: { email: { equals: userEmail, mode: "insensitive" } },
+        })
+      : null;
+    if (!person && session.user?.id) {
+      const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { firstName: true, lastName: true },
+      });
+      const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
+      if (fullName) {
+        person = await prisma.person.findFirst({
+          where: { name: { equals: fullName, mode: "insensitive" } },
         });
-        const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
-        if (fullName) {
-          person = await prisma.person.findFirst({
-            where: { name: { equals: fullName, mode: "insensitive" } },
-          });
-        }
       }
-      currentPersonId = person?.id ?? null;
     }
+    currentPersonId = person?.id ?? null;
+  }
 
-    const where =
-      filter === "my"
+  const where =
+    filter === "atRisk"
+      ? undefined
+      : filter === "my"
         ? currentPersonId
           ? { projectKeyRoles: { some: { personId: currentPersonId } } }
           : { id: "no-match-my-projects" }
@@ -73,18 +79,26 @@ export default async function ProjectsPage({
             ? { status: "Closed" as const }
             : {};
 
-    projects = await prisma.project.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      include: {
-        projectKeyRoles: { include: { person: true } },
-      },
-    });
-  }
+  type ProjectsResult = Awaited<
+    ReturnType<
+      typeof prisma.project.findMany<{
+        include: { projectKeyRoles: { include: { person: true } } };
+      }>
+    >
+  >;
 
-  const lastImport = await prisma.floatImportRun.findFirst({
-    orderBy: { completedAt: "desc" },
-  });
+  const [projects, lastImport] = await Promise.all([
+    filter === "atRisk"
+      ? ([] as ProjectsResult)
+      : prisma.project.findMany({
+          where: where!,
+          orderBy: { createdAt: "desc" },
+          include: {
+            projectKeyRoles: { include: { person: true } },
+          },
+        }),
+    getCachedLastImport(),
+  ]);
 
   const permissionLevel = getSessionPermissionLevel(session.user);
   const canDelete = canDeleteProject(permissionLevel);
