@@ -52,9 +52,9 @@ Each project has a detail page with several tabs. The header shows the **as-of d
 | **Budget** | Budget lines (e.g. SOW, CO, Other) with low/high hours and dollars, and burn to date. |
 | **Rates** | Per-role rate card for the project, or a single bill rate if the project uses one rate for all roles. |
 | **Assignments** | People assigned to the project, their roles, and any bill-rate overrides. |
-| **Edit** | Edit project name, client, dates, status, single rate, notes, SOW/Estimate/Float/Metric links, resourcing thresholds, and key roles. |
+| **Settings** | Edit project name, client, dates, status, single rate, notes, SOW/Estimate/Float/Metric links, resourcing thresholds, and key roles. |
 
-Only users with edit permission can change data; the **Edit** tab may be read-only for some viewers.
+Only users with edit permission can change data; the **Settings** tab may be read-only for some viewers.
 
 ---
 

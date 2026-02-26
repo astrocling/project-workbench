@@ -14,7 +14,7 @@ const TABS = [
   { id: "budget", label: "Budget" },
   { id: "rates", label: "Rates" },
   { id: "assignments", label: "Assignments" },
-  { id: "edit", label: "Edit", hrefOnly: true },
+  { id: "edit", label: "Settings", hrefOnly: true },
 ] as const;
 
 export function ProjectDetailTabs({
