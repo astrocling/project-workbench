@@ -42,6 +42,11 @@ enum PTOHolidayType {
   Holiday
 }
 
+enum GridCommentType {
+  Planned
+  Actual
+}
+
 model User {
   id            String            @id @default(cuid())
   email         String            @unique
@@ -70,6 +75,7 @@ model Person {
   ptoHolidayImpacts   PTOHolidayImpact[]
   projectKeyRoles      ProjectKeyRole[]
   readyForFloatUpdates ReadyForFloatUpdate[]
+  gridCellComments     GridCellComment[]
 }
 
 model Role {
@@ -112,6 +118,7 @@ model Project {
   floatScheduledHours  FloatScheduledHours[]
   budgetLines          BudgetLine[]
   readyForFloatUpdates ReadyForFloatUpdate[]
+  gridCellComments     GridCellComment[]
 }
 
 model ProjectAssignment {
@@ -236,6 +243,21 @@ model ReadyForFloatUpdate {
   person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@id([projectId, personId])
+}
+
+model GridCellComment {
+  projectId     String
+  personId      String
+  weekStartDate DateTime    @db.Date
+  gridType      GridCommentType
+  comment       String      @db.Text
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, personId, weekStartDate, gridType])
 }
 
 model FloatImportRun {

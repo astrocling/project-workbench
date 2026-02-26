@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   getAllWeeks,
   getAsOfDate,
@@ -24,6 +25,11 @@ type PlannedRow = { projectId: string; personId: string; weekStartDate: string; 
 type ActualRow = { projectId: string; personId: string; weekStartDate: string; hours: number | null };
 type FloatRow = { projectId: string; personId: string; weekStartDate: string; hours: number };
 type ReadyRow = { projectId: string; personId: string; ready: boolean };
+
+type GridCommentType = "Planned" | "Actual";
+function commentKey(personId: string, weekKey: string, gridType: GridCommentType): string {
+  return `${personId}|${weekKey}|${gridType}`;
+}
 
 export function ResourcingGrids({
   projectId,
@@ -52,6 +58,15 @@ export function ResourcingGrids({
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [editingPlanned, setEditingPlanned] = useState<{ personId: string; weekKey: string; str: string } | null>(null);
   const [editingActual, setEditingActual] = useState<{ personId: string; weekKey: string; str: string } | null>(null);
+  const [comments, setComments] = useState<Map<string, string>>(new Map());
+  const [openCommentCell, setOpenCommentCell] = useState<{
+    personId: string;
+    weekKey: string;
+    gridType: GridCommentType;
+  } | null>(null);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [commentPopoverAnchor, setCommentPopoverAnchor] = useState<{ x: number; y: number } | null>(null);
+  const commentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const firstWeekColRef = useRef<HTMLTableCellElement>(null);
 
@@ -63,7 +78,8 @@ export function ResourcingGrids({
       fetch(`/api/projects/${projectId}/actual-hours`).then((r) => r.json()),
       fetch(`/api/projects/${projectId}/float-hours`).then((r) => r.json()),
       fetch(`/api/projects/${projectId}/ready-for-float`).then((r) => r.json()),
-    ]).then(([p, a, pl, ac, fl, rf]) => {
+      fetch(`/api/projects/${projectId}/cell-comments`).then((r) => r.json()),
+    ]).then(([p, a, pl, ac, fl, rf, commentsRes]) => {
       setProject({
         startDate: p.startDate,
         endDate: p.endDate,
@@ -90,6 +106,14 @@ export function ResourcingGrids({
         }))
       );
       setReadyForFloat(rf ?? []);
+      const commentMap = new Map<string, string>();
+      (commentsRes ?? []).forEach((row: { personId: string; weekStartDate: string | Date; gridType: GridCommentType; comment: string }) => {
+        const week = typeof row.weekStartDate === "string"
+          ? (row.weekStartDate.includes("T") ? row.weekStartDate.slice(0, 10) : row.weekStartDate)
+          : (row.weekStartDate as Date).toISOString().slice(0, 10);
+        commentMap.set(commentKey(row.personId, week, row.gridType), row.comment ?? "");
+      });
+      setComments(commentMap);
     }).finally(() => setLoading(false));
   }, [projectId, refreshTrigger]);
 
@@ -137,6 +161,26 @@ export function ResourcingGrids({
     };
   }, [loading]);
 
+  const closeCommentPopover = useCallback(() => {
+    setOpenCommentCell(null);
+    setCommentPopoverAnchor(null);
+  }, []);
+
+  useEffect(() => {
+    if (!openCommentCell) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeCommentPopover();
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [openCommentCell, closeCommentPopover]);
+
+  useEffect(() => {
+    if (openCommentCell && commentTextareaRef.current) {
+      commentTextareaRef.current.focus();
+    }
+  }, [openCommentCell]);
+
   if (loading || !project) return <p className="text-body-sm text-surface-700 dark:text-surface-200">Loading grids...</p>;
 
   const start = new Date(project.startDate);
@@ -169,6 +213,31 @@ export function ResourcingGrids({
   };
   const getReady = (personId: string) =>
     readyForFloat.find((r) => r.personId === personId)?.ready ?? false;
+
+  const getComment = (personId: string, weekKey: string, gridType: GridCommentType): string =>
+    comments.get(commentKey(personId, weekKey, gridType)) ?? "";
+
+  async function saveCellComment(
+    personId: string,
+    weekKey: string,
+    gridType: GridCommentType,
+    comment: string
+  ) {
+    if (!canEdit) return;
+    const res = await fetch(`/api/projects/${projectId}/cell-comments`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ personId, weekStartDate: weekKey, gridType, comment }),
+    });
+    if (!res.ok) return;
+    const key = commentKey(personId, weekKey, gridType);
+    setComments((prev) => {
+      const next = new Map(prev);
+      if (comment.trim() === "") next.delete(key);
+      else next.set(key, comment.trim());
+      return next;
+    });
+  }
 
   const plannedRowTotal = (personId: string) =>
     weeks.reduce((sum, w) => sum + getPlanned(personId, formatWeekKey(w)), 0);
@@ -352,30 +421,59 @@ export function ResourcingGrids({
       const mismatch = hasPlanningMismatch(weekDate, plannedVal, floatVal, asOf);
       const isEditing = editingPlanned?.personId === personId && editingPlanned?.weekKey === weekKey;
       const displayStr = isEditing ? editingPlanned!.str : String(value ?? 0);
+      const cellComment = getComment(personId, weekKey, "Planned");
+      const hasComment = cellComment.length > 0;
       return (
         <td
           key={weekKey}
           className={`relative z-0 p-1 border overflow-hidden min-w-0 text-center border-surface-200 dark:border-dark-border ${mismatch ? "bg-jred-100 dark:bg-jred-900/20" : ""}`}
         >
-          {editable && canEdit ? (
-            <input
-              type="text"
-              inputMode="decimal"
-              value={displayStr}
-              onFocus={() => setEditingPlanned({ personId, weekKey, str: String(value ?? 0) })}
-              onChange={(e) => setEditingPlanned((prev) => (prev?.personId === personId && prev?.weekKey === weekKey ? { ...prev, str: e.target.value } : prev))}
-              onBlur={(e) => {
-                const str = e.target.value.trim();
-                const num = str === "" ? 0 : parseFloat(str);
-                const clamped = Number.isNaN(num) ? 0 : Math.max(0, num);
-                updatePlanned(personId, weekKey, roundToQuarter(clamped));
-                setEditingPlanned(null);
-              }}
-              className="w-full min-w-0 max-w-full border rounded px-1 py-0.5 text-sm text-center box-border [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            />
-          ) : (
-            <span className="inline-block w-full text-center tabular-nums">{value ?? 0}</span>
-          )}
+          <div className="group relative min-h-[1.5rem]">
+            {editable && canEdit ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                value={displayStr}
+                onFocus={() => setEditingPlanned({ personId, weekKey, str: String(value ?? 0) })}
+                onChange={(e) => setEditingPlanned((prev) => (prev?.personId === personId && prev?.weekKey === weekKey ? { ...prev, str: e.target.value } : prev))}
+                onBlur={(e) => {
+                  const str = e.target.value.trim();
+                  const num = str === "" ? 0 : parseFloat(str);
+                  const clamped = Number.isNaN(num) ? 0 : Math.max(0, num);
+                  updatePlanned(personId, weekKey, roundToQuarter(clamped));
+                  setEditingPlanned(null);
+                }}
+                className="w-full min-w-0 max-w-full border rounded px-1 py-0.5 text-sm text-center box-border [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+            ) : (
+              <span className="inline-block w-full text-center tabular-nums">{value ?? 0}</span>
+            )}
+            {canEdit && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setCommentPopoverAnchor({ x: rect.left, y: rect.bottom });
+                  setOpenCommentCell({ personId, weekKey, gridType: "Planned" });
+                  setCommentDraft(cellComment);
+                }}
+                className={`absolute top-0 right-0 w-4 h-4 flex items-center justify-center rounded-sm text-surface-500 hover:bg-surface-200 dark:hover:bg-dark-raised ${!hasComment ? "opacity-0 group-hover:opacity-100" : ""}`}
+                aria-label={hasComment ? "Edit comment" : "Add comment"}
+                title={hasComment ? "Edit comment" : "Add comment"}
+              >
+                {hasComment ? (
+                  <span
+                    className="inline-block w-0 h-0 border-t-[6px] border-t-surface-500 border-l-[6px] border-l-transparent"
+                    aria-hidden
+                  />
+                ) : (
+                  <span className="text-[10px] font-medium leading-none">+</span>
+                )}
+              </button>
+            )}
+          </div>
         </td>
       );
     }
@@ -402,35 +500,64 @@ export function ResourcingGrids({
           : "";
       const isEditing = editingActual?.personId === personId && editingActual?.weekKey === weekKey;
       const displayStr = isEditing ? editingActual!.str : (value != null ? String(value) : "");
+      const cellComment = getComment(personId, weekKey, "Actual");
+      const hasComment = cellComment.length > 0;
       return (
         <td
           key={weekKey}
           className={`relative z-0 p-1 border overflow-hidden min-w-0 text-center border-surface-200 dark:border-dark-border ${missing ? "bg-amber-100 dark:bg-amber-900/20" : ""} ${varianceClass}`}
         >
-          {editable && canEdit ? (
-            <input
-              type="text"
-              inputMode="decimal"
-              value={displayStr}
-              onFocus={() => setEditingActual({ personId, weekKey, str: value != null ? String(value) : "" })}
-              onChange={(e) => setEditingActual((prev) => (prev?.personId === personId && prev?.weekKey === weekKey ? { ...prev, str: e.target.value } : { personId, weekKey, str: e.target.value }))}
-              onBlur={(e) => {
-                const str = e.target.value.trim();
-                const num = str === "" ? null : parseFloat(str);
-                if (num === null) {
-                  updateActual(personId, weekKey, null);
-                } else {
-                  const clamped = Number.isNaN(num) ? 0 : Math.max(0, num);
-                  updateActual(personId, weekKey, roundToQuarter(clamped));
-                }
-                setEditingActual(null);
-              }}
-              placeholder="—"
-              className="w-full min-w-0 max-w-full border rounded px-1 py-0.5 text-sm text-center box-border [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            />
-          ) : (
-            <span className="inline-block w-full text-center tabular-nums">{value ?? "—"}</span>
-          )}
+          <div className="group relative min-h-[1.5rem]">
+            {editable && canEdit ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                value={displayStr}
+                onFocus={() => setEditingActual({ personId, weekKey, str: value != null ? String(value) : "" })}
+                onChange={(e) => setEditingActual((prev) => (prev?.personId === personId && prev?.weekKey === weekKey ? { ...prev, str: e.target.value } : { personId, weekKey, str: e.target.value }))}
+                onBlur={(e) => {
+                  const str = e.target.value.trim();
+                  const num = str === "" ? null : parseFloat(str);
+                  if (num === null) {
+                    updateActual(personId, weekKey, null);
+                  } else {
+                    const clamped = Number.isNaN(num) ? 0 : Math.max(0, num);
+                    updateActual(personId, weekKey, roundToQuarter(clamped));
+                  }
+                  setEditingActual(null);
+                }}
+                placeholder="—"
+                className="w-full min-w-0 max-w-full border rounded px-1 py-0.5 text-sm text-center box-border [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+            ) : (
+              <span className="inline-block w-full text-center tabular-nums">{value ?? "—"}</span>
+            )}
+            {canEdit && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setCommentPopoverAnchor({ x: rect.left, y: rect.bottom });
+                  setOpenCommentCell({ personId, weekKey, gridType: "Actual" });
+                  setCommentDraft(cellComment);
+                }}
+                className={`absolute top-0 right-0 w-4 h-4 flex items-center justify-center rounded-sm text-surface-500 hover:bg-surface-200 dark:hover:bg-dark-raised ${!hasComment ? "opacity-0 group-hover:opacity-100" : ""}`}
+                aria-label={hasComment ? "Edit comment" : "Add comment"}
+                title={hasComment ? "Edit comment" : "Add comment"}
+              >
+                {hasComment ? (
+                  <span
+                    className="inline-block w-0 h-0 border-t-[6px] border-t-surface-500 border-l-[6px] border-l-transparent"
+                    aria-hidden
+                  />
+                ) : (
+                  <span className="text-[10px] font-medium leading-none">+</span>
+                )}
+              </button>
+            )}
+          </div>
         </td>
       );
     }
@@ -740,6 +867,59 @@ export function ResourcingGrids({
           </table>
         </div>
       </div>
+
+      {openCommentCell && commentPopoverAnchor && typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed z-50 min-w-[220px] max-w-[320px] rounded-lg border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface shadow-card-light dark:shadow-card-dark p-3"
+            style={{ left: commentPopoverAnchor.x, top: commentPopoverAnchor.y + 4 }}
+            role="dialog"
+            aria-label="Comment for this cell"
+          >
+            <label htmlFor="cell-comment-textarea" className="sr-only">
+              Comment for this cell
+            </label>
+            <textarea
+              id="cell-comment-textarea"
+              ref={commentTextareaRef}
+              value={commentDraft}
+              onChange={(e) => setCommentDraft(e.target.value)}
+              rows={3}
+              className="w-full text-body-sm border border-surface-200 dark:border-dark-border rounded px-2 py-1.5 bg-white dark:bg-dark-surface text-surface-900 dark:text-surface-100 resize-y min-h-[4rem]"
+              placeholder="Add a comment…"
+            />
+            <div className="flex flex-wrap gap-2 mt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  saveCellComment(openCommentCell.personId, openCommentCell.weekKey, openCommentCell.gridType, commentDraft.trim());
+                  closeCommentPopover();
+                }}
+                className="h-8 px-3 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white text-body-sm font-medium"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={closeCommentPopover}
+                className="h-8 px-3 rounded-md border border-surface-300 dark:border-dark-muted text-surface-700 dark:text-surface-200 text-body-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  saveCellComment(openCommentCell.personId, openCommentCell.weekKey, openCommentCell.gridType, "");
+                  closeCommentPopover();
+                }}
+                className="h-8 px-3 rounded-md border border-surface-300 dark:border-dark-muted text-surface-600 dark:text-surface-400 text-body-sm"
+              >
+                Clear
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
