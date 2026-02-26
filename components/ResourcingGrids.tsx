@@ -14,6 +14,11 @@ import {
 import { hasPlanningMismatch, hasMissingActuals } from "@/lib/budgetCalculations";
 import { Toggle } from "@/components/Toggle";
 
+/** Round to nearest 0.25 for resourcing hours. */
+function roundToQuarter(n: number): number {
+  return Math.round(n * 4) / 4;
+}
+
 type Assignment = { personId: string; person: { name: string }; role: { name: string } };
 type PlannedRow = { projectId: string; personId: string; weekStartDate: string; hours: number };
 type ActualRow = { projectId: string; personId: string; weekStartDate: string; hours: number | null };
@@ -301,7 +306,7 @@ export function ResourcingGrids({
           return {
             personId: a.personId,
             weekStartDate: weekKey,
-            hours: getFloat(a.personId, weekKey),
+            hours: roundToQuarter(getFloat(a.personId, weekKey)),
           };
         })
       );
@@ -362,7 +367,8 @@ export function ResourcingGrids({
               onBlur={(e) => {
                 const str = e.target.value.trim();
                 const num = str === "" ? 0 : parseFloat(str);
-                updatePlanned(personId, weekKey, Number.isNaN(num) ? 0 : Math.max(0, num));
+                const clamped = Number.isNaN(num) ? 0 : Math.max(0, num);
+                updatePlanned(personId, weekKey, roundToQuarter(clamped));
                 setEditingPlanned(null);
               }}
               className="w-full min-w-0 max-w-full border rounded px-1 py-0.5 text-sm text-center box-border [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -411,7 +417,12 @@ export function ResourcingGrids({
               onBlur={(e) => {
                 const str = e.target.value.trim();
                 const num = str === "" ? null : parseFloat(str);
-                updateActual(personId, weekKey, num === null || !Number.isNaN(num) ? num : null);
+                if (num === null) {
+                  updateActual(personId, weekKey, null);
+                } else {
+                  const clamped = Number.isNaN(num) ? 0 : Math.max(0, num);
+                  updateActual(personId, weekKey, roundToQuarter(clamped));
+                }
                 setEditingActual(null);
               }}
               placeholder="—"

@@ -6,10 +6,18 @@ import { getProjectId } from "@/lib/slug";
 import { z } from "zod";
 import { getWeekStartDate } from "@/lib/weekUtils";
 
+const QUARTER_HOUR_EPS = 1e-9;
+function isQuarterIncrement(n: number): boolean {
+  return Number.isFinite(n) && Math.abs((n * 4) - Math.round(n * 4)) < QUARTER_HOUR_EPS;
+}
+
 const updateSchema = z.object({
   personId: z.string(),
   weekStartDate: z.string(),
-  hours: z.number().min(0),
+  hours: z
+    .number()
+    .min(0)
+    .refine(isQuarterIncrement, { message: "Hours must be in 0.25 increments" }),
 });
 
 export async function GET(
