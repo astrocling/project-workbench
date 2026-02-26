@@ -24,6 +24,7 @@ export default function NewProjectPage() {
   const [pmPersonIds, setPmPersonIds] = useState<string[]>([]);
   const [pgmPersonId, setPgmPersonId] = useState("");
   const [cadPersonId, setCadPersonId] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -41,30 +42,35 @@ export default function NewProjectPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    const res = await fetch("/api/projects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name,
-        clientName,
-        startDate: new Date(startDate).toISOString(),
-        endDate: endDate ? new Date(endDate).toISOString() : null,
-        status,
-        floatProjectName: selectedFloatProject || undefined,
-        sowLink: sowLink.trim() || undefined,
-        estimateLink: estimateLink.trim() || undefined,
-        pmPersonIds: pmPersonIds.filter(Boolean),
-        pgmPersonId: pgmPersonId || undefined,
-        cadPersonId: cadPersonId || undefined,
-      }),
-    });
-    if (!res.ok) {
-      setError(await res.text());
-      return;
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          clientName,
+          startDate: new Date(startDate).toISOString(),
+          endDate: endDate ? new Date(endDate).toISOString() : null,
+          status,
+          floatProjectName: selectedFloatProject || undefined,
+          sowLink: sowLink.trim() || undefined,
+          estimateLink: estimateLink.trim() || undefined,
+          pmPersonIds: pmPersonIds.filter(Boolean),
+          pgmPersonId: pgmPersonId || undefined,
+          cadPersonId: cadPersonId || undefined,
+        }),
+      });
+      if (!res.ok) {
+        setError(await res.text());
+        return;
+      }
+      const project = await res.json();
+      router.push(`/projects/${project.slug}`);
+      router.refresh();
+    } finally {
+      setIsSubmitting(false);
     }
-    const project = await res.json();
-    router.push(`/projects/${project.slug}`);
-    router.refresh();
   }
 
   return (
@@ -263,13 +269,26 @@ export default function NewProjectPage() {
               className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
             />
           </div>
-          <div className="flex gap-2 pt-4">
+          <div className="flex gap-2 pt-4 items-center">
             <button
               type="submit"
-              className="h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
+              disabled={isSubmitting}
+              className="h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2 disabled:opacity-80 disabled:cursor-not-allowed inline-flex items-center gap-2"
             >
-              Create
+              {isSubmitting ? (
+                <>
+                  <span className="inline-block h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" aria-hidden />
+                  Creating…
+                </>
+              ) : (
+                "Create"
+              )}
             </button>
+            {isSubmitting && (
+              <span className="text-body-sm text-surface-600 dark:text-surface-400" role="status">
+                Setting up project…
+              </span>
+            )}
             <Link
               href="/projects"
               className="h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-transparent hover:bg-surface-100 dark:hover:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm"

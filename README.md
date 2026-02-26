@@ -105,6 +105,11 @@ npx tsx scripts/sample-data.ts
 
 Creates a sample project with people, assignments, planned/actual hours, and budget line.
 
+## Documentation
+
+- **[User Guide](docs/USER_GUIDE.md)** — How to use the app: projects, resourcing, budget, Float import, and admin (Roles, People, Users). Written in standard Markdown for easy copy into Confluence.
+- **[Technical Reference](docs/TECHNICAL.md)** — Tech stack, data model, environment variables, week/as-of semantics, permissions, scripts, and API overview. Also Confluence-friendly.
+
 ## Float CSV Import
 
 Admin → Float Import. Expected CSV format:
