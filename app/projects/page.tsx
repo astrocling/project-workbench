@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
@@ -30,6 +31,18 @@ function normalizeDir(raw: string | undefined): "asc" | "desc" {
   return "asc";
 }
 
+async function getCachedLastImport() {
+  return unstable_cache(
+    async () => {
+      return prisma.floatImportRun.findFirst({
+        orderBy: { completedAt: "desc" },
+      });
+    },
+    ["float-last-import"],
+    { revalidate: 60 }
+  )();
+}
+
 export default async function ProjectsPage({
   searchParams,
 }: {
@@ -43,42 +56,35 @@ export default async function ProjectsPage({
   const sortKey = normalizeSort(rawSort);
   const sortDir = normalizeDir(rawDir);
 
-  let projects: Awaited<
-    ReturnType<
-      typeof prisma.project.findMany<{
-        include: { projectKeyRoles: { include: { person: true } } };
-      }>
-    >
-  > = [];
-
-  if (filter !== "atRisk") {
-    let currentPersonId: string | null = null;
-    if (filter === "my" && session.user?.id) {
-      const userEmail = session.user.email ?? undefined;
-      let person: Awaited<
-        ReturnType<typeof prisma.person.findFirst<{ where: { email: { equals: string; mode: "insensitive" } } }>>
-      > = userEmail
-        ? await prisma.person.findFirst({
-            where: { email: { equals: userEmail, mode: "insensitive" } },
-          })
-        : null;
-      if (!person && session.user?.id) {
-        const user = await prisma.user.findUnique({
-          where: { id: session.user.id },
-          select: { firstName: true, lastName: true },
+  let currentPersonId: string | null = null;
+  if (filter === "my" && session.user?.id) {
+    const userEmail = session.user.email ?? undefined;
+    let person: Awaited<
+      ReturnType<typeof prisma.person.findFirst<{ where: { email: { equals: string; mode: "insensitive" } } }>>
+    > = userEmail
+      ? await prisma.person.findFirst({
+          where: { email: { equals: userEmail, mode: "insensitive" } },
+        })
+      : null;
+    if (!person && session.user?.id) {
+      const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { firstName: true, lastName: true },
+      });
+      const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
+      if (fullName) {
+        person = await prisma.person.findFirst({
+          where: { name: { equals: fullName, mode: "insensitive" } },
         });
-        const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
-        if (fullName) {
-          person = await prisma.person.findFirst({
-            where: { name: { equals: fullName, mode: "insensitive" } },
-          });
-        }
       }
-      currentPersonId = person?.id ?? null;
     }
+    currentPersonId = person?.id ?? null;
+  }
 
-    const where =
-      filter === "my"
+  const where =
+    filter === "atRisk"
+      ? undefined
+      : filter === "my"
         ? currentPersonId
           ? { projectKeyRoles: { some: { personId: currentPersonId } } }
           : { id: "no-match-my-projects" }
@@ -88,42 +94,51 @@ export default async function ProjectsPage({
             ? { status: "Closed" as const }
             : {};
 
-    const dbOrderBy =
-      sortKey === "name"
-        ? { name: sortDir }
-        : sortKey === "clientName"
-          ? { clientName: sortDir }
-          : sortKey === "status"
-            ? { status: sortDir }
-            : { clientName: "asc" as const };
+  type ProjectsResult = Awaited<
+    ReturnType<
+      typeof prisma.project.findMany<{
+        include: { projectKeyRoles: { include: { person: true } } };
+      }>
+    >
+  >;
 
-    projects = await prisma.project.findMany({
-      where,
-      orderBy: dbOrderBy,
-      include: {
-        projectKeyRoles: { include: { person: true } },
-      },
+  const dbOrderBy =
+    sortKey === "name"
+      ? { name: sortDir }
+      : sortKey === "clientName"
+        ? { clientName: sortDir }
+        : sortKey === "status"
+          ? { status: sortDir }
+          : { clientName: "asc" as const };
+
+  const [projectsFetched, lastImport] = await Promise.all([
+    filter === "atRisk"
+      ? ([] as ProjectsResult)
+      : prisma.project.findMany({
+          where,
+          orderBy: dbOrderBy,
+          include: {
+            projectKeyRoles: { include: { person: true } },
+          },
+        }),
+    getCachedLastImport(),
+  ]);
+
+  let projects: ProjectsResult = projectsFetched;
+  if (filter !== "atRisk" && (sortKey === "pms" || sortKey === "pgm" || sortKey === "cad")) {
+    const mult = sortDir === "asc" ? 1 : -1;
+    projects = [...projects].sort((a, b) => {
+      const pmsA = a.projectKeyRoles.filter((kr) => kr.type === "PM").map((kr) => kr.person.name).join(", ") || "—";
+      const pmsB = b.projectKeyRoles.filter((kr) => kr.type === "PM").map((kr) => kr.person.name).join(", ") || "—";
+      const pgmA = a.projectKeyRoles.find((kr) => kr.type === "PGM")?.person.name ?? "—";
+      const pgmB = b.projectKeyRoles.find((kr) => kr.type === "PGM")?.person.name ?? "—";
+      const cadA = a.projectKeyRoles.find((kr) => kr.type === "CAD")?.person.name ?? "—";
+      const cadB = b.projectKeyRoles.find((kr) => kr.type === "CAD")?.person.name ?? "—";
+      const valA = sortKey === "pms" ? pmsA : sortKey === "pgm" ? pgmA : cadA;
+      const valB = sortKey === "pms" ? pmsB : sortKey === "pgm" ? pgmB : cadB;
+      return mult * valA.localeCompare(valB, undefined, { sensitivity: "base" });
     });
-
-    if (sortKey === "pms" || sortKey === "pgm" || sortKey === "cad") {
-      const mult = sortDir === "asc" ? 1 : -1;
-      projects = [...projects].sort((a, b) => {
-        const pmsA = a.projectKeyRoles.filter((kr) => kr.type === "PM").map((kr) => kr.person.name).join(", ") || "—";
-        const pmsB = b.projectKeyRoles.filter((kr) => kr.type === "PM").map((kr) => kr.person.name).join(", ") || "—";
-        const pgmA = a.projectKeyRoles.find((kr) => kr.type === "PGM")?.person.name ?? "—";
-        const pgmB = b.projectKeyRoles.find((kr) => kr.type === "PGM")?.person.name ?? "—";
-        const cadA = a.projectKeyRoles.find((kr) => kr.type === "CAD")?.person.name ?? "—";
-        const cadB = b.projectKeyRoles.find((kr) => kr.type === "CAD")?.person.name ?? "—";
-        const valA = sortKey === "pms" ? pmsA : sortKey === "pgm" ? pgmA : cadA;
-        const valB = sortKey === "pms" ? pmsB : sortKey === "pgm" ? pgmB : cadB;
-        return mult * valA.localeCompare(valB, undefined, { sensitivity: "base" });
-      });
-    }
   }
-
-  const lastImport = await prisma.floatImportRun.findFirst({
-    orderBy: { completedAt: "desc" },
-  });
 
   const permissionLevel = getSessionPermissionLevel(session.user);
   const canDelete = canDeleteProject(permissionLevel);

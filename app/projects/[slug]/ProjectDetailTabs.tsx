@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ResourcingGrids } from "@/components/ResourcingGrids";
 import { BudgetTab } from "@/components/BudgetTab";
 import { RatesTab } from "@/components/RatesTab";
@@ -62,6 +62,17 @@ export function ProjectDetailTabs({
     ad: string | null;
   }>({ pm: [], pgm: null, ad: null });
 
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const overviewPrefetched = useRef(false);
+
+  const prefetchOverview = useCallback(() => {
+    if (overviewPrefetched.current || tab === "overview") return;
+    overviewPrefetched.current = true;
+    fetch(`/api/projects/${projectId}/revenue-recovery`).catch(() => {});
+    fetch(`/api/projects/${projectId}/assignments`).catch(() => {});
+    fetch(`/api/projects/${projectId}`).catch(() => {});
+  }, [projectId, tab]);
+
   const refetchBudgetStatus = useCallback(() => {
     fetch(`/api/projects/${projectId}/budget`)
       .then((r) => r.json())
@@ -76,7 +87,12 @@ export function ProjectDetailTabs({
   }, [projectId]);
 
   useEffect(() => {
+    if (tab === "overview") overviewPrefetched.current = false;
+  }, [tab]);
+
+  useEffect(() => {
     if (tab !== "overview") {
+      setOverviewLoading(false);
       setRevenueRecoveryToDate(null);
       setTeamMembers([]);
       setProjectNotes(null);
@@ -88,17 +104,18 @@ export function ProjectDetailTabs({
       setKeyRoleNames({ pm: [], pgm: null, ad: null });
       return;
     }
-    fetch(`/api/projects/${projectId}/revenue-recovery`)
-      .then((r) => r.json())
-      .then((d) => setRevenueRecoveryToDate(d.toDate?.recoveryPercent ?? null))
-      .catch(() => setRevenueRecoveryToDate(null));
-    fetch(`/api/projects/${projectId}/assignments`)
-      .then((r) => r.json())
-      .then((a) => setTeamMembers(Array.isArray(a) ? a : []))
-      .catch(() => setTeamMembers([]));
-    fetch(`/api/projects/${projectId}`)
-      .then((r) => r.json())
-      .then((p) => {
+    setOverviewLoading(true);
+    Promise.allSettled([
+      fetch(`/api/projects/${projectId}/revenue-recovery`).then((r) => r.json()),
+      fetch(`/api/projects/${projectId}/assignments`).then((r) => r.json()),
+      fetch(`/api/projects/${projectId}`).then((r) => r.json()),
+    ]).then(([revenueRes, assignmentsRes, projectRes]) => {
+      const revenue = revenueRes.status === "fulfilled" ? revenueRes.value : null;
+      const assignments = assignmentsRes.status === "fulfilled" ? assignmentsRes.value : [];
+      const p = projectRes.status === "fulfilled" ? projectRes.value : null;
+      setRevenueRecoveryToDate(revenue?.toDate?.recoveryPercent ?? null);
+      setTeamMembers(Array.isArray(assignments) ? assignments : []);
+      if (p) {
         setProjectNotes(p.notes ?? null);
         setSowLink(p.sowLink ?? null);
         setEstimateLink(p.estimateLink ?? null);
@@ -113,15 +130,16 @@ export function ProjectDetailTabs({
         const pgm = keyRoles.find((kr: { type: string }) => kr.type === "PGM")?.person?.name ?? null;
         const ad = keyRoles.find((kr: { type: string }) => kr.type === "CAD")?.person?.name ?? null;
         setKeyRoleNames({ pm, pgm, ad });
-      })
-      .catch(() => {
+      } else {
         setProjectNotes(null);
         setSowLink(null);
         setEstimateLink(null);
         setFloatLink(null);
         setMetricLink(null);
         setKeyRoleNames({ pm: [], pgm: null, ad: null });
-      });
+      }
+      setOverviewLoading(false);
+    });
   }, [tab, projectId]);
 
   const saveProjectNotes = useCallback(() => {
@@ -165,10 +183,12 @@ export function ProjectDetailTabs({
           {TABS.filter((t) => t.id !== "edit" || canEdit).map((t) => {
             const href = "hrefOnly" in t && t.hrefOnly ? `/projects/${projectSlug}/edit` : `${base}?tab=${t.id}`;
             const isActive = "hrefOnly" in t && t.hrefOnly ? false : tab === t.id;
+            const isOverview = t.id === "overview";
             return (
               <Link
                 key={t.id}
                 href={href}
+                onMouseEnter={isOverview ? prefetchOverview : undefined}
                 className={`px-4 py-2 -mb-px border-b-2 transition-colors ${
                   isActive
                     ? "border-jblue-500 text-jblue-600 dark:text-jblue-400 font-semibold"
@@ -215,7 +235,47 @@ export function ProjectDetailTabs({
         </div>
       </div>
 
-      {tab === "overview" && (
+      {tab === "overview" && overviewLoading && (
+        <div className="space-y-6" aria-busy="true" aria-label="Loading overview">
+          <div className="flex flex-wrap gap-3">
+            <div className="h-4 w-24 bg-surface-200 dark:bg-dark-raised rounded animate-pulse" />
+            <div className="h-4 w-20 bg-surface-200 dark:bg-dark-raised rounded animate-pulse" />
+            <div className="h-4 w-16 bg-surface-200 dark:bg-dark-raised rounded animate-pulse" />
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-9 w-28 bg-surface-200 dark:bg-dark-raised rounded-md animate-pulse" />
+            ))}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border p-5">
+                <div className="h-4 w-32 bg-surface-200 dark:bg-dark-raised rounded animate-pulse mb-2" />
+                <div className="h-8 w-16 bg-surface-200 dark:bg-dark-raised rounded animate-pulse" />
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <div className="h-5 w-32 bg-surface-200 dark:bg-dark-raised rounded animate-pulse" />
+              <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border p-4 h-48">
+                <div className="space-y-2">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="h-4 bg-surface-100 dark:bg-dark-raised rounded animate-pulse" />
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="h-5 w-28 bg-surface-200 dark:bg-dark-raised rounded animate-pulse" />
+              <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border p-4 h-48">
+                <div className="h-full min-h-[200px] bg-surface-100 dark:bg-dark-raised rounded animate-pulse" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {tab === "overview" && !overviewLoading && (
         <div className="space-y-6">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-body-sm text-surface-700 dark:text-surface-200">
             <span>
