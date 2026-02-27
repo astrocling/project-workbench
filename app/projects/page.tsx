@@ -9,6 +9,7 @@ import { getAsOfDate } from "@/lib/weekUtils";
 import { ThemeToggle } from "@/components/ThemeProvider";
 import { AtRiskTable } from "@/components/AtRiskTable";
 import { DeleteProjectButton } from "@/components/DeleteProjectButton";
+import { LocalTime } from "@/components/LocalTime";
 
 const FILTER_VALUES = ["my", "active", "closed", "all", "atRisk"] as const;
 type FilterValue = (typeof FILTER_VALUES)[number];
@@ -215,7 +216,7 @@ export default async function ProjectsPage({
 
         {lastImport && (
           <p className="text-body-sm text-surface-700 dark:text-surface-200 mb-4">
-            Float last updated: {new Date(lastImport.completedAt).toLocaleString()}
+            Float last updated: <LocalTime isoDate={lastImport.completedAt} />
           </p>
         )}
 
