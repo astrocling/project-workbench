@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2025-02-27
+
 ### Added
 
 - Cell comments on resourcing grids: add and edit comments on individual Planned and Actual grid cells to capture notes and context.
