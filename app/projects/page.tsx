@@ -12,21 +12,36 @@ import { DeleteProjectButton } from "@/components/DeleteProjectButton";
 const FILTER_VALUES = ["my", "active", "closed", "all", "atRisk"] as const;
 type FilterValue = (typeof FILTER_VALUES)[number];
 
+const SORT_KEYS = ["name", "clientName", "status", "pms", "pgm", "cad"] as const;
+type SortKey = (typeof SORT_KEYS)[number];
+
 function normalizeFilter(raw: string | undefined): FilterValue {
   if (raw && FILTER_VALUES.includes(raw as FilterValue)) return raw as FilterValue;
   return "my";
 }
 
+function normalizeSort(raw: string | undefined): SortKey {
+  if (raw && SORT_KEYS.includes(raw as SortKey)) return raw as SortKey;
+  return "clientName";
+}
+
+function normalizeDir(raw: string | undefined): "asc" | "desc" {
+  if (raw === "asc" || raw === "desc") return raw;
+  return "asc";
+}
+
 export default async function ProjectsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>;
+  searchParams: Promise<{ filter?: string; sort?: string; dir?: string }>;
 }) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  const { filter: rawFilter } = await searchParams;
+  const { filter: rawFilter, sort: rawSort, dir: rawDir } = await searchParams;
   const filter = normalizeFilter(rawFilter);
+  const sortKey = normalizeSort(rawSort);
+  const sortDir = normalizeDir(rawDir);
 
   let projects: Awaited<
     ReturnType<
@@ -73,13 +88,37 @@ export default async function ProjectsPage({
             ? { status: "Closed" as const }
             : {};
 
+    const dbOrderBy =
+      sortKey === "name"
+        ? { name: sortDir }
+        : sortKey === "clientName"
+          ? { clientName: sortDir }
+          : sortKey === "status"
+            ? { status: sortDir }
+            : { clientName: "asc" as const };
+
     projects = await prisma.project.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: dbOrderBy,
       include: {
         projectKeyRoles: { include: { person: true } },
       },
     });
+
+    if (sortKey === "pms" || sortKey === "pgm" || sortKey === "cad") {
+      const mult = sortDir === "asc" ? 1 : -1;
+      projects = [...projects].sort((a, b) => {
+        const pmsA = a.projectKeyRoles.filter((kr) => kr.type === "PM").map((kr) => kr.person.name).join(", ") || "—";
+        const pmsB = b.projectKeyRoles.filter((kr) => kr.type === "PM").map((kr) => kr.person.name).join(", ") || "—";
+        const pgmA = a.projectKeyRoles.find((kr) => kr.type === "PGM")?.person.name ?? "—";
+        const pgmB = b.projectKeyRoles.find((kr) => kr.type === "PGM")?.person.name ?? "—";
+        const cadA = a.projectKeyRoles.find((kr) => kr.type === "CAD")?.person.name ?? "—";
+        const cadB = b.projectKeyRoles.find((kr) => kr.type === "CAD")?.person.name ?? "—";
+        const valA = sortKey === "pms" ? pmsA : sortKey === "pgm" ? pgmA : cadA;
+        const valB = sortKey === "pms" ? pmsB : sortKey === "pgm" ? pgmB : cadB;
+        return mult * valA.localeCompare(valB, undefined, { sensitivity: "base" });
+      });
+    }
   }
 
   const lastImport = await prisma.floatImportRun.findFirst({
@@ -146,7 +185,7 @@ export default async function ProjectsPage({
             return (
               <Link
                 key={value}
-                href={`/projects?filter=${value}`}
+                href={`/projects?filter=${value}&sort=${sortKey}&dir=${sortDir}`}
                 className={`px-4 py-2 rounded-md text-body-sm font-medium transition-colors ${
                   isActive
                     ? "bg-jblue-500 text-white dark:bg-jblue-600 dark:text-white"
@@ -172,24 +211,34 @@ export default async function ProjectsPage({
             <table className="w-full text-body-sm border-collapse">
               <thead>
                 <tr className="bg-surface-50 dark:bg-dark-raised border-b border-surface-200 dark:border-dark-border">
-                  <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
-                    Name
-                  </th>
-                  <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
-                    Client
-                  </th>
-                  <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
-                    Status
-                  </th>
-                  <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
-                    PMs
-                  </th>
-                  <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
-                    PGM
-                  </th>
-                  <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
-                    CAD
-                  </th>
+                  {(
+                    [
+                      ["name", "Name"],
+                      ["clientName", "Client"],
+                      ["status", "Status"],
+                      ["pms", "PMs"],
+                      ["pgm", "PGM"],
+                      ["cad", "CAD"],
+                    ] as const
+                  ).map(([key, label]) => {
+                    const isActive = sortKey === key;
+                    const nextDir = isActive && sortDir === "asc" ? "desc" : "asc";
+                    return (
+                      <th key={key} className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
+                        <Link
+                          href={`/projects?filter=${filter}&sort=${key}&dir=${nextDir}`}
+                          className={`inline-flex items-center gap-1 hover:text-surface-700 dark:hover:text-surface-200 ${isActive ? "text-surface-900 dark:text-white" : ""}`}
+                        >
+                          {label}
+                          {isActive && (
+                            <span className="text-xs" aria-hidden>
+                              {sortDir === "asc" ? "↑" : "↓"}
+                            </span>
+                          )}
+                        </Link>
+                      </th>
+                    );
+                  })}
                   {canDelete && (
                     <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold w-24">
                       Actions

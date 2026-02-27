@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Cell comments on resourcing grids: add and edit comments on individual Planned and Actual grid cells to capture notes and context.
+- Projects page: default sort by client name (A–Z); all columns (Name, Client, Status, PMs, PGM, CAD) are sortable via column headers with toggle for ascending/descending.
 
 ## [0.1.1] - 2025-02-26
 
