@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import Papa from "papaparse";
 import { parseFloatWeekHeader, formatWeekKey } from "@/lib/weekUtils";
 import { floatImportRatelimit, getClientIp } from "@/lib/ratelimit";
+
+/** Chunk size for bulk FloatScheduledHours upserts to avoid huge queries. */
+const FLOAT_HOURS_BATCH_SIZE = 500;
 
 /** Max CSV upload size (10 MB) to avoid high memory use and long processing. */
 const MAX_FLOAT_CSV_BYTES = 10 * 1024 * 1024;
@@ -89,8 +93,23 @@ export async function POST(req: NextRequest) {
   const headers = Object.keys(rows[0] ?? {});
   const weekColumns: { key: string; weekStart: Date }[] = [];
   const unknownRoles: string[] = [];
-  const knownRoles = await prisma.role.findMany();
+
+  // Batch read: roles, persons, projects (one query each)
+  const [knownRoles, persons, projects] = await Promise.all([
+    prisma.role.findMany(),
+    prisma.person.findMany(),
+    prisma.project.findMany(),
+  ]);
   const roleNames = new Set(knownRoles.map((r: { name: string }) => r.name));
+  const roleById = new Map<string, string>(
+    knownRoles.map((r: { id: string; name: string }) => [r.name.toLowerCase(), r.id])
+  );
+  const personByName = new Map<string, string>(
+    persons.map((p: { id: string; name: string }) => [p.name.toLowerCase(), p.id])
+  );
+  const projectsByName = new Map<string, string>(
+    projects.map((p: { id: string; name: string }) => [p.name.toLowerCase(), p.id])
+  );
 
   for (const h of headers) {
     const weekStart = parseFloatWeekHeader(h);
@@ -175,13 +194,9 @@ export async function POST(req: NextRequest) {
   ) as Record<string, string>;
 
   const peopleByKey = new Map<string, string>();
-  const projectsByName = new Map<string, string>();
   const newPersonNames: string[] = [];
-
-  const projects = await prisma.project.findMany();
-  for (const p of projects) {
-    projectsByName.set(p.name.toLowerCase(), p.id);
-  }
+  /** Collected assignments for batch upsert: key = projectId:personId, value = roleId (last role wins). */
+  const assignmentUpdates = new Map<string, { projectId: string; personId: string; roleId: string }>();
 
   for (const row of peopleRows) {
     const name = (row[nameCol] ?? "").trim();
@@ -194,16 +209,16 @@ export async function POST(req: NextRequest) {
       if (!unknownRoles.includes(roleName)) unknownRoles.push(roleName);
     }
 
-    let person = await prisma.person.findFirst({
-      where: { name: { equals: name, mode: "insensitive" } },
-    });
-    if (!person) {
-      person = await prisma.person.create({
+    let personId = personByName.get(name.toLowerCase());
+    if (!personId) {
+      const person = await prisma.person.create({
         data: { name },
       });
+      personId = person.id;
+      personByName.set(name.toLowerCase(), personId);
       if (!newPersonNames.includes(name)) newPersonNames.push(name);
     }
-    peopleByKey.set(`${name}-${projectName}`.toLowerCase(), person.id);
+    peopleByKey.set(`${name}-${projectName}`.toLowerCase(), personId);
 
     // Merge float hour data by (project, person): sum hours per week for backfill storage
     const mergeKey = `${projectName}|${name}`.toLowerCase();
@@ -229,23 +244,25 @@ export async function POST(req: NextRequest) {
     const projectId = projectsByName.get(projectName.toLowerCase());
     if (!projectId) continue;
 
-    const role = await prisma.role.findFirst({
-      where: { name: { equals: roleName, mode: "insensitive" } },
-    });
-    if (!role) continue;
+    const roleId = roleById.get(roleName.toLowerCase());
+    if (!roleId) continue;
 
-    // Ensure assignment exists
-    await prisma.projectAssignment.upsert({
-      where: {
-        projectId_personId: { projectId, personId: person.id },
-      },
-      create: {
-        projectId,
-        personId: person.id,
-        roleId: role.id,
-      },
-      update: { roleId: role.id },
-    });
+    assignmentUpdates.set(`${projectId}:${personId}`, { projectId, personId, roleId });
+  }
+
+  // Batch upsert assignments in one transaction
+  if (assignmentUpdates.size > 0) {
+    await prisma.$transaction(
+      Array.from(assignmentUpdates.values()).map(({ projectId, personId, roleId }) =>
+        prisma.projectAssignment.upsert({
+          where: {
+            projectId_personId: { projectId, personId },
+          },
+          create: { projectId, personId, roleId },
+          update: { roleId },
+        })
+      )
+    );
   }
 
   // Build projectFloatHoursMap from merged data (one entry per project+person, summed hours)
@@ -264,33 +281,37 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Write FloatScheduledHours from merged data (summed hours per project+person+week)
+  // Collect FloatScheduledHours rows (reuse personByName from first loop)
+  const floatHoursRows: { projectId: string; personId: string; weekStartDate: Date; hours: number }[] = [];
   for (const entry of mergedFloatByProjectPerson.values()) {
     const projectId = projectsByName.get(entry.projectName.toLowerCase());
     if (!projectId) continue;
-    const person = await prisma.person.findFirst({
-      where: { name: { equals: entry.personName, mode: "insensitive" } },
-    });
-    if (!person) continue;
+    const personId = personByName.get(entry.personName.toLowerCase());
+    if (!personId) continue;
     for (const [weekStart, hours] of entry.weekMap) {
-      const weekStartDate = new Date(weekStart + "T00:00:00.000Z");
-      await prisma.floatScheduledHours.upsert({
-        where: {
-          projectId_personId_weekStartDate: {
-            projectId,
-            personId: person.id,
-            weekStartDate,
-          },
-        },
-        create: {
-          projectId,
-          personId: person.id,
-          weekStartDate: weekStartDate,
-          hours,
-        },
-        update: { hours },
+      floatHoursRows.push({
+        projectId,
+        personId,
+        weekStartDate: new Date(weekStart + "T00:00:00.000Z"),
+        hours,
       });
     }
+  }
+
+  // Bulk upsert FloatScheduledHours in chunks (INSERT ... ON CONFLICT DO UPDATE)
+  for (let i = 0; i < floatHoursRows.length; i += FLOAT_HOURS_BATCH_SIZE) {
+    const chunk = floatHoursRows.slice(i, i + FLOAT_HOURS_BATCH_SIZE);
+    if (chunk.length === 0) continue;
+    await prisma.$executeRaw`
+      INSERT INTO "FloatScheduledHours" ("projectId", "personId", "weekStartDate", "hours", "createdAt", "updatedAt")
+      VALUES ${Prisma.join(
+        chunk.map((r) =>
+          Prisma.sql`(${Prisma.join([r.projectId, r.personId, r.weekStartDate, r.hours])}, now(), now())`
+        )
+      )}
+      ON CONFLICT ("projectId", "personId", "weekStartDate")
+      DO UPDATE SET hours = EXCLUDED.hours, "updatedAt" = now()
+    `;
   }
 
   // Build projectFloatHours after the loop that populated projectFloatHoursMap (used for backfilling new projects)

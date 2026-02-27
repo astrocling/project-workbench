@@ -237,7 +237,7 @@ export function ProjectDetailTabs({
                 href={sowLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
+                className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
               >
                 Open SOW
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -246,7 +246,7 @@ export function ProjectDetailTabs({
               </a>
             ) : (
               <span
-                className="inline-flex items-center gap-2 h-9 px-4 rounded-md bg-surface-200 dark:bg-dark-raised text-surface-500 dark:text-surface-400 font-semibold text-body-sm cursor-not-allowed select-none"
+                className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md bg-surface-200 dark:bg-dark-raised text-surface-500 dark:text-surface-400 font-semibold text-body-sm cursor-not-allowed select-none"
                 aria-disabled="true"
               >
                 Open SOW
@@ -260,7 +260,7 @@ export function ProjectDetailTabs({
                 href={estimateLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
+                className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
               >
                 Open Estimate
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -269,7 +269,7 @@ export function ProjectDetailTabs({
               </a>
             ) : (
               <span
-                className="inline-flex items-center gap-2 h-9 px-4 rounded-md bg-surface-200 dark:bg-dark-raised text-surface-500 dark:text-surface-400 font-semibold text-body-sm cursor-not-allowed select-none"
+                className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md bg-surface-200 dark:bg-dark-raised text-surface-500 dark:text-surface-400 font-semibold text-body-sm cursor-not-allowed select-none"
                 aria-disabled="true"
               >
                 Open Estimate
@@ -283,7 +283,7 @@ export function ProjectDetailTabs({
                 href={floatLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
+                className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
               >
                 Open Float
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -292,7 +292,7 @@ export function ProjectDetailTabs({
               </a>
             ) : (
               <span
-                className="inline-flex items-center gap-2 h-9 px-4 rounded-md bg-surface-200 dark:bg-dark-raised text-surface-500 dark:text-surface-400 font-semibold text-body-sm cursor-not-allowed select-none"
+                className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md bg-surface-200 dark:bg-dark-raised text-surface-500 dark:text-surface-400 font-semibold text-body-sm cursor-not-allowed select-none"
                 aria-disabled="true"
               >
                 Open Float
@@ -306,7 +306,7 @@ export function ProjectDetailTabs({
                 href={metricLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
+                className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
               >
                 Open Metric
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -315,7 +315,7 @@ export function ProjectDetailTabs({
               </a>
             ) : (
               <span
-                className="inline-flex items-center gap-2 h-9 px-4 rounded-md bg-surface-200 dark:bg-dark-raised text-surface-500 dark:text-surface-400 font-semibold text-body-sm cursor-not-allowed select-none"
+                className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md bg-surface-200 dark:bg-dark-raised text-surface-500 dark:text-surface-400 font-semibold text-body-sm cursor-not-allowed select-none"
                 aria-disabled="true"
               >
                 Open Metric

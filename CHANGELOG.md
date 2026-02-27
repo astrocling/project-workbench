@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cell comments on resourcing grids: add and edit comments on individual Planned and Actual grid cells to capture notes and context.
 - Projects page: default sort by client name (A–Z); all columns (Name, Client, Status, PMs, PGM, CAD) are sortable via column headers with toggle for ascending/descending.
 
+### Changed
+
+- Settings (project edit) page: reorganized into sections (Project details, External links, Key roles, Resourcing, Actions) with in-page navigation, sticky action bar, 2-column grids for dates and links, and consistent design tokens for dark mode.
+- Buttons: primary and secondary buttons (including Cancel and New Project links) now use centered text for consistent appearance.
+
 ## [0.1.1] - 2025-02-26
 
 ### Added

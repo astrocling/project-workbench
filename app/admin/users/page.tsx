@@ -216,7 +216,7 @@ export default function AdminUsersPage() {
             </div>
             <button
               type="submit"
-              className="h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
+              className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
             >
               Create
             </button>
@@ -331,14 +331,14 @@ export default function AdminUsersPage() {
                   <button
                     type="button"
                     onClick={() => !editSaving && setEditingUser(null)}
-                    className="h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted text-body-sm font-medium text-surface-700 dark:text-surface-200 hover:bg-surface-50 dark:hover:bg-dark-raised"
+                    className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted text-body-sm font-medium text-surface-700 dark:text-surface-200 hover:bg-surface-50 dark:hover:bg-dark-raised"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={editSaving}
-                    className="h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 disabled:opacity-50 text-white font-semibold text-body-sm"
+                    className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 disabled:opacity-50 text-white font-semibold text-body-sm"
                   >
                     {editSaving ? "Saving…" : "Save"}
                   </button>
