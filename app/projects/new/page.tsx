@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { getSessionPermissionLevel, canAccessAdmin } from "@/lib/auth";
+import { Toggle } from "@/components/Toggle";
 
 export default function NewProjectPage() {
   const router = useRouter();
@@ -14,6 +15,7 @@ export default function NewProjectPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [status, setStatus] = useState<"Active" | "Closed">("Active");
+  const [cdaEnabled, setCdaEnabled] = useState(false);
   const [error, setError] = useState("");
   const [floatProjectNames, setFloatProjectNames] = useState<string[]>([]);
   const [floatProjectClients, setFloatProjectClients] = useState<Record<string, string>>({});
@@ -63,6 +65,7 @@ export default function NewProjectPage() {
           pmPersonIds: pmPersonIds.filter(Boolean),
           pgmPersonId: pgmPersonId || undefined,
           cadPersonId: cadPersonId || undefined,
+          cdaEnabled,
         }),
       });
       if (!res.ok) {
@@ -253,6 +256,14 @@ export default function NewProjectPage() {
               <option value="Active">Active</option>
               <option value="Closed">Closed</option>
             </select>
+          </div>
+          <div>
+            <Toggle
+              checked={cdaEnabled}
+              onChange={setCdaEnabled}
+              label="Enable CDA tab (monthly planned / actuals)"
+              aria-label="Enable CDA tab"
+            />
           </div>
           <div>
             <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">SOW link (optional)</label>

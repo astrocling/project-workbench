@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { getSessionPermissionLevel, canAccessAdmin, canEditProject } from "@/lib/auth";
 import { PersonCombobox, PersonMultiCombobox } from "@/components/PersonCombobox";
+import { Toggle } from "@/components/Toggle";
 
 export default function EditProjectPage() {
   const router = useRouter();
@@ -17,6 +18,7 @@ export default function EditProjectPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [status, setStatus] = useState<"Active" | "Closed">("Active");
+  const [cdaEnabled, setCdaEnabled] = useState(false);
   const [actualsLowThresholdPercent, setActualsLowThresholdPercent] = useState<string>("");
   const [actualsHighThresholdPercent, setActualsHighThresholdPercent] = useState<string>("");
   const [pmPersonIds, setPmPersonIds] = useState<string[]>([]);
@@ -42,6 +44,7 @@ export default function EditProjectPage() {
         setStartDate(p.startDate ? new Date(p.startDate).toISOString().slice(0, 10) : "");
         setEndDate(p.endDate ? new Date(p.endDate).toISOString().slice(0, 10) : "");
         setStatus(p.status ?? "Active");
+        setCdaEnabled(p.cdaEnabled ?? false);
         setActualsLowThresholdPercent(p.actualsLowThresholdPercent != null ? String(p.actualsLowThresholdPercent) : "");
         setActualsHighThresholdPercent(p.actualsHighThresholdPercent != null ? String(p.actualsHighThresholdPercent) : "");
         const keyRoles = (p.projectKeyRoles ?? []) as { type: string; personId: string; person: { id: string; name: string } }[];
@@ -76,6 +79,7 @@ export default function EditProjectPage() {
         startDate: new Date(startDate).toISOString(),
         endDate: endDate ? new Date(endDate).toISOString() : null,
         status,
+        cdaEnabled,
         pmPersonIds: pmPersonIds.filter(Boolean),
         pgmPersonId: pgmPersonId || null,
         cadPersonId: cadPersonId || null,
@@ -236,6 +240,14 @@ export default function EditProjectPage() {
                   <option value="Active">Active</option>
                   <option value="Closed">Closed</option>
                 </select>
+              </div>
+              <div>
+                <Toggle
+                  checked={cdaEnabled}
+                  onChange={setCdaEnabled}
+                  label="Enable CDA tab (monthly planned / actuals)"
+                  aria-label="Enable CDA tab"
+                />
               </div>
             </section>
 

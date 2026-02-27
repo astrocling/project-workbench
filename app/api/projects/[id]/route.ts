@@ -37,6 +37,7 @@ const updateSchema = z.object({
   pmPersonIds: z.array(z.string()).optional(),
   pgmPersonId: z.string().optional().nullable(),
   cadPersonId: z.string().optional().nullable(),
+  cdaEnabled: z.boolean().optional(),
 });
 
 export async function GET(
@@ -85,6 +86,7 @@ export async function PATCH(
   if (parsed.data.useSingleRate !== undefined) data.useSingleRate = parsed.data.useSingleRate;
   if (parsed.data.singleBillRate !== undefined) data.singleBillRate = parsed.data.singleBillRate;
   if (parsed.data.useSingleRate === false) data.singleBillRate = null;
+  if (parsed.data.cdaEnabled !== undefined) data.cdaEnabled = parsed.data.cdaEnabled;
   if (parsed.data.notes !== undefined) data.notes = parsed.data.notes;
   const normLink = (v: string | null | undefined): string | null => {
     if (v == null) return null;

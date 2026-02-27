@@ -87,6 +87,7 @@ export default async function ProjectDetailPage({
           tab={tab}
           canEdit={!!canEdit}
           floatLastUpdated={lastImport?.completedAt ?? null}
+          cdaEnabled={project.cdaEnabled ?? false}
         />
       </main>
     </div>

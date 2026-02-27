@@ -7,10 +7,12 @@ import { ResourcingGrids } from "@/components/ResourcingGrids";
 import { BudgetTab } from "@/components/BudgetTab";
 import { RatesTab } from "@/components/RatesTab";
 import { AssignmentsTab } from "@/components/AssignmentsTab";
+import { CDATab } from "@/components/CDATab";
 
 const TABS = [
   { id: "overview", label: "Overview" },
   { id: "resourcing", label: "Resourcing" },
+  { id: "cda", label: "CDA" },
   { id: "budget", label: "Budget" },
   { id: "rates", label: "Rates" },
   { id: "assignments", label: "Assignments" },
@@ -23,12 +25,14 @@ export function ProjectDetailTabs({
   tab,
   canEdit,
   floatLastUpdated,
+  cdaEnabled = false,
 }: {
   projectId: string;
   projectSlug: string;
   tab: string;
   canEdit: boolean;
   floatLastUpdated: Date | null;
+  cdaEnabled?: boolean;
 }) {
   const pathname = usePathname();
   const base = pathname;
@@ -180,7 +184,7 @@ export function ProjectDetailTabs({
           ← Projects
         </Link>
         <nav className="flex gap-2 mb-3">
-          {TABS.filter((t) => t.id !== "edit" || canEdit).map((t) => {
+          {TABS.filter((t) => (t.id !== "edit" || canEdit) && (t.id !== "cda" || cdaEnabled)).map((t) => {
             const href = "hrefOnly" in t && t.hrefOnly ? `/projects/${projectSlug}/edit` : `${base}?tab=${t.id}`;
             const isActive = "hrefOnly" in t && t.hrefOnly ? false : tab === t.id;
             const isOverview = t.id === "overview";
@@ -532,6 +536,7 @@ export function ProjectDetailTabs({
       {tab === "budget" && <BudgetTab projectId={projectId} canEdit={canEdit} />}
       {tab === "rates" && <RatesTab projectId={projectId} canEdit={canEdit} />}
       {tab === "assignments" && <AssignmentsTab projectId={projectId} canEdit={canEdit} />}
+      {tab === "cda" && cdaEnabled && <CDATab projectId={projectId} canEdit={canEdit} />}
     </div>
   );
 }

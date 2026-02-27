@@ -102,6 +102,8 @@ model Project {
   /// Use one bill rate for all roles instead of per-role rate card
   useSingleRate  Boolean   @default(false)
   singleBillRate Decimal?  @db.Decimal(10, 2)
+  /// Show CDA (monthly planned/actuals) tab
+  cdaEnabled     Boolean   @default(false)
   notes          String?   @db.Text
   sowLink        String?
   estimateLink   String?
@@ -119,6 +121,21 @@ model Project {
   budgetLines          BudgetLine[]
   readyForFloatUpdates ReadyForFloatUpdate[]
   gridCellComments     GridCellComment[]
+  cdaMonths            CdaMonth[]
+}
+
+model CdaMonth {
+  projectId   String
+  monthKey    String   // YYYY-MM
+  planned     Decimal  @default(0) @db.Decimal(10, 2)
+  mtdActuals  Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, monthKey])
+  @@index([projectId])
 }
 
 model ProjectAssignment {

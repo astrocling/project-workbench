@@ -20,6 +20,7 @@ const createSchema = z.object({
   pmPersonIds: z.array(z.string()).optional(),
   pgmPersonId: z.string().optional().nullable(),
   cadPersonId: z.string().optional().nullable(),
+  cdaEnabled: z.boolean().optional(),
 });
 
 export async function GET() {
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });
   }
 
-  const { name, clientName, startDate, endDate, status, floatProjectName, sowLink, estimateLink, floatLink, metricLink, pmPersonIds, pgmPersonId, cadPersonId } =
+  const { name, clientName, startDate, endDate, status, floatProjectName, sowLink, estimateLink, floatLink, metricLink, pmPersonIds, pgmPersonId, cadPersonId, cdaEnabled } =
     parsed.data;
   const norm = (s: string | null | undefined) => {
     const raw = s?.trim();
@@ -91,6 +92,7 @@ export async function POST(req: NextRequest) {
       startDate: startDate instanceof Date ? startDate : new Date(startDate),
       endDate: endDate instanceof Date ? endDate : new Date(endDate),
       status: status as "Active" | "Closed",
+      cdaEnabled: cdaEnabled ?? false,
       sowLink: norm(sowLink),
       estimateLink: norm(estimateLink),
       floatLink: norm(floatLink),
