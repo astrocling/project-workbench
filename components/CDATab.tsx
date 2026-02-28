@@ -112,6 +112,12 @@ export function CDATab({
 
   const currentMonthKey = useMemo(() => getCurrentMonthKey(), []);
 
+  /** Current month full name for chart label (e.g. "February"). */
+  const currentMonthFull = useMemo(() => {
+    const [y, m] = currentMonthKey.split("-").map(Number);
+    return new Date(y, m - 1, 1).toLocaleString("en-US", { month: "long" });
+  }, [currentMonthKey]);
+
   /** Percent of total contract (planned) hours completed (actuals). */
   const hoursCompletePercent =
     totalPlanned > 0
@@ -157,7 +163,7 @@ export function CDATab({
     size = 100,
   }: {
     percent: number | null;
-    label: string;
+    label: React.ReactNode;
     size?: number;
   }) {
     const r = size * 0.35;
@@ -399,11 +405,11 @@ export function CDATab({
           <div className="flex items-center gap-8">
             <DonutChart
               percent={hoursCompletePercent}
-              label="Hours complete (contract)"
+              label={<>Contract<br />Hours Complete</>}
             />
             <DonutChart
               percent={currentMonthPercent}
-              label="Current month (used vs planned)"
+              label={<>{currentMonthFull}<br />Hours Burn</>}
               size={100}
             />
           </div>
