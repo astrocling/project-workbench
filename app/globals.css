@@ -17,6 +17,13 @@
   --color-jblue-900: #040066;
   --color-jblue-950: #020033;
 
+  /* Status report / brand (CDA copy-for-report table – do not change) */
+  --color-brand-header: #060066;
+  --color-brand-accent: #3d82ff;
+  --color-brand-on-header: #ffffff;
+  --color-brand-on-accent: #ffffff;
+  --color-brand-on-white: #060066;
+
   /* JAKALA Brand Reds */
   --color-jred-50: #fff4f3;
   --color-jred-100: #ffe0de;
