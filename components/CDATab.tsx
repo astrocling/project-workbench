@@ -59,6 +59,12 @@ export function CDATab({
     () => getCurrentMonthKey()
   );
 
+  /** Overall budget $ for OVERALL table (total planned, actual to date). Null if not loaded or no budget lines. */
+  const [overallBudget, setOverallBudget] = useState<{
+    totalDollars: number;
+    actualDollars: number;
+  } | null>(null);
+
   const load = useCallback(() => {
     setLoading(true);
     setSaveError(null);
@@ -85,6 +91,34 @@ export function CDATab({
     const currentInRows = rows.some((r) => r.monthKey === currentMonthKey);
     setStatusReportMonthKey(currentInRows ? currentMonthKey : rows[0].monthKey);
   }, [rows, currentMonthKey, statusReportMonthKey]);
+
+  /** Fetch budget for OVERALL table (total $ and actual $). */
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/projects/${projectId}/budget`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        const lines = d.budgetLines ?? [];
+        const rollups = d.rollups ?? {};
+        const totalDollars = lines.reduce(
+          (s: number, bl: { highDollars?: number }) => s + Number(bl.highDollars ?? 0),
+          0
+        );
+        const actualDollars = Number(rollups.actualDollarsToDate ?? 0);
+        if (totalDollars > 0 || actualDollars > 0) {
+          setOverallBudget({ totalDollars, actualDollars });
+        } else {
+          setOverallBudget(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setOverallBudget(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
   const saveRows = useCallback(
     async (nextRows: CdaRow[]) => {
@@ -307,6 +341,104 @@ export function CDATab({
   const totalPlanned = rows.reduce((s, r) => s + r.planned, 0);
   const totalMtdActuals = rows.reduce((s, r) => s + r.mtdActuals, 0);
   const totalRemaining = roundToQuarter(totalPlanned - totalMtdActuals);
+
+  /** Format currency for OVERALL table (e.g. $362,880.00 or -$191,126.25). */
+  const formatCurrency = (dollars: number): string => {
+    const n = roundToQuarter(dollars);
+    const sign = n < 0 ? "-" : "";
+    return `${sign}$${Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
+  };
+
+  /** Build HTML for OVERALL table (inline styles for Word/Docs paste). OVERALL is first row like month in monthly table; Budget/Hours labels white. */
+  const buildOverallTableHTML = useCallback(() => {
+    const { header, onHeader, onWhite, accent, overallBudget } = BRAND_COLORS;
+    const headerStyle = `background-color:${header};color:${onHeader};padding:4px 6px;text-align:left;font-weight:600;font-size:11px;border:1px solid #e5e7eb;`;
+    const monthRowStyle = `text-align:center;color:${onWhite};font-weight:600;font-size:12px;padding:4px 6px;border:1px solid #e5e7eb;background-color:#ffffff;`;
+    const labelCellStyle = `background-color:#ffffff;color:${onWhite};padding:4px 6px;text-align:left;font-weight:500;font-size:11px;border:1px solid #e5e7eb;`;
+    const actualsCellStyle = `background-color:#ffffff;color:${onWhite};padding:4px 6px;text-align:right;font-size:11px;border:1px solid #e5e7eb;`;
+    const budgetPlannedRemainStyle = `background-color:${overallBudget};color:${onHeader};padding:4px 6px;text-align:right;font-size:11px;border:1px solid #e5e7eb;`;
+    const hoursPlannedRemainStyle = `background-color:${accent};color:${onHeader};padding:4px 6px;text-align:right;font-size:11px;border:1px solid #e5e7eb;`;
+    const budgetPlanned =
+      overallBudget != null ? formatCurrency(overallBudget.totalDollars) : "—";
+    const budgetActuals =
+      overallBudget != null ? formatCurrency(-overallBudget.actualDollars) : "—";
+    const budgetRemaining =
+      overallBudget != null
+        ? formatCurrency(overallBudget.totalDollars - overallBudget.actualDollars)
+        : "—";
+    const hoursPlanned = formatReportNumber(totalPlanned);
+    const hoursActuals = totalMtdActuals !== 0 ? formatReportNumber(-totalMtdActuals) : "0.00";
+    const hoursRemaining = formatReportNumber(totalRemaining);
+    return (
+      `<table style="border-collapse:collapse;font-family:sans-serif;min-width:280px;font-size:11px;">` +
+      `<tbody>` +
+      `<tr><td colspan="4" style="${monthRowStyle}">OVERALL</td></tr>` +
+      `<tr>` +
+      `<th style="${headerStyle}">Total Project</th><th style="${headerStyle}">Planned</th><th style="${headerStyle}">Actuals</th><th style="${headerStyle}">Remaining</th>` +
+      `</tr>` +
+      `<tr>` +
+      `<td style="${labelCellStyle}">Budget ($)</td>` +
+      `<td style="${budgetPlannedRemainStyle}">${budgetPlanned}</td>` +
+      `<td style="${actualsCellStyle}">${budgetActuals}</td>` +
+      `<td style="${budgetPlannedRemainStyle}">${budgetRemaining}</td>` +
+      `</tr>` +
+      `<tr>` +
+      `<td style="${labelCellStyle}">Hours</td>` +
+      `<td style="${hoursPlannedRemainStyle}">${hoursPlanned}</td>` +
+      `<td style="${actualsCellStyle}">${hoursActuals}</td>` +
+      `<td style="${hoursPlannedRemainStyle}">${hoursRemaining}</td>` +
+      `</tr></tbody></table>`
+    );
+  }, [
+    overallBudget,
+    totalPlanned,
+    totalMtdActuals,
+    totalRemaining,
+  ]);
+
+  /** Build plain text for OVERALL table. */
+  const buildOverallTablePlain = useCallback(() => {
+    const budgetPlanned =
+      overallBudget != null ? formatCurrency(overallBudget.totalDollars) : "—";
+    const budgetActuals =
+      overallBudget != null ? formatCurrency(-overallBudget.actualDollars) : "—";
+    const budgetRemaining =
+      overallBudget != null
+        ? formatCurrency(overallBudget.totalDollars - overallBudget.actualDollars)
+        : "—";
+    const hoursActuals = totalMtdActuals !== 0 ? formatReportNumber(-totalMtdActuals) : "0.00";
+    return [
+      "OVERALL",
+      "Total Project\tPlanned\tActuals\tRemaining",
+      `Budget ($)\t${budgetPlanned}\t${budgetActuals}\t${budgetRemaining}`,
+      `Hours\t${formatReportNumber(totalPlanned)}\t${hoursActuals}\t${formatReportNumber(totalRemaining)}`,
+    ].join("\n");
+  }, [overallBudget, totalPlanned, totalMtdActuals, totalRemaining]);
+
+  const [copyOverallFeedback, setCopyOverallFeedback] = useState<string | null>(null);
+
+  const copyOverallTable = useCallback(async () => {
+    if (typeof navigator?.clipboard?.write !== "function") {
+      setCopyOverallFeedback("Clipboard not available");
+      setTimeout(() => setCopyOverallFeedback(null), 2500);
+      return;
+    }
+    const html = buildOverallTableHTML();
+    const plain = buildOverallTablePlain();
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/html": new Blob([html], { type: "text/html" }),
+          "text/plain": new Blob([plain], { type: "text/plain" }),
+        }),
+      ]);
+      setCopyOverallFeedback("Copied to clipboard");
+      setTimeout(() => setCopyOverallFeedback(null), 2500);
+    } catch {
+      setCopyOverallFeedback("Copy failed");
+      setTimeout(() => setCopyOverallFeedback(null), 2500);
+    }
+  }, [buildOverallTableHTML, buildOverallTablePlain]);
 
   /** Current month full name for chart label (e.g. "February"). */
   const currentMonthFull = useMemo(() => {
@@ -638,6 +770,16 @@ export function CDATab({
             const plannedStr = formatReportNumber(selectedRow.planned);
             const actualsStr = formatReportNumber(selectedRow.mtdActuals);
             const remainingStr = formatReportNumber(rem);
+            const budgetPlanned =
+              overallBudget != null ? formatCurrency(overallBudget.totalDollars) : "—";
+            const budgetActuals =
+              overallBudget != null ? formatCurrency(-overallBudget.actualDollars) : "—";
+            const budgetRemaining =
+              overallBudget != null
+                ? formatCurrency(overallBudget.totalDollars - overallBudget.actualDollars)
+                : "—";
+            const hoursActualsStr =
+              totalMtdActuals !== 0 ? formatReportNumber(-totalMtdActuals) : "0.00";
             const selectedMonthBurnPercent =
               selectedRow.planned > 0
                 ? Math.min(
@@ -688,6 +830,49 @@ export function CDATab({
               fontSize: "11px",
               border: "1px solid #e5e7eb",
             };
+            const overallHeaderStyle = {
+              backgroundColor: BRAND_COLORS.header,
+              color: BRAND_COLORS.onHeader,
+              padding: "4px 6px",
+              textAlign: "left" as const,
+              fontWeight: 600,
+              fontSize: "11px",
+              border: "1px solid #e5e7eb",
+            };
+            /** Budget ($) and Hours label cells: white background, same as monthly table. */
+            const overallLabelStyle = {
+              backgroundColor: "#ffffff",
+              color: BRAND_COLORS.onWhite,
+              padding: "4px 6px",
+              textAlign: "left" as const,
+              fontWeight: 500,
+              fontSize: "11px",
+              border: "1px solid #e5e7eb",
+            };
+            const overallBudgetCellStyle = {
+              backgroundColor: BRAND_COLORS.overallBudget,
+              color: BRAND_COLORS.onHeader,
+              padding: "4px 6px",
+              textAlign: "right" as const,
+              fontSize: "11px",
+              border: "1px solid #e5e7eb",
+            };
+            const overallHoursCellStyle = {
+              backgroundColor: BRAND_COLORS.accent,
+              color: BRAND_COLORS.onAccent,
+              padding: "4px 6px",
+              textAlign: "right" as const,
+              fontSize: "11px",
+              border: "1px solid #e5e7eb",
+            };
+            const overallActualsStyle = {
+              backgroundColor: "#ffffff",
+              color: BRAND_COLORS.onWhite,
+              padding: "4px 6px",
+              textAlign: "right" as const,
+              fontSize: "11px",
+              border: "1px solid #e5e7eb",
+            };
             return (
               <div className="rounded-lg border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface p-3 shadow-card-light dark:shadow-card-dark">
                 <h3 className="text-title-sm font-semibold text-surface-900 dark:text-white mb-2">
@@ -699,7 +884,57 @@ export function CDATab({
                   </p>
                 )}
                 <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
+                  {/* OVERALL table - OVERALL is first row of table like month in monthly table */}
+                  <div className="flex flex-col gap-2">
+                    <table
+                      className="border-collapse font-sans w-full text-[11px]"
+                      style={{
+                        borderCollapse: "collapse",
+                        fontFamily: "sans-serif",
+                        minWidth: "0",
+                      }}
+                    >
+                      <tbody>
+                        <tr>
+                          <td colSpan={4} style={monthRowStyle}>
+                            OVERALL
+                          </td>
+                        </tr>
+                        <tr>
+                          <th style={{ ...overallHeaderStyle, width: "30%" }}>Total Project</th>
+                          <th style={overallHeaderStyle}>Planned</th>
+                          <th style={overallHeaderStyle}>Actuals</th>
+                          <th style={overallHeaderStyle}>Remaining</th>
+                        </tr>
+                        <tr>
+                          <td style={overallLabelStyle}>Budget ($)</td>
+                          <td style={overallBudgetCellStyle}>{budgetPlanned}</td>
+                          <td style={overallActualsStyle}>{budgetActuals}</td>
+                          <td style={overallBudgetCellStyle}>{budgetRemaining}</td>
+                        </tr>
+                        <tr>
+                          <td style={overallLabelStyle}>Hours</td>
+                          <td style={overallHoursCellStyle} className="tabular-nums">{formatReportNumber(totalPlanned)}</td>
+                          <td style={overallActualsStyle} className="tabular-nums">{hoursActualsStr}</td>
+                          <td style={overallHoursCellStyle} className="tabular-nums">{formatReportNumber(totalRemaining)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    {copyOverallFeedback && (
+                      <p className="text-label-sm text-jblue-600 dark:text-jblue-400" role="status">
+                        {copyOverallFeedback}
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={copyOverallTable}
+                      className="inline-flex items-center justify-center h-7 px-2 rounded text-label-sm bg-jblue-500 hover:bg-jblue-700 text-white font-medium focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1 w-fit"
+                    >
+                      Copy table
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-4">
                     <label htmlFor="status-report-month" className="text-label-sm font-medium text-surface-700 dark:text-surface-300 shrink-0">
                       Month
                     </label>
@@ -753,12 +988,14 @@ export function CDATab({
                   </button>
 
                   <div className="border-t border-surface-200 dark:border-dark-border pt-3 mt-2">
-                    <div className="flex flex-col items-center gap-2">
-                      <DonutChart
-                        percent={selectedMonthBurnPercent}
-                        label={null}
-                        size={80}
-                      />
+                    <div className="flex flex-col items-start gap-2">
+                      <div className="w-full flex justify-center">
+                        <DonutChart
+                          percent={selectedMonthBurnPercent}
+                          label={null}
+                          size={80}
+                        />
+                      </div>
                       {copyChartFeedback && (
                         <p className="text-label-sm text-jblue-600 dark:text-jblue-400" role="status">
                           {copyChartFeedback}
@@ -767,7 +1004,7 @@ export function CDATab({
                       <button
                         type="button"
                         onClick={() => copyChartAsPng(selectedMonthBurnPercent)}
-                        className="inline-flex items-center justify-center h-7 px-2 rounded text-label-sm bg-surface-100 dark:bg-dark-raised hover:bg-surface-200 dark:hover:bg-dark-muted text-surface-800 dark:text-surface-200 font-medium border border-surface-300 dark:border-dark-muted focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1 w-fit"
+                        className="inline-flex items-center justify-center h-7 px-2 rounded text-label-sm bg-jblue-500 hover:bg-jblue-700 text-white font-medium focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1 w-fit"
                       >
                         Copy chart
                       </button>

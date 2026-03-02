@@ -13,4 +13,6 @@ export const BRAND_COLORS = {
   onAccent: "#ffffff",
   /** Text on white cells (Hours, Actuals labels/values). */
   onWhite: "#060066",
+  /** OVERALL table: Budget ($) row Planned/Remaining cells (light green). */
+  overallBudget: "#22c55e",
 } as const;
