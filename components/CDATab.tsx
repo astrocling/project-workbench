@@ -137,16 +137,16 @@ export function CDATab({
   /** True if this month is in the past (has ended). */
   const isPreviousMonth = (monthKey: string) => monthKey < currentMonthKey;
 
-  /** Future months only (after current). */
-  const futureMonthRows = useMemo(
-    () => rows.filter((r) => r.monthKey > currentMonthKey),
+  /** Remaining months: current month plus future months (>= current). */
+  const remainingMonthRows = useMemo(
+    () => rows.filter((r) => r.monthKey >= currentMonthKey),
     [rows, currentMonthKey]
   );
-  const futureMonthCount = futureMonthRows.length;
-  /** Average remaining hours per future month (remaining spread over future months only). */
+  const remainingMonthCount = remainingMonthRows.length;
+  /** Average remaining hours per month (remaining spread over current + future months). */
   const avgRemainingPerFutureMonth =
-    futureMonthCount > 0
-      ? roundToQuarter(totalRemaining / futureMonthCount)
+    remainingMonthCount > 0
+      ? roundToQuarter(totalRemaining / remainingMonthCount)
       : null;
 
   if (loading) {
@@ -415,7 +415,7 @@ export function CDATab({
           </div>
           <div className="border-t border-surface-200 dark:border-dark-border pt-3">
             <p className="text-label-sm uppercase text-surface-400 dark:text-surface-500 tracking-wider">
-              Avg remaining per future month
+              Hours per month remaining
             </p>
             <p
               className={`text-title-md font-semibold tabular-nums mt-0.5 ${
@@ -425,7 +425,7 @@ export function CDATab({
               }`}
             >
               {avgRemainingPerFutureMonth != null
-                ? `${avgRemainingPerFutureMonth < 0 ? "(" : ""}${formatHours(Math.abs(avgRemainingPerFutureMonth))}${avgRemainingPerFutureMonth < 0 ? ")" : ""} hrs${futureMonthCount > 0 ? ` (${futureMonthCount} months)` : ""}`
+                ? `${avgRemainingPerFutureMonth < 0 ? "(" : ""}${formatHours(Math.abs(avgRemainingPerFutureMonth))}${avgRemainingPerFutureMonth < 0 ? ")" : ""} hrs${remainingMonthCount > 0 ? ` (${remainingMonthCount} months)` : ""}`
                 : "—"}
             </p>
           </div>
