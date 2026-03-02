@@ -351,12 +351,12 @@ export function CDATab({
 
   /** Build HTML for OVERALL table (inline styles for Word/Docs paste). OVERALL is first row like month in monthly table; Budget/Hours labels white. */
   const buildOverallTableHTML = useCallback(() => {
-    const { header, onHeader, onWhite, accent, overallBudget } = BRAND_COLORS;
+    const { header, onHeader, onWhite, accent, overallBudget: overallBudgetColor } = BRAND_COLORS;
     const headerStyle = `background-color:${header};color:${onHeader};padding:4px 6px;text-align:left;font-weight:600;font-size:11px;border:1px solid #e5e7eb;`;
     const monthRowStyle = `text-align:center;color:${onWhite};font-weight:600;font-size:12px;padding:4px 6px;border:1px solid #e5e7eb;background-color:#ffffff;`;
     const labelCellStyle = `background-color:#ffffff;color:${onWhite};padding:4px 6px;text-align:left;font-weight:500;font-size:11px;border:1px solid #e5e7eb;`;
     const actualsCellStyle = `background-color:#ffffff;color:${onWhite};padding:4px 6px;text-align:right;font-size:11px;border:1px solid #e5e7eb;`;
-    const budgetPlannedRemainStyle = `background-color:${overallBudget};color:${onHeader};padding:4px 6px;text-align:right;font-size:11px;border:1px solid #e5e7eb;`;
+    const budgetPlannedRemainStyle = `background-color:${overallBudgetColor};color:${onHeader};padding:4px 6px;text-align:right;font-size:11px;border:1px solid #e5e7eb;`;
     const hoursPlannedRemainStyle = `background-color:${accent};color:${onHeader};padding:4px 6px;text-align:right;font-size:11px;border:1px solid #e5e7eb;`;
     const budgetPlanned =
       overallBudget != null ? formatCurrency(overallBudget.totalDollars) : "—";
