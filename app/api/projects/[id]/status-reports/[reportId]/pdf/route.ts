@@ -161,19 +161,26 @@ export async function GET(
     });
     const totalPlanned = rows.reduce((s, r) => s + r.planned, 0);
     const totalMtdActuals = rows.reduce((s, r) => s + r.mtdActuals, 0);
+    const toIso = (d: Date | null) =>
+      d ? d.toISOString().slice(0, 10) : "";
     const milestones = (project.cdaMilestones ?? [])
-      .sort(
-        (a, b) =>
-          new Date(a.devStartDate).getTime() - new Date(b.devStartDate).getTime()
-      )
+      .sort((a, b) => {
+        const ta = a.devStartDate
+          ? new Date(a.devStartDate).getTime()
+          : Number.MAX_SAFE_INTEGER;
+        const tb = b.devStartDate
+          ? new Date(b.devStartDate).getTime()
+          : Number.MAX_SAFE_INTEGER;
+        return ta - tb;
+      })
       .map((m) => ({
         id: m.id,
         phase: m.phase,
-        devStartDate: m.devStartDate.toISOString().slice(0, 10),
-        devEndDate: m.devEndDate.toISOString().slice(0, 10),
-        uatStartDate: m.uatStartDate.toISOString().slice(0, 10),
-        uatEndDate: m.uatEndDate.toISOString().slice(0, 10),
-        deployDate: m.deployDate.toISOString().slice(0, 10),
+        devStartDate: toIso(m.devStartDate),
+        devEndDate: toIso(m.devEndDate),
+        uatStartDate: toIso(m.uatStartDate),
+        uatEndDate: toIso(m.uatEndDate),
+        deployDate: toIso(m.deployDate),
         completed: m.completed,
       }));
     cda = {

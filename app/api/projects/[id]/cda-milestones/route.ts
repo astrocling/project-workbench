@@ -5,21 +5,24 @@ import { prisma } from "@/lib/prisma";
 import { getProjectId } from "@/lib/slug";
 import { z } from "zod";
 
-const dateString = z.string().refine((s) => !Number.isNaN(Date.parse(s)), {
-  message: "Invalid date",
-});
+const optionalDateString = z
+  .string()
+  .optional()
+  .refine((s) => s === undefined || s === "" || !Number.isNaN(Date.parse(s)), {
+    message: "Invalid date",
+  });
 
 const postSchema = z.object({
   phase: z.string().min(1),
-  devStartDate: dateString,
-  devEndDate: dateString,
-  uatStartDate: dateString,
-  uatEndDate: dateString,
-  deployDate: dateString,
+  devStartDate: optionalDateString,
+  devEndDate: optionalDateString,
+  uatStartDate: optionalDateString,
+  uatEndDate: optionalDateString,
+  deployDate: optionalDateString,
 });
 
-function toIsoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+function toIsoDate(d: Date | null): string {
+  return d ? d.toISOString().slice(0, 10) : "";
 }
 
 export async function GET(
@@ -76,26 +79,40 @@ export async function POST(
   const { phase, devStartDate, devEndDate, uatStartDate, uatEndDate, deployDate } =
     parsed.data;
 
-  const milestone = await prisma.cdaMilestone.create({
-    data: {
-      projectId: id,
-      phase,
-      devStartDate: new Date(devStartDate),
-      devEndDate: new Date(devEndDate),
-      uatStartDate: new Date(uatStartDate),
-      uatEndDate: new Date(uatEndDate),
-      deployDate: new Date(deployDate),
-    },
-  });
+  const toDate = (s: string | undefined): Date | undefined =>
+    s && s.trim() ? new Date(s) : undefined;
 
-  return NextResponse.json({
-    id: milestone.id,
-    phase: milestone.phase,
-    devStartDate: toIsoDate(milestone.devStartDate),
-    devEndDate: toIsoDate(milestone.devEndDate),
-    uatStartDate: toIsoDate(milestone.uatStartDate),
-    uatEndDate: toIsoDate(milestone.uatEndDate),
-    deployDate: toIsoDate(milestone.deployDate),
-    completed: milestone.completed,
-  });
+  const dDevStart = toDate(devStartDate);
+  const dDevEnd = toDate(devEndDate);
+  const dUatStart = toDate(uatStartDate);
+  const dUatEnd = toDate(uatEndDate);
+  const dDeploy = toDate(deployDate);
+
+  try {
+    const milestone = await prisma.cdaMilestone.create({
+      data: {
+        project: { connect: { id } },
+        phase,
+        devStartDate: dDevStart ?? null,
+        devEndDate: dDevEnd ?? null,
+        uatStartDate: dUatStart ?? null,
+        uatEndDate: dUatEnd ?? null,
+        deployDate: dDeploy ?? null,
+      },
+    });
+
+    return NextResponse.json({
+      id: milestone.id,
+      phase: milestone.phase,
+      devStartDate: toIsoDate(milestone.devStartDate),
+      devEndDate: toIsoDate(milestone.devEndDate),
+      uatStartDate: toIsoDate(milestone.uatStartDate),
+      uatEndDate: toIsoDate(milestone.uatEndDate),
+      deployDate: toIsoDate(milestone.deployDate),
+      completed: milestone.completed,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to create milestone";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

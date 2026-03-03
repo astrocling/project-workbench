@@ -15,8 +15,8 @@ const patchSchema = z.object({
   deployDate: z.string().optional(),
 });
 
-function toIsoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+function toIsoDate(d: Date | null): string {
+  return d ? d.toISOString().slice(0, 10) : "";
 }
 
 export async function PATCH(

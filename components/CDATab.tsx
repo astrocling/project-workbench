@@ -180,6 +180,7 @@ export function CDATab({
     async (e: React.FormEvent) => {
       e.preventDefault();
       if (!canEdit || !newPhase.trim()) return;
+      setSaveError(null);
       const res = await fetch(`/api/projects/${projectId}/cda-milestones`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -201,6 +202,9 @@ export function CDATab({
         setNewUatStart("");
         setNewUatEnd("");
         setNewDeploy("");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setSaveError(data?.error ?? `Save failed (${res.status})`);
       }
     },
     [projectId, canEdit, newPhase, newDevStart, newDevEnd, newUatStart, newUatEnd, newDeploy]
@@ -1165,7 +1169,6 @@ export function CDATab({
               </label>
               <input
                 id="cda-dev-start"
-                required
                 type="date"
                 value={newDevStart}
                 onChange={(e) => setNewDevStart(e.target.value)}
@@ -1178,7 +1181,6 @@ export function CDATab({
               </label>
               <input
                 id="cda-dev-end"
-                required
                 type="date"
                 value={newDevEnd}
                 onChange={(e) => setNewDevEnd(e.target.value)}
@@ -1191,7 +1193,6 @@ export function CDATab({
               </label>
               <input
                 id="cda-uat-start"
-                required
                 type="date"
                 value={newUatStart}
                 onChange={(e) => setNewUatStart(e.target.value)}
@@ -1204,7 +1205,6 @@ export function CDATab({
               </label>
               <input
                 id="cda-uat-end"
-                required
                 type="date"
                 value={newUatEnd}
                 onChange={(e) => setNewUatEnd(e.target.value)}
@@ -1217,7 +1217,6 @@ export function CDATab({
               </label>
               <input
                 id="cda-deploy"
-                required
                 type="date"
                 value={newDeploy}
                 onChange={(e) => setNewDeploy(e.target.value)}

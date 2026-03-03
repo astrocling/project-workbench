@@ -264,6 +264,20 @@ const styles = StyleSheet.create({
     fontSize: 8,
     textAlign: "right",
   },
+  /** Alternating row background for milestones table (PDF readability). */
+  srLabelCompactAlt: {
+    backgroundColor: "#f3f4f6",
+    color: BRAND_COLORS.onWhite,
+    fontWeight: 600,
+    fontSize: 8,
+    textAlign: "left",
+  },
+  srWhiteCompactAlt: {
+    backgroundColor: "#f3f4f6",
+    color: BRAND_COLORS.onWhite,
+    fontSize: 8,
+    textAlign: "right",
+  },
   srGreenCompact: {
     backgroundColor: BRAND_COLORS.overallBudget,
     color: BRAND_COLORS.onHeader,
@@ -833,21 +847,24 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
                           <Text style={[styles.srHeaderCompactNeutral, { fontSize: 6 }]}>Deploy</Text>
                         </View>
                       </View>
-                      {data.cda.milestones.map((m) => {
+                      {data.cda.milestones.map((m, index) => {
                         const strikeStyle = m.completed ? styles.srStrikethrough : undefined;
+                        const alt = index % 2 === 1;
+                        const labelStyle = alt ? styles.srLabelCompactAlt : styles.srLabelCompact;
+                        const cellStyle = alt ? styles.srWhiteCompactAlt : styles.srWhiteCompact;
                         return (
                           <View key={m.id} style={[styles.tableRow, { borderBottomWidth: 0 }]}>
-                            <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srLabelCompact, { flex: 1.2 }]}>
-                              <Text style={[styles.srLabelCompact, { fontSize: 7 }, strikeStyle]}>{m.phase}</Text>
+                            <View style={[styles.bottomQuarterCell, styles.srBorder, labelStyle, { flex: 1.2 }]}>
+                              <Text style={[labelStyle, { fontSize: 7 }, strikeStyle]}>{m.phase}</Text>
                             </View>
-                            <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srWhiteCompact, { flex: 1.4 }]}>
-                              <Text style={[styles.srWhiteCompact, { fontSize: 7 }, strikeStyle]}>{formatMonthDay(m.devStartDate)}–{formatMonthDay(m.devEndDate)}</Text>
+                            <View style={[styles.bottomQuarterCell, styles.srBorder, cellStyle, { flex: 1.4 }]}>
+                              <Text style={[cellStyle, { fontSize: 7 }, strikeStyle]}>{formatMonthDay(m.devStartDate)}–{formatMonthDay(m.devEndDate)}</Text>
                             </View>
-                            <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srWhiteCompact, { flex: 1.4 }]}>
-                              <Text style={[styles.srWhiteCompact, { fontSize: 7 }, strikeStyle]}>{formatMonthDay(m.uatStartDate)}–{formatMonthDay(m.uatEndDate)}</Text>
+                            <View style={[styles.bottomQuarterCell, styles.srBorder, cellStyle, { flex: 1.4 }]}>
+                              <Text style={[cellStyle, { fontSize: 7 }, strikeStyle]}>{formatMonthDay(m.uatStartDate)}–{formatMonthDay(m.uatEndDate)}</Text>
                             </View>
-                            <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srWhiteCompact, { flex: 0.8 }]}>
-                              <Text style={[styles.srWhiteCompact, { fontSize: 7 }, strikeStyle]}>{formatMonthDay(m.deployDate)}</Text>
+                            <View style={[styles.bottomQuarterCell, styles.srBorder, cellStyle, { flex: 0.8 }]}>
+                              <Text style={[cellStyle, { fontSize: 7 }, strikeStyle]}>{formatMonthDay(m.deployDate)}</Text>
                             </View>
                           </View>
                         );

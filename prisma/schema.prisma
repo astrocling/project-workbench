@@ -187,17 +187,17 @@ model CdaMonth {
 }
 
 model CdaMilestone {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   projectId    String
   phase        String
-  devStartDate DateTime @db.Date
-  devEndDate   DateTime @db.Date
-  uatStartDate DateTime @db.Date
-  uatEndDate   DateTime @db.Date
-  deployDate   DateTime @db.Date
-  completed    Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  devStartDate DateTime? @db.Date
+  devEndDate   DateTime? @db.Date
+  uatStartDate DateTime? @db.Date
+  uatEndDate   DateTime? @db.Date
+  deployDate   DateTime? @db.Date
+  completed    Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
