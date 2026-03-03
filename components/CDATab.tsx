@@ -372,7 +372,7 @@ export function CDATab({
     return (
       `<table style="border-collapse:collapse;font-family:sans-serif;min-width:280px;font-size:11px;">` +
       `<tbody>` +
-      `<tr><td colspan="4" style="${monthRowStyle}">OVERALL</td></tr>` +
+      `<tr><td colspan="4" style="${monthRowStyle}">Overall</td></tr>` +
       `<tr>` +
       `<th style="${headerStyle}">Total Project</th><th style="${headerStyle}">Planned</th><th style="${headerStyle}">Actuals</th><th style="${headerStyle}">Remaining</th>` +
       `</tr>` +
@@ -408,7 +408,7 @@ export function CDATab({
         : "—";
     const hoursActuals = totalMtdActuals !== 0 ? formatReportNumber(-totalMtdActuals) : "0.00";
     return [
-      "OVERALL",
+      "Overall",
       "Total Project\tPlanned\tActuals\tRemaining",
       `Budget ($)\t${budgetPlanned}\t${budgetActuals}\t${budgetRemaining}`,
       `Hours\t${formatReportNumber(totalPlanned)}\t${hoursActuals}\t${formatReportNumber(totalRemaining)}`,
@@ -897,7 +897,7 @@ export function CDATab({
                       <tbody>
                         <tr>
                           <td colSpan={4} style={monthRowStyle}>
-                            OVERALL
+                            Overall
                           </td>
                         </tr>
                         <tr>
@@ -932,6 +932,33 @@ export function CDATab({
                     >
                       Copy table
                     </button>
+                  </div>
+
+                  <div className="border-t border-surface-200 dark:border-dark-border pt-3 mt-2">
+                    <p className="text-label-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
+                      Total contract hours burned
+                    </p>
+                    <div className="flex flex-col items-start gap-2">
+                      <div className="w-full flex justify-center">
+                        <DonutChart
+                          percent={hoursCompletePercent}
+                          label={null}
+                          size={80}
+                        />
+                      </div>
+                      {copyChartFeedback && (
+                        <p className="text-label-sm text-jblue-600 dark:text-jblue-400" role="status">
+                          {copyChartFeedback}
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => copyChartAsPng(hoursCompletePercent)}
+                        className="inline-flex items-center justify-center h-7 px-2 rounded text-label-sm bg-jblue-500 hover:bg-jblue-700 text-white font-medium focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1 w-fit"
+                      >
+                        Copy chart
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2 mt-4">
