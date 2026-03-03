@@ -35,6 +35,7 @@ export async function GET(
       actualHours: true,
       projectKeyRoles: { include: { person: true } },
       cdaMonths: true,
+      cdaMilestones: true,
     },
   });
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -160,12 +161,28 @@ export async function GET(
     });
     const totalPlanned = rows.reduce((s, r) => s + r.planned, 0);
     const totalMtdActuals = rows.reduce((s, r) => s + r.mtdActuals, 0);
+    const milestones = (project.cdaMilestones ?? [])
+      .sort(
+        (a, b) =>
+          new Date(a.devStartDate).getTime() - new Date(b.devStartDate).getTime()
+      )
+      .map((m) => ({
+        id: m.id,
+        phase: m.phase,
+        devStartDate: m.devStartDate.toISOString().slice(0, 10),
+        devEndDate: m.devEndDate.toISOString().slice(0, 10),
+        uatStartDate: m.uatStartDate.toISOString().slice(0, 10),
+        uatEndDate: m.uatEndDate.toISOString().slice(0, 10),
+        deployDate: m.deployDate.toISOString().slice(0, 10),
+        completed: m.completed,
+      }));
     cda = {
       rows,
       overallBudget: { totalDollars: estBudgetHigh, actualDollars: rollups.actualDollarsToDate },
       totalPlanned,
       totalMtdActuals,
       totalRemaining: totalPlanned - totalMtdActuals,
+      milestones,
     };
   }
 

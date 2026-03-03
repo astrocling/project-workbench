@@ -118,6 +118,26 @@ type CdaRow = {
   mtdActuals: number;
 };
 
+type CdaMilestone = {
+  id: string;
+  phase: string;
+  devStartDate: string;
+  devEndDate: string;
+  uatStartDate: string;
+  uatEndDate: string;
+  deployDate: string;
+  completed: boolean;
+};
+
+/** Format ISO date string as MM/DD for display. */
+function formatMonthDay(isoDate: string): string {
+  const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) return "—";
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  return `${String(m).padStart(2, "0")}/${String(day).padStart(2, "0")}`;
+}
+
 function getCurrentMonthKey(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -203,6 +223,7 @@ export function StatusReportsTab({
   const [lastWeekWithActuals, setLastWeekWithActuals] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [cdaRows, setCdaRows] = useState<CdaRow[]>([]);
+  const [cdaMilestones, setCdaMilestones] = useState<CdaMilestone[]>([]);
   const [cdaLoading, setCdaLoading] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [copyChartFeedback, setCopyChartFeedback] = useState<string | null>(null);
@@ -254,9 +275,20 @@ export function StatusReportsTab({
       .finally(() => setCdaLoading(false));
   }, [projectId, cdaEnabled]);
 
+  const loadCdaMilestones = useCallback(() => {
+    if (!cdaEnabled) return;
+    fetch(`/api/projects/${projectId}/cda-milestones`)
+      .then((r) => r.json())
+      .then((d) => setCdaMilestones(d.milestones ?? []))
+      .catch(() => setCdaMilestones([]));
+  }, [projectId, cdaEnabled]);
+
   useEffect(() => {
-    if (cdaEnabled) loadCda();
-  }, [cdaEnabled, loadCda]);
+    if (cdaEnabled) {
+      loadCda();
+      loadCdaMilestones();
+    }
+  }, [cdaEnabled, loadCda, loadCdaMilestones]);
 
   const loadReports = useCallback(() => {
     setReportsLoading(true);
@@ -893,7 +925,7 @@ export function StatusReportsTab({
         </h2>
         {formVariation === "CDA" && cdaEnabled ? (
           <div className="flex flex-col lg:flex-row gap-8 items-stretch">
-            {/* Left: reserved for Milestones (to be added next) */}
+            {/* Left: CDA milestones table (from CDA tab data) */}
             <div className="flex-1 min-w-0 flex flex-col">
               <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark overflow-hidden flex-1 min-h-[280px] flex flex-col">
                 <div className="p-4 border-b border-surface-100 dark:border-dark-border">
@@ -901,10 +933,66 @@ export function StatusReportsTab({
                     Milestones
                   </p>
                 </div>
-                <div className="flex-1 p-4 flex items-center justify-center">
-                  <p className="text-body-sm text-surface-500 dark:text-surface-400">
-                    Coming next.
-                  </p>
+                <div className="flex-1 overflow-auto">
+                  {cdaMilestones.length === 0 ? (
+                    <p className="p-4 text-body-sm text-surface-500 dark:text-surface-400">
+                      No milestones. Add them in the CDA tab.
+                    </p>
+                  ) : (
+                    <table className="w-full text-body-sm border-collapse">
+                      <thead>
+                        <tr
+                          className="border-b border-surface-200 dark:border-dark-border"
+                          style={{
+                            backgroundColor: BRAND_COLORS.header,
+                            color: BRAND_COLORS.onHeader,
+                          }}
+                        >
+                          <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
+                            Phase
+                          </th>
+                          <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
+                            DEV START/END
+                          </th>
+                          <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
+                            UAT START/END
+                          </th>
+                          <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
+                            Deploy
+                          </th>
+                          <th className="text-center px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
+                            Complete
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cdaMilestones.map((m) => (
+                          <tr
+                            key={m.id}
+                            className={`border-b border-surface-100 dark:border-dark-border/60 last:border-0 hover:bg-jblue-500/[0.03] dark:hover:bg-jblue-500/[0.06] transition-colors duration-100 ${
+                              m.completed ? "opacity-75" : ""
+                            }`}
+                          >
+                            <td className={`px-4 py-3 font-medium text-surface-800 dark:text-white ${m.completed ? "line-through" : ""}`}>
+                              {m.phase}
+                            </td>
+                            <td className={`px-4 py-3 text-right tabular-nums text-surface-700 dark:text-surface-200 ${m.completed ? "line-through" : ""}`}>
+                              {formatMonthDay(m.devStartDate)}–{formatMonthDay(m.devEndDate)}
+                            </td>
+                            <td className={`px-4 py-3 text-right tabular-nums text-surface-700 dark:text-surface-200 ${m.completed ? "line-through" : ""}`}>
+                              {formatMonthDay(m.uatStartDate)}–{formatMonthDay(m.uatEndDate)}
+                            </td>
+                            <td className={`px-4 py-3 text-right tabular-nums text-surface-700 dark:text-surface-200 ${m.completed ? "line-through" : ""}`}>
+                              {formatMonthDay(m.deployDate)}
+                            </td>
+                            <td className="px-4 py-3 text-center text-surface-600 dark:text-surface-400">
+                              {m.completed ? "Yes" : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               </div>
             </div>

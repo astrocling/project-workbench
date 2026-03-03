@@ -243,6 +243,14 @@ const styles = StyleSheet.create({
     fontSize: 8,
     textAlign: "left",
   },
+  /** Same as srHeaderCompact — use for milestones table to match budget tables. */
+  srHeaderCompactNeutral: {
+    backgroundColor: BRAND_COLORS.header,
+    color: BRAND_COLORS.onHeader,
+    fontWeight: 600,
+    fontSize: 8,
+    textAlign: "left",
+  },
   srLabelCompact: {
     backgroundColor: "#ffffff",
     color: BRAND_COLORS.onWhite,
@@ -268,6 +276,10 @@ const styles = StyleSheet.create({
     fontSize: 8,
     textAlign: "right",
   },
+  /** Strikethrough for completed milestones (react-pdf uses textDecoration). */
+  srStrikethrough: {
+    textDecoration: "line-through",
+  },
   timelinePlaceholder: {
     marginTop: 8,
     padding: 8,
@@ -283,10 +295,10 @@ const styles = StyleSheet.create({
     maxHeight: BOTTOM_QUARTER_HEIGHT,
     marginTop: 4,
   },
-  /** CDA export: left = milestones, right = two tables + two charts. */
+  /** CDA export: left = milestones table, right = two tables + two charts. Align flex-start so title/header rows line up. */
   cdaBottomSection: {
     flexDirection: "row",
-    alignItems: "stretch",
+    alignItems: "flex-start",
     gap: 12,
     marginTop: 4,
     minHeight: BOTTOM_QUARTER_HEIGHT,
@@ -294,10 +306,7 @@ const styles = StyleSheet.create({
   cdaBottomLeft: {
     flex: 1,
     minWidth: 0,
-    backgroundColor: "#F5F5F5",
-    padding: 5,
-    borderWidth: 0.5,
-    borderColor: "#e5e7eb",
+    padding: 0,
   },
   cdaBottomRight: {
     flex: 1,
@@ -515,6 +524,16 @@ export type StatusReportPDFData = {
     totalPlanned: number;
     totalMtdActuals: number;
     totalRemaining: number;
+    milestones?: Array<{
+      id: string;
+      phase: string;
+      devStartDate: string;
+      devEndDate: string;
+      uatStartDate: string;
+      uatEndDate: string;
+      deployDate: string;
+      completed: boolean;
+    }>;
   };
 };
 
@@ -532,6 +551,15 @@ function formatReportNum(n: number): string {
 function getMonthFullName(monthKey: string): string {
   const [y, m] = monthKey.split("-").map(Number);
   return new Date(y, m - 1, 1).toLocaleString("en-US", { month: "long" });
+}
+
+/** Format ISO date string as MM/DD for PDF milestones table. */
+function formatMonthDay(isoDate: string): string {
+  const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) return "—";
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  return `${String(m).padStart(2, "0")}/${String(day).padStart(2, "0")}`;
 }
 
 function getKeyRoleNames(data: StatusReportPDFData): { cad: string; pm: string; pgm: string; keyStaff: string } {
@@ -784,8 +812,61 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
             return (
               <View style={styles.cdaBottomSection}>
                 <View style={styles.cdaBottomLeft}>
-                  <Text style={[styles.colTitle, { marginBottom: 2, fontSize: 8 }]}>Milestones</Text>
-                  <Text style={styles.bulletText}>Coming next.</Text>
+                  {data.cda.milestones && data.cda.milestones.length > 0 ? (
+                    <View style={[styles.table, styles.cdaTableWrap]}>
+                      <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+                        <View style={[styles.bottomQuarterCell, styles.srBorder, styles.cdaTitleRowCompact, { flex: 1 }]}>
+                          <Text style={styles.cdaTitleRowCompact}>Milestones</Text>
+                        </View>
+                      </View>
+                      <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+                        <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompactNeutral, { flex: 1.2 }]}>
+                          <Text style={styles.srHeaderCompactNeutral}>Phase</Text>
+                        </View>
+                        <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompactNeutral, { flex: 1.4 }]}>
+                          <Text style={[styles.srHeaderCompactNeutral, { fontSize: 6 }]}>DEV</Text>
+                        </View>
+                        <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompactNeutral, { flex: 1.4 }]}>
+                          <Text style={[styles.srHeaderCompactNeutral, { fontSize: 6 }]}>UAT</Text>
+                        </View>
+                        <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompactNeutral, { flex: 0.8 }]}>
+                          <Text style={[styles.srHeaderCompactNeutral, { fontSize: 6 }]}>Deploy</Text>
+                        </View>
+                      </View>
+                      {data.cda.milestones.map((m) => {
+                        const strikeStyle = m.completed ? styles.srStrikethrough : undefined;
+                        return (
+                          <View key={m.id} style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+                            <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srLabelCompact, { flex: 1.2 }]}>
+                              <Text style={[styles.srLabelCompact, { fontSize: 7 }, strikeStyle]}>{m.phase}</Text>
+                            </View>
+                            <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srWhiteCompact, { flex: 1.4 }]}>
+                              <Text style={[styles.srWhiteCompact, { fontSize: 7 }, strikeStyle]}>{formatMonthDay(m.devStartDate)}–{formatMonthDay(m.devEndDate)}</Text>
+                            </View>
+                            <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srWhiteCompact, { flex: 1.4 }]}>
+                              <Text style={[styles.srWhiteCompact, { fontSize: 7 }, strikeStyle]}>{formatMonthDay(m.uatStartDate)}–{formatMonthDay(m.uatEndDate)}</Text>
+                            </View>
+                            <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srWhiteCompact, { flex: 0.8 }]}>
+                              <Text style={[styles.srWhiteCompact, { fontSize: 7 }, strikeStyle]}>{formatMonthDay(m.deployDate)}</Text>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <View style={[styles.table, styles.cdaTableWrap]}>
+                      <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+                        <View style={[styles.bottomQuarterCell, styles.srBorder, styles.cdaTitleRowCompact, { flex: 1 }]}>
+                          <Text style={styles.cdaTitleRowCompact}>Milestones</Text>
+                        </View>
+                      </View>
+                      <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+                        <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srLabelCompact, { flex: 1 }]}>
+                          <Text style={[styles.srLabelCompact, { fontSize: 7 }]}>No milestones.</Text>
+                        </View>
+                      </View>
+                    </View>
+                  )}
                 </View>
                 <View style={styles.cdaBottomRight}>
                   <View style={styles.cdaTableChartRow}>
