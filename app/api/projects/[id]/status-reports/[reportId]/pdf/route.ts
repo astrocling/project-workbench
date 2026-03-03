@@ -123,13 +123,20 @@ export async function GET(
   );
 
   const estBudgetHigh = project.budgetLines.reduce((s, bl) => s + Number(bl.highDollars), 0);
+  const estBudgetLow = project.budgetLines.reduce((s, bl) => s + Number(bl.lowDollars), 0);
+  const budgetedHoursHigh = project.budgetLines.reduce((s, bl) => s + Number(bl.highHours), 0);
+  const budgetedHoursLow = project.budgetLines.reduce((s, bl) => s + Number(bl.lowHours), 0);
   const budget = {
     estBudgetHigh,
+    estBudgetLow,
     spentDollars: rollups.actualDollarsToDate,
     remainingDollarsHigh: rollups.remainingDollarsHigh,
-    budgetedHoursHigh: project.budgetLines.reduce((s, bl) => s + Number(bl.highHours), 0),
+    remainingDollarsLow: rollups.remainingDollarsLow,
+    budgetedHoursHigh,
+    budgetedHoursLow,
     actualHours: rollups.actualHoursToDate,
     remainingHoursHigh: rollups.remainingHoursHigh,
+    remainingHoursLow: rollups.remainingHoursLow,
     burnPercentHigh: rollups.burnPercentHighDollars,
   };
 

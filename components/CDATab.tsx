@@ -349,15 +349,15 @@ export function CDATab({
     return `${sign}$${Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
   };
 
-  /** Build HTML for OVERALL table (inline styles for Word/Docs paste). OVERALL is first row like month in monthly table; Budget/Hours labels white. */
+  /** Build HTML for OVERALL table (inline styles for Word/Docs paste). Match Status report summary table: 6px 10px, 12px. */
   const buildOverallTableHTML = useCallback(() => {
     const { header, onHeader, onWhite, accent, overallBudget: overallBudgetColor } = BRAND_COLORS;
-    const headerStyle = `background-color:${header};color:${onHeader};padding:4px 6px;text-align:left;font-weight:600;font-size:11px;border:1px solid #e5e7eb;`;
-    const monthRowStyle = `text-align:center;color:${onWhite};font-weight:600;font-size:12px;padding:4px 6px;border:1px solid #e5e7eb;background-color:#ffffff;`;
-    const labelCellStyle = `background-color:#ffffff;color:${onWhite};padding:4px 6px;text-align:left;font-weight:500;font-size:11px;border:1px solid #e5e7eb;`;
-    const actualsCellStyle = `background-color:#ffffff;color:${onWhite};padding:4px 6px;text-align:right;font-size:11px;border:1px solid #e5e7eb;`;
-    const budgetPlannedRemainStyle = `background-color:${overallBudgetColor};color:${onHeader};padding:4px 6px;text-align:right;font-size:11px;border:1px solid #e5e7eb;`;
-    const hoursPlannedRemainStyle = `background-color:${accent};color:${onHeader};padding:4px 6px;text-align:right;font-size:11px;border:1px solid #e5e7eb;`;
+    const headerStyle = `background-color:${header};color:${onHeader};padding:6px 10px;text-align:left;font-weight:600;font-size:12px;border:1px solid #e5e7eb;`;
+    const monthRowStyle = `text-align:center;color:${onWhite};font-weight:600;font-size:14px;padding:8px 10px;border:1px solid #e5e7eb;background-color:#ffffff;`;
+    const labelCellStyle = `background-color:#ffffff;color:${onWhite};padding:6px 10px;text-align:left;font-weight:500;font-size:12px;border:1px solid #e5e7eb;`;
+    const actualsCellStyle = `background-color:#ffffff;color:${onWhite};padding:6px 10px;text-align:right;font-size:12px;border:1px solid #e5e7eb;`;
+    const budgetPlannedRemainStyle = `background-color:${overallBudgetColor};color:${onHeader};padding:6px 10px;text-align:right;font-size:12px;border:1px solid #e5e7eb;`;
+    const hoursPlannedRemainStyle = `background-color:${accent};color:${onHeader};padding:6px 10px;text-align:right;font-size:12px;border:1px solid #e5e7eb;`;
     const budgetPlanned =
       overallBudget != null ? formatCurrency(overallBudget.totalDollars) : "—";
     const budgetActuals =
@@ -370,7 +370,7 @@ export function CDATab({
     const hoursActuals = totalMtdActuals !== 0 ? formatReportNumber(-totalMtdActuals) : "0.00";
     const hoursRemaining = formatReportNumber(totalRemaining);
     return (
-      `<table style="border-collapse:collapse;font-family:sans-serif;min-width:280px;font-size:11px;">` +
+      `<table style="border-collapse:collapse;font-family:sans-serif;min-width:280px;">` +
       `<tbody>` +
       `<tr><td colspan="4" style="${monthRowStyle}">OVERALL</td></tr>` +
       `<tr>` +
@@ -787,90 +787,91 @@ export function CDATab({
                     Math.max(0, (selectedRow.mtdActuals / selectedRow.planned) * 100)
                   )
                 : null;
+            /** Match Status report summary table (StatusReportsTab): 6px 10px, 12px for copy-paste consistency. */
             const headerCellStyle = {
               backgroundColor: BRAND_COLORS.header,
               color: BRAND_COLORS.onHeader,
-              padding: "4px 6px",
+              padding: "6px 10px",
               textAlign: "left" as const,
               fontWeight: 600,
-              fontSize: "11px",
+              fontSize: "12px",
               border: "1px solid #e5e7eb",
             };
             const monthRowStyle = {
               textAlign: "center" as const,
               color: BRAND_COLORS.onWhite,
               fontWeight: 600,
-              fontSize: "12px",
-              padding: "4px 6px",
+              fontSize: "14px",
+              padding: "8px 10px",
               border: "1px solid #e5e7eb",
               backgroundColor: "#ffffff",
             };
             const cellWhiteLeftStyle = {
               backgroundColor: "#ffffff",
               color: BRAND_COLORS.onWhite,
-              padding: "4px 6px",
+              padding: "6px 10px",
               textAlign: "left" as const,
               fontWeight: 500,
-              fontSize: "11px",
+              fontSize: "12px",
               border: "1px solid #e5e7eb",
             };
             const cellWhiteRightStyle = {
               backgroundColor: "#ffffff",
               color: BRAND_COLORS.onWhite,
-              padding: "4px 6px",
+              padding: "6px 10px",
               textAlign: "right" as const,
-              fontSize: "11px",
+              fontSize: "12px",
               border: "1px solid #e5e7eb",
             };
             const cellBlueStyle = {
               backgroundColor: BRAND_COLORS.accent,
               color: BRAND_COLORS.onAccent,
-              padding: "4px 6px",
+              padding: "6px 10px",
               textAlign: "right" as const,
-              fontSize: "11px",
+              fontSize: "12px",
               border: "1px solid #e5e7eb",
             };
             const overallHeaderStyle = {
               backgroundColor: BRAND_COLORS.header,
               color: BRAND_COLORS.onHeader,
-              padding: "4px 6px",
+              padding: "6px 10px",
               textAlign: "left" as const,
               fontWeight: 600,
-              fontSize: "11px",
+              fontSize: "12px",
               border: "1px solid #e5e7eb",
             };
             /** Budget ($) and Hours label cells: white background, same as monthly table. */
             const overallLabelStyle = {
               backgroundColor: "#ffffff",
               color: BRAND_COLORS.onWhite,
-              padding: "4px 6px",
+              padding: "6px 10px",
               textAlign: "left" as const,
               fontWeight: 500,
-              fontSize: "11px",
+              fontSize: "12px",
               border: "1px solid #e5e7eb",
             };
             const overallBudgetCellStyle = {
               backgroundColor: BRAND_COLORS.overallBudget,
               color: BRAND_COLORS.onHeader,
-              padding: "4px 6px",
+              padding: "6px 10px",
               textAlign: "right" as const,
-              fontSize: "11px",
+              fontSize: "12px",
               border: "1px solid #e5e7eb",
             };
             const overallHoursCellStyle = {
               backgroundColor: BRAND_COLORS.accent,
               color: BRAND_COLORS.onAccent,
-              padding: "4px 6px",
+              padding: "6px 10px",
               textAlign: "right" as const,
-              fontSize: "11px",
+              fontSize: "12px",
               border: "1px solid #e5e7eb",
             };
             const overallActualsStyle = {
               backgroundColor: "#ffffff",
               color: BRAND_COLORS.onWhite,
-              padding: "4px 6px",
+              padding: "6px 10px",
               textAlign: "right" as const,
-              fontSize: "11px",
+              fontSize: "12px",
               border: "1px solid #e5e7eb",
             };
             return (
@@ -887,7 +888,7 @@ export function CDATab({
                   {/* OVERALL table - OVERALL is first row of table like month in monthly table */}
                   <div className="flex flex-col gap-2">
                     <table
-                      className="border-collapse font-sans w-full text-[11px]"
+                      className="border-collapse font-sans w-full text-body-sm"
                       style={{
                         borderCollapse: "collapse",
                         fontFamily: "sans-serif",
@@ -952,7 +953,7 @@ export function CDATab({
                     </select>
                   </div>
                   <table
-                    className="border-collapse font-sans w-full"
+                    className="border-collapse font-sans w-full text-body-sm"
                     style={{
                       borderCollapse: "collapse",
                       fontFamily: "sans-serif",

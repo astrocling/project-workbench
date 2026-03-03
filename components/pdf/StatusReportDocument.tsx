@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Font,
 } from "@react-pdf/renderer";
+import { BRAND_COLORS } from "@/lib/brandColors";
 
 Font.register({
   family: "Raleway",
@@ -149,6 +150,59 @@ const styles = StyleSheet.create({
     padding: 4,
     flex: 1,
   },
+  // Status report summary table (match copy-paste section exactly)
+  srBorder: { borderWidth: 0.5, borderColor: "#e5e7eb" },
+  srCellBase: { paddingTop: 6, paddingBottom: 6, paddingLeft: 10, paddingRight: 10, fontSize: 12 },
+  srHeader: {
+    backgroundColor: BRAND_COLORS.header,
+    color: BRAND_COLORS.onHeader,
+    fontWeight: 600,
+    fontSize: 12,
+    textAlign: "left",
+  },
+  srLabel: {
+    backgroundColor: "#ffffff",
+    color: BRAND_COLORS.onWhite,
+    fontWeight: 600,
+    fontSize: 12,
+    textAlign: "left",
+  },
+  srLabelMedium: {
+    backgroundColor: "#ffffff",
+    color: BRAND_COLORS.onWhite,
+    fontWeight: 500,
+    fontSize: 12,
+    textAlign: "left",
+  },
+  srWhite: {
+    backgroundColor: "#ffffff",
+    color: BRAND_COLORS.onWhite,
+    fontSize: 12,
+    textAlign: "right",
+  },
+  srGreen: {
+    backgroundColor: BRAND_COLORS.overallBudget,
+    color: BRAND_COLORS.onHeader,
+    fontSize: 12,
+    textAlign: "right",
+  },
+  srBlue: {
+    backgroundColor: BRAND_COLORS.accent,
+    color: BRAND_COLORS.onAccent,
+    fontSize: 12,
+    textAlign: "right",
+  },
+  srTitleRow: {
+    backgroundColor: "#ffffff",
+    color: BRAND_COLORS.onWhite,
+    fontWeight: 600,
+    fontSize: 14,
+    paddingTop: 8,
+    paddingBottom: 8,
+    paddingLeft: 10,
+    paddingRight: 10,
+    textAlign: "center",
+  },
   timelinePlaceholder: {
     marginTop: 8,
     padding: 8,
@@ -193,11 +247,15 @@ export type StatusReportPDFData = {
   today: string;
   budget?: {
     estBudgetHigh: number;
+    estBudgetLow: number;
     spentDollars: number;
     remainingDollarsHigh: number;
+    remainingDollarsLow: number;
     budgetedHoursHigh: number;
+    budgetedHoursLow: number;
     actualHours: number;
     remainingHoursHigh: number;
+    remainingHoursLow: number;
     burnPercentHigh: number | null;
   };
   cda?: {
@@ -214,6 +272,10 @@ function formatNum(n: number): string {
 }
 function formatDollars(n: number): string {
   return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+/** Two decimals for status report table (match copy-paste). */
+function formatReportNum(n: number): string {
+  return n.toFixed(2);
 }
 
 function getKeyRoleNames(data: StatusReportPDFData): { cad: string; pm: string; pgm: string; keyStaff: string } {
@@ -312,56 +374,133 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
 
         {report.variation === "Standard" && data.budget && (
           <View style={styles.table}>
-            <View style={[styles.tableRow, styles.tableHeader]}>
-              <Text style={[styles.tableCell, { flex: 0.5 }]}></Text>
-              <Text style={styles.tableCell}>Est. Budget</Text>
-              <Text style={styles.tableCell}>$ Spent</Text>
-              <Text style={styles.tableCell}>$ Remaining</Text>
-              <Text style={styles.tableCell}>Budgeted Hrs</Text>
-              <Text style={styles.tableCell}>Actual Hrs</Text>
-              <Text style={styles.tableCell}>Hrs Remaining</Text>
+            {/* Header row — match Status report summary / copy-paste table */}
+            <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srHeader, { flex: 0.5 }]}>
+                <Text style={styles.srHeader}>{" "}</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srHeader, { flex: 1 }]}>
+                <Text style={styles.srHeader}>Est. Budget</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srHeader, { flex: 1 }]}>
+                <Text style={styles.srHeader}>$ Spent</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srHeader, { flex: 1 }]}>
+                <Text style={styles.srHeader}>$ Remaining</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srHeader, { flex: 1 }]}>
+                <Text style={styles.srHeader}>Budgeted Hrs</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srHeader, { flex: 1 }]}>
+                <Text style={styles.srHeader}>Actual Hrs</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srHeader, { flex: 1 }]}>
+                <Text style={styles.srHeader}>Hrs Remaining</Text>
+              </View>
             </View>
-            <View style={styles.tableRow}>
-              <Text style={[styles.tableCell, { flex: 0.5, fontWeight: "bold" }]}>HIGH</Text>
-              <Text style={styles.tableCell}>{formatDollars(data.budget.estBudgetHigh)}</Text>
-              <Text style={styles.tableCell}>{formatDollars(-data.budget.spentDollars)}</Text>
-              <Text style={styles.tableCell}>{formatDollars(data.budget.remainingDollarsHigh)}</Text>
-              <Text style={styles.tableCell}>{formatNum(data.budget.budgetedHoursHigh)}</Text>
-              <Text style={styles.tableCell}>{formatNum(-data.budget.actualHours)}</Text>
-              <Text style={styles.tableCell}>{formatNum(data.budget.remainingHoursHigh)}</Text>
+            {/* HIGH row */}
+            <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srLabel, { flex: 0.5 }]}>
+                <Text style={styles.srLabel}>HIGH</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srGreen, { flex: 1 }]}>
+                <Text style={styles.srGreen}>{formatDollars(data.budget.estBudgetHigh)}</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srWhite, { flex: 1 }]}>
+                <Text style={styles.srWhite}>{formatDollars(-data.budget.spentDollars)}</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srGreen, { flex: 1 }]}>
+                <Text style={styles.srGreen}>{formatDollars(data.budget.remainingDollarsHigh)}</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srBlue, { flex: 1 }]}>
+                <Text style={styles.srBlue}>{formatReportNum(data.budget.budgetedHoursHigh)}</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srWhite, { flex: 1 }]}>
+                <Text style={styles.srWhite}>{formatReportNum(-data.budget.actualHours)}</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srBlue, { flex: 1 }]}>
+                <Text style={styles.srBlue}>{formatReportNum(data.budget.remainingHoursHigh)}</Text>
+              </View>
             </View>
-            <View style={styles.tableRow}>
-              <Text style={[styles.tableCell, { flex: 0.5 }]}></Text>
-              <Text style={styles.tableCell}></Text>
-              <Text style={styles.tableCell}></Text>
-              <Text style={styles.tableCell}></Text>
-              <Text style={[styles.tableCell, { textAlign: "center" }]}>
-                {data.budget.burnPercentHigh != null ? `${data.budget.burnPercentHigh.toFixed(1)}% budget used` : "—"}
-              </Text>
-              <Text style={styles.tableCell}></Text>
+            {/* LOW row */}
+            <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srLabel, { flex: 0.5 }]}>
+                <Text style={styles.srLabel}>LOW</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srGreen, { flex: 1 }]}>
+                <Text style={styles.srGreen}>{formatDollars(data.budget.estBudgetLow)}</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srWhite, { flex: 1 }]}>
+                <Text style={styles.srWhite}>{formatDollars(-data.budget.spentDollars)}</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srGreen, { flex: 1 }]}>
+                <Text style={styles.srGreen}>{formatDollars(data.budget.remainingDollarsLow)}</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srBlue, { flex: 1 }]}>
+                <Text style={styles.srBlue}>{formatReportNum(data.budget.budgetedHoursLow)}</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srWhite, { flex: 1 }]}>
+                <Text style={styles.srWhite}>{formatReportNum(-data.budget.actualHours)}</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srBlue, { flex: 1 }]}>
+                <Text style={styles.srBlue}>{formatReportNum(data.budget.remainingHoursLow)}</Text>
+              </View>
             </View>
           </View>
         )}
 
         {report.variation === "CDA" && data.cda && (
           <View style={styles.table}>
-            <View style={[styles.tableRow, styles.tableHeader]}>
-              <Text style={[styles.tableCell, { flex: 1.5 }]}>OVERALL</Text>
-              <Text style={styles.tableCell}>Planned</Text>
-              <Text style={styles.tableCell}>Actuals</Text>
-              <Text style={styles.tableCell}>Remaining</Text>
+            {/* OVERALL title row — match CDA copy-paste section (one cell spanning full width) */}
+            <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srTitleRow, { flex: 1 }]}>
+                <Text style={styles.srTitleRow}>OVERALL</Text>
+              </View>
             </View>
-            <View style={styles.tableRow}>
-              <Text style={[styles.tableCell, { flex: 1.5 }]}>Budget ($)</Text>
-              <Text style={styles.tableCell}>{data.cda.overallBudget ? formatDollars(data.cda.overallBudget.totalDollars) : "—"}</Text>
-              <Text style={styles.tableCell}>{data.cda.overallBudget ? formatDollars(-data.cda.overallBudget.actualDollars) : "—"}</Text>
-              <Text style={styles.tableCell}>{data.cda.overallBudget ? formatDollars(data.cda.overallBudget.totalDollars - data.cda.overallBudget.actualDollars) : "—"}</Text>
+            {/* Header row */}
+            <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srHeader, { flex: 1.5 }]}>
+                <Text style={styles.srHeader}>Total Project</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srHeader, { flex: 1 }]}>
+                <Text style={styles.srHeader}>Planned</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srHeader, { flex: 1 }]}>
+                <Text style={styles.srHeader}>Actuals</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srHeader, { flex: 1 }]}>
+                <Text style={styles.srHeader}>Remaining</Text>
+              </View>
             </View>
-            <View style={styles.tableRow}>
-              <Text style={[styles.tableCell, { flex: 1.5 }]}>Hours</Text>
-              <Text style={styles.tableCell}>{formatNum(data.cda.totalPlanned)}</Text>
-              <Text style={styles.tableCell}>{formatNum(-data.cda.totalMtdActuals)}</Text>
-              <Text style={styles.tableCell}>{formatNum(data.cda.totalRemaining)}</Text>
+            {/* Budget ($) row — green for Planned/Remaining, white for Actuals */}
+            <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srLabelMedium, { flex: 1.5 }]}>
+                <Text style={styles.srLabelMedium}>Budget ($)</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srGreen, { flex: 1 }]}>
+                <Text style={styles.srGreen}>{data.cda.overallBudget ? formatDollars(data.cda.overallBudget.totalDollars) : "—"}</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srWhite, { flex: 1 }]}>
+                <Text style={styles.srWhite}>{data.cda.overallBudget ? formatDollars(-data.cda.overallBudget.actualDollars) : "—"}</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srGreen, { flex: 1 }]}>
+                <Text style={styles.srGreen}>{data.cda.overallBudget ? formatDollars(data.cda.overallBudget.totalDollars - data.cda.overallBudget.actualDollars) : "—"}</Text>
+              </View>
+            </View>
+            {/* Hours row — blue for Planned/Remaining, white for Actuals */}
+            <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srLabelMedium, { flex: 1.5 }]}>
+                <Text style={styles.srLabelMedium}>Hours</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srBlue, { flex: 1 }]}>
+                <Text style={styles.srBlue}>{formatReportNum(data.cda.totalPlanned)}</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srWhite, { flex: 1 }]}>
+                <Text style={styles.srWhite}>{formatReportNum(-data.cda.totalMtdActuals)}</Text>
+              </View>
+              <View style={[styles.srCellBase, styles.srBorder, styles.srBlue, { flex: 1 }]}>
+                <Text style={styles.srBlue}>{formatReportNum(data.cda.totalRemaining)}</Text>
+              </View>
             </View>
           </View>
         )}
