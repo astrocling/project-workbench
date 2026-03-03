@@ -104,6 +104,14 @@ model Project {
   singleBillRate Decimal?  @db.Decimal(10, 2)
   /// Show CDA (monthly planned/actuals) tab
   cdaEnabled     Boolean   @default(false)
+  /// Client sponsor (for status report biographical block)
+  clientSponsor   String?
+  /// Second client sponsor (for status report biographical block)
+  clientSponsor2  String?
+  /// Other contact (for status report biographical block)
+  otherContact    String?
+  /// Key staff name (for status report biographical block)
+  keyStaffName   String?
   notes          String?   @db.Text
   sowLink        String?
   estimateLink   String?
@@ -122,6 +130,31 @@ model Project {
   readyForFloatUpdates ReadyForFloatUpdate[]
   gridCellComments     GridCellComment[]
   cdaMonths            CdaMonth[]
+  statusReports        StatusReport[]
+}
+
+enum StatusReportVariation {
+  Standard
+  Milestones
+  CDA
+}
+
+model StatusReport {
+  id                      String                @id @default(cuid())
+  projectId               String
+  reportDate              DateTime              @db.Date
+  variation               StatusReportVariation  @default(Standard)
+  completedActivities     String                @db.Text
+  upcomingActivities      String                @db.Text
+  risksIssuesDecisions    String                @db.Text
+  meetingNotes            String?               @db.Text
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+
+  project                 Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([projectId, reportDate])
 }
 
 model CdaMonth {

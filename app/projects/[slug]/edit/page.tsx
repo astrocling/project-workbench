@@ -24,6 +24,10 @@ export default function EditProjectPage() {
   const [pmPersonIds, setPmPersonIds] = useState<string[]>([]);
   const [pgmPersonId, setPgmPersonId] = useState("");
   const [cadPersonId, setCadPersonId] = useState("");
+  const [clientSponsor, setClientSponsor] = useState("");
+  const [clientSponsor2, setClientSponsor2] = useState("");
+  const [otherContact, setOtherContact] = useState("");
+  const [keyStaffName, setKeyStaffName] = useState("");
   const [sowLink, setSowLink] = useState("");
   const [estimateLink, setEstimateLink] = useState("");
   const [floatLink, setFloatLink] = useState("");
@@ -51,6 +55,10 @@ export default function EditProjectPage() {
         setPmPersonIds(keyRoles.filter((kr) => kr.type === "PM").map((kr) => kr.personId));
         setPgmPersonId(keyRoles.find((kr) => kr.type === "PGM")?.personId ?? "");
         setCadPersonId(keyRoles.find((kr) => kr.type === "CAD")?.personId ?? "");
+        setClientSponsor(p.clientSponsor ?? "");
+        setClientSponsor2(p.clientSponsor2 ?? "");
+        setOtherContact(p.otherContact ?? "");
+        setKeyStaffName(p.keyStaffName ?? "");
         setSowLink(p.sowLink ?? "");
         setEstimateLink(p.estimateLink ?? "");
         setFloatLink(p.floatLink ?? "");
@@ -83,6 +91,10 @@ export default function EditProjectPage() {
         pmPersonIds: pmPersonIds.filter(Boolean),
         pgmPersonId: pgmPersonId || null,
         cadPersonId: cadPersonId || null,
+        clientSponsor: clientSponsor.trim() || null,
+        clientSponsor2: clientSponsor2.trim() || null,
+        otherContact: otherContact.trim() || null,
+        keyStaffName: keyStaffName.trim() || null,
         actualsLowThresholdPercent:
           actualsLowThresholdPercent === ""
             ? null
@@ -336,6 +348,47 @@ export default function EditProjectPage() {
                   aria-label="CAD (Client Account Director)"
                 />
               </div>
+            </div>
+            <p className="text-body-sm text-surface-500 dark:text-surface-400 mt-2">These optional fields appear on status report PDFs.</p>
+            <div>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Client Sponsor</label>
+              <input
+                type="text"
+                value={clientSponsor}
+                onChange={(e) => setClientSponsor(e.target.value)}
+                placeholder="Name or title"
+                className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+              />
+            </div>
+            <div>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Client Sponsor 2</label>
+              <input
+                type="text"
+                value={clientSponsor2}
+                onChange={(e) => setClientSponsor2(e.target.value)}
+                placeholder="Name or title"
+                className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+              />
+            </div>
+            <div>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Other Contact</label>
+              <input
+                type="text"
+                value={otherContact}
+                onChange={(e) => setOtherContact(e.target.value)}
+                placeholder="Name or title"
+                className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+              />
+            </div>
+            <div>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Key Staff</label>
+              <input
+                type="text"
+                value={keyStaffName}
+                onChange={(e) => setKeyStaffName(e.target.value)}
+                placeholder="Name(s) for status report"
+                className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+              />
             </div>
             </section>
             <section id="resourcing" className="border-t border-surface-200 dark:border-dark-border pt-6 space-y-4">

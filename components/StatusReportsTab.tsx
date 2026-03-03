@@ -1,7 +1,18 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { BRAND_COLORS } from "@/lib/brandColors";
+
+type StatusReportRecord = {
+  id: string;
+  reportDate: string;
+  variation: string;
+  completedActivities: string;
+  upcomingActivities: string;
+  risksIssuesDecisions: string;
+  meetingNotes: string | null;
+};
 
 function roundToQuarter(hours: number): number {
   return Math.round(hours * 4) / 4;
@@ -90,16 +101,43 @@ type Rollups = {
   remainingDollarsHigh: number;
 };
 
+const VARIATIONS = [
+  { value: "Standard", label: "Standard (budget table + donut)" },
+  { value: "Milestones", label: "Milestones (milestones + financial)" },
+  { value: "CDA", label: "CDA (CDA tables)" },
+] as const;
+
 export function StatusReportsTab({
   projectId,
+  projectSlug,
+  canEdit,
+  cdaEnabled = false,
 }: {
   projectId: string;
+  projectSlug: string;
+  canEdit: boolean;
+  cdaEnabled?: boolean;
 }) {
   const [budgetLines, setBudgetLines] = useState<BudgetLine[]>([]);
   const [rollups, setRollups] = useState<Rollups | null>(null);
+  const [lastWeekWithActuals, setLastWeekWithActuals] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [copyChartFeedback, setCopyChartFeedback] = useState<string | null>(null);
+
+  const [reports, setReports] = useState<StatusReportRecord[]>([]);
+  const [reportsLoading, setReportsLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingReportId, setEditingReportId] = useState<string | null>(null);
+  const [formReportDate, setFormReportDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [formVariation, setFormVariation] = useState<"Standard" | "Milestones" | "CDA">("Standard");
+  const [formCompleted, setFormCompleted] = useState("");
+  const [formUpcoming, setFormUpcoming] = useState("");
+  const [formRisks, setFormRisks] = useState("");
+  const [formMeetingNotes, setFormMeetingNotes] = useState("");
+  const [formSaving, setFormSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [savedReportId, setSavedReportId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     fetch(`/api/projects/${projectId}/budget`)
@@ -107,6 +145,7 @@ export function StatusReportsTab({
       .then((d) => {
         setBudgetLines(d.budgetLines ?? []);
         setRollups(d.rollups ?? null);
+        setLastWeekWithActuals(d.lastWeekWithActuals ?? null);
       })
       .finally(() => setLoading(false));
   }, [projectId]);
@@ -114,6 +153,98 @@ export function StatusReportsTab({
   useEffect(() => {
     load();
   }, [load]);
+
+  const loadReports = useCallback(() => {
+    setReportsLoading(true);
+    fetch(`/api/projects/${projectId}/status-reports`)
+      .then((r) => r.json())
+      .then((list) => setReports(Array.isArray(list) ? list : []))
+      .catch(() => setReports([]))
+      .finally(() => setReportsLoading(false));
+  }, [projectId]);
+
+  useEffect(() => {
+    loadReports();
+  }, [loadReports]);
+
+  const prefillFromPrevious = useCallback(() => {
+    fetch(`/api/projects/${projectId}/status-reports?previousFor=${formReportDate}`)
+      .then((r) => r.json())
+      .then((prev) => {
+        if (prev && typeof prev.completedActivities === "string") {
+          setFormCompleted(prev.completedActivities);
+          setFormUpcoming(prev.upcomingActivities ?? "");
+          setFormRisks(prev.risksIssuesDecisions ?? "");
+        }
+      })
+      .catch(() => {});
+  }, [projectId, formReportDate]);
+
+  const openNewForm = useCallback(() => {
+    setEditingReportId(null);
+    setFormReportDate(new Date().toISOString().slice(0, 10));
+    setFormVariation(cdaEnabled ? "CDA" : "Standard");
+    setFormCompleted("");
+    setFormUpcoming("");
+    setFormRisks("");
+    setFormMeetingNotes("");
+    setFormError(null);
+    setSavedReportId(null);
+    setShowForm(true);
+  }, [cdaEnabled]);
+
+  const openEditForm = useCallback((r: StatusReportRecord) => {
+    setEditingReportId(r.id);
+    setFormReportDate(r.reportDate.slice(0, 10));
+    setFormVariation((r.variation as "Standard" | "Milestones" | "CDA") || "Standard");
+    setFormCompleted(r.completedActivities ?? "");
+    setFormUpcoming(r.upcomingActivities ?? "");
+    setFormRisks(r.risksIssuesDecisions ?? "");
+    setFormMeetingNotes(r.meetingNotes ?? "");
+    setFormError(null);
+    setSavedReportId(r.id);
+    setShowForm(true);
+  }, []);
+
+  const closeForm = useCallback(() => {
+    setShowForm(false);
+    setEditingReportId(null);
+    setSavedReportId(null);
+    loadReports();
+  }, [loadReports]);
+
+  const submitForm = useCallback(async () => {
+    setFormError(null);
+    setFormSaving(true);
+    const payload = {
+      reportDate: formReportDate,
+      variation: formVariation,
+      completedActivities: formCompleted,
+      upcomingActivities: formUpcoming,
+      risksIssuesDecisions: formRisks,
+      meetingNotes: formMeetingNotes.trim() || null,
+    };
+    const url = editingReportId
+      ? `/api/projects/${projectId}/status-reports/${editingReportId}`
+      : `/api/projects/${projectId}/status-reports`;
+    const method = editingReportId ? "PATCH" : "POST";
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFormError(data.error ?? "Save failed");
+        return;
+      }
+      setSavedReportId(data.id ?? editingReportId);
+      if (!editingReportId) loadReports();
+    } finally {
+      setFormSaving(false);
+    }
+  }, [projectId, editingReportId, formReportDate, formVariation, formCompleted, formUpcoming, formRisks, formMeetingNotes, loadReports]);
 
   const estBudgetLow = budgetLines.reduce((s, bl) => s + Number(bl.lowDollars), 0);
   const estBudgetHigh = budgetLines.reduce((s, bl) => s + Number(bl.highDollars), 0);
@@ -304,6 +435,14 @@ export function StatusReportsTab({
     remainingHoursHigh,
   ]);
 
+  function periodDisplay(): string {
+    if (!lastWeekWithActuals) return "—";
+    const mon = new Date(lastWeekWithActuals + "T00:00:00");
+    const fri = new Date(mon);
+    fri.setDate(fri.getDate() + 4);
+    return `${mon.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} – ${fri.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+  }
+
   if (loading) {
     return (
       <p className="text-body-sm text-surface-700 dark:text-surface-200">Loading...</p>
@@ -356,6 +495,194 @@ export function StatusReportsTab({
 
   return (
     <div className="space-y-10">
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-200 dark:border-dark-border pb-2">
+          <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100">
+            Status reports
+          </h2>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={openNewForm}
+              className="inline-flex items-center justify-center h-8 px-3 rounded text-label-sm bg-jblue-500 hover:bg-jblue-700 text-white font-medium focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+            >
+              New report
+            </button>
+          )}
+        </div>
+        {reportsLoading ? (
+          <p className="text-body-sm text-surface-500 dark:text-surface-400">Loading reports…</p>
+        ) : reports.length === 0 && !showForm ? (
+          <p className="text-body-sm text-surface-500 dark:text-surface-400">No saved reports yet. Create one to export a PDF.</p>
+        ) : (
+          <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border overflow-hidden">
+            <table className="w-full text-body-sm">
+              <thead>
+                <tr className="border-b border-surface-200 dark:border-dark-border bg-surface-50 dark:bg-dark-raised">
+                  <th className="text-left py-2 px-3 font-semibold text-surface-800 dark:text-surface-100">Report date</th>
+                  <th className="text-left py-2 px-3 font-semibold text-surface-800 dark:text-surface-100">Variation</th>
+                  <th className="text-right py-2 px-3 font-semibold text-surface-800 dark:text-surface-100">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reports.map((r) => (
+                  <tr key={r.id} className="border-b border-surface-100 dark:border-dark-border last:border-0">
+                    <td className="py-2 px-3 text-surface-700 dark:text-surface-200">
+                      {new Date(r.reportDate).toLocaleDateString("en-US", { dateStyle: "medium" })}
+                    </td>
+                    <td className="py-2 px-3 text-surface-700 dark:text-surface-200">{r.variation}</td>
+                    <td className="py-2 px-3 text-right">
+                      <a
+                        href={`/api/projects/${projectId}/status-reports/${r.id}/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-jblue-600 dark:text-jblue-400 hover:underline mr-3"
+                      >
+                        Export PDF
+                      </a>
+                      {canEdit && (
+                        <>
+                          <button type="button" onClick={() => openEditForm(r)} className="text-jblue-600 dark:text-jblue-400 hover:underline mr-3">
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!confirm("Delete this report?")) return;
+                              const res = await fetch(`/api/projects/${projectId}/status-reports/${r.id}`, { method: "DELETE" });
+                              if (res.ok) loadReports();
+                            }}
+                            className="text-jred-600 dark:text-jred-400 hover:underline"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {showForm && (
+          <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border p-6 space-y-4">
+            <h3 className="text-title-md font-semibold text-surface-800 dark:text-surface-100">
+              {editingReportId ? "Edit report" : "Create report"}
+            </h3>
+            <p className="text-body-sm text-surface-500 dark:text-surface-400">
+              Biographical data (Account Director, PM, PGM, Key Staff, Period) comes from project settings.{" "}
+              <Link href={`/projects/${projectSlug}/edit`} className="text-jblue-600 dark:text-jblue-400 hover:underline">
+                Edit project details
+              </Link>
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Report date</label>
+                <input
+                  type="date"
+                  value={formReportDate}
+                  onChange={(e) => setFormReportDate(e.target.value)}
+                  className="block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
+                />
+              </div>
+              <div>
+                <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Period (read-only)</label>
+                <p className="text-body-sm text-surface-600 dark:text-surface-300 pt-1.5">{periodDisplay()}</p>
+              </div>
+            </div>
+            <div>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Variation</label>
+              <select
+                value={formVariation}
+                onChange={(e) => setFormVariation(e.target.value as "Standard" | "Milestones" | "CDA")}
+                className="block w-full max-w-xs h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
+              >
+                {VARIATIONS.map((v) => (
+                  <option key={v.value} value={v.value}>{v.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <button type="button" onClick={prefillFromPrevious} className="text-label-sm text-jblue-600 dark:text-jblue-400 hover:underline">
+                Pre-fill from previous report
+              </button>
+            </div>
+            <div>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Completed activities</label>
+              <textarea
+                value={formCompleted}
+                onChange={(e) => setFormCompleted(e.target.value)}
+                rows={4}
+                placeholder="One per line or use bullets"
+                className="block w-full px-3 py-2 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
+              />
+            </div>
+            <div>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Upcoming activities</label>
+              <textarea
+                value={formUpcoming}
+                onChange={(e) => setFormUpcoming(e.target.value)}
+                rows={4}
+                placeholder="One per line or use bullets"
+                className="block w-full px-3 py-2 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
+              />
+            </div>
+            <div>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Risks, issues and decisions</label>
+              <textarea
+                value={formRisks}
+                onChange={(e) => setFormRisks(e.target.value)}
+                rows={4}
+                placeholder="One per line or use bullets"
+                className="block w-full px-3 py-2 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
+              />
+            </div>
+            <div>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Meeting notes (optional)</label>
+              <textarea
+                value={formMeetingNotes}
+                onChange={(e) => setFormMeetingNotes(e.target.value)}
+                rows={3}
+                placeholder="Rendered as separate page(s) in PDF"
+                className="block w-full px-3 py-2 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
+              />
+            </div>
+            {formError && (
+              <p className="text-body-sm text-jred-600 dark:text-jred-400">{formError}</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={submitForm}
+                disabled={formSaving}
+                className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm disabled:opacity-50"
+              >
+                {formSaving ? "Saving…" : editingReportId ? "Update" : "Save"}
+              </button>
+              {savedReportId && (
+                <a
+                  href={`/api/projects/${projectId}/status-reports/${savedReportId}/pdf`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg"
+                >
+                  Export PDF
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={closeForm}
+                className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-transparent text-surface-700 dark:text-surface-200 font-medium text-body-sm"
+              >
+                {editingReportId ? "Close" : "Cancel"}
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
       <section className="space-y-4">
         <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100 border-b border-surface-200 dark:border-dark-border pb-2">
           Status report summary

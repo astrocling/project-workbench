@@ -607,7 +607,7 @@ export function ProjectDetailTabs({
         />
       )}
       {tab === "budget" && <BudgetTab projectId={projectId} canEdit={canEdit} />}
-      {tab === "status-reports" && <StatusReportsTab projectId={projectId} />}
+      {tab === "status-reports" && <StatusReportsTab projectId={projectId} projectSlug={projectSlug} canEdit={canEdit} cdaEnabled={cdaEnabled} />}
       {tab === "rates" && <RatesTab projectId={projectId} canEdit={canEdit} />}
       {tab === "assignments" && <AssignmentsTab projectId={projectId} canEdit={canEdit} />}
       {tab === "cda" && cdaEnabled && <CDATab projectId={projectId} canEdit={canEdit} />}

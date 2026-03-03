@@ -38,6 +38,10 @@ const updateSchema = z.object({
   pgmPersonId: z.string().optional().nullable(),
   cadPersonId: z.string().optional().nullable(),
   cdaEnabled: z.boolean().optional(),
+  clientSponsor: z.string().nullable().optional(),
+  clientSponsor2: z.string().nullable().optional(),
+  otherContact: z.string().nullable().optional(),
+  keyStaffName: z.string().nullable().optional(),
 });
 
 export async function GET(
@@ -88,6 +92,10 @@ export async function PATCH(
   if (parsed.data.useSingleRate === false) data.singleBillRate = null;
   if (parsed.data.cdaEnabled !== undefined) data.cdaEnabled = parsed.data.cdaEnabled;
   if (parsed.data.notes !== undefined) data.notes = parsed.data.notes;
+  if (parsed.data.clientSponsor !== undefined) data.clientSponsor = parsed.data.clientSponsor;
+  if (parsed.data.clientSponsor2 !== undefined) data.clientSponsor2 = parsed.data.clientSponsor2;
+  if (parsed.data.otherContact !== undefined) data.otherContact = parsed.data.otherContact;
+  if (parsed.data.keyStaffName !== undefined) data.keyStaffName = parsed.data.keyStaffName;
   const normLink = (v: string | null | undefined): string | null => {
     if (v == null) return null;
     const raw = String(v).trim();
