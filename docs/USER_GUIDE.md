@@ -50,6 +50,7 @@ Each project has a detail page with several tabs. The header shows the **as-of d
 | **Overview** | Summary, key roles (PM, PGM, CAD), project notes, SOW, Estimate, Float, and Metric links, and a snapshot of budget and revenue recovery. |
 | **Resourcing** | Planned hours, actual hours, and Float scheduled hours by person and week. Use this to compare plan vs actual vs Float and spot gaps. |
 | **Budget** | Budget lines (e.g. SOW, CO, Other) with low/high hours and dollars, and burn to date. |
+| **Status Reports** | Summary table of estimated budget, $ spent, $ remaining, budgeted/actual/remaining hours, with copy-to-clipboard and a % budget used (high est.) circle chart. |
 | **Rates** | Per-role rate card for the project, or a single bill rate if the project uses one rate for all roles. |
 | **Assignments** | People assigned to the project, their roles, and any bill-rate overrides. |
 | **Settings** | Edit project name, client, dates, status, single rate, notes, SOW/Estimate/Float/Metric links, resourcing thresholds, and key roles. |

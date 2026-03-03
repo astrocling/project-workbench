@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ResourcingGrids } from "@/components/ResourcingGrids";
 import { BudgetTab } from "@/components/BudgetTab";
+import { StatusReportsTab } from "@/components/StatusReportsTab";
 import { RatesTab } from "@/components/RatesTab";
 import { AssignmentsTab } from "@/components/AssignmentsTab";
 import { CDATab } from "@/components/CDATab";
@@ -14,6 +15,7 @@ const TABS = [
   { id: "resourcing", label: "Resourcing" },
   { id: "cda", label: "CDA" },
   { id: "budget", label: "Budget" },
+  { id: "status-reports", label: "Status Reports" },
   { id: "rates", label: "Rates" },
   { id: "assignments", label: "Assignments" },
   { id: "edit", label: "Settings", hrefOnly: true },
@@ -70,7 +72,7 @@ export function ProjectDetailTabs({
   const overviewPrefetched = useRef(false);
 
   const [missingRateRoleNames, setMissingRateRoleNames] = useState<string[] | null>(null);
-  const RATES_ALERT_TABS = ["overview", "resourcing", "budget", "rates", "cda"] as const;
+  const RATES_ALERT_TABS = ["overview", "resourcing", "budget", "status-reports", "rates", "cda"] as const;
 
   useEffect(() => {
     if (!RATES_ALERT_TABS.includes(tab as (typeof RATES_ALERT_TABS)[number])) {
@@ -605,6 +607,7 @@ export function ProjectDetailTabs({
         />
       )}
       {tab === "budget" && <BudgetTab projectId={projectId} canEdit={canEdit} />}
+      {tab === "status-reports" && <StatusReportsTab projectId={projectId} />}
       {tab === "rates" && <RatesTab projectId={projectId} canEdit={canEdit} />}
       {tab === "assignments" && <AssignmentsTab projectId={projectId} canEdit={canEdit} />}
       {tab === "cda" && cdaEnabled && <CDATab projectId={projectId} canEdit={canEdit} />}
