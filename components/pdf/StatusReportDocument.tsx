@@ -283,6 +283,63 @@ const styles = StyleSheet.create({
     maxHeight: BOTTOM_QUARTER_HEIGHT,
     marginTop: 4,
   },
+  /** CDA export: left = milestones, right = two tables + two charts. */
+  cdaBottomSection: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 12,
+    marginTop: 4,
+    minHeight: BOTTOM_QUARTER_HEIGHT,
+  },
+  cdaBottomLeft: {
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: "#F5F5F5",
+    padding: 5,
+    borderWidth: 0.5,
+    borderColor: "#e5e7eb",
+  },
+  cdaBottomRight: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "column",
+    gap: 4,
+  },
+  /** One row: table (shrinks) + chart (fixed) side by side. */
+  cdaTableChartRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minHeight: 0,
+  },
+  /** Table column in table+chart row — takes remaining space so chart fits beside it. */
+  cdaTableCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  /** Chart column in table+chart row — fixed width so both charts align on top of each other. */
+  cdaChartCol: {
+    width: 58,
+    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cdaTableWrap: {
+    borderWidth: 0.5,
+    borderColor: "#e5e7eb",
+  },
+  /** Compact title row for CDA tables (Overall / month name) — same scale as bottom quarter. */
+  cdaTitleRowCompact: {
+    backgroundColor: "#ffffff",
+    color: BRAND_COLORS.onWhite,
+    fontWeight: 600,
+    fontSize: 8,
+    paddingTop: 3,
+    paddingBottom: 3,
+    paddingLeft: 5,
+    paddingRight: 5,
+    textAlign: "center",
+  },
   bottomQuarterTableCol: {
     flex: 1,
     minWidth: 0,
@@ -306,6 +363,7 @@ const styles = StyleSheet.create({
     color: "#666",
     marginTop: 1,
     letterSpacing: 0.5,
+    textAlign: "center",
   },
   budgetBurnChartValue: {
     fontSize: 10,
@@ -471,6 +529,11 @@ function formatReportNum(n: number): string {
   return n.toFixed(2);
 }
 
+function getMonthFullName(monthKey: string): string {
+  const [y, m] = monthKey.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleString("en-US", { month: "long" });
+}
+
 function getKeyRoleNames(data: StatusReportPDFData): { cad: string; pm: string; pgm: string; keyStaff: string } {
   const roles = data.project.projectKeyRoles || [];
   const cad = roles.find((r) => r.type === "CAD")?.person?.name ?? "";
@@ -541,13 +604,15 @@ function RagStatusBlock({ data }: { data: StatusReportPDFData }) {
   );
 }
 
-/** Budget burn donut chart for PDF (matches Status report summary chart). */
+/** Budget burn donut chart for PDF (matches Status report summary chart). Optional label for CDA (e.g. "Contract Hours Complete"). */
 function BudgetBurnChartPDF({
   burnPercent,
   compact = false,
+  label = "Budget burn ($)",
 }: {
   burnPercent: number | null;
   compact?: boolean;
+  label?: string;
 }) {
   const size = compact ? 48 : 64;
   const r = compact ? 18 : 24;
@@ -599,10 +664,10 @@ function BudgetBurnChartPDF({
         </Svg>
       </View>
       <Text style={styles.budgetBurnChartValue}>
-        {burnPercent != null ? `${burnPercent.toFixed(1)}%` : "—"}
+        {burnPercent != null ? `${burnPercent.toFixed(0)}%` : "—"}
       </Text>
       <Text style={styles.budgetBurnChartLabel}>
-        Budget burn ($)
+        {label}
       </Text>
     </View>
   );
@@ -694,66 +759,137 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
               </View>
             </View>
 
-            {report.variation === "CDA" && data.cda && (
-              <View style={styles.table}>
-                {/* OVERALL title row — match CDA copy-paste section (one cell spanning full width) */}
-                <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
-                  <View style={[styles.srCellBase, styles.srBorder, styles.srTitleRow, { flex: 1 }]}>
-                    <Text style={styles.srTitleRow}>OVERALL</Text>
-                  </View>
-                </View>
-                {/* Header row */}
-                <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
-                  <View style={[styles.srCellBase, styles.srBorder, styles.srHeader, { flex: 1.5 }]}>
-                    <Text style={styles.srHeader}>Total Project</Text>
-                  </View>
-                  <View style={[styles.srCellBase, styles.srBorder, styles.srHeader, { flex: 1 }]}>
-                    <Text style={styles.srHeader}>Planned</Text>
-                  </View>
-                  <View style={[styles.srCellBase, styles.srBorder, styles.srHeader, { flex: 1 }]}>
-                    <Text style={styles.srHeader}>Actuals</Text>
-                  </View>
-                  <View style={[styles.srCellBase, styles.srBorder, styles.srHeader, { flex: 1 }]}>
-                    <Text style={styles.srHeader}>Remaining</Text>
-                  </View>
-                </View>
-                {/* Budget ($) row — green for Planned/Remaining, white for Actuals */}
-                <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
-                  <View style={[styles.srCellBase, styles.srBorder, styles.srLabelMedium, { flex: 1.5 }]}>
-                    <Text style={styles.srLabelMedium}>Budget ($)</Text>
-                  </View>
-                  <View style={[styles.srCellBase, styles.srBorder, styles.srGreen, { flex: 1 }]}>
-                    <Text style={styles.srGreen}>{data.cda.overallBudget ? formatDollars(data.cda.overallBudget.totalDollars) : "—"}</Text>
-                  </View>
-                  <View style={[styles.srCellBase, styles.srBorder, styles.srWhite, { flex: 1 }]}>
-                    <Text style={styles.srWhite}>{data.cda.overallBudget ? formatDollars(-data.cda.overallBudget.actualDollars) : "—"}</Text>
-                  </View>
-                  <View style={[styles.srCellBase, styles.srBorder, styles.srGreen, { flex: 1 }]}>
-                    <Text style={styles.srGreen}>{data.cda.overallBudget ? formatDollars(data.cda.overallBudget.totalDollars - data.cda.overallBudget.actualDollars) : "—"}</Text>
-                  </View>
-                </View>
-                {/* Hours row — blue for Planned/Remaining, white for Actuals */}
-                <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
-                  <View style={[styles.srCellBase, styles.srBorder, styles.srLabelMedium, { flex: 1.5 }]}>
-                    <Text style={styles.srLabelMedium}>Hours</Text>
-                  </View>
-                  <View style={[styles.srCellBase, styles.srBorder, styles.srBlue, { flex: 1 }]}>
-                    <Text style={styles.srBlue}>{formatReportNum(data.cda.totalPlanned)}</Text>
-                  </View>
-                  <View style={[styles.srCellBase, styles.srBorder, styles.srWhite, { flex: 1 }]}>
-                    <Text style={styles.srWhite}>{formatReportNum(-data.cda.totalMtdActuals)}</Text>
-                  </View>
-                  <View style={[styles.srCellBase, styles.srBorder, styles.srBlue, { flex: 1 }]}>
-                    <Text style={styles.srBlue}>{formatReportNum(data.cda.totalRemaining)}</Text>
-                  </View>
-                </View>
-              </View>
-            )}
-
             <View style={styles.timelinePlaceholder}>
               High-Level Timeline (placeholder for future phase)
             </View>
           </View>
+
+          {report.variation === "CDA" && data.cda && (() => {
+            const reportMonthKey = data.report.reportDate.slice(0, 7);
+            const currentMonthRow = data.cda.rows.find((r) => r.monthKey === reportMonthKey);
+            /** Contract budget $ burned (actualDollars / totalDollars). */
+            const contractBudgetBurnPercent =
+              data.cda.overallBudget && data.cda.overallBudget.totalDollars > 0
+                ? Math.min(100, Math.max(0, (data.cda.overallBudget.actualDollars / data.cda.overallBudget.totalDollars) * 100))
+                : null;
+            /** Selected month hours burned vs plan (mtdActuals / planned). */
+            const currentMonthPercent =
+              currentMonthRow && currentMonthRow.planned > 0
+                ? Math.min(100, Math.max(0, (currentMonthRow.mtdActuals / currentMonthRow.planned) * 100))
+                : null;
+            const monthRemaining = currentMonthRow
+              ? currentMonthRow.planned - currentMonthRow.mtdActuals
+              : null;
+            const currentMonthFull = getMonthFullName(reportMonthKey);
+            return (
+              <View style={styles.cdaBottomSection}>
+                <View style={styles.cdaBottomLeft}>
+                  <Text style={[styles.colTitle, { marginBottom: 2, fontSize: 8 }]}>Milestones</Text>
+                  <Text style={styles.bulletText}>Coming next.</Text>
+                </View>
+                <View style={styles.cdaBottomRight}>
+                  <View style={styles.cdaTableChartRow}>
+                    <View style={styles.cdaTableCol}>
+                      <View style={[styles.table, styles.cdaTableWrap]}>
+                        <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.cdaTitleRowCompact, { flex: 1 }]}>
+                            <Text style={styles.cdaTitleRowCompact}>Overall</Text>
+                          </View>
+                        </View>
+                        <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompact, { flex: 1.5 }]}>
+                            <Text style={styles.srHeaderCompact}>Total Project</Text>
+                          </View>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompact, { flex: 1 }]}>
+                            <Text style={styles.srHeaderCompact}>Planned</Text>
+                          </View>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompact, { flex: 1 }]}>
+                            <Text style={styles.srHeaderCompact}>Actuals</Text>
+                          </View>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompact, { flex: 1 }]}>
+                            <Text style={styles.srHeaderCompact}>Remaining</Text>
+                          </View>
+                        </View>
+                        <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srLabelCompact, { flex: 1.5 }]}>
+                            <Text style={styles.srLabelCompact}>Budget ($)</Text>
+                          </View>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srGreenCompact, { flex: 1 }]}>
+                            <Text style={styles.srGreenCompact}>{data.cda.overallBudget ? formatDollars(data.cda.overallBudget.totalDollars) : "—"}</Text>
+                          </View>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srWhiteCompact, { flex: 1 }]}>
+                            <Text style={styles.srWhiteCompact}>{data.cda.overallBudget ? formatDollars(-data.cda.overallBudget.actualDollars) : "—"}</Text>
+                          </View>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srGreenCompact, { flex: 1 }]}>
+                            <Text style={styles.srGreenCompact}>{data.cda.overallBudget ? formatDollars(data.cda.overallBudget.totalDollars - data.cda.overallBudget.actualDollars) : "—"}</Text>
+                          </View>
+                        </View>
+                        <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srLabelCompact, { flex: 1.5 }]}>
+                            <Text style={styles.srLabelCompact}>Hours</Text>
+                          </View>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srBlueCompact, { flex: 1 }]}>
+                            <Text style={styles.srBlueCompact}>{formatReportNum(data.cda.totalPlanned)}</Text>
+                          </View>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srWhiteCompact, { flex: 1 }]}>
+                            <Text style={styles.srWhiteCompact}>{formatReportNum(-data.cda.totalMtdActuals)}</Text>
+                          </View>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srBlueCompact, { flex: 1 }]}>
+                            <Text style={styles.srBlueCompact}>{formatReportNum(data.cda.totalRemaining)}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                    <View style={styles.cdaChartCol}>
+                      <BudgetBurnChartPDF burnPercent={contractBudgetBurnPercent} compact label="Total Budget" />
+                    </View>
+                  </View>
+                  <View style={styles.cdaTableChartRow}>
+                    <View style={styles.cdaTableCol}>
+                      <View style={[styles.table, styles.cdaTableWrap]}>
+                        <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.cdaTitleRowCompact, { flex: 1 }]}>
+                            <Text style={styles.cdaTitleRowCompact}>{currentMonthFull}</Text>
+                          </View>
+                        </View>
+                        <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompact, { flex: 1.5 }]}>
+                            <Text style={styles.srHeaderCompact}>Current Month</Text>
+                          </View>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompact, { flex: 1 }]}>
+                            <Text style={styles.srHeaderCompact}>Planned</Text>
+                          </View>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompact, { flex: 1 }]}>
+                            <Text style={styles.srHeaderCompact}>Actuals</Text>
+                          </View>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompact, { flex: 1 }]}>
+                            <Text style={styles.srHeaderCompact}>Remaining</Text>
+                          </View>
+                        </View>
+                        <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srLabelCompact, { flex: 1.5 }]}>
+                            <Text style={styles.srLabelCompact}>Hours</Text>
+                          </View>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srBlueCompact, { flex: 1 }]}>
+                            <Text style={styles.srBlueCompact}>{currentMonthRow ? formatReportNum(currentMonthRow.planned) : "—"}</Text>
+                          </View>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srWhiteCompact, { flex: 1 }]}>
+                            <Text style={styles.srWhiteCompact}>{currentMonthRow ? formatReportNum(currentMonthRow.mtdActuals) : "—"}</Text>
+                          </View>
+                          <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srBlueCompact, { flex: 1 }]}>
+                            <Text style={styles.srBlueCompact}>{monthRemaining != null ? formatReportNum(monthRemaining) : "—"}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                    <View style={styles.cdaChartCol}>
+                      <BudgetBurnChartPDF burnPercent={currentMonthPercent} compact label={`${currentMonthFull} Hours`} />
+                    </View>
+                  </View>
+                </View>
+              </View>
+            );
+          })()}
 
           {report.variation === "Standard" && data.budget && (
           <View style={styles.bottomQuarterSection}>

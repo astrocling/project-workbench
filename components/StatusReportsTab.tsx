@@ -111,6 +111,76 @@ type Rollups = {
   remainingDollarsHigh: number;
 };
 
+type CdaRow = {
+  monthKey: string;
+  monthLabel: string;
+  planned: number;
+  mtdActuals: number;
+};
+
+function getCurrentMonthKey(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function getMonthFullName(monthKey: string): string {
+  const [y, m] = monthKey.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleString("en-US", { month: "long" });
+}
+
+/** Donut chart for CDA summary (Contract Hours Complete / Current Month Burn). */
+function CdaDonutChart({
+  percent,
+  label,
+  size = 100,
+}: {
+  percent: number | null;
+  label: React.ReactNode | null;
+  size?: number;
+}) {
+  const r = size * 0.35;
+  const stroke = size * 0.15;
+  const circumference = 2 * Math.PI * r;
+  const clamped = percent == null ? 0 : Math.min(100, Math.max(0, percent));
+  const dash = (clamped / 100) * circumference;
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="-rotate-90" aria-hidden>
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            className="stroke-surface-200 dark:stroke-dark-muted"
+            strokeWidth={stroke}
+          />
+          {clamped > 0 && (
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              stroke="#1941FA"
+              strokeWidth={stroke}
+              strokeDasharray={`${dash} ${circumference}`}
+              strokeLinecap="round"
+            />
+          )}
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center text-title-md font-semibold text-surface-900 dark:text-white tabular-nums" aria-live="polite">
+          {percent != null ? `${percent.toFixed(0)}%` : "—"}
+        </div>
+      </div>
+      {label != null && (
+        <p className="text-label-sm uppercase text-surface-400 dark:text-surface-500 tracking-wider text-center">
+          {label}
+        </p>
+      )}
+    </div>
+  );
+}
+
 const VARIATIONS = [
   { value: "CDA", label: "CDA (Monthly/Project CDA Budgets)" },
   { value: "Standard", label: "Standard (Timeline/Project Budget)" },
@@ -132,6 +202,8 @@ export function StatusReportsTab({
   const [rollups, setRollups] = useState<Rollups | null>(null);
   const [lastWeekWithActuals, setLastWeekWithActuals] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [cdaRows, setCdaRows] = useState<CdaRow[]>([]);
+  const [cdaLoading, setCdaLoading] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [copyChartFeedback, setCopyChartFeedback] = useState<string | null>(null);
 
@@ -171,6 +243,20 @@ export function StatusReportsTab({
   useEffect(() => {
     load();
   }, [load]);
+
+  const loadCda = useCallback(() => {
+    if (!cdaEnabled) return;
+    setCdaLoading(true);
+    fetch(`/api/projects/${projectId}/cda`)
+      .then((r) => r.json())
+      .then((d) => setCdaRows(d.rows ?? []))
+      .catch(() => setCdaRows([]))
+      .finally(() => setCdaLoading(false));
+  }, [projectId, cdaEnabled]);
+
+  useEffect(() => {
+    if (cdaEnabled) loadCda();
+  }, [cdaEnabled, loadCda]);
 
   const loadReports = useCallback(() => {
     setReportsLoading(true);
@@ -805,105 +891,284 @@ export function StatusReportsTab({
         <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100 border-b border-surface-200 dark:border-dark-border pb-2">
           Status report summary
         </h2>
-        <div className="flex flex-col lg:flex-row gap-8 items-start">
-          <div className="flex-1 min-w-0">
-            <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark overflow-hidden">
-              <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-surface-100 dark:border-dark-border">
-                <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100">
-                  Project budget & hours
-                </p>
-                <div className="flex items-center gap-2">
-                  {copyFeedback && (
-                    <span className="text-label-sm text-jblue-600 dark:text-jblue-400" role="status">
-                      {copyFeedback}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={copyTable}
-                    className="inline-flex items-center justify-center h-7 px-3 rounded text-label-sm bg-jblue-500 hover:bg-jblue-700 text-white font-medium focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
-                  >
-                    Copy table
-                  </button>
+        {formVariation === "CDA" && cdaEnabled ? (
+          <div className="flex flex-col lg:flex-row gap-8 items-stretch">
+            {/* Left: reserved for Milestones (to be added next) */}
+            <div className="flex-1 min-w-0 flex flex-col">
+              <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark overflow-hidden flex-1 min-h-[280px] flex flex-col">
+                <div className="p-4 border-b border-surface-100 dark:border-dark-border">
+                  <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100">
+                    Milestones
+                  </p>
+                </div>
+                <div className="flex-1 p-4 flex items-center justify-center">
+                  <p className="text-body-sm text-surface-500 dark:text-surface-400">
+                    Coming next.
+                  </p>
                 </div>
               </div>
-              <table className="w-full text-body-sm border-collapse" style={{ borderCollapse: "collapse", fontFamily: "sans-serif" }}>
-                <thead>
-                  <tr>
-                    <th style={{ ...headerStyle, width: "1%" }} />
-                    <th style={headerStyle}>Est. Budget</th>
-                    <th style={headerStyle}>$ Spent</th>
-                    <th style={headerStyle}>$ Remaining</th>
-                    <th style={headerStyle}>Budgeted Hrs</th>
-                    <th style={headerStyle}>Actual Hrs</th>
-                    <th style={headerStyle}>Hrs Remaining</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td style={labelCellStyle}>HIGH</td>
-                    <td style={cellGreenStyle} className="tabular-nums">
-                      {hasData ? `$${formatDollars(estBudgetHigh)}` : "—"}
-                    </td>
-                    <td style={cellWhiteStyle} className="tabular-nums">
-                      {hasData ? `-$${formatDollars(spentDollars)}` : "—"}
-                    </td>
-                    <td style={cellGreenStyle} className="tabular-nums">
-                      {hasData ? `$${formatDollars(remainingDollarsHigh)}` : "—"}
-                    </td>
-                    <td style={cellBlueStyle} className="tabular-nums">
-                      {hasData ? formatHours(budgetedHoursHigh) : "—"}
-                    </td>
-                    <td style={cellWhiteStyle} className="tabular-nums">
-                      {hasData ? `-${formatHours(actualHours)}` : "—"}
-                    </td>
-                    <td style={cellBlueStyle} className="tabular-nums">
-                      {hasData ? formatHours(remainingHoursHigh) : "—"}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style={labelCellStyle}>LOW</td>
-                    <td style={cellGreenStyle} className="tabular-nums">
-                      {hasData ? `$${formatDollars(estBudgetLow)}` : "—"}
-                    </td>
-                    <td style={cellWhiteStyle} className="tabular-nums">
-                      {hasData ? `-$${formatDollars(spentDollars)}` : "—"}
-                    </td>
-                    <td style={cellGreenStyle} className="tabular-nums">
-                      {hasData ? `$${formatDollars(remainingDollarsLow)}` : "—"}
-                    </td>
-                    <td style={cellBlueStyle} className="tabular-nums">
-                      {hasData ? formatHours(budgetedHoursLow) : "—"}
-                    </td>
-                    <td style={cellWhiteStyle} className="tabular-nums">
-                      {hasData ? `-${formatHours(actualHours)}` : "—"}
-                    </td>
-                    <td style={cellBlueStyle} className="tabular-nums">
-                      {hasData ? formatHours(remainingHoursLow) : "—"}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            </div>
+            {/* Right: CDA budget — two tables + two charts (same as CDA tab) */}
+            <div className="flex-1 min-w-0 lg:max-w-[480px] flex flex-col gap-4">
+              {cdaLoading ? (
+                <p className="text-body-sm text-surface-500 dark:text-surface-400 py-4">Loading CDA data…</p>
+              ) : (() => {
+                const currentMonthKey = getCurrentMonthKey();
+                const totalPlanned = cdaRows.reduce((s, r) => s + r.planned, 0);
+                const totalMtdActuals = cdaRows.reduce((s, r) => s + r.mtdActuals, 0);
+                const totalRemaining = roundToQuarter(totalPlanned - totalMtdActuals);
+                const cdaOverallBudget = hasData
+                  ? { totalDollars: estBudgetHigh, actualDollars: spentDollars }
+                  : null;
+                const formatCurrency = (dollars: number): string => {
+                  const n = roundToQuarter(dollars);
+                  const sign = n < 0 ? "-" : "";
+                  return `${sign}$${Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
+                };
+                const budgetPlanned = cdaOverallBudget != null ? formatCurrency(cdaOverallBudget.totalDollars) : "—";
+                const budgetActuals = cdaOverallBudget != null ? formatCurrency(-cdaOverallBudget.actualDollars) : "—";
+                const budgetRemaining =
+                  cdaOverallBudget != null
+                    ? formatCurrency(cdaOverallBudget.totalDollars - cdaOverallBudget.actualDollars)
+                    : "—";
+                const hoursActualsStr = totalMtdActuals !== 0 ? formatReportNumber(-totalMtdActuals) : "0.00";
+                const currentMonthRow = cdaRows.find((r) => r.monthKey === currentMonthKey);
+                const currentMonthFull = getMonthFullName(currentMonthKey);
+                const hoursCompletePercent =
+                  totalPlanned > 0 ? Math.min(100, Math.max(0, (totalMtdActuals / totalPlanned) * 100)) : null;
+                const currentMonthPercent =
+                  currentMonthRow && currentMonthRow.planned > 0
+                    ? Math.min(100, Math.max(0, (currentMonthRow.mtdActuals / currentMonthRow.planned) * 100))
+                    : null;
+                const monthRemaining = currentMonthRow
+                  ? roundToQuarter(currentMonthRow.planned - currentMonthRow.mtdActuals)
+                  : null;
+                const cdaHeaderStyle = {
+                  backgroundColor: BRAND_COLORS.header,
+                  color: BRAND_COLORS.onHeader,
+                  padding: "6px 10px",
+                  textAlign: "left" as const,
+                  fontWeight: 600,
+                  fontSize: "12px",
+                  border: "1px solid #e5e7eb",
+                };
+                const cdaMonthRowStyle = {
+                  textAlign: "center" as const,
+                  color: BRAND_COLORS.onWhite,
+                  fontWeight: 600,
+                  fontSize: "14px",
+                  padding: "8px 10px",
+                  border: "1px solid #e5e7eb",
+                  backgroundColor: "#ffffff",
+                };
+                const cdaLabelStyle = {
+                  backgroundColor: "#ffffff",
+                  color: BRAND_COLORS.onWhite,
+                  padding: "6px 10px",
+                  textAlign: "left" as const,
+                  fontWeight: 500,
+                  fontSize: "12px",
+                  border: "1px solid #e5e7eb",
+                };
+                const cdaCellRightStyle = {
+                  backgroundColor: "#ffffff",
+                  color: BRAND_COLORS.onWhite,
+                  padding: "6px 10px",
+                  textAlign: "right" as const,
+                  fontSize: "12px",
+                  border: "1px solid #e5e7eb",
+                };
+                const cdaBudgetCellStyle = {
+                  backgroundColor: BRAND_COLORS.overallBudget,
+                  color: BRAND_COLORS.onHeader,
+                  padding: "6px 10px",
+                  textAlign: "right" as const,
+                  fontSize: "12px",
+                  border: "1px solid #e5e7eb",
+                };
+                const cdaHoursCellStyle = {
+                  backgroundColor: BRAND_COLORS.accent,
+                  color: BRAND_COLORS.onAccent,
+                  padding: "6px 10px",
+                  textAlign: "right" as const,
+                  fontSize: "12px",
+                  border: "1px solid #e5e7eb",
+                };
+                return (
+                  <>
+                    <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark overflow-hidden">
+                      <table className="w-full text-body-sm border-collapse" style={{ borderCollapse: "collapse", fontFamily: "sans-serif" }}>
+                        <tbody>
+                          <tr>
+                            <td colSpan={4} style={cdaMonthRowStyle}>OVERALL</td>
+                          </tr>
+                          <tr>
+                            <th style={{ ...cdaHeaderStyle, width: "30%" }}>Total Project</th>
+                            <th style={cdaHeaderStyle}>Planned</th>
+                            <th style={cdaHeaderStyle}>Actuals</th>
+                            <th style={cdaHeaderStyle}>Remaining</th>
+                          </tr>
+                          <tr>
+                            <td style={cdaLabelStyle}>Budget ($)</td>
+                            <td style={cdaBudgetCellStyle} className="tabular-nums">{budgetPlanned}</td>
+                            <td style={cdaCellRightStyle} className="tabular-nums">{budgetActuals}</td>
+                            <td style={cdaBudgetCellStyle} className="tabular-nums">{budgetRemaining}</td>
+                          </tr>
+                          <tr>
+                            <td style={cdaLabelStyle}>Hours</td>
+                            <td style={cdaHoursCellStyle} className="tabular-nums">{formatReportNumber(totalPlanned)}</td>
+                            <td style={cdaCellRightStyle} className="tabular-nums">{hoursActualsStr}</td>
+                            <td style={cdaHoursCellStyle} className="tabular-nums">{formatReportNumber(totalRemaining)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark overflow-hidden">
+                      <table className="w-full text-body-sm border-collapse" style={{ borderCollapse: "collapse", fontFamily: "sans-serif" }}>
+                        <tbody>
+                          <tr>
+                            <td colSpan={4} style={cdaMonthRowStyle}>{currentMonthFull}</td>
+                          </tr>
+                          <tr>
+                            <th style={cdaHeaderStyle}>Current Month</th>
+                            <th style={cdaHeaderStyle}>Planned</th>
+                            <th style={cdaHeaderStyle}>Actuals</th>
+                            <th style={cdaHeaderStyle}>Remaining</th>
+                          </tr>
+                          <tr>
+                            <td style={cdaLabelStyle}>Hours</td>
+                            <td style={cdaHoursCellStyle} className="tabular-nums">
+                              {currentMonthRow ? formatReportNumber(currentMonthRow.planned) : "—"}
+                            </td>
+                            <td style={cdaCellRightStyle} className="tabular-nums">
+                              {currentMonthRow ? formatReportNumber(currentMonthRow.mtdActuals) : "—"}
+                            </td>
+                            <td style={cdaHoursCellStyle} className="tabular-nums">
+                              {monthRemaining != null ? formatReportNumber(monthRemaining) : "—"}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="rounded-lg border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface px-6 py-4 shadow-card-light dark:shadow-card-dark">
+                      <div className="flex items-center gap-8 flex-wrap">
+                        <CdaDonutChart
+                          percent={hoursCompletePercent}
+                          label={<>Contract<br />Hours Complete</>}
+                        />
+                        <CdaDonutChart
+                          percent={currentMonthPercent}
+                          label={<>{currentMonthFull}<br />Hours Burn</>}
+                          size={100}
+                        />
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
-          <div className="shrink-0">
-            <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
-              <BudgetBurnCircleChart burnPercent={burnPercentHigh} />
-              {copyChartFeedback && (
-                <p className="text-label-sm text-jblue-600 dark:text-jblue-400 mt-2" role="status">
-                  {copyChartFeedback}
-                </p>
-              )}
-              <button
-                type="button"
-                onClick={() => copyChartAsPng(burnPercentHigh)}
-                className="mt-3 inline-flex items-center justify-center h-7 px-3 rounded text-label-sm bg-jblue-500 hover:bg-jblue-700 text-white font-medium focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1 w-full"
-              >
-                Copy chart
-              </button>
+        ) : (
+          <div className="flex flex-col lg:flex-row gap-8 items-start">
+            <div className="flex-1 min-w-0">
+              <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-surface-100 dark:border-dark-border">
+                  <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100">
+                    Project budget & hours
+                  </p>
+                  <div className="flex items-center gap-2">
+                    {copyFeedback && (
+                      <span className="text-label-sm text-jblue-600 dark:text-jblue-400" role="status">
+                        {copyFeedback}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={copyTable}
+                      className="inline-flex items-center justify-center h-7 px-3 rounded text-label-sm bg-jblue-500 hover:bg-jblue-700 text-white font-medium focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                    >
+                      Copy table
+                    </button>
+                  </div>
+                </div>
+                <table className="w-full text-body-sm border-collapse" style={{ borderCollapse: "collapse", fontFamily: "sans-serif" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ ...headerStyle, width: "1%" }} />
+                      <th style={headerStyle}>Est. Budget</th>
+                      <th style={headerStyle}>$ Spent</th>
+                      <th style={headerStyle}>$ Remaining</th>
+                      <th style={headerStyle}>Budgeted Hrs</th>
+                      <th style={headerStyle}>Actual Hrs</th>
+                      <th style={headerStyle}>Hrs Remaining</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={labelCellStyle}>HIGH</td>
+                      <td style={cellGreenStyle} className="tabular-nums">
+                        {hasData ? `$${formatDollars(estBudgetHigh)}` : "—"}
+                      </td>
+                      <td style={cellWhiteStyle} className="tabular-nums">
+                        {hasData ? `-$${formatDollars(spentDollars)}` : "—"}
+                      </td>
+                      <td style={cellGreenStyle} className="tabular-nums">
+                        {hasData ? `$${formatDollars(remainingDollarsHigh)}` : "—"}
+                      </td>
+                      <td style={cellBlueStyle} className="tabular-nums">
+                        {hasData ? formatHours(budgetedHoursHigh) : "—"}
+                      </td>
+                      <td style={cellWhiteStyle} className="tabular-nums">
+                        {hasData ? `-${formatHours(actualHours)}` : "—"}
+                      </td>
+                      <td style={cellBlueStyle} className="tabular-nums">
+                        {hasData ? formatHours(remainingHoursHigh) : "—"}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style={labelCellStyle}>LOW</td>
+                      <td style={cellGreenStyle} className="tabular-nums">
+                        {hasData ? `$${formatDollars(estBudgetLow)}` : "—"}
+                      </td>
+                      <td style={cellWhiteStyle} className="tabular-nums">
+                        {hasData ? `-$${formatDollars(spentDollars)}` : "—"}
+                      </td>
+                      <td style={cellGreenStyle} className="tabular-nums">
+                        {hasData ? `$${formatDollars(remainingDollarsLow)}` : "—"}
+                      </td>
+                      <td style={cellBlueStyle} className="tabular-nums">
+                        {hasData ? formatHours(budgetedHoursLow) : "—"}
+                      </td>
+                      <td style={cellWhiteStyle} className="tabular-nums">
+                        {hasData ? `-${formatHours(actualHours)}` : "—"}
+                      </td>
+                      <td style={cellBlueStyle} className="tabular-nums">
+                        {hasData ? formatHours(remainingHoursLow) : "—"}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="shrink-0">
+              <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
+                <BudgetBurnCircleChart burnPercent={burnPercentHigh} />
+                {copyChartFeedback && (
+                  <p className="text-label-sm text-jblue-600 dark:text-jblue-400 mt-2" role="status">
+                    {copyChartFeedback}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => copyChartAsPng(burnPercentHigh)}
+                  className="mt-3 inline-flex items-center justify-center h-7 px-3 rounded text-label-sm bg-jblue-500 hover:bg-jblue-700 text-white font-medium focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1 w-full"
+                >
+                  Copy chart
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </section>
     </div>
   );
