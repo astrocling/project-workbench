@@ -139,6 +139,12 @@ enum StatusReportVariation {
   CDA
 }
 
+enum RagStatus {
+  Red
+  Amber
+  Green
+}
+
 model StatusReport {
   id                      String                @id @default(cuid())
   projectId               String
@@ -148,6 +154,14 @@ model StatusReport {
   upcomingActivities      String                @db.Text
   risksIssuesDecisions    String                @db.Text
   meetingNotes            String?               @db.Text
+  ragOverall              RagStatus?
+  ragScope                RagStatus?
+  ragSchedule             RagStatus?
+  ragBudget               RagStatus?
+  ragOverallExplanation   String?               @db.Text
+  ragScopeExplanation     String?              @db.Text
+  ragScheduleExplanation  String?              @db.Text
+  ragBudgetExplanation    String?              @db.Text
   createdAt               DateTime              @default(now())
   updatedAt               DateTime              @updatedAt
 

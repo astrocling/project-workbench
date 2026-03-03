@@ -6,6 +6,7 @@ import { getProjectId } from "@/lib/slug";
 import { z } from "zod";
 
 const variationEnum = z.enum(["Standard", "Milestones", "CDA"]);
+const ragEnum = z.enum(["Red", "Amber", "Green"]);
 
 const createSchema = z.object({
   reportDate: z.string().refine((s) => !isNaN(Date.parse(s)), "Invalid date"),
@@ -14,6 +15,14 @@ const createSchema = z.object({
   upcomingActivities: z.string(),
   risksIssuesDecisions: z.string(),
   meetingNotes: z.string().nullable().optional(),
+  ragOverall: ragEnum.nullable().optional(),
+  ragScope: ragEnum.nullable().optional(),
+  ragSchedule: ragEnum.nullable().optional(),
+  ragBudget: ragEnum.nullable().optional(),
+  ragOverallExplanation: z.string().nullable().optional(),
+  ragScopeExplanation: z.string().nullable().optional(),
+  ragScheduleExplanation: z.string().nullable().optional(),
+  ragBudgetExplanation: z.string().nullable().optional(),
 });
 
 export async function GET(
@@ -47,6 +56,14 @@ export async function GET(
         completedActivities: true,
         upcomingActivities: true,
         risksIssuesDecisions: true,
+        ragOverall: true,
+        ragScope: true,
+        ragSchedule: true,
+        ragBudget: true,
+        ragOverallExplanation: true,
+        ragScopeExplanation: true,
+        ragScheduleExplanation: true,
+        ragBudgetExplanation: true,
       },
     });
     return NextResponse.json(report ?? null);
@@ -95,6 +112,14 @@ export async function POST(
       upcomingActivities: parsed.data.upcomingActivities,
       risksIssuesDecisions: parsed.data.risksIssuesDecisions,
       meetingNotes: parsed.data.meetingNotes ?? null,
+      ragOverall: parsed.data.ragOverall ?? null,
+      ragScope: parsed.data.ragScope ?? null,
+      ragSchedule: parsed.data.ragSchedule ?? null,
+      ragBudget: parsed.data.ragBudget ?? null,
+      ragOverallExplanation: parsed.data.ragOverallExplanation ?? null,
+      ragScopeExplanation: parsed.data.ragScopeExplanation ?? null,
+      ragScheduleExplanation: parsed.data.ragScheduleExplanation ?? null,
+      ragBudgetExplanation: parsed.data.ragBudgetExplanation ?? null,
     },
   });
   return NextResponse.json(report);

@@ -55,9 +55,20 @@ const styles = StyleSheet.create({
     fontFamily: "Raleway",
     flexDirection: "column",
   },
-  biographicalBlock: {
-    width: "50%",
+  /** Row containing bio (left 50%) and RAG block (right 50%). Both sections align to top; bio keeps full multi-row layout. */
+  topRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
     marginBottom: 12,
+    gap: 12,
+  },
+  topRowHalf: {
+    flex: 1,
+    minWidth: 0,
+  },
+  /** Left column: full biographical section (title, two columns of rows, period). Fills width of left half, flows vertically. */
+  biographicalBlock: {
+    width: "100%",
   },
   bioTitle: {
     fontSize: 14,
@@ -315,7 +326,89 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 12,
   },
+  // RAG (Project Status) block — right half of top row; column layout so header + rows stack vertically
+  ragBlock: {
+    width: "100%",
+    flexDirection: "column",
+  },
+  ragTitle: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: BIO_TITLE_COLOR,
+    textAlign: "left",
+    textTransform: "uppercase",
+    marginBottom: 3,
+  },
+  ragTitleLine: {
+    height: 1,
+    backgroundColor: BIO_TITLE_COLOR,
+    marginBottom: 5,
+  },
+  ragHeaderRow: {
+    flexDirection: "row",
+    backgroundColor: BIO_TITLE_COLOR,
+    minHeight: 18,
+  },
+  ragHeaderCell: {
+    paddingVertical: 2,
+    paddingHorizontal: 3,
+  },
+  ragHeaderText: {
+    fontSize: 9,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  ragHeaderLabel: { width: 72 },
+  ragHeaderRag: { width: 24, alignItems: "center", justifyContent: "center" },
+  ragHeaderExplanation: { flex: 1, minWidth: 0 },
+  ragDataRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#e5e7eb",
+    backgroundColor: "#F5F5F5",
+    minHeight: 16,
+  },
+  ragDataRowAlt: {
+    backgroundColor: "#fff",
+  },
+  ragLabelCell: {
+    width: 72,
+    paddingVertical: 2,
+    paddingHorizontal: 3,
+    flexShrink: 0,
+  },
+  ragLabelText: {
+    fontSize: 9,
+    fontWeight: "bold",
+    color: BIO_LABEL_COLOR,
+  },
+  ragPillCell: {
+    width: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 2,
+    flexShrink: 0,
+  },
+  /** Pill/capsule shape like Float Stale / Actuals Stale alerts */
+  ragPill: {
+    width: 18,
+    height: 8,
+    borderRadius: 4,
+  },
+  ragExplanationCell: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: 2,
+    paddingHorizontal: 3,
+  },
+  ragExplanationText: {
+    fontSize: 9,
+    color: BIO_VALUE_COLOR,
+  },
 });
+
+export type RagStatus = "Red" | "Amber" | "Green";
 
 export type StatusReportPDFData = {
   report: {
@@ -325,6 +418,14 @@ export type StatusReportPDFData = {
     upcomingActivities: string;
     risksIssuesDecisions: string;
     meetingNotes: string | null;
+    ragOverall?: RagStatus | null;
+    ragScope?: RagStatus | null;
+    ragSchedule?: RagStatus | null;
+    ragBudget?: RagStatus | null;
+    ragOverallExplanation?: string | null;
+    ragScopeExplanation?: string | null;
+    ragScheduleExplanation?: string | null;
+    ragBudgetExplanation?: string | null;
   };
   project: {
     name: string;
@@ -384,6 +485,60 @@ function bulletLines(text: string): string[] {
     .split(/\r?\n/)
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+const RAG_COLORS: Record<RagStatus, string> = {
+  Red: "#dc2626",
+  Amber: "#f59e0b",
+  Green: "#22c55e",
+};
+
+function RagStatusBlock({ data }: { data: StatusReportPDFData }) {
+  const { report } = data;
+  const rows: Array<{ label: string; status: RagStatus | null | undefined; explanation: string | null | undefined }> = [
+    { label: "Overall", status: report.ragOverall, explanation: report.ragOverallExplanation },
+    { label: "Scope", status: report.ragScope, explanation: report.ragScopeExplanation },
+    { label: "Schedule", status: report.ragSchedule, explanation: report.ragScheduleExplanation },
+    { label: "Budget", status: report.ragBudget, explanation: report.ragBudgetExplanation },
+  ];
+  return (
+    <View style={styles.ragBlock}>
+      <View style={styles.ragHeaderRow}>
+        <View style={[styles.ragHeaderCell, styles.ragHeaderLabel]}>
+          <Text style={styles.ragHeaderText}>Project Status</Text>
+        </View>
+        <View style={[styles.ragHeaderCell, styles.ragHeaderRag]} />
+        <View style={[styles.ragHeaderCell, styles.ragHeaderExplanation]}>
+          <Text style={styles.ragHeaderText}>Explanation</Text>
+        </View>
+      </View>
+      {rows.map((row, i) => (
+        <View
+          key={row.label}
+          style={i % 2 === 1 ? [styles.ragDataRow, styles.ragDataRowAlt] : styles.ragDataRow}
+        >
+          <View style={styles.ragLabelCell}>
+            <Text style={styles.ragLabelText}>{row.label}</Text>
+          </View>
+          <View style={styles.ragPillCell}>
+            {row.status ? (
+              <View
+                style={[
+                  styles.ragPill,
+                  { backgroundColor: RAG_COLORS[row.status as RagStatus] },
+                ]}
+              />
+            ) : null}
+          </View>
+          <View style={styles.ragExplanationCell}>
+            <Text style={styles.ragExplanationText}>
+              {row.explanation?.trim() || "—"}
+            </Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
 }
 
 /** Budget burn donut chart for PDF (matches Status report summary chart). */
@@ -462,50 +617,57 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
   return (
     <Document>
       <Page size={[PAGE_WIDTH, PAGE_HEIGHT]} style={styles.page}>
-        <View style={styles.biographicalBlock}>
-          <Text style={styles.bioTitle}>{bioTitle}</Text>
-          <View style={styles.bioTitleLine} />
-          <View style={styles.bioColumns}>
-            <View style={styles.bioCol}>
-              <View style={styles.bioRow}>
-                <Text style={styles.bioLabel}>Account Director:</Text>
-                <Text style={styles.bioValue}>{cad || "—"}</Text>
+        <View style={styles.topRow}>
+          <View style={styles.topRowHalf}>
+            <View style={styles.biographicalBlock}>
+              <Text style={styles.bioTitle}>{bioTitle}</Text>
+              <View style={styles.bioTitleLine} />
+              <View style={styles.bioColumns}>
+                <View style={styles.bioCol}>
+                  <View style={styles.bioRow}>
+                    <Text style={styles.bioLabel}>Account Director:</Text>
+                    <Text style={styles.bioValue}>{cad || "—"}</Text>
+                  </View>
+                  <View style={styles.bioRow}>
+                    <Text style={styles.bioLabel}>Project Manager:</Text>
+                    <Text style={styles.bioValue}>{pm || "—"}</Text>
+                  </View>
+                  <View style={styles.bioRow}>
+                    <Text style={styles.bioLabel}>Program Manager:</Text>
+                    <Text style={styles.bioValue}>{pgm || "—"}</Text>
+                  </View>
+                  <View style={styles.bioRow}>
+                    <Text style={styles.bioLabel}>Team Member:</Text>
+                    <Text style={styles.bioValue}>{keyStaff || "—"}</Text>
+                  </View>
+                </View>
+                <View style={styles.bioCol}>
+                  <View style={styles.bioRow}>
+                    <Text style={styles.bioLabel}>Today's Date:</Text>
+                    <Text style={styles.bioValue}>{today}</Text>
+                  </View>
+                  <View style={styles.bioRow}>
+                    <Text style={styles.bioLabel}>Client Sponsor:</Text>
+                    <Text style={styles.bioValue}>{project.clientSponsor || "—"}</Text>
+                  </View>
+                  <View style={styles.bioRow}>
+                    <Text style={styles.bioLabel}>Client Sponsor:</Text>
+                    <Text style={styles.bioValue}>{project.clientSponsor2 || "—"}</Text>
+                  </View>
+                  <View style={styles.bioRow}>
+                    <Text style={styles.bioLabel}>Other Contact:</Text>
+                    <Text style={styles.bioValue}>{project.otherContact || "—"}</Text>
+                  </View>
+                </View>
               </View>
-              <View style={styles.bioRow}>
-                <Text style={styles.bioLabel}>Project Manager:</Text>
-                <Text style={styles.bioValue}>{pm || "—"}</Text>
-              </View>
-              <View style={styles.bioRow}>
-                <Text style={styles.bioLabel}>Program Manager:</Text>
-                <Text style={styles.bioValue}>{pgm || "—"}</Text>
-              </View>
-              <View style={styles.bioRow}>
-                <Text style={styles.bioLabel}>Team Member:</Text>
-                <Text style={styles.bioValue}>{keyStaff || "—"}</Text>
-              </View>
-            </View>
-            <View style={styles.bioCol}>
-              <View style={styles.bioRow}>
-                <Text style={styles.bioLabel}>Today's Date:</Text>
-                <Text style={styles.bioValue}>{today}</Text>
-              </View>
-              <View style={styles.bioRow}>
-                <Text style={styles.bioLabel}>Client Sponsor:</Text>
-                <Text style={styles.bioValue}>{project.clientSponsor || "—"}</Text>
-              </View>
-              <View style={styles.bioRow}>
-                <Text style={styles.bioLabel}>Client Sponsor:</Text>
-                <Text style={styles.bioValue}>{project.clientSponsor2 || "—"}</Text>
-              </View>
-              <View style={styles.bioRow}>
-                <Text style={styles.bioLabel}>Other Contact:</Text>
-                <Text style={styles.bioValue}>{project.otherContact || "—"}</Text>
+              <View style={styles.bioPeriodRow}>
+                <Text style={styles.bioPeriodLabel}>Period:</Text>
+                <Text style={styles.bioPeriodValue}>{period}</Text>
               </View>
             </View>
           </View>
-          <View style={styles.bioPeriodRow}>
-            <Text style={styles.bioPeriodLabel}>Period:</Text>
-            <Text style={styles.bioPeriodValue}>{period}</Text>
+          <View style={styles.topRowHalf}>
+            <RagStatusBlock data={data} />
           </View>
         </View>
 

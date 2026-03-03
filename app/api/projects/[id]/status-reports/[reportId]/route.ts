@@ -6,6 +6,7 @@ import { getProjectId } from "@/lib/slug";
 import { z } from "zod";
 
 const variationEnum = z.enum(["Standard", "Milestones", "CDA"]);
+const ragEnum = z.enum(["Red", "Amber", "Green"]);
 
 const patchSchema = z.object({
   reportDate: z.string().refine((s) => !isNaN(Date.parse(s)), "Invalid date").optional(),
@@ -14,6 +15,14 @@ const patchSchema = z.object({
   upcomingActivities: z.string().optional(),
   risksIssuesDecisions: z.string().optional(),
   meetingNotes: z.string().nullable().optional(),
+  ragOverall: ragEnum.nullable().optional(),
+  ragScope: ragEnum.nullable().optional(),
+  ragSchedule: ragEnum.nullable().optional(),
+  ragBudget: ragEnum.nullable().optional(),
+  ragOverallExplanation: z.string().nullable().optional(),
+  ragScopeExplanation: z.string().nullable().optional(),
+  ragScheduleExplanation: z.string().nullable().optional(),
+  ragBudgetExplanation: z.string().nullable().optional(),
 });
 
 export async function GET(
@@ -64,7 +73,23 @@ export async function PATCH(
     );
   }
 
-  const data: { reportDate?: Date; variation?: "Standard" | "Milestones" | "CDA"; completedActivities?: string; upcomingActivities?: string; risksIssuesDecisions?: string; meetingNotes?: string | null } = {};
+  type UpdateData = {
+    reportDate?: Date;
+    variation?: "Standard" | "Milestones" | "CDA";
+    completedActivities?: string;
+    upcomingActivities?: string;
+    risksIssuesDecisions?: string;
+    meetingNotes?: string | null;
+    ragOverall?: "Red" | "Amber" | "Green" | null;
+    ragScope?: "Red" | "Amber" | "Green" | null;
+    ragSchedule?: "Red" | "Amber" | "Green" | null;
+    ragBudget?: "Red" | "Amber" | "Green" | null;
+    ragOverallExplanation?: string | null;
+    ragScopeExplanation?: string | null;
+    ragScheduleExplanation?: string | null;
+    ragBudgetExplanation?: string | null;
+  };
+  const data: UpdateData = {};
   if (parsed.data.reportDate != null) {
     const d = new Date(parsed.data.reportDate);
     d.setUTCHours(0, 0, 0, 0);
@@ -75,6 +100,14 @@ export async function PATCH(
   if (parsed.data.upcomingActivities != null) data.upcomingActivities = parsed.data.upcomingActivities;
   if (parsed.data.risksIssuesDecisions != null) data.risksIssuesDecisions = parsed.data.risksIssuesDecisions;
   if (Object.prototype.hasOwnProperty.call(parsed.data, "meetingNotes")) data.meetingNotes = parsed.data.meetingNotes ?? null;
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "ragOverall")) data.ragOverall = parsed.data.ragOverall ?? null;
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "ragScope")) data.ragScope = parsed.data.ragScope ?? null;
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "ragSchedule")) data.ragSchedule = parsed.data.ragSchedule ?? null;
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "ragBudget")) data.ragBudget = parsed.data.ragBudget ?? null;
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "ragOverallExplanation")) data.ragOverallExplanation = parsed.data.ragOverallExplanation ?? null;
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "ragScopeExplanation")) data.ragScopeExplanation = parsed.data.ragScopeExplanation ?? null;
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "ragScheduleExplanation")) data.ragScheduleExplanation = parsed.data.ragScheduleExplanation ?? null;
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "ragBudgetExplanation")) data.ragBudgetExplanation = parsed.data.ragBudgetExplanation ?? null;
 
   const report = await prisma.statusReport.update({
     where: { id: reportId },

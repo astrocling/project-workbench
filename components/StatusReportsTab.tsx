@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { BRAND_COLORS } from "@/lib/brandColors";
 
+type RagValue = "Red" | "Amber" | "Green";
+
 type StatusReportRecord = {
   id: string;
   reportDate: string;
@@ -12,6 +14,14 @@ type StatusReportRecord = {
   upcomingActivities: string;
   risksIssuesDecisions: string;
   meetingNotes: string | null;
+  ragOverall?: RagValue | null;
+  ragScope?: RagValue | null;
+  ragSchedule?: RagValue | null;
+  ragBudget?: RagValue | null;
+  ragOverallExplanation?: string | null;
+  ragScopeExplanation?: string | null;
+  ragScheduleExplanation?: string | null;
+  ragBudgetExplanation?: string | null;
 };
 
 function roundToQuarter(hours: number): number {
@@ -135,6 +145,14 @@ export function StatusReportsTab({
   const [formUpcoming, setFormUpcoming] = useState("");
   const [formRisks, setFormRisks] = useState("");
   const [formMeetingNotes, setFormMeetingNotes] = useState("");
+  const [formRagOverall, setFormRagOverall] = useState<RagValue | "">("");
+  const [formRagScope, setFormRagScope] = useState<RagValue | "">("");
+  const [formRagSchedule, setFormRagSchedule] = useState<RagValue | "">("");
+  const [formRagBudget, setFormRagBudget] = useState<RagValue | "">("");
+  const [formRagOverallExplanation, setFormRagOverallExplanation] = useState("");
+  const [formRagScopeExplanation, setFormRagScopeExplanation] = useState("");
+  const [formRagScheduleExplanation, setFormRagScheduleExplanation] = useState("");
+  const [formRagBudgetExplanation, setFormRagBudgetExplanation] = useState("");
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [savedReportId, setSavedReportId] = useState<string | null>(null);
@@ -167,31 +185,56 @@ export function StatusReportsTab({
     loadReports();
   }, [loadReports]);
 
+  const applyPreviousReport = useCallback((prev: StatusReportRecord | null) => {
+    if (!prev) return;
+    if (typeof prev.completedActivities === "string") {
+      setFormCompleted(prev.completedActivities);
+      setFormUpcoming(prev.upcomingActivities ?? "");
+      setFormRisks(prev.risksIssuesDecisions ?? "");
+    }
+    setFormRagOverall((prev.ragOverall as RagValue) ?? "");
+    setFormRagScope((prev.ragScope as RagValue) ?? "");
+    setFormRagSchedule((prev.ragSchedule as RagValue) ?? "");
+    setFormRagBudget((prev.ragBudget as RagValue) ?? "");
+    setFormRagOverallExplanation(prev.ragOverallExplanation ?? "");
+    setFormRagScopeExplanation(prev.ragScopeExplanation ?? "");
+    setFormRagScheduleExplanation(prev.ragScheduleExplanation ?? "");
+    setFormRagBudgetExplanation(prev.ragBudgetExplanation ?? "");
+  }, []);
+
   const prefillFromPrevious = useCallback(() => {
     fetch(`/api/projects/${projectId}/status-reports?previousFor=${formReportDate}`)
       .then((r) => r.json())
-      .then((prev) => {
-        if (prev && typeof prev.completedActivities === "string") {
-          setFormCompleted(prev.completedActivities);
-          setFormUpcoming(prev.upcomingActivities ?? "");
-          setFormRisks(prev.risksIssuesDecisions ?? "");
-        }
-      })
+      .then((prev) => applyPreviousReport(prev ?? null))
       .catch(() => {});
-  }, [projectId, formReportDate]);
+  }, [projectId, formReportDate, applyPreviousReport]);
 
   const openNewForm = useCallback(() => {
     setEditingReportId(null);
-    setFormReportDate(new Date().toISOString().slice(0, 10));
+    const today = new Date().toISOString().slice(0, 10);
+    setFormReportDate(today);
     setFormVariation(cdaEnabled ? "CDA" : "Standard");
     setFormCompleted("");
     setFormUpcoming("");
     setFormRisks("");
     setFormMeetingNotes("");
+    setFormRagOverall("");
+    setFormRagScope("");
+    setFormRagSchedule("");
+    setFormRagBudget("");
+    setFormRagOverallExplanation("");
+    setFormRagScopeExplanation("");
+    setFormRagScheduleExplanation("");
+    setFormRagBudgetExplanation("");
     setFormError(null);
     setSavedReportId(null);
     setShowForm(true);
-  }, [cdaEnabled]);
+    // Optionally prefill from most recent report
+    fetch(`/api/projects/${projectId}/status-reports?previousFor=${today}`)
+      .then((r) => r.json())
+      .then((prev) => applyPreviousReport(prev ?? null))
+      .catch(() => {});
+  }, [cdaEnabled, projectId, applyPreviousReport]);
 
   const openEditForm = useCallback((r: StatusReportRecord) => {
     setEditingReportId(r.id);
@@ -201,6 +244,14 @@ export function StatusReportsTab({
     setFormUpcoming(r.upcomingActivities ?? "");
     setFormRisks(r.risksIssuesDecisions ?? "");
     setFormMeetingNotes(r.meetingNotes ?? "");
+    setFormRagOverall((r.ragOverall as RagValue) ?? "");
+    setFormRagScope((r.ragScope as RagValue) ?? "");
+    setFormRagSchedule((r.ragSchedule as RagValue) ?? "");
+    setFormRagBudget((r.ragBudget as RagValue) ?? "");
+    setFormRagOverallExplanation(r.ragOverallExplanation ?? "");
+    setFormRagScopeExplanation(r.ragScopeExplanation ?? "");
+    setFormRagScheduleExplanation(r.ragScheduleExplanation ?? "");
+    setFormRagBudgetExplanation(r.ragBudgetExplanation ?? "");
     setFormError(null);
     setSavedReportId(r.id);
     setShowForm(true);
@@ -223,6 +274,14 @@ export function StatusReportsTab({
       upcomingActivities: formUpcoming,
       risksIssuesDecisions: formRisks,
       meetingNotes: formMeetingNotes.trim() || null,
+      ragOverall: formRagOverall || null,
+      ragScope: formRagScope || null,
+      ragSchedule: formRagSchedule || null,
+      ragBudget: formRagBudget || null,
+      ragOverallExplanation: formRagOverallExplanation.trim() || null,
+      ragScopeExplanation: formRagScopeExplanation.trim() || null,
+      ragScheduleExplanation: formRagScheduleExplanation.trim() || null,
+      ragBudgetExplanation: formRagBudgetExplanation.trim() || null,
     };
     const url = editingReportId
       ? `/api/projects/${projectId}/status-reports/${editingReportId}`
@@ -244,7 +303,7 @@ export function StatusReportsTab({
     } finally {
       setFormSaving(false);
     }
-  }, [projectId, editingReportId, formReportDate, formVariation, formCompleted, formUpcoming, formRisks, formMeetingNotes, loadReports]);
+  }, [projectId, editingReportId, formReportDate, formVariation, formCompleted, formUpcoming, formRisks, formMeetingNotes, formRagOverall, formRagScope, formRagSchedule, formRagBudget, formRagOverallExplanation, formRagScopeExplanation, formRagScheduleExplanation, formRagBudgetExplanation, loadReports]);
 
   const estBudgetLow = budgetLines.reduce((s, bl) => s + Number(bl.lowDollars), 0);
   const estBudgetHigh = budgetLines.reduce((s, bl) => s + Number(bl.highDollars), 0);
@@ -608,6 +667,65 @@ export function StatusReportsTab({
               <button type="button" onClick={prefillFromPrevious} className="text-label-sm text-jblue-600 dark:text-jblue-400 hover:underline">
                 Pre-fill from previous report
               </button>
+            </div>
+            <div>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1.5">Project Status</label>
+              <div className="rounded-md border border-surface-200 dark:border-dark-border overflow-hidden">
+                <table className="w-full text-body-sm border-collapse table-fixed">
+                  <thead>
+                    <tr>
+                      <th className="text-left font-semibold text-white bg-[#220088] px-2 py-1.5 w-24">Project Status</th>
+                      <th className="text-center font-semibold text-white bg-[#220088] px-2 py-1.5 w-20">RAG</th>
+                      <th className="text-left font-semibold text-white bg-[#220088] px-2 py-1.5">Explanation</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { key: "Overall" as const, rag: formRagOverall, setRag: setFormRagOverall, explanation: formRagOverallExplanation, setExplanation: setFormRagOverallExplanation },
+                      { key: "Scope" as const, rag: formRagScope, setRag: setFormRagScope, explanation: formRagScopeExplanation, setExplanation: setFormRagScopeExplanation },
+                      { key: "Schedule" as const, rag: formRagSchedule, setRag: setFormRagSchedule, explanation: formRagScheduleExplanation, setExplanation: setFormRagScheduleExplanation },
+                      { key: "Budget" as const, rag: formRagBudget, setRag: setFormRagBudget, explanation: formRagBudgetExplanation, setExplanation: setFormRagBudgetExplanation },
+                    ].map(({ key, rag, setRag, explanation, setExplanation }) => (
+                      <tr key={key} className="border-t border-surface-200 dark:border-dark-border even:bg-surface-50 dark:even:bg-dark-raised/50">
+                        <td className="px-2 py-1.5 align-middle w-24">
+                          <span className="font-semibold text-[#220088]">{key}</span>
+                        </td>
+                        <td className="px-2 py-1.5 align-middle text-center w-20">
+                          <select
+                            value={rag}
+                            onChange={(e) => setRag((e.target.value || "") as RagValue | "")}
+                            className={`inline-flex items-center justify-center w-full max-w-[5rem] mx-auto h-6 px-2.5 rounded-full text-[10px] font-semibold tracking-wide uppercase ring-1 shadow-sm border-0 cursor-pointer appearance-none ${
+                              rag === "Green"
+                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 ring-emerald-400 dark:ring-emerald-500"
+                                : rag === "Amber"
+                                  ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 ring-amber-400 dark:ring-amber-500"
+                                  : rag === "Red"
+                                    ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 ring-red-400 dark:ring-red-500"
+                                    : "bg-surface-100 text-surface-500 dark:bg-dark-raised dark:text-surface-400 ring-surface-300 dark:ring-dark-muted"
+                            }`}
+                            aria-label={`${key} status`}
+                          >
+                            <option value="">—</option>
+                            <option value="Green">Green</option>
+                            <option value="Amber">Amber</option>
+                            <option value="Red">Red</option>
+                          </select>
+                        </td>
+                        <td className="px-2 py-1.5 align-middle">
+                          <input
+                            type="text"
+                            value={explanation}
+                            onChange={(e) => setExplanation(e.target.value)}
+                            placeholder="Explanation"
+                            className="block w-full h-7 px-2 rounded text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
+                            aria-label={`${key} explanation`}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
             <div>
               <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Completed activities</label>
