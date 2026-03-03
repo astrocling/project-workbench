@@ -43,6 +43,11 @@ const BIO_LABEL_COLOR = "#220088";
 const BIO_VALUE_COLOR = "#000000";
 const BIO_BLOCK_BG = "#F5F5F5";
 
+/** JAKALA footer (brand line + text). */
+const FOOTER_LINE_COLOR = "#474797";
+const FOOTER_BRAND_COLOR = "#474797";
+const FOOTER_MUTED_COLOR = "#6b7280";
+
 const styles = StyleSheet.create({
   page: {
     width: PAGE_WIDTH,
@@ -50,7 +55,7 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingLeft: 24,
     paddingRight: 24,
-    paddingBottom: 8,
+    paddingBottom: 28,
     fontSize: 9,
     fontFamily: "Raleway",
     flexDirection: "column",
@@ -399,8 +404,51 @@ const styles = StyleSheet.create({
     width: PAGE_WIDTH,
     height: PAGE_HEIGHT,
     padding: 36,
+    paddingBottom: 44,
     fontSize: 10,
     fontFamily: "Raleway",
+  },
+  /** JAKALA footer: fixed at bottom of page so content stays above it (no bleed). */
+  footerWrap: {
+    position: "absolute",
+    left: 24,
+    right: 24,
+    bottom: 0,
+    borderTopWidth: 1,
+    borderTopColor: FOOTER_LINE_COLOR,
+    paddingTop: 6,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  footerLeft: {
+    flex: 1,
+  },
+  footerBrand: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: FOOTER_BRAND_COLOR,
+  },
+  footerCenter: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 9,
+    color: FOOTER_MUTED_COLOR,
+  },
+  footerRight: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 8,
+  },
+  footerDivider: {
+    width: 1,
+    height: 12,
+    backgroundColor: "#d1d5db",
+  },
+  footerYear: {
+    fontSize: 9,
+    color: FOOTER_MUTED_COLOR,
   },
   notesTitle: {
     fontSize: 14,
@@ -720,6 +768,22 @@ function BudgetBurnChartPDF({
       <Text style={styles.budgetBurnChartLabel}>
         {label}
       </Text>
+    </View>
+  );
+}
+
+function StatusReportFooter() {
+  const year = new Date().getFullYear();
+  return (
+    <View style={styles.footerWrap} fixed>
+      <View style={styles.footerLeft}>
+        <Text style={styles.footerBrand}>JAKALA</Text>
+      </View>
+      <Text style={styles.footerCenter}>Company Confidential</Text>
+      <View style={styles.footerRight}>
+        <View style={styles.footerDivider} />
+        <Text style={styles.footerYear}>{year}</Text>
+      </View>
     </View>
   );
 }
@@ -1096,6 +1160,7 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
             </View>
           )}
         </View>
+        <StatusReportFooter />
       </Page>
 
       {report.meetingNotes && report.meetingNotes.trim() && (
@@ -1104,6 +1169,7 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
           {bulletLines(report.meetingNotes).map((line, i) => (
             <Text key={i} style={{ marginBottom: 6, lineHeight: 1.4 }}>{line}</Text>
           ))}
+          <StatusReportFooter />
         </Page>
       )}
     </Document>
