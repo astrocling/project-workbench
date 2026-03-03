@@ -671,7 +671,7 @@ export function StatusReportsTab({
   };
 
   return (
-    <div className="space-y-10">
+    <div className="flex flex-col gap-4">
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-200 dark:border-dark-border pb-2">
           <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100">
@@ -854,6 +854,7 @@ export function StatusReportsTab({
                 placeholder="One per line or use bullets"
                 className="block w-full px-3 py-2 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
               />
+              <p className="mt-1 text-body-sm text-surface-500 dark:text-surface-400">Only the first 5 items appear on the exported status report.</p>
             </div>
             <div>
               <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Upcoming activities</label>
@@ -864,6 +865,7 @@ export function StatusReportsTab({
                 placeholder="One per line or use bullets"
                 className="block w-full px-3 py-2 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
               />
+              <p className="mt-1 text-body-sm text-surface-500 dark:text-surface-400">Only the first 5 items appear on the exported status report.</p>
             </div>
             <div>
               <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Risks, issues and decisions</label>
@@ -874,6 +876,7 @@ export function StatusReportsTab({
                 placeholder="One per line or use bullets"
                 className="block w-full px-3 py-2 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
               />
+              <p className="mt-1 text-body-sm text-surface-500 dark:text-surface-400">Only the first 5 items appear on the exported status report.</p>
             </div>
             <div>
               <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Meeting notes (optional)</label>

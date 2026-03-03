@@ -135,11 +135,10 @@ const styles = StyleSheet.create({
     flexDirection: "column",
     minHeight: 0,
   },
-  /** Activities + timeline; grows to push table+chart to bottom. */
+  /** Activities + timeline; only as tall as content so milestones sit right below. */
   middleContent: {
-    flex: 1,
     flexDirection: "column",
-    minHeight: 0,
+    width: "100%",
   },
   sectionTitle: {
     fontSize: 10,
@@ -149,9 +148,9 @@ const styles = StyleSheet.create({
   },
   threeCol: {
     flexDirection: "row",
-    marginBottom: 10,
+    marginBottom: 0,
     gap: 12,
-    flex: 1,
+    width: "100%",
   },
   col: {
     flex: 1,
@@ -300,9 +299,8 @@ const styles = StyleSheet.create({
     textDecoration: "line-through",
   },
   timelinePlaceholder: {
-    marginTop: 8,
-    padding: 8,
-    fontSize: 8,
+    marginTop: 0,
+    fontSize: 7,
     color: "#888",
   },
   /** Container for table + chart on Non-CDA: bottom 25% of slide. */
@@ -319,7 +317,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
-    marginTop: 4,
+    marginTop: 0,
     minHeight: BOTTOM_QUARTER_HEIGHT,
   },
   cdaBottomLeft: {
@@ -856,26 +854,22 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
             <View style={styles.threeCol}>
               <View style={styles.col}>
                 <Text style={styles.colTitle}>Completed activities</Text>
-                {bulletLines(report.completedActivities).slice(0, 6).map((line, i) => (
+                {bulletLines(report.completedActivities).slice(0, 5).map((line, i) => (
                   <Text key={i} style={styles.bulletText}>• {line}</Text>
                 ))}
               </View>
               <View style={styles.col}>
                 <Text style={styles.colTitle}>Upcoming activities</Text>
-                {bulletLines(report.upcomingActivities).slice(0, 6).map((line, i) => (
+                {bulletLines(report.upcomingActivities).slice(0, 5).map((line, i) => (
                   <Text key={i} style={styles.bulletText}>• {line}</Text>
                 ))}
               </View>
               <View style={styles.col}>
                 <Text style={styles.colTitle}>Risks / Issues / Decisions</Text>
-                {bulletLines(report.risksIssuesDecisions).slice(0, 6).map((line, i) => (
+                {bulletLines(report.risksIssuesDecisions).slice(0, 5).map((line, i) => (
                   <Text key={i} style={styles.bulletText}>• {line}</Text>
                 ))}
               </View>
-            </View>
-
-            <View style={styles.timelinePlaceholder}>
-              High-Level Timeline (placeholder for future phase)
             </View>
           </View>
 
