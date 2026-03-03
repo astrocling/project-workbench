@@ -102,9 +102,9 @@ type Rollups = {
 };
 
 const VARIATIONS = [
-  { value: "Standard", label: "Standard (budget table + donut)" },
-  { value: "Milestones", label: "Milestones (milestones + financial)" },
-  { value: "CDA", label: "CDA (CDA tables)" },
+  { value: "CDA", label: "CDA (Monthly/Project CDA Budgets)" },
+  { value: "Standard", label: "Standard (Timeline/Project Budget)" },
+  { value: "Milestones", label: "Milestones (Fixed Fee No Budget)" },
 ] as const;
 
 export function StatusReportsTab({
