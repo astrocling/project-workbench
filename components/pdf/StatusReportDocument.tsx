@@ -576,6 +576,15 @@ function formatMonthDay(isoDate: string): string {
   return `${String(m).padStart(2, "0")}/${String(day).padStart(2, "0")}`;
 }
 
+/** Max milestones shown in the PDF export table (completed are dropped first). */
+const MAX_MILESTONES_ON_PDF = 6;
+
+function milestonesForPdfExport<T extends { completed: boolean }>(milestones: T[]): T[] {
+  return [...milestones]
+    .sort((a, b) => Number(a.completed) - Number(b.completed))
+    .slice(0, MAX_MILESTONES_ON_PDF);
+}
+
 function getKeyRoleNames(data: StatusReportPDFData): { cad: string; pm: string; pgm: string; keyStaff: string } {
   const roles = data.project.projectKeyRoles || [];
   const cad = roles.find((r) => r.type === "CAD")?.person?.name ?? "";
@@ -847,7 +856,7 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
                           <Text style={[styles.srHeaderCompactNeutral, { fontSize: 6 }]}>Deploy</Text>
                         </View>
                       </View>
-                      {data.cda.milestones.map((m, index) => {
+                      {milestonesForPdfExport(data.cda.milestones).map((m, index) => {
                         const strikeStyle = m.completed ? styles.srStrikethrough : undefined;
                         const alt = index % 2 === 1;
                         const labelStyle = alt ? styles.srLabelCompactAlt : styles.srLabelCompact;

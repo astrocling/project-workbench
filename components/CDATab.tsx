@@ -243,6 +243,14 @@ export function CDATab({
     [projectId, canEdit]
   );
 
+  /** Milestone IDs that will appear on the status report PDF (incomplete first, max 6). */
+  const milestoneIdsOnPdfExport = useMemo(() => {
+    const forPdf = [...milestones]
+      .sort((a, b) => Number(a.completed) - Number(b.completed))
+      .slice(0, 6);
+    return new Set(forPdf.map((m) => m.id));
+  }, [milestones]);
+
   const saveRows = useCallback(
     async (nextRows: CdaRow[]) => {
       setSaveError(null);
@@ -1256,6 +1264,9 @@ export function CDATab({
                 <th className="text-center px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
                   Complete
                 </th>
+                <th className="text-center px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }} title="Shown on status report (max 6; completed omitted first)">
+                  On status
+                </th>
                 {canEdit && (
                   <th className="w-10 px-2 py-3" aria-label="Delete row" />
                 )}
@@ -1315,6 +1326,13 @@ export function CDATab({
                       <span className="text-surface-600 dark:text-surface-400">
                         {m.completed ? "Yes" : "—"}
                       </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center text-body-sm" title={milestoneIdsOnPdfExport.has(m.id) ? "Shown on status report" : "Not shown on status report (max 6; completed omitted first)"}>
+                    {milestoneIdsOnPdfExport.has(m.id) ? (
+                      <span className="text-green-600 dark:text-green-400 font-medium">Yes</span>
+                    ) : (
+                      <span className="text-surface-400 dark:text-surface-500">—</span>
                     )}
                   </td>
                   {canEdit && (
