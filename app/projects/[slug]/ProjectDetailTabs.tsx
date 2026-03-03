@@ -69,6 +69,47 @@ export function ProjectDetailTabs({
   const [overviewLoading, setOverviewLoading] = useState(true);
   const overviewPrefetched = useRef(false);
 
+  const [missingRateRoleNames, setMissingRateRoleNames] = useState<string[] | null>(null);
+  const RATES_ALERT_TABS = ["overview", "resourcing", "budget", "rates", "cda"] as const;
+
+  useEffect(() => {
+    if (!RATES_ALERT_TABS.includes(tab as (typeof RATES_ALERT_TABS)[number])) {
+      setMissingRateRoleNames(null);
+      return;
+    }
+    let cancelled = false;
+    setMissingRateRoleNames(null);
+    Promise.all([
+      fetch(`/api/projects/${projectId}`).then((r) => r.json()),
+      fetch(`/api/projects/${projectId}/assignments`).then((r) => r.json()),
+      fetch(`/api/projects/${projectId}/rates`).then((r) => r.json()),
+      fetch("/api/roles").then((r) => r.json()),
+    ])
+      .then(([p, a, r, rolesList]) => {
+        if (cancelled) return;
+        const assignments = Array.isArray(a) ? a : [];
+        const rates = Array.isArray(r) ? r : [];
+        const roles = Array.isArray(rolesList) ? rolesList : [];
+        const rateByRole = new Map(rates.map((x: { roleId: string }) => [x.roleId, x]));
+        const resourcedRoleIds = new Set(assignments.map((a: { roleId: string }) => a.roleId));
+        const hasSingleRate =
+          p?.useSingleRate === true && p?.singleBillRate != null;
+        const missingIds = hasSingleRate
+          ? []
+          : [...resourcedRoleIds].filter((id) => !rateByRole.has(id));
+        const names = missingIds
+          .map((id) => roles.find((role: { id: string; name: string }) => role.id === id)?.name)
+          .filter(Boolean) as string[];
+        setMissingRateRoleNames(names);
+      })
+      .catch(() => {
+        if (!cancelled) setMissingRateRoleNames(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, tab]);
+
   const prefetchOverview = useCallback(() => {
     if (overviewPrefetched.current || tab === "overview") return;
     overviewPrefetched.current = true;
@@ -238,6 +279,36 @@ export function ProjectDetailTabs({
           </p>
         </div>
       </div>
+
+      {RATES_ALERT_TABS.includes(tab as (typeof RATES_ALERT_TABS)[number]) &&
+        missingRateRoleNames &&
+        missingRateRoleNames.length > 0 && (
+          <div
+            className="rounded-md border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 p-3 text-body-sm text-amber-800 dark:text-amber-400 mb-6"
+            role="alert"
+          >
+            <p className="font-medium">
+              Roles on this project without a bill rate
+            </p>
+            <p className="mt-1">
+              The following roles are assigned on this project but have no rate
+              set: <strong>{missingRateRoleNames.join(", ")}</strong>.{" "}
+              {tab === "rates" ? (
+                "Add rates in the table below."
+              ) : (
+                <>
+                  <Link
+                    href={`${base}?tab=rates`}
+                    className="text-amber-700 dark:text-amber-300 font-semibold underline hover:no-underline"
+                  >
+                    Add rates on the Rates tab
+                  </Link>
+                  .
+                </>
+              )}
+            </p>
+          </div>
+        )}
 
       {tab === "overview" && overviewLoading && (
         <div className="space-y-6" aria-busy="true" aria-label="Loading overview">

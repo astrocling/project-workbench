@@ -201,29 +201,9 @@ export function RatesTab({
   if (loading) return <p className="text-body-sm text-surface-700 dark:text-surface-200">Loading...</p>;
 
   const useSingleRate = project?.useSingleRate === true;
-  const missingRateRoles = useSingleRate
-    ? []
-    : [...missingRateRoleIds]
-        .map((id) => roles.find((r) => r.id === id)?.name)
-        .filter(Boolean) as string[];
 
   return (
     <div className="space-y-4">
-      {missingRateRoles.length > 0 && (
-        <div
-          className="rounded-md border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 p-3 text-body-sm text-amber-800 dark:text-amber-400"
-          role="alert"
-        >
-          <p className="font-medium">
-            Roles on this project without a bill rate
-          </p>
-          <p className="mt-1">
-            The following roles are assigned on this project but have no rate
-            set: <strong>{missingRateRoles.join(", ")}</strong>. Add rates in
-            the table below.
-          </p>
-        </div>
-      )}
       <div className="flex items-center gap-3">
         <Toggle
           checked={useSingleRate}

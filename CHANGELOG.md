@@ -10,11 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+- **Roles without rates alert**: The warning that some roles on the project have no bill rate set now appears on Overview, Resourcing, Budget, Rates, and CDA tabs (previously only on Rates). On tabs other than Rates, the message includes a link to the Rates tab to add rates.
+
+### Fixed
+
+## [0.1.3] - 2025-03-02
+
+### Added
+
 - **CDA tab**: New project tab for monthly planned vs. month-to-date actuals. View and edit planned and MTD actual hours by month (0.25-hour increments) over the project date range, with charts and persistent storage. Available on project detail, project settings (edit), and new-project flows.
 
 ### Changed
-
-- CDA tab: improved axis and series labels on charts for clarity.
 
 ### Fixed
 
