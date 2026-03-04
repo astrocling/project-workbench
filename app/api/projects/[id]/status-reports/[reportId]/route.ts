@@ -8,8 +8,8 @@ import { z } from "zod";
 const variationEnum = z.enum(["Standard", "Milestones", "CDA"]);
 const ragEnum = z.enum(["Red", "Amber", "Green"]);
 
+// reportDate is intentionally omitted so reporting period stays locked when editing
 const patchSchema = z.object({
-  reportDate: z.string().refine((s) => !isNaN(Date.parse(s)), "Invalid date").optional(),
   variation: variationEnum.optional(),
   completedActivities: z.string().optional(),
   upcomingActivities: z.string().optional(),
@@ -74,7 +74,6 @@ export async function PATCH(
   }
 
   type UpdateData = {
-    reportDate?: Date;
     variation?: "Standard" | "Milestones" | "CDA";
     completedActivities?: string;
     upcomingActivities?: string;
@@ -90,11 +89,6 @@ export async function PATCH(
     ragBudgetExplanation?: string | null;
   };
   const data: UpdateData = {};
-  if (parsed.data.reportDate != null) {
-    const d = new Date(parsed.data.reportDate);
-    d.setUTCHours(0, 0, 0, 0);
-    data.reportDate = d;
-  }
   if (parsed.data.variation != null) data.variation = parsed.data.variation as "Standard" | "Milestones" | "CDA";
   if (parsed.data.completedActivities != null) data.completedActivities = parsed.data.completedActivities;
   if (parsed.data.upcomingActivities != null) data.upcomingActivities = parsed.data.upcomingActivities;

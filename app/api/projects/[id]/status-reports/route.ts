@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { getProjectId } from "@/lib/slug";
+import { projectHasMissingActuals } from "@/lib/projectActualsStale";
+import { buildStatusReportPdfData } from "@/lib/statusReportPdfData";
+import type { StatusReportSnapshot } from "@/lib/statusReportPdfData";
 import { z } from "zod";
 
 const variationEnum = z.enum(["Standard", "Milestones", "CDA"]);
@@ -103,6 +106,17 @@ export async function POST(
   const reportDate = new Date(parsed.data.reportDate);
   reportDate.setUTCHours(0, 0, 0, 0);
 
+  const missingActuals = await projectHasMissingActuals(id);
+  if (missingActuals) {
+    return NextResponse.json(
+      {
+        error:
+          "Actuals are stale. Update hours in the Resourcing tab before creating a new status report.",
+      },
+      { status: 400 }
+    );
+  }
+
   const report = await prisma.statusReport.create({
     data: {
       projectId: id,
@@ -122,5 +136,24 @@ export async function POST(
       ragBudgetExplanation: parsed.data.ragBudgetExplanation ?? null,
     },
   });
-  return NextResponse.json(report);
+
+  // Lock period, budget, and milestones to creation time so they don't change when project is edited
+  const pdfData = await buildStatusReportPdfData(id, report.id);
+  if (pdfData) {
+    const snapshot: StatusReportSnapshot = {
+      period: pdfData.period,
+      today: pdfData.today,
+      budget: pdfData.budget,
+      cda: pdfData.cda,
+    };
+    await prisma.statusReport.update({
+      where: { id: report.id },
+      data: { snapshot: snapshot as object },
+    });
+  }
+
+  const updated = await prisma.statusReport.findUnique({
+    where: { id: report.id },
+  });
+  return NextResponse.json(updated ?? report);
 }

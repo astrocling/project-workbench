@@ -163,6 +163,7 @@ model StatusReport {
   ragScopeExplanation     String?              @db.Text
   ragScheduleExplanation  String?              @db.Text
   ragBudgetExplanation    String?              @db.Text
+  snapshot                Json?                 // Locked period, budget, CDA data at report creation
   createdAt               DateTime              @default(now())
   updatedAt               DateTime              @updatedAt
 

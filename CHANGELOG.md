@@ -10,8 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Status report snapshot**: New reports store a snapshot of reporting period, budget/charts, and CDA milestones at creation time. Viewing or exporting a report always uses this snapshot, so later edits to the project (hours, milestones, etc.) do not change existing reports.
+
 ### Changed
 
+- **Status report edit lock**: When editing a status report, the report date is locked (read-only in the UI and ignored by the API). Reporting period, financial charts, and milestones remain fixed to the values at report creation.
+- **No new report when actuals stale**: Creating a new status report is blocked when actuals are stale (completed weeks with planned hours but no actuals). The "New report" button is disabled and the API returns 400 with a clear message. Update hours in the Resourcing tab first.
 - **Roles without rates alert**: The warning that some roles on the project have no bill rate set now appears on Overview, Resourcing, Budget, Rates, and CDA tabs (previously only on Rates). On tabs other than Rates, the message includes a link to the Rates tab to add rates.
 
 ### Fixed

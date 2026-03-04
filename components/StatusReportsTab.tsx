@@ -110,6 +110,7 @@ type Rollups = {
   remainingHoursHigh: number;
   remainingDollarsLow: number;
   remainingDollarsHigh: number;
+  missingActuals?: boolean;
 };
 
 type CdaRow = {
@@ -395,9 +396,13 @@ export function StatusReportsTab({
 
   const submitForm = useCallback(async () => {
     setFormError(null);
+    if (!editingReportId && (rollups?.missingActuals ?? false)) {
+      setFormError("Actuals are stale. Update hours in the Resourcing tab before creating a new report.");
+      return;
+    }
     setFormSaving(true);
-    const payload = {
-      reportDate: formReportDate,
+    const payload: Record<string, unknown> = {
+      ...(!editingReportId && { reportDate: formReportDate }),
       variation: formVariation,
       completedActivities: formCompleted,
       upcomingActivities: formUpcoming,
@@ -432,7 +437,7 @@ export function StatusReportsTab({
     } finally {
       setFormSaving(false);
     }
-  }, [projectId, editingReportId, formReportDate, formVariation, formCompleted, formUpcoming, formRisks, formMeetingNotes, formRagOverall, formRagScope, formRagSchedule, formRagBudget, formRagOverallExplanation, formRagScopeExplanation, formRagScheduleExplanation, formRagBudgetExplanation, loadReports]);
+  }, [projectId, editingReportId, rollups, formReportDate, formVariation, formCompleted, formUpcoming, formRisks, formMeetingNotes, formRagOverall, formRagScope, formRagSchedule, formRagBudget, formRagOverallExplanation, formRagScopeExplanation, formRagScheduleExplanation, formRagBudgetExplanation, loadReports]);
 
   const estBudgetLow = budgetLines.reduce((s, bl) => s + Number(bl.lowDollars), 0);
   const estBudgetHigh = budgetLines.reduce((s, bl) => s + Number(bl.highDollars), 0);
@@ -681,6 +686,8 @@ export function StatusReportsTab({
     border: "1px solid #e5e7eb",
   };
 
+  const actualsStale = rollups?.missingActuals ?? false;
+
   return (
     <div className="flex flex-col gap-4">
       <section className="space-y-4">
@@ -689,13 +696,22 @@ export function StatusReportsTab({
             Status reports
           </h2>
           {canEdit && (
-            <button
-              type="button"
-              onClick={openNewForm}
-              className="inline-flex items-center justify-center h-8 px-3 rounded text-label-sm bg-jblue-500 hover:bg-jblue-700 text-white font-medium focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
-            >
-              New report
-            </button>
+            <div className="flex flex-wrap items-center gap-2 justify-end">
+              {actualsStale && (
+                <span className="text-body-sm text-amber-600 dark:text-amber-400 font-medium">
+                  Update actuals in Resourcing before creating a new report.
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={openNewForm}
+                disabled={actualsStale}
+                title={actualsStale ? "Actuals are stale. Update hours in the Resourcing tab first." : undefined}
+                className="inline-flex items-center justify-center h-8 px-3 rounded text-label-sm bg-jblue-500 hover:bg-jblue-700 text-white font-medium focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1 disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
+              >
+                New report
+              </button>
+            </div>
           )}
         </div>
         {reportsLoading ? (
@@ -772,12 +788,15 @@ export function StatusReportsTab({
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Report date</label>
+                <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">
+                  Report date{editingReportId ? " (locked)" : ""}
+                </label>
                 <input
                   type="date"
                   value={formReportDate}
                   onChange={(e) => setFormReportDate(e.target.value)}
-                  className="block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
+                  disabled={!!editingReportId}
+                  className="block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
               <div>
