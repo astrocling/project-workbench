@@ -19,6 +19,7 @@ const raleway = Raleway({
 export const metadata: Metadata = {
   title: "Project Workbench",
   description: "Project budget and resourcing tracker",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({
