@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { BRAND_COLORS } from "@/lib/brandColors";
+import { StatusReportPreview } from "@/components/StatusReportPreview";
 
 type RagValue = "Red" | "Amber" | "Green";
 
@@ -249,6 +250,7 @@ export function StatusReportsTab({
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [savedReportId, setSavedReportId] = useState<string | null>(null);
+  const [previewReportId, setPreviewReportId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     fetch(`/api/projects/${projectId}/budget`)
@@ -709,14 +711,13 @@ export function StatusReportsTab({
                     </td>
                     <td className="py-2 px-3 text-surface-700 dark:text-surface-200">{r.variation}</td>
                     <td className="py-2 px-3 text-right">
-                      <a
-                        href={`/api/projects/${projectId}/status-reports/${r.id}/pdf`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => setPreviewReportId(r.id)}
                         className="text-jblue-600 dark:text-jblue-400 hover:underline mr-3"
                       >
-                        Export PDF
-                      </a>
+                        View
+                      </button>
                       {canEdit && (
                         <>
                           <button type="button" onClick={() => openEditForm(r)} className="text-jblue-600 dark:text-jblue-400 hover:underline mr-3">
@@ -901,14 +902,13 @@ export function StatusReportsTab({
                 {formSaving ? "Saving…" : editingReportId ? "Update" : "Save"}
               </button>
               {savedReportId && (
-                <a
-                  href={`/api/projects/${projectId}/status-reports/${savedReportId}/pdf`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => setPreviewReportId(savedReportId)}
                   className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg"
                 >
-                  Export PDF
-                </a>
+                  View
+                </button>
               )}
               <button
                 type="button"
@@ -1261,6 +1261,13 @@ export function StatusReportsTab({
           </div>
         )}
       </section>
+      {previewReportId && (
+        <StatusReportPreview
+          projectId={projectId}
+          reportId={previewReportId}
+          onClose={() => setPreviewReportId(null)}
+        />
+      )}
     </div>
   );
 }

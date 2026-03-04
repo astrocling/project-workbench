@@ -1,36 +1,21 @@
 import React from "react";
-import path from "path";
 import {
   Document,
   Page,
   View,
   Text,
   StyleSheet,
-  Font,
   Svg,
   Circle,
   Path,
 } from "@react-pdf/renderer";
 import { BRAND_COLORS } from "@/lib/brandColors";
 
-Font.register({
-  family: "Raleway",
-  fonts: [
-    {
-      src: path.join(process.cwd(), "node_modules/@fontsource/raleway/files/raleway-latin-400-normal.woff"),
-      fontWeight: 400,
-    },
-    {
-      src: path.join(process.cwd(), "node_modules/@fontsource/raleway/files/raleway-latin-700-normal.woff"),
-      fontWeight: 700,
-    },
-    {
-      src: path.join(process.cwd(), "node_modules/@fontsource/raleway/files/raleway-latin-400-italic.woff"),
-      fontWeight: 400,
-      fontStyle: "italic",
-    },
-  ],
-});
+/**
+ * Call registerStatusReportFonts(baseUrl) before rendering this document.
+ * Server: path.join(process.cwd(), "node_modules/@fontsource/raleway/files")
+ * Client: "/fonts" (with fonts in public/fonts/)
+ */
 
 // 16:9 slide in points (e.g. 8" x 4.5" at 90pt/inch → 720 x 405)
 const PAGE_WIDTH = 720;
@@ -915,23 +900,25 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
                         </View>
                       </View>
                       {milestonesForPdfExport(data.cda.milestones).map((m, index) => {
-                        const strikeStyle = m.completed ? styles.srStrikethrough : undefined;
+                        const strikeStyle = m.completed ? styles.srStrikethrough : null;
                         const alt = index % 2 === 1;
                         const labelStyle = alt ? styles.srLabelCompactAlt : styles.srLabelCompact;
                         const cellStyle = alt ? styles.srWhiteCompactAlt : styles.srWhiteCompact;
+                        const textStyle = [labelStyle, { fontSize: 7 }, ...(strikeStyle ? [strikeStyle] : [])];
+                        const cellTextStyle = [cellStyle, { fontSize: 7 }, ...(strikeStyle ? [strikeStyle] : [])];
                         return (
                           <View key={m.id} style={[styles.tableRow, { borderBottomWidth: 0 }]}>
                             <View style={[styles.bottomQuarterCell, styles.srBorder, labelStyle, { flex: 1.2 }]}>
-                              <Text style={[labelStyle, { fontSize: 7 }, strikeStyle]}>{m.phase}</Text>
+                              <Text style={textStyle}>{m.phase}</Text>
                             </View>
                             <View style={[styles.bottomQuarterCell, styles.srBorder, cellStyle, { flex: 1.4 }]}>
-                              <Text style={[cellStyle, { fontSize: 7 }, strikeStyle]}>{formatMonthDay(m.devStartDate)}–{formatMonthDay(m.devEndDate)}</Text>
+                              <Text style={cellTextStyle}>{formatMonthDay(m.devStartDate)}–{formatMonthDay(m.devEndDate)}</Text>
                             </View>
                             <View style={[styles.bottomQuarterCell, styles.srBorder, cellStyle, { flex: 1.4 }]}>
-                              <Text style={[cellStyle, { fontSize: 7 }, strikeStyle]}>{formatMonthDay(m.uatStartDate)}–{formatMonthDay(m.uatEndDate)}</Text>
+                              <Text style={cellTextStyle}>{formatMonthDay(m.uatStartDate)}–{formatMonthDay(m.uatEndDate)}</Text>
                             </View>
                             <View style={[styles.bottomQuarterCell, styles.srBorder, cellStyle, { flex: 0.8 }]}>
-                              <Text style={[cellStyle, { fontSize: 7 }, strikeStyle]}>{formatMonthDay(m.deployDate)}</Text>
+                              <Text style={cellTextStyle}>{formatMonthDay(m.deployDate)}</Text>
                             </View>
                           </View>
                         );
