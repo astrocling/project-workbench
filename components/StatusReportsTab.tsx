@@ -149,6 +149,15 @@ function getMonthFullName(monthKey: string): string {
   return new Date(y, m - 1, 1).toLocaleString("en-US", { month: "long" });
 }
 
+/** Max milestones shown on the status report slide (completed omitted first). Matches PDF export. */
+const MAX_MILESTONES_ON_PDF = 6;
+
+function milestonesForPdfExport<T extends { completed: boolean }>(milestones: T[]): T[] {
+  return [...milestones]
+    .sort((a, b) => Number(a.completed) - Number(b.completed))
+    .slice(0, MAX_MILESTONES_ON_PDF);
+}
+
 /** Donut chart for CDA summary (Contract Hours Complete / Current Month Burn). */
 function CdaDonutChart({
   percent,
@@ -711,31 +720,37 @@ export function StatusReportsTab({
                     </td>
                     <td className="py-2 px-3 text-surface-700 dark:text-surface-200">{r.variation}</td>
                     <td className="py-2 px-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => setPreviewReportId(r.id)}
-                        className="text-jblue-600 dark:text-jblue-400 hover:underline mr-3"
-                      >
-                        View
-                      </button>
-                      {canEdit && (
-                        <>
-                          <button type="button" onClick={() => openEditForm(r)} className="text-jblue-600 dark:text-jblue-400 hover:underline mr-3">
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (!confirm("Delete this report?")) return;
-                              const res = await fetch(`/api/projects/${projectId}/status-reports/${r.id}`, { method: "DELETE" });
-                              if (res.ok) loadReports();
-                            }}
-                            className="text-jred-600 dark:text-jred-400 hover:underline"
-                          >
-                            Delete
-                          </button>
-                        </>
-                      )}
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewReportId(r.id)}
+                          className="inline-flex items-center justify-center h-8 px-3 rounded text-label-sm font-medium border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-dark-border focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                        >
+                          View
+                        </button>
+                        {canEdit && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openEditForm(r)}
+                              className="inline-flex items-center justify-center h-8 px-3 rounded text-label-sm font-medium border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-dark-border focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!confirm("Delete this report?")) return;
+                                const res = await fetch(`/api/projects/${projectId}/status-reports/${r.id}`, { method: "DELETE" });
+                                if (res.ok) loadReports();
+                              }}
+                              className="inline-flex items-center justify-center h-8 px-3 rounded text-label-sm font-medium border border-jred-500 dark:border-jred-400 text-jred-600 dark:text-jred-400 hover:bg-jred-50 dark:hover:bg-jred-900/20 focus:outline-none focus:ring-1 focus:ring-jred-400 focus:ring-offset-1"
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -928,12 +943,15 @@ export function StatusReportsTab({
         </h2>
         {formVariation === "CDA" && cdaEnabled ? (
           <div className="flex flex-col lg:flex-row gap-8 items-stretch">
-            {/* Left: CDA milestones table (from CDA tab data) */}
+            {/* Left: CDA milestones table (matches status report PDF: Phase, DEV, UAT, Deploy + On report) */}
             <div className="flex-1 min-w-0 flex flex-col">
               <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark overflow-hidden flex-1 min-h-[280px] flex flex-col">
                 <div className="p-4 border-b border-surface-100 dark:border-dark-border">
                   <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100">
                     Milestones
+                  </p>
+                  <p className="mt-1 text-body-sm text-surface-500 dark:text-surface-400">
+                    Only first six incomplete milestones appear on status report.
                   </p>
                 </div>
                 <div className="flex-1 overflow-auto">
@@ -942,59 +960,68 @@ export function StatusReportsTab({
                       No milestones. Add them in the CDA tab.
                     </p>
                   ) : (
-                    <table className="w-full text-body-sm border-collapse">
-                      <thead>
-                        <tr
-                          className="border-b border-surface-200 dark:border-dark-border"
-                          style={{
-                            backgroundColor: BRAND_COLORS.header,
-                            color: BRAND_COLORS.onHeader,
-                          }}
-                        >
-                          <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
-                            Phase
-                          </th>
-                          <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
-                            DEV START/END
-                          </th>
-                          <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
-                            UAT START/END
-                          </th>
-                          <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
-                            Deploy
-                          </th>
-                          <th className="text-center px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
-                            Complete
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {cdaMilestones.map((m) => (
-                          <tr
-                            key={m.id}
-                            className={`border-b border-surface-100 dark:border-dark-border/60 last:border-0 hover:bg-jblue-500/[0.03] dark:hover:bg-jblue-500/[0.06] transition-colors duration-100 ${
-                              m.completed ? "opacity-75" : ""
-                            }`}
-                          >
-                            <td className={`px-4 py-3 font-medium text-surface-800 dark:text-white ${m.completed ? "line-through" : ""}`}>
-                              {m.phase}
-                            </td>
-                            <td className={`px-4 py-3 text-right tabular-nums text-surface-700 dark:text-surface-200 ${m.completed ? "line-through" : ""}`}>
-                              {formatMonthDay(m.devStartDate)}–{formatMonthDay(m.devEndDate)}
-                            </td>
-                            <td className={`px-4 py-3 text-right tabular-nums text-surface-700 dark:text-surface-200 ${m.completed ? "line-through" : ""}`}>
-                              {formatMonthDay(m.uatStartDate)}–{formatMonthDay(m.uatEndDate)}
-                            </td>
-                            <td className={`px-4 py-3 text-right tabular-nums text-surface-700 dark:text-surface-200 ${m.completed ? "line-through" : ""}`}>
-                              {formatMonthDay(m.deployDate)}
-                            </td>
-                            <td className="px-4 py-3 text-center text-surface-600 dark:text-surface-400">
-                              {m.completed ? "Yes" : "—"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    (() => {
+                      const onReportIds = new Set(milestonesForPdfExport(cdaMilestones).map((m) => m.id));
+                      return (
+                        <table className="w-full text-body-sm border-collapse">
+                          <thead>
+                            <tr
+                              className="border-b border-surface-200 dark:border-dark-border"
+                              style={{
+                                backgroundColor: BRAND_COLORS.header,
+                                color: BRAND_COLORS.onHeader,
+                              }}
+                            >
+                              <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
+                                Phase
+                              </th>
+                              <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
+                                DEV
+                              </th>
+                              <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
+                                UAT
+                              </th>
+                              <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
+                                Deploy
+                              </th>
+                              <th className="text-center px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
+                                On status report
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {cdaMilestones.map((m) => (
+                              <tr
+                                key={m.id}
+                                className={`border-b border-surface-100 dark:border-dark-border/60 last:border-0 hover:bg-jblue-500/[0.03] dark:hover:bg-jblue-500/[0.06] transition-colors duration-100 ${
+                                  m.completed ? "opacity-75" : ""
+                                }`}
+                              >
+                                <td className={`px-4 py-3 font-medium text-surface-800 dark:text-white ${m.completed ? "line-through" : ""}`}>
+                                  {m.phase}
+                                </td>
+                                <td className={`px-4 py-3 text-right tabular-nums text-surface-700 dark:text-surface-200 ${m.completed ? "line-through" : ""}`}>
+                                  {formatMonthDay(m.devStartDate)}–{formatMonthDay(m.devEndDate)}
+                                </td>
+                                <td className={`px-4 py-3 text-right tabular-nums text-surface-700 dark:text-surface-200 ${m.completed ? "line-through" : ""}`}>
+                                  {formatMonthDay(m.uatStartDate)}–{formatMonthDay(m.uatEndDate)}
+                                </td>
+                                <td className={`px-4 py-3 text-right tabular-nums text-surface-700 dark:text-surface-200 ${m.completed ? "line-through" : ""}`}>
+                                  {formatMonthDay(m.deployDate)}
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  {onReportIds.has(m.id) ? (
+                                    <span className="text-green-600 dark:text-green-400 font-medium">Yes</span>
+                                  ) : (
+                                    <span className="text-surface-400 dark:text-surface-500">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      );
+                    })()
                   )}
                 </div>
               </div>

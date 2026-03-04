@@ -103,6 +103,7 @@ export function CDATab({
 
   /** CDA milestones (phase, dev/uat/deploy dates, completed). */
   const [milestones, setMilestones] = useState<CdaMilestone[]>([]);
+  const [cdaSubTab, setCdaSubTab] = useState<"budget" | "milestones">("budget");
   const [newPhase, setNewPhase] = useState("");
   const [newDevStart, setNewDevStart] = useState("");
   const [newDevEnd, setNewDevEnd] = useState("");
@@ -676,6 +677,11 @@ export function CDATab({
     );
   }
 
+  const CDA_SUB_TABS = [
+        { id: "budget" as const, label: "Budget" },
+        { id: "milestones" as const, label: "Milestones" },
+      ];
+
   return (
     <div className="space-y-4">
       {saveError && (
@@ -683,6 +689,23 @@ export function CDATab({
           {saveError}
         </p>
       )}
+      <nav className="flex gap-2 border-b border-surface-200 dark:border-dark-border -mb-px" aria-label="CDA sections">
+        {CDA_SUB_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setCdaSubTab(t.id)}
+            className={`px-4 py-2 border-b-2 transition-colors ${
+              cdaSubTab === t.id
+                ? "border-jblue-500 text-jblue-600 dark:text-jblue-400 font-semibold"
+                : "border-transparent text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-dark-raised rounded-t-md"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+      {cdaSubTab === "budget" && (
       <div className="flex flex-wrap items-start gap-6">
         <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border overflow-hidden shadow-card-light dark:shadow-card-dark max-w-lg">
         <table className="w-full min-w-0 text-body-sm border-collapse table-fixed">
@@ -1148,7 +1171,9 @@ export function CDATab({
           })()}
         </div>
       </div>
+      )}
 
+      {cdaSubTab === "milestones" && (
       <section className="space-y-4">
         <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100 border-b border-surface-200 dark:border-dark-border pb-2">
           Milestones
@@ -1355,6 +1380,7 @@ export function CDATab({
           </table>
         </div>
       </section>
+      )}
     </div>
   );
 }
