@@ -31,11 +31,47 @@ function getCurrentMonthKey(): string {
   return `${y}-${String(m).padStart(2, "0")}`;
 }
 
+/** Format ISO date string as MM/DD for display. */
+function formatMonthDay(isoDate: string): string {
+  const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) return "—";
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  return `${String(m).padStart(2, "0")}/${String(day).padStart(2, "0")}`;
+}
+
+/** True if the date falls on Thursday (4) or Friday (5). */
+function isThursdayOrFriday(isoDate: string): boolean {
+  const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) return false;
+  const day = d.getDay();
+  return day === 4 || day === 5;
+}
+
+/** Day name for deploy-date flag (Thu/Fri). */
+function getDeployDayName(isoDate: string): string {
+  const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) return "";
+  const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  return names[d.getDay()] ?? "";
+}
+
 type CdaRow = {
   monthKey: string;
   monthLabel: string;
   planned: number;
   mtdActuals: number;
+};
+
+type CdaMilestone = {
+  id: string;
+  phase: string;
+  devStartDate: string;
+  devEndDate: string;
+  uatStartDate: string;
+  uatEndDate: string;
+  deployDate: string;
+  completed: boolean;
 };
 
 export function CDATab({
@@ -64,6 +100,16 @@ export function CDATab({
     totalDollars: number;
     actualDollars: number;
   } | null>(null);
+
+  /** CDA milestones (phase, dev/uat/deploy dates, completed). */
+  const [milestones, setMilestones] = useState<CdaMilestone[]>([]);
+  const [cdaSubTab, setCdaSubTab] = useState<"budget" | "milestones">("budget");
+  const [newPhase, setNewPhase] = useState("");
+  const [newDevStart, setNewDevStart] = useState("");
+  const [newDevEnd, setNewDevEnd] = useState("");
+  const [newUatStart, setNewUatStart] = useState("");
+  const [newUatEnd, setNewUatEnd] = useState("");
+  const [newDeploy, setNewDeploy] = useState("");
 
   const load = useCallback(() => {
     setLoading(true);
@@ -119,6 +165,92 @@ export function CDATab({
       cancelled = true;
     };
   }, [projectId]);
+
+  const loadMilestones = useCallback(() => {
+    fetch(`/api/projects/${projectId}/cda-milestones`)
+      .then((r) => r.json())
+      .then((d) => setMilestones(d.milestones ?? []))
+      .catch(() => setMilestones([]));
+  }, [projectId]);
+
+  useEffect(() => {
+    loadMilestones();
+  }, [loadMilestones]);
+
+  const addMilestone = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!canEdit || !newPhase.trim()) return;
+      setSaveError(null);
+      const res = await fetch(`/api/projects/${projectId}/cda-milestones`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phase: newPhase.trim(),
+          devStartDate: newDevStart || undefined,
+          devEndDate: newDevEnd || undefined,
+          uatStartDate: newUatStart || undefined,
+          uatEndDate: newUatEnd || undefined,
+          deployDate: newDeploy || undefined,
+        }),
+      });
+      if (res.ok) {
+        const m = await res.json();
+        setMilestones((prev) => [...prev, m]);
+        setNewPhase("");
+        setNewDevStart("");
+        setNewDevEnd("");
+        setNewUatStart("");
+        setNewUatEnd("");
+        setNewDeploy("");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setSaveError(data?.error ?? `Save failed (${res.status})`);
+      }
+    },
+    [projectId, canEdit, newPhase, newDevStart, newDevEnd, newUatStart, newUatEnd, newDeploy]
+  );
+
+  const toggleMilestoneComplete = useCallback(
+    async (milestone: CdaMilestone) => {
+      if (!canEdit) return;
+      const res = await fetch(
+        `/api/projects/${projectId}/cda-milestones/${milestone.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ completed: !milestone.completed }),
+        }
+      );
+      if (res.ok) {
+        const updated = await res.json();
+        setMilestones((prev) =>
+          prev.map((m) => (m.id === milestone.id ? updated : m))
+        );
+      }
+    },
+    [projectId, canEdit]
+  );
+
+  const deleteMilestone = useCallback(
+    async (id: string) => {
+      if (!canEdit) return;
+      const res = await fetch(
+        `/api/projects/${projectId}/cda-milestones/${id}`,
+        { method: "DELETE" }
+      );
+      if (res.ok) setMilestones((prev) => prev.filter((m) => m.id !== id));
+    },
+    [projectId, canEdit]
+  );
+
+  /** Milestone IDs that will appear on the status report PDF (incomplete first, max 6). */
+  const milestoneIdsOnPdfExport = useMemo(() => {
+    const forPdf = [...milestones]
+      .sort((a, b) => Number(a.completed) - Number(b.completed))
+      .slice(0, 6);
+    return new Set(forPdf.map((m) => m.id));
+  }, [milestones]);
 
   const saveRows = useCallback(
     async (nextRows: CdaRow[]) => {
@@ -349,15 +481,15 @@ export function CDATab({
     return `${sign}$${Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
   };
 
-  /** Build HTML for OVERALL table (inline styles for Word/Docs paste). OVERALL is first row like month in monthly table; Budget/Hours labels white. */
+  /** Build HTML for OVERALL table (inline styles for Word/Docs paste). Match Status report summary table: 6px 10px, 12px. */
   const buildOverallTableHTML = useCallback(() => {
     const { header, onHeader, onWhite, accent, overallBudget: overallBudgetColor } = BRAND_COLORS;
-    const headerStyle = `background-color:${header};color:${onHeader};padding:4px 6px;text-align:left;font-weight:600;font-size:11px;border:1px solid #e5e7eb;`;
-    const monthRowStyle = `text-align:center;color:${onWhite};font-weight:600;font-size:12px;padding:4px 6px;border:1px solid #e5e7eb;background-color:#ffffff;`;
-    const labelCellStyle = `background-color:#ffffff;color:${onWhite};padding:4px 6px;text-align:left;font-weight:500;font-size:11px;border:1px solid #e5e7eb;`;
-    const actualsCellStyle = `background-color:#ffffff;color:${onWhite};padding:4px 6px;text-align:right;font-size:11px;border:1px solid #e5e7eb;`;
-    const budgetPlannedRemainStyle = `background-color:${overallBudgetColor};color:${onHeader};padding:4px 6px;text-align:right;font-size:11px;border:1px solid #e5e7eb;`;
-    const hoursPlannedRemainStyle = `background-color:${accent};color:${onHeader};padding:4px 6px;text-align:right;font-size:11px;border:1px solid #e5e7eb;`;
+    const headerStyle = `background-color:${header};color:${onHeader};padding:6px 10px;text-align:left;font-weight:600;font-size:12px;border:1px solid #e5e7eb;`;
+    const monthRowStyle = `text-align:center;color:${onWhite};font-weight:600;font-size:14px;padding:8px 10px;border:1px solid #e5e7eb;background-color:#ffffff;`;
+    const labelCellStyle = `background-color:#ffffff;color:${onWhite};padding:6px 10px;text-align:left;font-weight:500;font-size:12px;border:1px solid #e5e7eb;`;
+    const actualsCellStyle = `background-color:#ffffff;color:${onWhite};padding:6px 10px;text-align:right;font-size:12px;border:1px solid #e5e7eb;`;
+    const budgetPlannedRemainStyle = `background-color:${overallBudgetColor};color:${onHeader};padding:6px 10px;text-align:right;font-size:12px;border:1px solid #e5e7eb;`;
+    const hoursPlannedRemainStyle = `background-color:${accent};color:${onHeader};padding:6px 10px;text-align:right;font-size:12px;border:1px solid #e5e7eb;`;
     const budgetPlanned =
       overallBudget != null ? formatCurrency(overallBudget.totalDollars) : "—";
     const budgetActuals =
@@ -370,7 +502,7 @@ export function CDATab({
     const hoursActuals = totalMtdActuals !== 0 ? formatReportNumber(-totalMtdActuals) : "0.00";
     const hoursRemaining = formatReportNumber(totalRemaining);
     return (
-      `<table style="border-collapse:collapse;font-family:sans-serif;min-width:280px;font-size:11px;">` +
+      `<table style="border-collapse:collapse;font-family:sans-serif;min-width:280px;">` +
       `<tbody>` +
       `<tr><td colspan="4" style="${monthRowStyle}">Overall</td></tr>` +
       `<tr>` +
@@ -550,6 +682,11 @@ export function CDATab({
     );
   }
 
+  const CDA_SUB_TABS = [
+        { id: "budget" as const, label: "Budget" },
+        { id: "milestones" as const, label: "Milestones" },
+      ];
+
   return (
     <div className="space-y-4">
       {saveError && (
@@ -557,6 +694,23 @@ export function CDATab({
           {saveError}
         </p>
       )}
+      <nav className="flex gap-2 border-b border-surface-200 dark:border-dark-border -mb-px" aria-label="CDA sections">
+        {CDA_SUB_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setCdaSubTab(t.id)}
+            className={`px-4 py-2 border-b-2 transition-colors ${
+              cdaSubTab === t.id
+                ? "border-jblue-500 text-jblue-600 dark:text-jblue-400 font-semibold"
+                : "border-transparent text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-dark-raised rounded-t-md"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+      {cdaSubTab === "budget" && (
       <div className="flex flex-wrap items-start gap-6">
         <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border overflow-hidden shadow-card-light dark:shadow-card-dark max-w-lg">
         <table className="w-full min-w-0 text-body-sm border-collapse table-fixed">
@@ -792,90 +946,91 @@ export function CDATab({
                     Math.max(0, (selectedRow.mtdActuals / selectedRow.planned) * 100)
                   )
                 : null;
+            /** Match Status report summary table (StatusReportsTab): 6px 10px, 12px for copy-paste consistency. */
             const headerCellStyle = {
               backgroundColor: BRAND_COLORS.header,
               color: BRAND_COLORS.onHeader,
-              padding: "4px 6px",
+              padding: "6px 10px",
               textAlign: "left" as const,
               fontWeight: 600,
-              fontSize: "11px",
+              fontSize: "12px",
               border: "1px solid #e5e7eb",
             };
             const monthRowStyle = {
               textAlign: "center" as const,
               color: BRAND_COLORS.onWhite,
               fontWeight: 600,
-              fontSize: "12px",
-              padding: "4px 6px",
+              fontSize: "14px",
+              padding: "8px 10px",
               border: "1px solid #e5e7eb",
               backgroundColor: "#ffffff",
             };
             const cellWhiteLeftStyle = {
               backgroundColor: "#ffffff",
               color: BRAND_COLORS.onWhite,
-              padding: "4px 6px",
+              padding: "6px 10px",
               textAlign: "left" as const,
               fontWeight: 500,
-              fontSize: "11px",
+              fontSize: "12px",
               border: "1px solid #e5e7eb",
             };
             const cellWhiteRightStyle = {
               backgroundColor: "#ffffff",
               color: BRAND_COLORS.onWhite,
-              padding: "4px 6px",
+              padding: "6px 10px",
               textAlign: "right" as const,
-              fontSize: "11px",
+              fontSize: "12px",
               border: "1px solid #e5e7eb",
             };
             const cellBlueStyle = {
               backgroundColor: BRAND_COLORS.accent,
               color: BRAND_COLORS.onAccent,
-              padding: "4px 6px",
+              padding: "6px 10px",
               textAlign: "right" as const,
-              fontSize: "11px",
+              fontSize: "12px",
               border: "1px solid #e5e7eb",
             };
             const overallHeaderStyle = {
               backgroundColor: BRAND_COLORS.header,
               color: BRAND_COLORS.onHeader,
-              padding: "4px 6px",
+              padding: "6px 10px",
               textAlign: "left" as const,
               fontWeight: 600,
-              fontSize: "11px",
+              fontSize: "12px",
               border: "1px solid #e5e7eb",
             };
             /** Budget ($) and Hours label cells: white background, same as monthly table. */
             const overallLabelStyle = {
               backgroundColor: "#ffffff",
               color: BRAND_COLORS.onWhite,
-              padding: "4px 6px",
+              padding: "6px 10px",
               textAlign: "left" as const,
               fontWeight: 500,
-              fontSize: "11px",
+              fontSize: "12px",
               border: "1px solid #e5e7eb",
             };
             const overallBudgetCellStyle = {
               backgroundColor: BRAND_COLORS.overallBudget,
               color: BRAND_COLORS.onHeader,
-              padding: "4px 6px",
+              padding: "6px 10px",
               textAlign: "right" as const,
-              fontSize: "11px",
+              fontSize: "12px",
               border: "1px solid #e5e7eb",
             };
             const overallHoursCellStyle = {
               backgroundColor: BRAND_COLORS.accent,
               color: BRAND_COLORS.onAccent,
-              padding: "4px 6px",
+              padding: "6px 10px",
               textAlign: "right" as const,
-              fontSize: "11px",
+              fontSize: "12px",
               border: "1px solid #e5e7eb",
             };
             const overallActualsStyle = {
               backgroundColor: "#ffffff",
               color: BRAND_COLORS.onWhite,
-              padding: "4px 6px",
+              padding: "6px 10px",
               textAlign: "right" as const,
-              fontSize: "11px",
+              fontSize: "12px",
               border: "1px solid #e5e7eb",
             };
             return (
@@ -892,7 +1047,7 @@ export function CDATab({
                   {/* OVERALL table - OVERALL is first row of table like month in monthly table */}
                   <div className="flex flex-col gap-2">
                     <table
-                      className="border-collapse font-sans w-full text-[11px]"
+                      className="border-collapse font-sans w-full text-body-sm"
                       style={{
                         borderCollapse: "collapse",
                         fontFamily: "sans-serif",
@@ -984,7 +1139,7 @@ export function CDATab({
                     </select>
                   </div>
                   <table
-                    className="border-collapse font-sans w-full"
+                    className="border-collapse font-sans w-full text-body-sm"
                     style={{
                       borderCollapse: "collapse",
                       fontFamily: "sans-serif",
@@ -1048,6 +1203,216 @@ export function CDATab({
           })()}
         </div>
       </div>
+      )}
+
+      {cdaSubTab === "milestones" && (
+      <section className="space-y-4">
+        <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100 border-b border-surface-200 dark:border-dark-border pb-2">
+          Milestones
+        </h2>
+        {canEdit && (
+          <form
+            onSubmit={addMilestone}
+            className="flex flex-wrap gap-x-4 gap-y-3 items-end"
+          >
+            <div className="flex flex-col gap-1">
+              <label htmlFor="cda-phase" className="text-label-sm font-medium text-surface-600 dark:text-surface-400">
+                Phase
+              </label>
+              <input
+                id="cda-phase"
+                required
+                value={newPhase}
+                onChange={(e) => setNewPhase(e.target.value)}
+                placeholder="e.g. Sprint 1"
+                className="h-9 w-full min-w-[8rem] px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="cda-dev-start" className="text-label-sm font-medium text-surface-600 dark:text-surface-400">
+                Dev start (MM/DD/YYYY)
+              </label>
+              <input
+                id="cda-dev-start"
+                type="date"
+                value={newDevStart}
+                onChange={(e) => setNewDevStart(e.target.value)}
+                className="h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="cda-dev-end" className="text-label-sm font-medium text-surface-600 dark:text-surface-400">
+                Dev end (MM/DD/YYYY)
+              </label>
+              <input
+                id="cda-dev-end"
+                type="date"
+                value={newDevEnd}
+                onChange={(e) => setNewDevEnd(e.target.value)}
+                className="h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="cda-uat-start" className="text-label-sm font-medium text-surface-600 dark:text-surface-400">
+                UAT start (MM/DD/YYYY)
+              </label>
+              <input
+                id="cda-uat-start"
+                type="date"
+                value={newUatStart}
+                onChange={(e) => setNewUatStart(e.target.value)}
+                className="h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="cda-uat-end" className="text-label-sm font-medium text-surface-600 dark:text-surface-400">
+                UAT end (MM/DD/YYYY)
+              </label>
+              <input
+                id="cda-uat-end"
+                type="date"
+                value={newUatEnd}
+                onChange={(e) => setNewUatEnd(e.target.value)}
+                className="h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="cda-deploy" className="text-label-sm font-medium text-surface-600 dark:text-surface-400">
+                Deploy (MM/DD/YYYY)
+              </label>
+              <input
+                id="cda-deploy"
+                type="date"
+                value={newDeploy}
+                onChange={(e) => setNewDeploy(e.target.value)}
+                className="h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+              />
+            </div>
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm hover:shadow-card-hover transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
+            >
+              Add
+            </button>
+          </form>
+        )}
+        <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border overflow-hidden shadow-card-light dark:shadow-card-dark">
+          <table className="w-full text-body-sm border-collapse">
+            <thead>
+              <tr
+                className="border-b border-surface-200 dark:border-dark-border"
+                style={{
+                  backgroundColor: BRAND_COLORS.header,
+                  color: BRAND_COLORS.onHeader,
+                }}
+              >
+                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
+                  Phase
+                </th>
+                <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
+                  DEV START/END
+                </th>
+                <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
+                  UAT START/END
+                </th>
+                <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
+                  Deploy
+                </th>
+                <th className="text-center px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }}>
+                  Complete
+                </th>
+                <th className="text-center px-4 py-3 text-label-sm uppercase tracking-wider font-semibold" style={{ fontSize: "0.75rem" }} title="Shown on status report (max 6; completed omitted first)">
+                  On status
+                </th>
+                {canEdit && (
+                  <th className="w-10 px-2 py-3" aria-label="Delete row" />
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {milestones.map((m) => (
+                <tr
+                  key={m.id}
+                  className={`border-b border-surface-100 dark:border-dark-border/60 last:border-0 hover:bg-jblue-500/[0.03] dark:hover:bg-jblue-500/[0.06] transition-colors duration-100 ${
+                    m.completed ? "opacity-75" : ""
+                  }`}
+                >
+                  <td className={`px-4 py-3 font-medium text-surface-800 dark:text-white ${m.completed ? "line-through" : ""}`}>
+                    {m.phase}
+                  </td>
+                  <td className={`px-4 py-3 text-right tabular-nums text-surface-700 dark:text-surface-200 ${m.completed ? "line-through" : ""}`}>
+                    {formatMonthDay(m.devStartDate)}–{formatMonthDay(m.devEndDate)}
+                  </td>
+                  <td className={`px-4 py-3 text-right tabular-nums text-surface-700 dark:text-surface-200 ${m.completed ? "line-through" : ""}`}>
+                    {formatMonthDay(m.uatStartDate)}–{formatMonthDay(m.uatEndDate)}
+                  </td>
+                  <td
+                    className={`px-4 py-3 text-right tabular-nums text-surface-700 dark:text-surface-200 ${m.completed ? "line-through" : ""} ${
+                      isThursdayOrFriday(m.deployDate)
+                        ? "bg-amber-100 dark:bg-amber-900/25 border-l-2 border-amber-400 dark:border-amber-600"
+                        : ""
+                    }`}
+                    title={isThursdayOrFriday(m.deployDate) ? `Deploy on ${getDeployDayName(m.deployDate)}` : undefined}
+                  >
+                    {formatMonthDay(m.deployDate)}
+                    {isThursdayOrFriday(m.deployDate) && (
+                      <span className="ml-1.5 text-amber-700 dark:text-amber-400 text-label-sm font-medium">
+                        ({getDeployDayName(m.deployDate)})
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {canEdit ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleMilestoneComplete(m)}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded text-surface-600 hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-dark-raised focus:outline-none focus-visible:ring-2 focus-visible:ring-jblue-500"
+                        aria-label={m.completed ? "Mark incomplete" : "Mark complete"}
+                      >
+                        {m.completed ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-green-600 dark:text-green-400" aria-hidden>
+                            <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5" aria-hidden>
+                            <circle cx="12" cy="12" r="9" />
+                          </svg>
+                        )}
+                      </button>
+                    ) : (
+                      <span className="text-surface-600 dark:text-surface-400">
+                        {m.completed ? "Yes" : "—"}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center text-body-sm" title={milestoneIdsOnPdfExport.has(m.id) ? "Shown on status report" : "Not shown on status report (max 6; completed omitted first)"}>
+                    {milestoneIdsOnPdfExport.has(m.id) ? (
+                      <span className="text-green-600 dark:text-green-400 font-medium">Yes</span>
+                    ) : (
+                      <span className="text-surface-400 dark:text-surface-500">—</span>
+                    )}
+                  </td>
+                  {canEdit && (
+                    <td className="px-2 py-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => deleteMilestone(m.id)}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                        aria-label={`Delete ${m.phase}`}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5" aria-hidden>
+                          <path fillRule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      )}
     </div>
   );
 }

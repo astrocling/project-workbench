@@ -104,6 +104,14 @@ model Project {
   singleBillRate Decimal?  @db.Decimal(10, 2)
   /// Show CDA (monthly planned/actuals) tab
   cdaEnabled     Boolean   @default(false)
+  /// Client sponsor (for status report biographical block)
+  clientSponsor   String?
+  /// Second client sponsor (for status report biographical block)
+  clientSponsor2  String?
+  /// Other contact (for status report biographical block)
+  otherContact    String?
+  /// Key staff name (for status report biographical block)
+  keyStaffName   String?
   notes          String?   @db.Text
   sowLink        String?
   estimateLink   String?
@@ -122,6 +130,49 @@ model Project {
   readyForFloatUpdates ReadyForFloatUpdate[]
   gridCellComments     GridCellComment[]
   cdaMonths            CdaMonth[]
+  cdaMilestones        CdaMilestone[]
+  statusReports        StatusReport[]
+  timelineBars         TimelineBar[]
+  timelineMarkers      TimelineMarker[]
+}
+
+enum StatusReportVariation {
+  Standard
+  Milestones
+  CDA
+}
+
+enum RagStatus {
+  Red
+  Amber
+  Green
+}
+
+model StatusReport {
+  id                      String                @id @default(cuid())
+  projectId               String
+  reportDate              DateTime              @db.Date
+  variation               StatusReportVariation  @default(Standard)
+  completedActivities     String                @db.Text
+  upcomingActivities      String                @db.Text
+  risksIssuesDecisions    String                @db.Text
+  meetingNotes            String?               @db.Text
+  ragOverall              RagStatus?
+  ragScope                RagStatus?
+  ragSchedule             RagStatus?
+  ragBudget               RagStatus?
+  ragOverallExplanation   String?               @db.Text
+  ragScopeExplanation     String?              @db.Text
+  ragScheduleExplanation  String?              @db.Text
+  ragBudgetExplanation    String?              @db.Text
+  snapshot                Json?                 // Locked period, budget, CDA data at report creation
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+
+  project                 Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([projectId, reportDate])
 }
 
 model CdaMonth {
@@ -135,6 +186,56 @@ model CdaMonth {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, monthKey])
+  @@index([projectId])
+}
+
+model CdaMilestone {
+  id           String    @id @default(cuid())
+  projectId    String
+  phase        String
+  devStartDate DateTime? @db.Date
+  devEndDate   DateTime? @db.Date
+  uatStartDate DateTime? @db.Date
+  uatEndDate   DateTime? @db.Date
+  deployDate   DateTime? @db.Date
+  completed    Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model TimelineBar {
+  id        String    @id @default(cuid())
+  projectId String
+  rowIndex  Int       // 1-4
+  label     String
+  startDate DateTime  @db.Date
+  endDate   DateTime  @db.Date
+  order     Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model TimelineMarker {
+  id        String    @id @default(cuid())
+  projectId String
+  rowIndex  Int       @default(1) // 1-4, which bar row the marker appears on
+  shape     String    @default("Pin") // BadgeAlert | ThumbsUp | TrendingUpDown | Rocket | PencilRuler | Pin
+  label     String
+  date      DateTime  @db.Date
+  order     Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
   @@index([projectId])
 }
 
