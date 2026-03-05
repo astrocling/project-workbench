@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import { getProjectId } from "@/lib/slug";
 import { projectHasMissingActuals } from "@/lib/projectActualsStale";
 import { buildStatusReportPdfData } from "@/lib/statusReportPdfData";
@@ -137,7 +138,7 @@ export async function POST(
     },
   });
 
-  // Lock period, budget, and milestones to creation time so they don't change when project is edited
+  // Lock period, budget, milestones, and timeline to creation time so they don't change when project is edited
   const pdfData = await buildStatusReportPdfData(id, report.id);
   if (pdfData) {
     const snapshot: StatusReportSnapshot = {
@@ -145,10 +146,11 @@ export async function POST(
       today: pdfData.today,
       budget: pdfData.budget,
       cda: pdfData.cda,
+      timeline: pdfData.timeline,
     };
     await prisma.statusReport.update({
       where: { id: report.id },
-      data: { snapshot: snapshot as object },
+      data: { snapshot: snapshot as Prisma.InputJsonValue },
     });
   }
 

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ResourcingGrids } from "@/components/ResourcingGrids";
 import { BudgetTab } from "@/components/BudgetTab";
+import { TimelineTab } from "@/components/TimelineTab";
 import { StatusReportsTab } from "@/components/StatusReportsTab";
 import { CDATab } from "@/components/CDATab";
 
@@ -13,6 +14,7 @@ const TABS = [
   { id: "resourcing", label: "Resourcing" },
   { id: "cda", label: "CDA" },
   { id: "budget", label: "Budget" },
+  { id: "timeline", label: "Timeline" },
   { id: "status-reports", label: "Status Reports" },
   { id: "edit", label: "Settings", hrefOnly: true },
 ] as const;
@@ -597,6 +599,7 @@ export function ProjectDetailTabs({
         />
       )}
       {tab === "budget" && <BudgetTab projectId={projectId} canEdit={canEdit} />}
+      {tab === "timeline" && <TimelineTab projectId={projectId} canEdit={canEdit} />}
       {tab === "status-reports" && <StatusReportsTab projectId={projectId} projectSlug={projectSlug} canEdit={canEdit} cdaEnabled={cdaEnabled} />}
       {tab === "cda" && cdaEnabled && <CDATab projectId={projectId} canEdit={canEdit} />}
     </div>

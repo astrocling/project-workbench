@@ -3,12 +3,13 @@ import { computeBudgetRollups } from "@/lib/budgetCalculations";
 import { getMonthsInRange } from "@/lib/monthUtils";
 import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument";
 
-/** Snapshot of period, budget, and CDA data at report creation so they stay locked when project is edited. */
+/** Snapshot of period, budget, CDA, and timeline at report creation so they stay locked when project is edited. */
 export type StatusReportSnapshot = {
   period: string;
   today: string;
   budget?: StatusReportPDFData["budget"];
   cda?: StatusReportPDFData["cda"];
+  timeline?: StatusReportPDFData["timeline"];
 };
 
 function isStatusReportSnapshot(obj: unknown): obj is StatusReportSnapshot {
@@ -41,6 +42,8 @@ export async function buildStatusReportPdfData(
       projectKeyRoles: { include: { person: true } },
       cdaMonths: true,
       cdaMilestones: true,
+      timelineBars: true,
+      timelineMarkers: true,
     },
   });
   if (!project) return null;
@@ -69,12 +72,16 @@ export async function buildStatusReportPdfData(
 
   let budget: StatusReportPDFData["budget"] | undefined;
   let cda: StatusReportPDFData["cda"] | undefined;
+  let timeline: StatusReportPDFData["timeline"] | undefined;
 
   if (snapshot?.budget !== undefined) {
     budget = snapshot.budget;
   }
   if (snapshot?.cda !== undefined) {
     cda = snapshot.cda;
+  }
+  if (snapshot?.timeline !== undefined) {
+    timeline = snapshot.timeline;
   }
 
   if (budget === undefined || (report.variation === "CDA" && cda === undefined)) {
@@ -218,6 +225,28 @@ export async function buildStatusReportPdfData(
     }
   }
 
+  if (timeline === undefined && project.endDate != null) {
+    const startStr = project.startDate.toISOString().slice(0, 10);
+    const endStr = project.endDate.toISOString().slice(0, 10);
+    const bars = (project.timelineBars ?? [])
+      .sort((a, b) => a.rowIndex - b.rowIndex || a.startDate.getTime() - b.startDate.getTime())
+      .map((b) => ({
+        rowIndex: b.rowIndex,
+        label: b.label,
+        startDate: b.startDate.toISOString().slice(0, 10),
+        endDate: b.endDate.toISOString().slice(0, 10),
+      }));
+    const markers = (project.timelineMarkers ?? [])
+      .sort((a, b) => a.date.getTime() - b.date.getTime())
+      .map((m) => ({
+        label: m.label,
+        date: m.date.toISOString().slice(0, 10),
+        shape: m.shape,
+        rowIndex: m.rowIndex,
+      }));
+    timeline = { startDate: startStr, endDate: endStr, bars, markers };
+  }
+
   return {
     report: {
       reportDate: report.reportDate.toISOString().slice(0, 10),
@@ -251,5 +280,6 @@ export async function buildStatusReportPdfData(
     today,
     budget: report.variation === "Standard" || report.variation === "Milestones" ? budget : undefined,
     cda,
+    timeline,
   };
 }

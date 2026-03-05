@@ -288,6 +288,74 @@ const styles = StyleSheet.create({
     fontSize: 7,
     color: "#888",
   },
+  timelineWrap: {
+    marginTop: 6,
+    width: "100%",
+    borderWidth: 0.5,
+    borderColor: "#e5e7eb",
+  },
+  timelineMonthRow: {
+    flexDirection: "row",
+    backgroundColor: "#1e40af",
+  },
+  timelineMonthCell: {
+    flex: 1,
+    paddingVertical: 3,
+    paddingHorizontal: 2,
+    alignItems: "center",
+  },
+  timelineMonthText: {
+    fontSize: 6,
+    fontWeight: "bold",
+    color: "#fff",
+    textTransform: "uppercase",
+  },
+  timelineBarRow: {
+    flexDirection: "row",
+    minHeight: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#e5e7eb",
+    position: "relative",
+  },
+  timelineBar: {
+    position: "absolute",
+    top: 2,
+    bottom: 2,
+    backgroundColor: "#2563eb",
+    borderRadius: 1,
+    paddingHorizontal: 2,
+    justifyContent: "center",
+  },
+  timelineBarText: {
+    fontSize: 5,
+    color: "#fff",
+    fontWeight: 600,
+  },
+  timelineMarkerRow: {
+    minHeight: 14,
+    position: "relative",
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#e5e7eb",
+  },
+  timelineMarkerDiamond: {
+    position: "absolute",
+    top: 0,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 4,
+    borderLeftColor: "transparent",
+    borderRightWidth: 4,
+    borderRightColor: "transparent",
+    borderBottomWidth: 6,
+    borderBottomColor: "#2dd4bf",
+  },
+  timelineMarkerText: {
+    position: "absolute",
+    top: 7,
+    fontSize: 5,
+    color: "#374151",
+    fontWeight: 600,
+  },
   /** Container for table + chart on Non-CDA: bottom 25% of slide. */
   bottomQuarterSection: {
     flexDirection: "row",
@@ -580,6 +648,12 @@ export type StatusReportPDFData = {
       completed: boolean;
     }>;
   };
+  timeline?: {
+    startDate: string;
+    endDate: string;
+    bars: Array<{ rowIndex: number; label: string; startDate: string; endDate: string }>;
+    markers: Array<{ label: string; date: string; shape?: string; rowIndex?: number }>;
+  };
 };
 
 function formatNum(n: number): string {
@@ -596,6 +670,101 @@ function formatReportNum(n: number): string {
 function getMonthFullName(monthKey: string): string {
   const [y, m] = monthKey.split("-").map(Number);
   return new Date(y, m - 1, 1).toLocaleString("en-US", { month: "long" });
+}
+
+function getMonthsForTimeline(startDate: string, endDate: string): string[] {
+  const months: string[] = [];
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const current = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+  const endMonth = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
+  while (current <= endMonth) {
+    months.push(`${current.getUTCFullYear()}-${String(current.getUTCMonth() + 1).padStart(2, "0")}`);
+    current.setUTCMonth(current.getUTCMonth() + 1);
+  }
+  return months;
+}
+
+function TimelineBlock({ timeline }: { timeline: NonNullable<StatusReportPDFData["timeline"]> }) {
+  const startMs = new Date(timeline.startDate).getTime();
+  const endMs = new Date(timeline.endDate).getTime();
+  const totalMs = endMs - startMs || 1;
+
+  const positionPercent = (dateStr: string) =>
+    Math.max(0, Math.min(100, ((new Date(dateStr).getTime() - startMs) / totalMs) * 100));
+  const widthPercent = (startStr: string, endStr: string) =>
+    Math.max(0, Math.min(100, ((new Date(endStr).getTime() - new Date(startStr).getTime()) / totalMs) * 100));
+
+  const months = getMonthsForTimeline(timeline.startDate, timeline.endDate);
+  const barsByRow: typeof timeline.bars[] = [[], [], [], []];
+  for (const bar of timeline.bars) {
+    if (bar.rowIndex >= 1 && bar.rowIndex <= 4) {
+      barsByRow[bar.rowIndex - 1].push(bar);
+    }
+  }
+
+  return (
+    <View style={styles.timelineWrap}>
+      <View style={styles.timelineMonthRow}>
+        {months.map((monthKey) => (
+          <View key={monthKey} style={styles.timelineMonthCell}>
+            <Text style={styles.timelineMonthText}>{getMonthFullName(monthKey).toUpperCase()}</Text>
+          </View>
+        ))}
+      </View>
+      {timeline.markers.length > 0 && (
+        <View style={styles.timelineMarkerRow}>
+          {timeline.markers.map((m, i) => (
+            <View
+              key={i}
+              style={[
+                styles.timelineMarkerDiamond,
+                {
+                  left: `${positionPercent(m.date)}%`,
+                  marginLeft: -4,
+                },
+              ]}
+            />
+          ))}
+          {timeline.markers.map((m, i) => (
+            <Text
+              key={i}
+              style={[
+                styles.timelineMarkerText,
+                {
+                  left: `${positionPercent(m.date)}%`,
+                  marginLeft: -8,
+                  maxWidth: 40,
+                },
+              ]}
+            >
+              {m.label}
+            </Text>
+          ))}
+        </View>
+      )}
+      {[0, 1, 2, 3].map((rowIdx) => (
+        <View key={rowIdx} style={styles.timelineBarRow}>
+          {barsByRow[rowIdx].map((bar, i) => (
+            <View
+              key={i}
+              style={[
+                styles.timelineBar,
+                {
+                  left: `${positionPercent(bar.startDate)}%`,
+                  width: `${widthPercent(bar.startDate, bar.endDate)}%`,
+                },
+              ]}
+            >
+              <Text style={styles.timelineBarText}>
+                {bar.label}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
 }
 
 /** Format ISO date string as MM/DD for PDF milestones table. */
@@ -856,6 +1025,9 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
                 ))}
               </View>
             </View>
+            {data.timeline && data.timeline.bars.length > 0 && (
+              <TimelineBlock timeline={data.timeline} />
+            )}
           </View>
 
           {report.variation === "CDA" && data.cda && (() => {

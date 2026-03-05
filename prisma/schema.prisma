@@ -132,6 +132,8 @@ model Project {
   cdaMonths            CdaMonth[]
   cdaMilestones        CdaMilestone[]
   statusReports        StatusReport[]
+  timelineBars         TimelineBar[]
+  timelineMarkers      TimelineMarker[]
 }
 
 enum StatusReportVariation {
@@ -199,6 +201,38 @@ model CdaMilestone {
   completed    Boolean   @default(false)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model TimelineBar {
+  id        String    @id @default(cuid())
+  projectId String
+  rowIndex  Int       // 1-4
+  label     String
+  startDate DateTime  @db.Date
+  endDate   DateTime  @db.Date
+  order     Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model TimelineMarker {
+  id        String    @id @default(cuid())
+  projectId String
+  rowIndex  Int       @default(1) // 1-4, which bar row the marker appears on
+  shape     String    @default("Pin") // BadgeAlert | ThumbsUp | TrendingUpDown | Rocket | PencilRuler | Pin
+  label     String
+  date      DateTime  @db.Date
+  order     Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 

@@ -25,6 +25,16 @@
   --color-brand-on-white: #060066;
   --color-brand-overall-budget: #22c55e;
 
+  /* Brand palette (blues and reds) */
+  --color-brand-j-blue: #040066;
+  --color-brand-blue-072-c: #040AB2;
+  --color-brand-blue-285-c: #1941FA;
+  --color-brand-blue-2925-c: #3C82FF;
+  --color-brand-j-red: #F00A0A;
+  --color-brand-red-1785-c: #FF3F3F;
+  --color-brand-red-184-c: #F16A6A;
+  --color-brand-red-197-c: #FF8982;
+
   /* JAKALA Brand Reds */
   --color-jred-50: #fff4f3;
   --color-jred-100: #ffe0de;
