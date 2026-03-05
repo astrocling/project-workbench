@@ -356,6 +356,21 @@ const styles = StyleSheet.create({
     color: "#374151",
     fontWeight: 600,
   },
+  timelineReportDateLine: {
+    position: "absolute",
+    top: 0,
+    width: 2,
+    backgroundColor: "#F00A0A",
+    zIndex: 10,
+  },
+  timelineReportDateLabel: {
+    position: "absolute",
+    top: 1,
+    fontSize: 5,
+    fontWeight: "bold",
+    color: "#F00A0A",
+    zIndex: 10,
+  },
   /** Container for table + chart on Non-CDA: bottom 25% of slide. */
   bottomQuarterSection: {
     flexDirection: "row",
@@ -685,7 +700,13 @@ function getMonthsForTimeline(startDate: string, endDate: string): string[] {
   return months;
 }
 
-function TimelineBlock({ timeline }: { timeline: NonNullable<StatusReportPDFData["timeline"]> }) {
+function TimelineBlock({
+  timeline,
+  reportDate,
+}: {
+  timeline: NonNullable<StatusReportPDFData["timeline"]>;
+  reportDate?: string;
+}) {
   const startMs = new Date(timeline.startDate).getTime();
   const endMs = new Date(timeline.endDate).getTime();
   const totalMs = endMs - startMs || 1;
@@ -703,8 +724,39 @@ function TimelineBlock({ timeline }: { timeline: NonNullable<StatusReportPDFData
     }
   }
 
+  const startYmd = timeline.startDate.slice(0, 10);
+  const endYmd = timeline.endDate.slice(0, 10);
+  const reportDateInRange =
+    reportDate && reportDate >= startYmd && reportDate <= endYmd;
+  const reportDatePercent = reportDateInRange ? positionPercent(reportDate) : null;
+
   return (
     <View style={styles.timelineWrap}>
+      {reportDatePercent != null && (
+        <>
+          <View
+            style={[
+              styles.timelineReportDateLine,
+              {
+                left: `${reportDatePercent}%`,
+                marginLeft: -1,
+                height: 120,
+              },
+            ]}
+          />
+          <Text
+            style={[
+              styles.timelineReportDateLabel,
+              {
+                left: `${reportDatePercent}%`,
+                marginLeft: -18,
+              },
+            ]}
+          >
+            Report date
+          </Text>
+        </>
+      )}
       <View style={styles.timelineMonthRow}>
         {months.map((monthKey) => (
           <View key={monthKey} style={styles.timelineMonthCell}>
@@ -1026,7 +1078,7 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
               </View>
             </View>
             {data.timeline && data.timeline.bars.length > 0 && (
-              <TimelineBlock timeline={data.timeline} />
+              <TimelineBlock timeline={data.timeline} reportDate={data.report.reportDate} />
             )}
           </View>
 

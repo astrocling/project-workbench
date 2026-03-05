@@ -70,9 +70,12 @@ function MarkerShapeIcon({ shape, className }: { shape: string; className?: stri
 export function TimelineTab({
   projectId,
   canEdit,
+  reportDate,
 }: {
   projectId: string;
   canEdit: boolean;
+  /** When provided (e.g. in status report context), vertical line shows this date and is labeled "Report date". Otherwise uses today and "Today". */
+  reportDate?: string;
 }) {
   const [data, setData] = useState<TimelineData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -351,6 +354,13 @@ export function TimelineTab({
     return { weeksInMonths, monthWidthsPct, monthBoundaryPositions };
   })();
 
+  const todayOrReportDate = reportDate ?? new Date().toISOString().slice(0, 10);
+  const startYmd = data.project.startDate.slice(0, 10);
+  const endYmd = (data.project.endDate ?? "").slice(0, 10);
+  const isInRange = todayOrReportDate >= startYmd && todayOrReportDate <= endYmd;
+  const todayLinePercent = isInRange ? positionPercent(todayOrReportDate) : null;
+  const todayLineLabel = reportDate ? "Report date" : "Today";
+
   return (
     <div className="space-y-6">
       <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100 border-b border-surface-200 dark:border-dark-border pb-2">
@@ -358,7 +368,16 @@ export function TimelineTab({
       </h2>
 
       <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark overflow-x-auto">
-        <div className="min-w-[600px] p-4">
+        <div className="relative min-w-[600px] p-4">
+          {/* Today / Report date label in white space above the header */}
+          {todayLinePercent != null && (
+            <div
+              className="absolute top-0.5 left-0 text-[10px] font-semibold text-jred-600 dark:text-jred-500 pointer-events-none whitespace-nowrap -translate-x-1/2"
+              style={{ left: `calc(1rem + (100% - 2rem) * ${todayLinePercent} / 100)` }}
+            >
+              {todayLineLabel}
+            </div>
+          )}
           {/* Month header: column widths proportional to weeks in each month (fr = fraction of total) */}
           <div
             className="grid gap-0 border-b-2 border-surface-300 dark:border-dark-muted w-full"
@@ -386,6 +405,15 @@ export function TimelineTab({
                 aria-hidden
               />
             ))}
+
+            {/* Today / Report date vertical line (in front of bars and markers) */}
+            {todayLinePercent != null && (
+              <div
+                className="absolute top-0 bottom-0 w-0.5 bg-jred-600 dark:bg-jred-500 pointer-events-none"
+                style={{ left: `${todayLinePercent}%`, marginLeft: -1, zIndex: 2 }}
+                aria-hidden
+              />
+            )}
 
             {/* 4 bar rows — each row has bars + markers (with shape and label below) */}
             {[1, 2, 3, 4].map((rowNum) => {
