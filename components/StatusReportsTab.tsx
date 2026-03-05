@@ -811,7 +811,10 @@ export function StatusReportsTab({
                 onChange={(e) => setFormVariation(e.target.value as "Standard" | "Milestones" | "CDA")}
                 className="block w-full max-w-xs h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
               >
-                {VARIATIONS.map((v) => (
+                {formVariation === "Milestones" && (
+                  <option value="Milestones" disabled>Milestones (Fixed Fee No Budget) — not yet available</option>
+                )}
+                {VARIATIONS.filter((v) => v.value !== "Milestones").map((v) => (
                   <option key={v.value} value={v.value}>{v.label}</option>
                 ))}
               </select>
@@ -889,7 +892,7 @@ export function StatusReportsTab({
                 placeholder="One per line or use bullets"
                 className="block w-full px-3 py-2 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
               />
-              <p className="mt-1 text-body-sm text-surface-500 dark:text-surface-400">Only the first 5 items appear on the exported status report.</p>
+              <p className="mt-1 text-body-sm text-surface-500 dark:text-surface-400">Only the first 7 items appear on the exported status report.</p>
             </div>
             <div>
               <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Upcoming activities</label>
@@ -900,7 +903,7 @@ export function StatusReportsTab({
                 placeholder="One per line or use bullets"
                 className="block w-full px-3 py-2 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
               />
-              <p className="mt-1 text-body-sm text-surface-500 dark:text-surface-400">Only the first 5 items appear on the exported status report.</p>
+              <p className="mt-1 text-body-sm text-surface-500 dark:text-surface-400">Only the first 7 items appear on the exported status report.</p>
             </div>
             <div>
               <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Risks, issues and decisions</label>
@@ -911,7 +914,7 @@ export function StatusReportsTab({
                 placeholder="One per line or use bullets"
                 className="block w-full px-3 py-2 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
               />
-              <p className="mt-1 text-body-sm text-surface-500 dark:text-surface-400">Only the first 5 items appear on the exported status report.</p>
+              <p className="mt-1 text-body-sm text-surface-500 dark:text-surface-400">Only the first 7 items appear on the exported status report.</p>
             </div>
             <div>
               <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Meeting notes (optional)</label>

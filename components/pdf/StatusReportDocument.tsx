@@ -24,8 +24,8 @@ const PAGE_WIDTH = 720;
 const PAGE_HEIGHT = 405;
 /** Max height for table + chart block on Non-CDA exports (bottom 1/4 of slide). */
 const BOTTOM_QUARTER_HEIGHT = PAGE_HEIGHT / 4;
-/** Fixed gap between timeline/activities and budget section (~10pt above budget). */
-const BUDGET_SECTION_GAP = 10;
+/** Fixed gap between timeline/activities and budget section. */
+const BUDGET_SECTION_GAP = 5;
 /** Actual footer height: blue line + padding + one line of text. Prevents footer from stretching. */
 const FOOTER_HEIGHT = 14;
 /** Small gap between budget block and footer (in points; ~5px). */
@@ -34,6 +34,8 @@ const BUDGET_FOOTER_GAP = 5;
 const MAIN_CONTENT_HEIGHT = PAGE_HEIGHT - 24 - FOOTER_HEIGHT;
 /** Space to reserve at bottom of main column so content doesn't overlap the fixed budget block (content-sized budget + gap). */
 const BUDGET_BLOCK_RESERVED = 70;
+/** Height reserved for the timeline so it can be pinned above the budget; month row + 4 bar rows + report date. */
+const TIMELINE_SLOT_HEIGHT = 85;
 
 const BIO_TITLE_COLOR = "#220088";
 const BIO_LABEL_COLOR = "#220088";
@@ -52,7 +54,8 @@ const TIMELINE_REPORT_DATE = "#FF2020"; // jred-600
 const TIMELINE_MARKER = "#FF2020"; // jred-600 (matches marker icon color in tab)
 const TIMELINE_MARKER_LABEL = "#374151"; // surface-700
 const TIMELINE_MARKER_LABEL_BG = "#f3f4f6"; // white/90 equivalent for label pill
-const TIMELINE_ROW_BORDER = "#e5e7eb"; // surface-200
+const TIMELINE_ROW_BORDER = "#d1d5db"; // surface-300 — stronger than surface-200 for visibility
+const TIMELINE_MONTH_DIVIDER = "#9ca3af"; // vertical month boundaries (surface-400)
 
 /** Lucide icon path/line data for timeline markers (same icons as Timeline tab). viewBox 0 0 24 24. */
 type IconNode = { type: "path"; d: string } | { type: "line"; x1: number; y1: number; x2: number; y2: number };
@@ -189,7 +192,7 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     color: BIO_VALUE_COLOR,
   },
-  /** Wraps content below bio/RAG; status blocks first, then spacer, then timeline. paddingBottom reserves space for fixed budget block. */
+  /** Wraps content below bio/RAG; status blocks + spacer flow above a pinned timeline slot. paddingBottom reserves space for fixed budget block. */
   mainContentColumn: {
     flex: 1,
     flexGrow: 1,
@@ -197,6 +200,21 @@ const styles = StyleSheet.create({
     flexDirection: "column",
     minHeight: 0,
     paddingBottom: BUDGET_BLOCK_RESERVED,
+    position: "relative",
+  },
+  /** Padding so flowing content (status + spacer) doesn't overlap the absolutely positioned timeline. */
+  mainContentPadding: {
+    flex: 1,
+    minHeight: 0,
+    paddingBottom: TIMELINE_SLOT_HEIGHT,
+  },
+  /** Pins timeline above the budget so it doesn't move when status block content grows (e.g. 7 items). */
+  timelineSlotFixed: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: BUDGET_BLOCK_RESERVED + BUDGET_SECTION_GAP,
+    width: "100%",
   },
   /** Spacer between status blocks and timeline: grows so white space is below status items, not between bio/RAG and status titles. */
   budgetSectionSpacer: {
@@ -394,7 +412,7 @@ const styles = StyleSheet.create({
     position: "relative",
     marginTop: 3,
     width: "100%",
-    borderWidth: 0.5,
+    borderWidth: 1,
     borderColor: TIMELINE_ROW_BORDER,
   },
   timelineMonthRow: {
@@ -413,12 +431,37 @@ const styles = StyleSheet.create({
     color: "#fff",
     textTransform: "uppercase",
   },
+  /** Wrapper for bar rows so vertical month-boundary lines can be positioned behind them. */
+  timelineBarRowsWrap: {
+    position: "relative",
+  },
+  /** Bar rows wrapper (no extra stacking needed). */
+  timelineBarRowsContent: {
+    position: "relative",
+  },
+  /** Per-row layer for vertical month lines; first child in row so it paints behind bars/markers. */
+  timelineRowMonthLinesLayer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  /** Vertical line at a month boundary within a row (position left as % in inline style). */
+  timelineMonthBoundaryLine: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: TIMELINE_MONTH_DIVIDER,
+  },
   timelineBarRow: {
     flexDirection: "row",
     minHeight: 16,
-    borderBottomWidth: 0.5,
+    borderBottomWidth: 1,
     borderBottomColor: TIMELINE_ROW_BORDER,
     position: "relative",
+    zIndex: 1,
   },
   timelineBar: {
     position: "absolute",
@@ -438,7 +481,7 @@ const styles = StyleSheet.create({
   timelineMarkerRow: {
     minHeight: 10,
     position: "relative",
-    borderBottomWidth: 0.5,
+    borderBottomWidth: 1,
     borderBottomColor: TIMELINE_ROW_BORDER,
   },
   timelineMarkerText: {
@@ -476,6 +519,12 @@ const styles = StyleSheet.create({
     fontSize: 5,
     fontWeight: "bold",
     color: TIMELINE_REPORT_DATE,
+  },
+  /** Row above the month header for "Report date" label. */
+  timelineReportDateLabelAbove: {
+    position: "relative",
+    minHeight: 8,
+    width: "100%",
   },
   /** Container for table + chart on Non-CDA; no fixed height so no gap below — content-sized only. */
   bottomQuarterSection: {
@@ -865,8 +914,28 @@ function TimelineBlock({
     reportDate && reportDate >= startYmd && reportDate <= endYmd;
   const reportDatePercent = reportDateInRange ? positionPercent(reportDate) : null;
 
+  const monthBoundaryPositions = months.length > 1
+    ? Array.from({ length: months.length - 1 }, (_, i) => ((i + 1) / months.length) * 100)
+    : [];
+
   return (
     <View style={styles.timelineWrap}>
+      {/* Report date label above the header row, aligned to the red line position */}
+      {reportDatePercent != null && (
+        <View style={styles.timelineReportDateLabelAbove}>
+          <Text
+            style={[
+              styles.timelineReportDateLabel,
+              {
+                left: `${reportDatePercent}%`,
+                marginLeft: -18,
+              },
+            ]}
+          >
+            Report date
+          </Text>
+        </View>
+      )}
       <View style={styles.timelineMonthRow}>
         {months.map((monthKey) => (
           <View key={monthKey} style={styles.timelineMonthCell}>
@@ -874,11 +943,34 @@ function TimelineBlock({
           </View>
         ))}
       </View>
-      {/* 4 rows: each row has bars + markers (same layout as Timeline tab) */}
-      {[0, 1, 2, 3].map((rowIdx) => {
+      <View style={styles.timelineBarRowsWrap}>
+        {/* Red line only in bar area so it does not go into the header */}
+        {reportDatePercent != null && (
+          <View
+            style={[
+              styles.timelineReportDateLine,
+              {
+                left: `${reportDatePercent}%`,
+                marginLeft: -1,
+                height: 64,
+              },
+            ]}
+          />
+        )}
+        <View style={styles.timelineBarRowsContent}>
+        {[0, 1, 2, 3].map((rowIdx) => {
         const markersInRow = timeline.markers.filter((m) => (m.rowIndex ?? 1) === rowIdx + 1);
         return (
           <View key={rowIdx} style={styles.timelineBarRow}>
+            {/* Vertical month lines as first child so they paint behind bars and markers */}
+            <View style={styles.timelineRowMonthLinesLayer}>
+              {monthBoundaryPositions.map((leftPct, i) => (
+                <View
+                  key={`v-${i}`}
+                  style={[styles.timelineMonthBoundaryLine, { left: `${leftPct}%`, marginLeft: -0.5 }]}
+                />
+              ))}
+            </View>
             {barsByRow[rowIdx].map((bar, i) => (
               <View
                 key={`bar-${i}`}
@@ -919,35 +1011,8 @@ function TimelineBlock({
           </View>
         );
       })}
-      {/* Report-date label row: under the last bar row, aligned to the red line */}
-      {reportDatePercent != null && (
-        <View style={styles.timelineReportDateLabelRow}>
-          <Text
-            style={[
-              styles.timelineReportDateLabel,
-              {
-                left: `${reportDatePercent}%`,
-                marginLeft: -18,
-              },
-            ]}
-          >
-            Report date
-          </Text>
         </View>
-      )}
-      {/* Red line overlay rendered last so it draws on top of the bars */}
-      {reportDatePercent != null && (
-        <View
-          style={[
-            styles.timelineReportDateLine,
-            {
-              left: `${reportDatePercent}%`,
-              marginLeft: -1,
-              height: 72,
-            },
-          ]}
-        />
-      )}
+      </View>
     </View>
   );
 }
@@ -1191,32 +1256,41 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
         </View>
 
         <View style={styles.mainContentColumn}>
-          <View style={styles.middleContent}>
-            <View style={styles.threeCol}>
-              <View style={styles.col}>
-                <Text style={styles.colTitle}>Completed activities</Text>
-                {bulletLines(report.completedActivities).slice(0, 5).map((line, i) => (
-                  <Text key={i} style={styles.bulletText}>• {line}</Text>
-                ))}
+          <View
+            style={[
+              styles.mainContentPadding,
+              !(report.variation !== "CDA" && data.timeline && data.timeline.bars.length > 0) && { paddingBottom: 0 },
+            ]}
+          >
+            <View style={styles.middleContent}>
+              <View style={styles.threeCol}>
+                <View style={styles.col}>
+                  <Text style={styles.colTitle}>Completed activities</Text>
+                  {bulletLines(report.completedActivities).slice(0, 7).map((line, i) => (
+                    <Text key={i} style={styles.bulletText}>• {line}</Text>
+                  ))}
+                </View>
+                <View style={styles.col}>
+                  <Text style={styles.colTitle}>Upcoming activities</Text>
+                  {bulletLines(report.upcomingActivities).slice(0, 7).map((line, i) => (
+                    <Text key={i} style={styles.bulletText}>• {line}</Text>
+                  ))}
+                </View>
+                <View style={styles.col}>
+                  <Text style={styles.colTitle}>Risks / Issues / Decisions</Text>
+                  {bulletLines(report.risksIssuesDecisions).slice(0, 7).map((line, i) => (
+                    <Text key={i} style={styles.bulletText}>• {line}</Text>
+                  ))}
+                </View>
               </View>
-              <View style={styles.col}>
-                <Text style={styles.colTitle}>Upcoming activities</Text>
-                {bulletLines(report.upcomingActivities).slice(0, 5).map((line, i) => (
-                  <Text key={i} style={styles.bulletText}>• {line}</Text>
-                ))}
-              </View>
-              <View style={styles.col}>
-                <Text style={styles.colTitle}>Risks / Issues / Decisions</Text>
-                {bulletLines(report.risksIssuesDecisions).slice(0, 5).map((line, i) => (
-                  <Text key={i} style={styles.bulletText}>• {line}</Text>
-                ))}
-              </View>
+              <View style={styles.budgetSectionSpacer} />
             </View>
-            <View style={styles.budgetSectionSpacer} />
-            {report.variation !== "CDA" && data.timeline && data.timeline.bars.length > 0 && (
-              <TimelineBlock timeline={data.timeline} reportDate={data.report.reportDate} />
-            )}
           </View>
+          {report.variation !== "CDA" && data.timeline && data.timeline.bars.length > 0 && (
+            <View style={styles.timelineSlotFixed}>
+              <TimelineBlock timeline={data.timeline} reportDate={data.report.reportDate} />
+            </View>
+          )}
         </View>
         </View>
         <View style={styles.budgetBlockFixed}>
