@@ -1259,7 +1259,9 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
           <View
             style={[
               styles.mainContentPadding,
-              !(report.variation !== "CDA" && data.timeline && data.timeline.bars.length > 0) && { paddingBottom: 0 },
+              !(report.variation !== "CDA" && data.timeline && data.timeline.bars.length > 0)
+                ? { paddingBottom: 0 }
+                : undefined,
             ]}
           >
             <View style={styles.middleContent}>
