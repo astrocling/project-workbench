@@ -24,6 +24,16 @@ const PAGE_WIDTH = 720;
 const PAGE_HEIGHT = 405;
 /** Max height for table + chart block on Non-CDA exports (bottom 1/4 of slide). */
 const BOTTOM_QUARTER_HEIGHT = PAGE_HEIGHT / 4;
+/** Fixed gap between timeline/activities and budget section (~10pt above budget). */
+const BUDGET_SECTION_GAP = 10;
+/** Actual footer height: blue line + padding + one line of text. Prevents footer from stretching. */
+const FOOTER_HEIGHT = 14;
+/** Small gap between budget block and footer (in points; ~5px). */
+const BUDGET_FOOTER_GAP = 5;
+/** Content area height: page minus top padding and footer so budget sits flush above footer. */
+const MAIN_CONTENT_HEIGHT = PAGE_HEIGHT - 24 - FOOTER_HEIGHT;
+/** Space to reserve at bottom of main column so content doesn't overlap the fixed budget block (content-sized budget + gap). */
+const BUDGET_BLOCK_RESERVED = 70;
 
 const BIO_TITLE_COLOR = "#220088";
 const BIO_LABEL_COLOR = "#220088";
@@ -90,16 +100,31 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingLeft: 24,
     paddingRight: 24,
-    paddingBottom: 28,
+    paddingBottom: 0,
     fontSize: 9,
     fontFamily: "Raleway",
     flexDirection: "column",
+    overflow: "hidden",
+    position: "relative",
   },
-  /** Row containing bio (left 50%) and RAG block (right 50%). Both sections align to top; bio keeps full multi-row layout. */
+  /** Full-height wrapper so absolute children (budget, footer) position relative to page bottom. */
+  pageInnerWrap: {
+    position: "relative",
+    width: "100%",
+    height: PAGE_HEIGHT - 24,
+  },
+  /** Constrains content to one page so budget ends exactly above footer (no gap). */
+  pageContentWrap: {
+    height: MAIN_CONTENT_HEIGHT,
+    minHeight: MAIN_CONTENT_HEIGHT,
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+  /** Row containing bio (left 50%) and RAG block (right 50%). Both sections align to top; bio keeps full multi-row layout. Minimal gap so status titles sit right below. */
   topRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 12,
+    marginBottom: 6,
     gap: 12,
   },
   topRowHalf: {
@@ -164,15 +189,42 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     color: BIO_VALUE_COLOR,
   },
-  /** Wraps content below bio so middle can grow and table+chart sit at bottom. */
+  /** Wraps content below bio/RAG; status blocks first, then spacer, then timeline. paddingBottom reserves space for fixed budget block. */
   mainContentColumn: {
+    flex: 1,
+    flexGrow: 1,
+    flexShrink: 0,
+    flexDirection: "column",
+    minHeight: 0,
+    paddingBottom: BUDGET_BLOCK_RESERVED,
+  },
+  /** Spacer between status blocks and timeline: grows so white space is below status items, not between bio/RAG and status titles. */
+  budgetSectionSpacer: {
+    flex: 1,
+    minHeight: 24,
+  },
+  /** Fixed gap between timeline/activities and budget — same regardless of content amount. */
+  budgetSectionGap: {
+    height: BUDGET_SECTION_GAP,
+    flexShrink: 0,
+  },
+  /** Budget section container — last element above footer. */
+  budgetSectionPin: {
+    flexShrink: 0,
+  },
+  /** Budget block pinned to bottom of page; no fixed height so it's only as tall as content; small gap above footer. */
+  budgetBlockFixed: {
+    position: "absolute",
+    left: 24,
+    right: 24,
+    bottom: FOOTER_HEIGHT + BUDGET_FOOTER_GAP,
+    flexDirection: "column",
+  },
+  /** Activities (status blocks) + spacer + timeline; flex so spacer absorbs space between status and timeline. */
+  middleContent: {
     flex: 1,
     flexDirection: "column",
     minHeight: 0,
-  },
-  /** Activities + timeline; only as tall as content so milestones sit right below. */
-  middleContent: {
-    flexDirection: "column",
     width: "100%",
   },
   sectionTitle: {
@@ -425,14 +477,11 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: TIMELINE_REPORT_DATE,
   },
-  /** Container for table + chart on Non-CDA: bottom 25% of slide. */
+  /** Container for table + chart on Non-CDA; no fixed height so no gap below — content-sized only. */
   bottomQuarterSection: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 10,
-    height: BOTTOM_QUARTER_HEIGHT,
-    maxHeight: BOTTOM_QUARTER_HEIGHT,
-    marginTop: 4,
   },
   /** CDA export: left = milestones table, right = two tables + two charts. Align flex-start so title/header rows line up. */
   cdaBottomSection: {
@@ -440,7 +489,6 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: 12,
     marginTop: 0,
-    minHeight: BOTTOM_QUARTER_HEIGHT,
   },
   cdaBottomLeft: {
     flex: 1,
@@ -528,15 +576,16 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: "Raleway",
   },
-  /** JAKALA footer: fixed at bottom of page so content stays above it (no bleed). */
+  /** JAKALA footer: fixed at bottom, fixed height so it doesn't stretch and create a gap above the blue line. */
   footerWrap: {
     position: "absolute",
     left: 24,
     right: 24,
     bottom: 0,
+    height: FOOTER_HEIGHT,
     borderTopWidth: 1,
     borderTopColor: FOOTER_LINE_COLOR,
-    paddingTop: 6,
+    paddingTop: 2,
     flexDirection: "row",
     alignItems: "center",
   },
@@ -1001,9 +1050,9 @@ function BudgetBurnChartPDF({
   compact?: boolean;
   label?: string;
 }) {
-  const size = compact ? 48 : 64;
-  const r = compact ? 18 : 24;
-  const stroke = compact ? 7 : 10;
+  const size = compact ? 36 : 48;
+  const r = compact ? 13 : 18;
+  const stroke = compact ? 5 : 7;
   const clamped = burnPercent == null ? 0 : Math.min(100, Math.max(0, burnPercent));
   const cx = size / 2;
   const cy = size / 2;
@@ -1084,7 +1133,9 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
 
   return (
     <Document>
-      <Page size={[PAGE_WIDTH, PAGE_HEIGHT]} style={styles.page}>
+      <Page size={[PAGE_WIDTH, PAGE_HEIGHT]} style={styles.page} wrap={false}>
+        <View style={styles.pageInnerWrap}>
+        <View style={styles.pageContentWrap}>
         <View style={styles.topRow}>
           <View style={styles.topRowHalf}>
             <View style={styles.biographicalBlock}>
@@ -1161,11 +1212,16 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
                 ))}
               </View>
             </View>
+            <View style={styles.budgetSectionSpacer} />
             {report.variation !== "CDA" && data.timeline && data.timeline.bars.length > 0 && (
               <TimelineBlock timeline={data.timeline} reportDate={data.report.reportDate} />
             )}
           </View>
-
+        </View>
+        </View>
+        <View style={styles.budgetBlockFixed}>
+          <View style={styles.budgetSectionGap} />
+          <View style={styles.budgetSectionPin}>
           {report.variation === "CDA" && data.cda && (() => {
             const reportMonthKey = data.report.reportDate.slice(0, 7);
             const currentMonthRow = data.cda.rows.find((r) => r.monthKey === reportMonthKey);
@@ -1448,8 +1504,10 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
               )}
             </View>
           )}
+          </View>
         </View>
         <StatusReportFooter />
+        </View>
       </Page>
 
       {report.meetingNotes && report.meetingNotes.trim() && (

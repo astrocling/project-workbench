@@ -46,9 +46,9 @@ function formatReportNumber(n: number): string {
 }
 
 function BudgetBurnCircleChart({ burnPercent }: { burnPercent: number | null }) {
-  const size = 160;
-  const r = 56;
-  const stroke = 24;
+  const size = 100;
+  const r = 35;
+  const stroke = 15;
   const circumference = 2 * Math.PI * r;
   const clamped = burnPercent == null ? 0 : Math.min(100, Math.max(0, burnPercent));
   const dash = (clamped / 100) * circumference;
