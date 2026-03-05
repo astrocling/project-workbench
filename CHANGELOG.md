@@ -10,7 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Search crawler blocking**: `robots.txt` and related config now disallow all crawlers so the internal app is not indexed by search engines.
+
 ### Changed
+
+- **CDA — hours per month remaining**: The value is now based only on planned hours: total planned for the current month and all remaining months, divided by the number of those months. It no longer uses actuals, so it does not change when you add or edit hours in the current month.
 
 ### Fixed
 
