@@ -8,6 +8,8 @@ import {
   Svg,
   Circle,
   Path,
+  Line,
+  G,
 } from "@react-pdf/renderer";
 import { BRAND_COLORS } from "@/lib/brandColors";
 
@@ -32,6 +34,54 @@ const BIO_BLOCK_BG = "#F5F5F5";
 const FOOTER_LINE_COLOR = "#474797";
 const FOOTER_BRAND_COLOR = "#474797";
 const FOOTER_MUTED_COLOR = "#6b7280";
+
+/** Timeline colors — match Timeline tab (jblue, jred, month header). */
+const TIMELINE_MONTH_BG = "#040966";
+const TIMELINE_BAR_BG = "#1941FA"; // jblue-500
+const TIMELINE_REPORT_DATE = "#FF2020"; // jred-600
+const TIMELINE_MARKER = "#FF2020"; // jred-600 (matches marker icon color in tab)
+const TIMELINE_MARKER_LABEL = "#374151"; // surface-700
+const TIMELINE_MARKER_LABEL_BG = "#f3f4f6"; // white/90 equivalent for label pill
+const TIMELINE_ROW_BORDER = "#e5e7eb"; // surface-200
+
+/** Lucide icon path/line data for timeline markers (same icons as Timeline tab). viewBox 0 0 24 24. */
+type IconNode = { type: "path"; d: string } | { type: "line"; x1: number; y1: number; x2: number; y2: number };
+const TIMELINE_MARKER_ICONS: Record<string, IconNode[]> = {
+  BadgeAlert: [
+    { type: "path", d: "M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z" },
+    { type: "line", x1: 12, y1: 8, x2: 12, y2: 12 },
+    { type: "line", x1: 12, y1: 16, x2: 12.01, y2: 16 },
+  ],
+  ThumbsUp: [
+    { type: "path", d: "M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" },
+    { type: "path", d: "M7 10v12" },
+  ],
+  TrendingUpDown: [
+    { type: "path", d: "M14.828 14.828 21 21" },
+    { type: "path", d: "M21 16v5h-5" },
+    { type: "path", d: "m21 3-9 9-4-4-6 6" },
+    { type: "path", d: "M21 8V3h-5" },
+  ],
+  Rocket: [
+    { type: "path", d: "M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" },
+    { type: "path", d: "M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09" },
+    { type: "path", d: "M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z" },
+    { type: "path", d: "M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05" },
+  ],
+  PencilRuler: [
+    { type: "path", d: "M13 7 8.7 2.7a2.41 2.41 0 0 0-3.4 0L2.7 5.3a2.41 2.41 0 0 0 0 3.4L7 13" },
+    { type: "path", d: "m8 6 2-2" },
+    { type: "path", d: "m18 16 2-2" },
+    { type: "path", d: "m17 11 4.3 4.3c.94.94.94 2.46 0 3.4l-2.6 2.6c-.94.94-2.46.94-3.4 0L11 17" },
+    { type: "path", d: "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" },
+    { type: "path", d: "m15 5 4 4" },
+  ],
+  Pin: [
+    { type: "path", d: "M12 17v5" },
+    { type: "path", d: "M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" },
+  ],
+};
+const TIMELINE_MARKER_ICON_SIZE = 11;
 
 const styles = StyleSheet.create({
   page: {
@@ -289,18 +339,19 @@ const styles = StyleSheet.create({
     color: "#888",
   },
   timelineWrap: {
-    marginTop: 6,
+    position: "relative",
+    marginTop: 3,
     width: "100%",
     borderWidth: 0.5,
-    borderColor: "#e5e7eb",
+    borderColor: TIMELINE_ROW_BORDER,
   },
   timelineMonthRow: {
     flexDirection: "row",
-    backgroundColor: "#1e40af",
+    backgroundColor: TIMELINE_MONTH_BG,
   },
   timelineMonthCell: {
     flex: 1,
-    paddingVertical: 3,
+    paddingVertical: 2,
     paddingHorizontal: 2,
     alignItems: "center",
   },
@@ -312,16 +363,17 @@ const styles = StyleSheet.create({
   },
   timelineBarRow: {
     flexDirection: "row",
-    minHeight: 10,
+    minHeight: 16,
     borderBottomWidth: 0.5,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: TIMELINE_ROW_BORDER,
     position: "relative",
   },
   timelineBar: {
     position: "absolute",
-    top: 2,
-    bottom: 2,
-    backgroundColor: "#2563eb",
+    top: 1,
+    bottom: 1,
+    backgroundColor: TIMELINE_BAR_BG,
+    opacity: 0.82,
     borderRadius: 1,
     paddingHorizontal: 2,
     justifyContent: "center",
@@ -332,44 +384,46 @@ const styles = StyleSheet.create({
     fontWeight: 600,
   },
   timelineMarkerRow: {
-    minHeight: 14,
+    minHeight: 10,
     position: "relative",
     borderBottomWidth: 0.5,
-    borderBottomColor: "#e5e7eb",
-  },
-  timelineMarkerDiamond: {
-    position: "absolute",
-    top: 0,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 4,
-    borderLeftColor: "transparent",
-    borderRightWidth: 4,
-    borderRightColor: "transparent",
-    borderBottomWidth: 6,
-    borderBottomColor: "#2dd4bf",
+    borderBottomColor: TIMELINE_ROW_BORDER,
   },
   timelineMarkerText: {
-    position: "absolute",
-    top: 7,
     fontSize: 5,
-    color: "#374151",
-    fontWeight: 600,
+    color: TIMELINE_MARKER_LABEL,
+    fontWeight: 500,
+  },
+  timelineMarkerLabelWrap: {
+    flexDirection: "row",
+    flexWrap: "nowrap",
+    overflow: "hidden",
+    backgroundColor: TIMELINE_MARKER_LABEL_BG,
+    paddingHorizontal: 2,
+    paddingVertical: 0,
+    borderRadius: 1,
+    marginTop: 0,
+    maxWidth: 52,
+    alignItems: "center",
   },
   timelineReportDateLine: {
     position: "absolute",
     top: 0,
     width: 2,
-    backgroundColor: "#F00A0A",
-    zIndex: 10,
+    backgroundColor: TIMELINE_REPORT_DATE,
+  },
+  /** Row under the last bar row for "Report date" label. */
+  timelineReportDateLabelRow: {
+    position: "relative",
+    minHeight: 10,
+    width: "100%",
   },
   timelineReportDateLabel: {
     position: "absolute",
-    top: 1,
+    top: 0,
     fontSize: 5,
     fontWeight: "bold",
-    color: "#F00A0A",
-    zIndex: 10,
+    color: TIMELINE_REPORT_DATE,
   },
   /** Container for table + chart on Non-CDA: bottom 25% of slide. */
   bottomQuarterSection: {
@@ -700,6 +754,38 @@ function getMonthsForTimeline(startDate: string, endDate: string): string[] {
   return months;
 }
 
+const TIMELINE_ICON_STROKE = { stroke: TIMELINE_MARKER, strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, fill: "none" };
+
+/** Renders a timeline marker icon (same Lucide icons as Timeline tab) for PDF. */
+function TimelineMarkerIconPdf({ shape }: { shape: string }) {
+  const nodes = TIMELINE_MARKER_ICONS[shape] ?? TIMELINE_MARKER_ICONS.Pin;
+  return (
+    <Svg
+      width={TIMELINE_MARKER_ICON_SIZE}
+      height={TIMELINE_MARKER_ICON_SIZE}
+      viewBox="0 0 24 24"
+      style={{ flexShrink: 0 }}
+    >
+      <G>
+        {nodes.map((node, i) =>
+          node.type === "path" ? (
+            <Path key={i} d={node.d} {...TIMELINE_ICON_STROKE} />
+          ) : (
+            <Line
+              key={i}
+              x1={node.x1}
+              y1={node.y1}
+              x2={node.x2}
+              y2={node.y2}
+              {...TIMELINE_ICON_STROKE}
+            />
+          )
+        )}
+      </G>
+    </Svg>
+  );
+}
+
 function TimelineBlock({
   timeline,
   reportDate,
@@ -732,18 +818,61 @@ function TimelineBlock({
 
   return (
     <View style={styles.timelineWrap}>
+      <View style={styles.timelineMonthRow}>
+        {months.map((monthKey) => (
+          <View key={monthKey} style={styles.timelineMonthCell}>
+            <Text style={styles.timelineMonthText}>{getMonthFullName(monthKey).toUpperCase()}</Text>
+          </View>
+        ))}
+      </View>
+      {/* 4 rows: each row has bars + markers (same layout as Timeline tab) */}
+      {[0, 1, 2, 3].map((rowIdx) => {
+        const markersInRow = timeline.markers.filter((m) => (m.rowIndex ?? 1) === rowIdx + 1);
+        return (
+          <View key={rowIdx} style={styles.timelineBarRow}>
+            {barsByRow[rowIdx].map((bar, i) => (
+              <View
+                key={`bar-${i}`}
+                style={[
+                  styles.timelineBar,
+                  {
+                    left: `${positionPercent(bar.startDate)}%`,
+                    width: `${widthPercent(bar.startDate, bar.endDate)}%`,
+                  },
+                ]}
+              >
+                <Text style={styles.timelineBarText}>
+                  {bar.label}
+                </Text>
+              </View>
+            ))}
+            {markersInRow.map((m, i) => (
+              <View
+                key={`m-${i}`}
+                style={[
+                  {
+                    position: "absolute",
+                    left: `${positionPercent(m.date)}%`,
+                    marginLeft: -TIMELINE_MARKER_ICON_SIZE / 2,
+                    top: 0,
+                    flexDirection: "column",
+                    alignItems: "center",
+                    minWidth: TIMELINE_MARKER_ICON_SIZE,
+                  },
+                ]}
+              >
+                <TimelineMarkerIconPdf shape={m.shape ?? "Pin"} />
+                <View style={styles.timelineMarkerLabelWrap}>
+                  <Text style={styles.timelineMarkerText} wrap={false}>{m.label}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        );
+      })}
+      {/* Report-date label row: under the last bar row, aligned to the red line */}
       {reportDatePercent != null && (
-        <>
-          <View
-            style={[
-              styles.timelineReportDateLine,
-              {
-                left: `${reportDatePercent}%`,
-                marginLeft: -1,
-                height: 120,
-              },
-            ]}
-          />
+        <View style={styles.timelineReportDateLabelRow}>
           <Text
             style={[
               styles.timelineReportDateLabel,
@@ -755,66 +884,21 @@ function TimelineBlock({
           >
             Report date
           </Text>
-        </>
-      )}
-      <View style={styles.timelineMonthRow}>
-        {months.map((monthKey) => (
-          <View key={monthKey} style={styles.timelineMonthCell}>
-            <Text style={styles.timelineMonthText}>{getMonthFullName(monthKey).toUpperCase()}</Text>
-          </View>
-        ))}
-      </View>
-      {timeline.markers.length > 0 && (
-        <View style={styles.timelineMarkerRow}>
-          {timeline.markers.map((m, i) => (
-            <View
-              key={i}
-              style={[
-                styles.timelineMarkerDiamond,
-                {
-                  left: `${positionPercent(m.date)}%`,
-                  marginLeft: -4,
-                },
-              ]}
-            />
-          ))}
-          {timeline.markers.map((m, i) => (
-            <Text
-              key={i}
-              style={[
-                styles.timelineMarkerText,
-                {
-                  left: `${positionPercent(m.date)}%`,
-                  marginLeft: -8,
-                  maxWidth: 40,
-                },
-              ]}
-            >
-              {m.label}
-            </Text>
-          ))}
         </View>
       )}
-      {[0, 1, 2, 3].map((rowIdx) => (
-        <View key={rowIdx} style={styles.timelineBarRow}>
-          {barsByRow[rowIdx].map((bar, i) => (
-            <View
-              key={i}
-              style={[
-                styles.timelineBar,
-                {
-                  left: `${positionPercent(bar.startDate)}%`,
-                  width: `${widthPercent(bar.startDate, bar.endDate)}%`,
-                },
-              ]}
-            >
-              <Text style={styles.timelineBarText}>
-                {bar.label}
-              </Text>
-            </View>
-          ))}
-        </View>
-      ))}
+      {/* Red line overlay rendered last so it draws on top of the bars */}
+      {reportDatePercent != null && (
+        <View
+          style={[
+            styles.timelineReportDateLine,
+            {
+              left: `${reportDatePercent}%`,
+              marginLeft: -1,
+              height: 72,
+            },
+          ]}
+        />
+      )}
     </View>
   );
 }
@@ -1077,7 +1161,7 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
                 ))}
               </View>
             </View>
-            {data.timeline && data.timeline.bars.length > 0 && (
+            {report.variation !== "CDA" && data.timeline && data.timeline.bars.length > 0 && (
               <TimelineBlock timeline={data.timeline} reportDate={data.report.reportDate} />
             )}
           </View>
