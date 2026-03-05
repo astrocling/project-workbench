@@ -9,8 +9,16 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 import { StatusReportDocument } from "@/components/pdf/StatusReportDocument";
 
+/** Sanitize a string for use in a filename: remove/replace unsafe characters. */
+function sanitizeForFilename(value: string): string {
+  return value
+    .replace(/[\s\\/:*?"<>|]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim() || "Project";
+}
+
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string; reportId: string }> }
 ) {
   const session = await getServerSession(authOptions);
@@ -35,11 +43,14 @@ export async function GET(
   const buffer = await renderToBuffer(element as any);
 
   const reportDate = pdfData.report.reportDate;
+  const safeProjectName = sanitizeForFilename(pdfData.project.name);
+  const filename = `Status Report - ${safeProjectName} - ${reportDate}.pdf`;
+  const disposition = req.nextUrl.searchParams.get("download") === "1" ? "attachment" : "inline";
   return new NextResponse(new Uint8Array(buffer), {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="status-report-${reportDate}.pdf"`,
+      "Content-Disposition": `${disposition}; filename="${filename.replace(/"/g, '\\"')}"`,
     },
   });
 }

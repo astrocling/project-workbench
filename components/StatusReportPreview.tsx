@@ -72,13 +72,22 @@ export function StatusReportPreview({
             <h2 className="text-title-sm font-semibold text-surface-800 dark:text-surface-100">
               Status report preview
             </h2>
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex items-center justify-center h-8 px-3 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 text-body-sm font-medium hover:bg-surface-50 dark:hover:bg-dark-bg"
-            >
-              Close
-            </button>
+            <div className="flex items-center gap-2">
+              <a
+                href={`/api/projects/${projectId}/status-reports/${reportId}/pdf?download=1`}
+                download
+                className="inline-flex items-center justify-center h-8 px-3 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white text-body-sm font-medium focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+              >
+                Download PDF
+              </a>
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex items-center justify-center h-8 px-3 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 text-body-sm font-medium hover:bg-surface-50 dark:hover:bg-dark-bg"
+              >
+                Close
+              </button>
+            </div>
           </div>
           <div className="flex-1 min-h-0 flex flex-col">
             {loading && (
