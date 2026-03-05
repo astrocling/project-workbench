@@ -471,10 +471,15 @@ export function CDATab({
     [rows, currentMonthKey]
   );
   const remainingMonthCount = remainingMonthRows.length;
-  /** Average remaining hours per month (remaining spread over current + future months). */
+  /** Total planned hours for current month + all future months (no actuals). */
+  const totalPlannedRemainingMonths = useMemo(
+    () => remainingMonthRows.reduce((s, r) => s + r.planned, 0),
+    [remainingMonthRows]
+  );
+  /** Hours per month remaining: average planned per month over current + future months (planned only, no actuals). */
   const avgRemainingPerFutureMonth =
     remainingMonthCount > 0
-      ? roundToQuarter(totalRemaining / remainingMonthCount)
+      ? roundToQuarter(totalPlannedRemainingMonths / remainingMonthCount)
       : null;
 
   if (loading) {
