@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [0.1.6] - 2025-03-06
+
+### Changed
+
+- **CDA hours remaining**: Calculation updated for greater accuracy (hours per month remaining and related CDA balance logic).
+
 ## [0.1.5] - 2025-03-05
 
 ### Added
