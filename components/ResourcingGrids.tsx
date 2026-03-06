@@ -69,9 +69,21 @@ export function ResourcingGrids({
   } | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
   const [commentPopoverAnchor, setCommentPopoverAnchor] = useState<{ x: number; y: number } | null>(null);
+  const [expandedSplitCells, setExpandedSplitCells] = useState<Set<string>>(new Set());
   const commentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const firstWeekColRef = useRef<HTMLTableCellElement>(null);
+
+  const splitCellKey = (personId: string, weekKey: string) => `${personId}|${weekKey}`;
+  const setSplitCellExpanded = (personId: string, weekKey: string, expanded: boolean) => {
+    const key = splitCellKey(personId, weekKey);
+    setExpandedSplitCells((prev) => {
+      const next = new Set(prev);
+      if (expanded) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!projectId) return;
@@ -655,7 +667,84 @@ export function ResourcingGrids({
     return m ?? monthKey;
   };
 
-  const actualsSplitCell = (personId: string, weekKey: string, monthKeys: [string, string]) => {
+  /** Rolled-up (collapsed) actuals cell for a week that spans two months. Shows week total + expand control. */
+  const actualsRolledUpCell = (
+    personId: string,
+    weekKey: string,
+    monthKeys: [string, string],
+    onExpand: () => void
+  ) => {
+    const weekDate = new Date(weekKey);
+    const val1 = getActualByMonth(personId, weekKey, monthKeys[0]!);
+    const val2 = getActualByMonth(personId, weekKey, monthKeys[1]!);
+    const weekTotal = (val1 ?? 0) + (val2 ?? 0);
+    const plannedVal = getPlanned(personId, weekKey);
+    const missing = hasMissingActuals(weekDate, plannedVal, weekTotal > 0 ? weekTotal : null, asOf);
+    const lowThresh = project.actualsLowThresholdPercent ?? 10;
+    const highThresh = project.actualsHighThresholdPercent ?? 5;
+    const varianceClass =
+      !isFutureWeek(weekDate, asOf) && !missing
+        ? weekTotal < plannedVal && plannedVal > 0 && (plannedVal - weekTotal) / plannedVal > lowThresh / 100
+          ? "bg-jblue-100 dark:bg-jblue-500/15"
+          : weekTotal > plannedVal && (weekTotal - plannedVal) / (plannedVal || 1) > highThresh / 100
+            ? "bg-jred-100 dark:bg-jred-900/20"
+            : ""
+        : "";
+    const cellComment = getComment(personId, weekKey, "Actual");
+    const hasComment = cellComment.length > 0;
+    return (
+      <td
+        key={weekKey}
+        className={`relative z-0 p-1 border overflow-hidden min-w-0 text-center border-surface-200 dark:border-dark-border ${missing ? "bg-amber-100 dark:bg-amber-900/20" : ""} ${varianceClass}`}
+      >
+        <div className="group relative flex items-center justify-center gap-1 min-h-[1.5rem]">
+          <span className="tabular-nums">{weekTotal > 0 ? weekTotal : "—"}</span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onExpand();
+            }}
+            className="shrink-0 w-5 h-5 flex items-center justify-center rounded border border-transparent text-surface-500 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-dark-raised dark:hover:text-surface-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400"
+            aria-label="Split by month"
+            title="Split by month"
+          >
+            <span className="inline-block w-0 h-0 border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-l-[5px] border-l-current" aria-hidden />
+          </button>
+        </div>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const rect = e.currentTarget.getBoundingClientRect();
+              setCommentPopoverAnchor({ x: rect.left, y: rect.bottom });
+              setOpenCommentCell({ personId, weekKey, gridType: "Actual" });
+              setCommentDraft(cellComment);
+            }}
+            className={`absolute top-0 right-0 w-4 h-4 flex items-center justify-center rounded-sm text-surface-500 hover:bg-surface-200 dark:hover:bg-dark-raised ${!hasComment ? "opacity-0 group-hover:opacity-100" : ""}`}
+            aria-label={hasComment ? "Edit comment" : "Add comment"}
+            title={hasComment ? "Edit comment" : "Add comment"}
+          >
+            {hasComment ? (
+              <span className="inline-block w-0 h-0 border-t-[6px] border-t-surface-500 border-l-[6px] border-l-transparent" aria-hidden />
+            ) : (
+              <span className="text-[10px] font-medium leading-none">+</span>
+            )}
+          </button>
+        )}
+      </td>
+    );
+  };
+
+  const actualsSplitCell = (
+    personId: string,
+    weekKey: string,
+    monthKeys: [string, string],
+    onCollapse?: () => void
+  ) => {
     const weekDate = new Date(weekKey);
     const completed = isCompletedWeek(weekDate, asOf);
     const isCurrWeek = isCurrentWeek(weekDate);
@@ -709,6 +798,23 @@ export function ResourcingGrids({
         className={`relative z-0 p-0.5 border overflow-hidden min-w-0 text-center border-surface-200 dark:border-dark-border ${missing ? "bg-amber-100 dark:bg-amber-900/20" : ""} ${varianceClass}`}
       >
         <div className="group relative flex flex-col gap-0.5 min-h-[2rem]">
+          {onCollapse && (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onCollapse();
+                }}
+                className="shrink-0 w-5 h-4 flex items-center justify-center rounded border border-transparent text-surface-500 hover:bg-surface-200 dark:hover:bg-dark-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400"
+                aria-label="Roll up"
+                title="Roll up"
+              >
+                <span className="inline-block w-0 h-0 border-t-[5px] border-t-current border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent" aria-hidden style={{ transform: "rotate(-90deg)" }} />
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-0.5">
             <span className="text-[10px] text-surface-500 dark:text-surface-400 w-3 shrink-0" title={monthKeys[0]}>
               {monthKeyToShortLabel(monthKeys[0]!)}
@@ -930,7 +1036,15 @@ export function ResourcingGrids({
                     const k = formatWeekKey(w);
                     const monthKeys = getMonthKeysForWeek(w);
                     if (monthKeys.length === 2) {
-                      return actualsSplitCell(a.personId, k, monthKeys as [string, string]);
+                      const expanded = expandedSplitCells.has(splitCellKey(a.personId, k));
+                      if (expanded) {
+                        return actualsSplitCell(a.personId, k, monthKeys as [string, string], () =>
+                          setSplitCellExpanded(a.personId, k, false)
+                        );
+                      }
+                      return actualsRolledUpCell(a.personId, k, monthKeys as [string, string], () =>
+                        setSplitCellExpanded(a.personId, k, true)
+                      );
                     }
                     return hoursInput(
                       a.personId,
