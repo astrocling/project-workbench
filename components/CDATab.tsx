@@ -101,6 +101,9 @@ export function CDATab({
     actualDollars: number;
   } | null>(null);
 
+  /** Total budget hours from budget lines (high estimate). Used for hours-per-month remaining so it doesn't change with CDA planned edits. Null until loaded. */
+  const [totalBudgetHours, setTotalBudgetHours] = useState<number | null>(null);
+
   /** CDA milestones (phase, dev/uat/deploy dates, completed). */
   const [milestones, setMilestones] = useState<CdaMilestone[]>([]);
   const [cdaSubTab, setCdaSubTab] = useState<"budget" | "milestones">("budget");
@@ -138,7 +141,7 @@ export function CDATab({
     setStatusReportMonthKey(currentInRows ? currentMonthKey : rows[0].monthKey);
   }, [rows, currentMonthKey, statusReportMonthKey]);
 
-  /** Fetch budget for OVERALL table (total $ and actual $). */
+  /** Fetch budget for OVERALL table (total $ and actual $) and total budget hours for hours-per-month remaining. */
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/projects/${projectId}/budget`)
@@ -152,6 +155,11 @@ export function CDATab({
           0
         );
         const actualDollars = Number(rollups.actualDollarsToDate ?? 0);
+        const budgetHours = lines.reduce(
+          (s: number, bl: { highHours?: number }) => s + Number(bl.highHours ?? 0),
+          0
+        );
+        setTotalBudgetHours(budgetHours);
         if (totalDollars > 0 || actualDollars > 0) {
           setOverallBudget({ totalDollars, actualDollars });
         } else {
@@ -159,7 +167,10 @@ export function CDATab({
         }
       })
       .catch(() => {
-        if (!cancelled) setOverallBudget(null);
+        if (!cancelled) {
+          setOverallBudget(null);
+          setTotalBudgetHours(null);
+        }
       });
     return () => {
       cancelled = true;
@@ -597,21 +608,40 @@ export function CDATab({
   /** True if this month is in the past (has ended). */
   const isPreviousMonth = (monthKey: string) => monthKey < currentMonthKey;
 
+  /** Completed months: all months before the current (e.g. through end of February when in March). */
+  const completedMonthRows = useMemo(
+    () => rows.filter((r) => r.monthKey < currentMonthKey),
+    [rows, currentMonthKey]
+  );
+  /** Surplus or deficit as of end of last month: sum of (planned - mtdActuals) for completed months only. */
+  const surplusThroughLastMonth = useMemo(
+    () =>
+      roundToQuarter(
+        completedMonthRows.reduce((s, r) => s + (r.planned - r.mtdActuals), 0)
+      ),
+    [completedMonthRows]
+  );
+
   /** Remaining months: current month plus future months (>= current). */
   const remainingMonthRows = useMemo(
     () => rows.filter((r) => r.monthKey >= currentMonthKey),
     [rows, currentMonthKey]
   );
   const remainingMonthCount = remainingMonthRows.length;
-  /** Total planned hours for current month + all future months (no actuals). */
-  const totalPlannedRemainingMonths = useMemo(
-    () => remainingMonthRows.reduce((s, r) => s + r.planned, 0),
-    [remainingMonthRows]
-  );
-  /** Hours per month remaining: average planned per month over current + future months (planned only, no actuals). */
+  const totalContractMonths = rows.length;
+  /** Contract hours total for the average: use budget hours when available so the value doesn't change when CDA planned is edited; else fall back to CDA total planned. */
+  const contractHoursTotal =
+    totalBudgetHours != null && totalBudgetHours > 0 ? totalBudgetHours : totalPlanned;
+  /** Average hours per month over the full contract (budget or planned total ÷ total contract months). */
+  const avgHoursPerMonthContract =
+    totalContractMonths > 0 ? contractHoursTotal / totalContractMonths : 0;
+  /** Surplus or deficit spread per remaining month (surplus/deficit through last month ÷ remaining months). */
+  const surplusDeficitPerRemainingMonth =
+    remainingMonthCount > 0 ? surplusThroughLastMonth / remainingMonthCount : 0;
+  /** Hours per month remaining: contract avg per month + (surplus or deficit ÷ remaining months). */
   const avgRemainingPerFutureMonth =
     remainingMonthCount > 0
-      ? roundToQuarter(totalPlannedRemainingMonths / remainingMonthCount)
+      ? roundToQuarter(avgHoursPerMonthContract + surplusDeficitPerRemainingMonth)
       : null;
 
   if (loading) {
@@ -902,6 +932,24 @@ export function CDATab({
                 label={<>{currentMonthFull}<br />Hours Burn</>}
                 size={100}
               />
+            </div>
+            <div className="border-t border-surface-200 dark:border-dark-border pt-3">
+              <p className="text-label-sm uppercase text-surface-400 dark:text-surface-500 tracking-wider">
+                Surplus / deficit (through last month)
+              </p>
+              <p
+                className={`text-title-md font-semibold tabular-nums mt-0.5 ${
+                  surplusThroughLastMonth < 0
+                    ? "text-jred-600 dark:text-jred-400"
+                    : "text-surface-900 dark:text-white"
+                }`}
+              >
+                {surplusThroughLastMonth > 0
+                  ? `${formatHours(surplusThroughLastMonth)} hrs surplus`
+                  : surplusThroughLastMonth < 0
+                    ? `(${formatHours(-surplusThroughLastMonth)}) hrs deficit`
+                    : "0 hrs"}
+              </p>
             </div>
             <div className="border-t border-surface-200 dark:border-dark-border pt-3">
               <p className="text-label-sm uppercase text-surface-400 dark:text-surface-500 tracking-wider">
