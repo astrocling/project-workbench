@@ -37,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **CDA — hours per month remaining**: The value is now based only on planned hours: total planned for the current month and all remaining months, divided by the number of those months. It no longer uses actuals, so it does not change when you add or edit hours in the current month.
+- **CDA — hours per month remaining**: The value is now (total remaining hours in the project ÷ number of months remaining). Remaining hours = total planned − total actuals to date; months remaining = current month plus all future months. The value updates as you add or edit hours.
 - **Roles without rates alert**: The warning that some roles on the project have no bill rate set now appears on Overview, Resourcing, Budget, Rates, CDA, and Status Reports tabs (previously only on Rates). On tabs other than Rates, the message includes a link to the Rates section in Settings to add rates.
 - **Status report PDF**: Export is rendered client-side (instead of server-side) to reduce server load; the download button uses improved filename handling.
 - **CDA tab**: Tabbed sub-navigation (Budget | Milestones) for switching between CDA budget view and the milestones list.
