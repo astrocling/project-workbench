@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { getProjectId } from "@/lib/slug";
-import { getMonthsInRange } from "@/lib/monthUtils";
+import { getMonthsInRange, getMonthKeysForWeek } from "@/lib/monthUtils";
 import { z } from "zod";
 
 function roundToQuarter(n: number): number {
@@ -33,7 +33,7 @@ export async function GET(
 
   const project = await prisma.project.findUnique({
     where: { id },
-    select: { startDate: true, endDate: true, cdaMonths: true },
+    select: { startDate: true, endDate: true, cdaMonths: true, actualHours: true, actualHoursMonthSplits: true },
   });
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -46,13 +46,39 @@ export async function GET(
     ])
   );
 
+  // Compute month actuals from resourcing: ActualHoursMonthSplit by monthKey + ActualHours for single-month weeks
+  const resourcingByMonth = new Map<string, number>();
+  for (const split of project.actualHoursMonthSplits) {
+    const monthKey = split.monthKey;
+    const current = resourcingByMonth.get(monthKey) ?? 0;
+    resourcingByMonth.set(monthKey, current + Number(split.hours));
+  }
+  const weekHasSplits = new Set(
+    project.actualHoursMonthSplits.map(
+      (s) => `${s.personId}:${(s.weekStartDate as Date).toISOString().slice(0, 10)}`
+    )
+  );
+  for (const ah of project.actualHours) {
+    if (ah.hours == null) continue;
+    const weekKey = (ah.weekStartDate as Date).toISOString().slice(0, 10);
+    if (weekHasSplits.has(`${ah.personId}:${weekKey}`)) continue;
+    const monthKeys = getMonthKeysForWeek(ah.weekStartDate as Date);
+    if (monthKeys.length === 1) {
+      const monthKey = monthKeys[0]!;
+      const current = resourcingByMonth.get(monthKey) ?? 0;
+      resourcingByMonth.set(monthKey, current + Number(ah.hours));
+    }
+  }
+
   const rows = months.map(({ monthKey, label }) => {
-    const data = byKey.get(monthKey) ?? { planned: 0, mtdActuals: 0 };
+    const data = byKey.get(monthKey);
+    const fromResourcing = resourcingByMonth.get(monthKey) ?? 0;
+    const mtdActuals = data != null ? Number(data.mtdActuals) : fromResourcing;
     return {
       monthKey,
       monthLabel: label,
-      planned: data.planned,
-      mtdActuals: data.mtdActuals,
+      planned: data != null ? Number(data.planned) : 0,
+      mtdActuals,
     };
   });
 

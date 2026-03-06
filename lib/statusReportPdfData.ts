@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { computeBudgetRollups } from "@/lib/budgetCalculations";
-import { getMonthsInRange } from "@/lib/monthUtils";
+import { getMonthsInRange, getMonthKeysForWeek } from "@/lib/monthUtils";
 import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument";
 
 /** Snapshot of period, budget, CDA, and timeline at report creation so they stay locked when project is edited. */
@@ -39,6 +39,7 @@ export async function buildStatusReportPdfData(
       assignments: { include: { role: true, person: true } },
       plannedHours: true,
       actualHours: true,
+      actualHoursMonthSplits: true,
       projectKeyRoles: { include: { person: true } },
       cdaMonths: true,
       cdaMilestones: true,
@@ -173,21 +174,39 @@ export async function buildStatusReportPdfData(
       };
     }
 
-    if (report.variation === "CDA" && project.cdaMonths && cda === undefined) {
+    if (report.variation === "CDA" && cda === undefined) {
       const months = getMonthsInRange(project.startDate, end);
       const byKey = new Map(
-        project.cdaMonths.map((m) => [
+        (project.cdaMonths ?? []).map((m) => [
           m.monthKey,
           { planned: Number(m.planned), mtdActuals: Number(m.mtdActuals) },
         ])
       );
+      const resourcingByMonth = new Map<string, number>();
+      const splits = project.actualHoursMonthSplits ?? [];
+      for (const s of splits) {
+        const monthKey = s.monthKey;
+        resourcingByMonth.set(monthKey, (resourcingByMonth.get(monthKey) ?? 0) + Number(s.hours));
+      }
+      const weekHasSplits = new Set(splits.map((s) => `${s.personId}:${(s.weekStartDate as Date).toISOString().slice(0, 10)}`));
+      for (const ah of project.actualHours ?? []) {
+        if (ah.hours == null) continue;
+        const weekKey = (ah.weekStartDate as Date).toISOString().slice(0, 10);
+        if (weekHasSplits.has(`${ah.personId}:${weekKey}`)) continue;
+        const monthKeys = getMonthKeysForWeek(ah.weekStartDate as Date);
+        if (monthKeys.length === 1) {
+          const monthKey = monthKeys[0]!;
+          resourcingByMonth.set(monthKey, (resourcingByMonth.get(monthKey) ?? 0) + Number(ah.hours));
+        }
+      }
       const rows = months.map(({ monthKey, label }) => {
-        const data = byKey.get(monthKey) ?? { planned: 0, mtdActuals: 0 };
+        const data = byKey.get(monthKey);
+        const fromResourcing = resourcingByMonth.get(monthKey) ?? 0;
         return {
           monthKey,
           monthLabel: label,
-          planned: data.planned,
-          mtdActuals: data.mtdActuals,
+          planned: data != null ? Number(data.planned) : 0,
+          mtdActuals: data != null ? Number(data.mtdActuals) : fromResourcing,
         };
       });
       const totalPlanned = rows.reduce((s, r) => s + r.planned, 0);

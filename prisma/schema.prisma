@@ -68,11 +68,12 @@ model Person {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  projectAssignments   ProjectAssignment[]
-  plannedHours         PlannedHours[]
-  actualHours          ActualHours[]
-  floatScheduledHours  FloatScheduledHours[]
-  ptoHolidayImpacts   PTOHolidayImpact[]
+  projectAssignments      ProjectAssignment[]
+  plannedHours            PlannedHours[]
+  actualHours             ActualHours[]
+  actualHoursMonthSplits  ActualHoursMonthSplit[]
+  floatScheduledHours     FloatScheduledHours[]
+  ptoHolidayImpacts       PTOHolidayImpact[]
   projectKeyRoles      ProjectKeyRole[]
   readyForFloatUpdates ReadyForFloatUpdate[]
   gridCellComments     GridCellComment[]
@@ -124,7 +125,8 @@ model Project {
   projectRoleRates     ProjectRoleRate[]
   projectKeyRoles      ProjectKeyRole[]
   plannedHours         PlannedHours[]
-  actualHours          ActualHours[]
+  actualHours             ActualHours[]
+  actualHoursMonthSplits  ActualHoursMonthSplit[]
   floatScheduledHours  FloatScheduledHours[]
   budgetLines          BudgetLine[]
   readyForFloatUpdates ReadyForFloatUpdate[]
@@ -306,6 +308,23 @@ model ActualHours {
   person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@id([projectId, personId, weekStartDate])
+}
+
+/// Actuals split by month when a week spans two calendar months (for CDA month reporting).
+model ActualHoursMonthSplit {
+  projectId     String
+  personId      String
+  weekStartDate DateTime @db.Date
+  monthKey      String   // YYYY-MM
+  hours         Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, personId, weekStartDate, monthKey])
+  @@index([projectId])
 }
 
 model FloatScheduledHours {

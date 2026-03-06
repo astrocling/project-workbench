@@ -31,3 +31,24 @@ export function getMonthsInRange(
 
   return result;
 }
+
+/**
+ * Returns the 1 or 2 month keys (YYYY-MM) that a week spans.
+ * Week = Monday (weekStartDate) through Sunday (+6 days). Uses UTC.
+ * If the week is entirely in one calendar month, returns [monthKey].
+ * If the week spans two months (e.g. Mon Dec 30–Sun Jan 5), returns [monthKey1, monthKey2] in chronological order.
+ */
+export function getMonthKeysForWeek(weekStartDate: Date): string[] {
+  const monday = new Date(weekStartDate);
+  monday.setUTCHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setUTCDate(sunday.getUTCDate() + 6);
+  const y1 = monday.getUTCFullYear();
+  const m1 = monday.getUTCMonth();
+  const y2 = sunday.getUTCFullYear();
+  const m2 = sunday.getUTCMonth();
+  const monthKey1 = `${y1}-${String(m1 + 1).padStart(2, "0")}`;
+  if (y1 === y2 && m1 === m2) return [monthKey1];
+  const monthKey2 = `${y2}-${String(m2 + 1).padStart(2, "0")}`;
+  return [monthKey1, monthKey2];
+}
