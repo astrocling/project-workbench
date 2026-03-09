@@ -232,6 +232,7 @@ export function RatesTab({
               onBlur={() =>
                 singleRateEditing && saveSingleRate(singleRateEditing)
               }
+              onWheel={(e) => e.currentTarget.blur()}
               className="h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 w-24 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               readOnly={!canEdit}
             />
@@ -288,6 +289,7 @@ export function RatesTab({
                               ? removeRate(role.id)
                               : val && saveRate(role.id, val)
                           }
+                          onWheel={(e) => e.currentTarget.blur()}
                           className="h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 w-24 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                     ) : (
