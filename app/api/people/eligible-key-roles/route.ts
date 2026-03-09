@@ -42,12 +42,15 @@ export async function GET() {
 
   const matchedIds = new Set<string>();
   const result: { id: string; name: string }[] = [];
+  const matchedUserEmails = new Set<string>();
+  const matchedUserNames = new Set<string>();
 
   for (const u of users) {
     const byMail = u.email ? byEmail.get(u.email) : undefined;
     if (byMail && !matchedIds.has(byMail.id)) {
       matchedIds.add(byMail.id);
       result.push(byMail);
+      if (u.email) matchedUserEmails.add(u.email);
     }
   }
 
@@ -69,7 +72,33 @@ export async function GET() {
       if (byName && !matchedIds.has(byName.id)) {
         matchedIds.add(byName.id);
         result.push({ id: byName.id, name: byName.name });
+        matchedUserNames.add(name);
       }
+    }
+  }
+
+  // For key-role users still unmatched (no Person by email or exact name), create a Person so they appear in the list
+  for (const u of users) {
+    const fullName = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
+    if (!fullName) continue;
+    if (u.email && matchedUserEmails.has(u.email)) continue;
+    if (matchedUserNames.has(fullName)) continue;
+    let person: { id: string; name: string } | null = null;
+    if (u.email) {
+      person = await prisma.person.findFirst({
+        where: { email: u.email },
+        select: { id: true, name: true },
+      });
+    }
+    if (!person) {
+      person = await prisma.person.create({
+        data: { name: fullName, email: u.email ?? null },
+        select: { id: true, name: true },
+      });
+    }
+    if (person && !matchedIds.has(person.id)) {
+      matchedIds.add(person.id);
+      result.push({ id: person.id, name: person.name });
     }
   }
 

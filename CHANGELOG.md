@@ -18,9 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Status report text areas — links**: Completed activities, upcoming activities, risks/issues/decisions, meeting notes, and RAG explanation fields now support links in the exported PDF. Paste a URL (e.g. `https://…`) and it becomes a clickable link; use `[link text](url)` for custom link text. Input remains plain text in the form; parsing happens at render time. A short hint under Completed activities explains the syntax.
+- **Resourcing grids — keyboard navigation**: In the Project Planning and Weekly Actuals grids, Arrow Up and Arrow Down move focus to the previous or next row in the same week column (Excel-style). Tab still moves across columns; the cell comment button is no longer in the tab order so Tab goes directly to the next cell.
+
 ### Changed
 
 ### Fixed
+
+- **Project key roles (PM, PGM, CAD)**: Users with a key role (Project Manager, Program Manager, or Client Account Director) now always appear in the Key roles dropdown in project Settings, even when they have no matching Person record by email or exact name. Previously, only users whose email or full name matched an existing Person could be selected; others (e.g. different name format or nickname) were missing. The API now creates a Person for any key-role user who does not match an existing one so they can be assigned to projects.
 
 ## [0.1.6] - 2025-03-06
 

@@ -407,8 +407,21 @@ export function ResourcingGrids({
     weekKey: string,
     value: number | null,
     isPlanned: boolean,
-    isActual: boolean
+    isActual: boolean,
+    rowIndex?: number,
+    colIndex?: number,
+    gridType?: "planned" | "actual"
   ) => {
+    const handleGridArrowKey = (e: React.KeyboardEvent, row: number, col: number, grid: "planned" | "actual") => {
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      const nextRow = e.key === "ArrowDown" ? row + 1 : row - 1;
+      if (nextRow < 0) return;
+      e.preventDefault();
+      const target = document.querySelector<HTMLInputElement>(
+        `input[data-resourcing-grid="${grid}"][data-resourcing-row="${nextRow}"][data-resourcing-col="${col}"]`
+      );
+      target?.focus();
+    };
     const weekDate = new Date(weekKey);
     const completed = isCompletedWeek(weekDate, asOf);
     const isCurrWeek = isCurrentWeek(weekDate);
@@ -443,6 +456,14 @@ export function ResourcingGrids({
                   updatePlanned(personId, weekKey, roundToQuarter(clamped));
                   setEditingPlanned(null);
                 }}
+                onKeyDown={gridType != null && rowIndex != null && colIndex != null ? (e) => handleGridArrowKey(e, rowIndex, colIndex, gridType) : undefined}
+                {...(gridType != null && rowIndex != null && colIndex != null
+                  ? {
+                      "data-resourcing-grid": gridType,
+                      "data-resourcing-row": rowIndex,
+                      "data-resourcing-col": colIndex,
+                    }
+                  : {})}
                 className="w-full min-w-0 max-w-full border rounded px-1 py-0.5 text-sm text-center box-border [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
             ) : (
@@ -451,6 +472,7 @@ export function ResourcingGrids({
             {canEdit && (
               <button
                 type="button"
+                tabIndex={-1}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -526,6 +548,14 @@ export function ResourcingGrids({
                   }
                   setEditingActual(null);
                 }}
+                onKeyDown={gridType != null && rowIndex != null && colIndex != null ? (e) => handleGridArrowKey(e, rowIndex, colIndex, gridType) : undefined}
+                {...(gridType != null && rowIndex != null && colIndex != null
+                  ? {
+                      "data-resourcing-grid": gridType,
+                      "data-resourcing-row": rowIndex,
+                      "data-resourcing-col": colIndex,
+                    }
+                  : {})}
                 placeholder="—"
                 className="w-full min-w-0 max-w-full border rounded px-1 py-0.5 text-sm text-center box-border [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
@@ -535,6 +565,7 @@ export function ResourcingGrids({
             {canEdit && (
               <button
                 type="button"
+                tabIndex={-1}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -641,14 +672,17 @@ export function ResourcingGrids({
                   <td className={`p-2 border text-center font-medium tabular-nums ${sticky} ${stickyOpaque} ${stickyEdge} ${getReady(a.personId) ? "resourcing-ready" : ""}`} style={{ left: leftTotal }}>
                     {formatTotal(plannedRowTotal(a.personId))}
                   </td>
-                  {weeks.map((w) => {
+                  {weeks.map((w, weekIdx) => {
                     const k = formatWeekKey(w);
                     return hoursInput(
                       a.personId,
                       k,
                       getPlanned(a.personId, k),
                       true,
-                      false
+                      false,
+                      idx,
+                      weekIdx,
+                      "planned"
                     );
                   })}
                 </tr>
@@ -728,14 +762,17 @@ export function ResourcingGrids({
                   <td className={`p-2 border text-center font-medium tabular-nums ${sticky} ${stickyOpaque} ${stickyEdge} ${getReady(a.personId) ? "resourcing-ready" : ""}`} style={{ left: leftTotal }}>
                     {formatTotal(actualRowTotal(a.personId))}
                   </td>
-                  {weeks.map((w) => {
+                  {weeks.map((w, weekIdx) => {
                     const k = formatWeekKey(w);
                     return hoursInput(
                       a.personId,
                       k,
                       getActual(a.personId, k),
                       false,
-                      true
+                      true,
+                      idx,
+                      weekIdx,
+                      "actual"
                     );
                   })}
                 </tr>
