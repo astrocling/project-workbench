@@ -892,7 +892,7 @@ export function StatusReportsTab({
                 placeholder="One per line or use bullets"
                 className="block w-full px-3 py-2 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
               />
-              <p className="mt-1 text-body-sm text-surface-500 dark:text-surface-400">Only the first 7 items appear on the exported status report.</p>
+              <p className="mt-1 text-body-sm text-surface-500 dark:text-surface-400">Only the first 7 items appear on the exported status report. Paste a URL to add a link, or use [link text](url) for custom link text.</p>
             </div>
             <div>
               <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Upcoming activities</label>

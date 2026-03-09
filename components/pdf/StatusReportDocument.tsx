@@ -4,6 +4,7 @@ import {
   Page,
   View,
   Text,
+  Link,
   StyleSheet,
   Svg,
   Circle,
@@ -12,6 +13,7 @@ import {
   G,
 } from "@react-pdf/renderer";
 import { BRAND_COLORS } from "@/lib/brandColors";
+import { parseLinkSegments } from "@/lib/statusReportLinks";
 
 /**
  * Call registerStatusReportFonts(baseUrl) before rendering this document.
@@ -1051,6 +1053,20 @@ function bulletLines(text: string): string[] {
     .filter(Boolean);
 }
 
+/** Renders a line of text with links (bare URLs and [text](url)) as React-PDF children for use inside <Text>. */
+function renderTextWithLinks(line: string): React.ReactNode[] {
+  const segments = parseLinkSegments(line);
+  return segments.map((seg, i) =>
+    seg.type === "link" ? (
+      <Link key={i} src={seg.href}>
+        {seg.content}
+      </Link>
+    ) : (
+      seg.content
+    )
+  );
+}
+
 const RAG_COLORS: Record<RagStatus, string> = {
   Red: "#dc2626",
   Amber: "#f59e0b",
@@ -1096,7 +1112,7 @@ function RagStatusBlock({ data }: { data: StatusReportPDFData }) {
           </View>
           <View style={styles.ragExplanationCell}>
             <Text style={styles.ragExplanationText}>
-              {row.explanation?.trim() || "—"}
+              {row.explanation?.trim() ? renderTextWithLinks(row.explanation.trim()) : "—"}
             </Text>
           </View>
         </View>
@@ -1269,19 +1285,19 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
                 <View style={styles.col}>
                   <Text style={styles.colTitle}>Completed activities</Text>
                   {bulletLines(report.completedActivities).slice(0, 7).map((line, i) => (
-                    <Text key={i} style={styles.bulletText}>• {line}</Text>
+                    <Text key={i} style={styles.bulletText}>• {renderTextWithLinks(line)}</Text>
                   ))}
                 </View>
                 <View style={styles.col}>
                   <Text style={styles.colTitle}>Upcoming activities</Text>
                   {bulletLines(report.upcomingActivities).slice(0, 7).map((line, i) => (
-                    <Text key={i} style={styles.bulletText}>• {line}</Text>
+                    <Text key={i} style={styles.bulletText}>• {renderTextWithLinks(line)}</Text>
                   ))}
                 </View>
                 <View style={styles.col}>
                   <Text style={styles.colTitle}>Risks / Issues / Decisions</Text>
                   {bulletLines(report.risksIssuesDecisions).slice(0, 7).map((line, i) => (
-                    <Text key={i} style={styles.bulletText}>• {line}</Text>
+                    <Text key={i} style={styles.bulletText}>• {renderTextWithLinks(line)}</Text>
                   ))}
                 </View>
               </View>
@@ -1590,7 +1606,7 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
         <Page size={[PAGE_WIDTH, PAGE_HEIGHT]} style={styles.notesPage}>
           <Text style={styles.notesTitle}>Meeting notes</Text>
           {bulletLines(report.meetingNotes).map((line, i) => (
-            <Text key={i} style={{ marginBottom: 6, lineHeight: 1.4 }}>{line}</Text>
+            <Text key={i} style={{ marginBottom: 6, lineHeight: 1.4 }}>{renderTextWithLinks(line)}</Text>
           ))}
           <StatusReportFooter />
         </Page>
