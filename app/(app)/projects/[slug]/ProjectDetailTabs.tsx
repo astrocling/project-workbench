@@ -218,12 +218,6 @@ export function ProjectDetailTabs({
   return (
     <div>
       <div className="sticky top-14 z-20 -mx-8 -mt-6 px-8 pt-6 pb-4 mb-6 bg-surface-50 dark:bg-dark-bg border-b border-surface-200 dark:border-dark-border">
-        <Link
-          href="/projects"
-          className="block text-label-md text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 mb-3"
-        >
-          ← Projects
-        </Link>
         <nav className="flex gap-2 mb-3">
           {TABS.filter((t) => (t.id !== "edit" || canEdit) && (t.id !== "cda" || cdaEnabled)).map((t) => {
             const href = "hrefOnly" in t && t.hrefOnly ? `/projects/${projectSlug}/edit` : `${base}?tab=${t.id}`;

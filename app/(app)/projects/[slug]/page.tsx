@@ -53,21 +53,21 @@ export default async function ProjectDetailPage({
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/projects"
-            className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
-          >
-            ← Projects
-          </Link>
+      <div className="mb-6">
+        <Link
+          href="/projects"
+          className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
+        >
+          ← Projects
+        </Link>
+        <div className="flex items-center justify-between gap-4 mt-1">
           <h1 className="text-display-md font-bold text-surface-900 dark:text-white">
             {project.name}
           </h1>
+          <span className="text-label-md text-surface-500 dark:text-surface-400">
+            As-of: {getAsOfDate().toISOString().slice(0, 10)}
+          </span>
         </div>
-        <span className="text-label-md text-surface-500 dark:text-surface-400">
-          As-of: {getAsOfDate().toISOString().slice(0, 10)}
-        </span>
       </div>
 
       <ProjectDetailTabs
