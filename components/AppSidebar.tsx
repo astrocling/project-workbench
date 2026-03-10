@@ -85,7 +85,7 @@ export function AppSidebar({
   }
 
   return (
-    <aside className="flex w-[240px] shrink-0 flex-col border-r border-surface-200 bg-surface-100 dark:border-dark-border dark:bg-dark-raised">
+    <aside className="fixed left-0 top-[var(--env-banner-height,0px)] z-20 flex h-[calc(100vh-var(--env-banner-height,0px))] w-[240px] flex-col overflow-y-auto border-r border-surface-200 bg-surface-100 dark:border-dark-border dark:bg-dark-raised">
       <div className="flex h-14 items-center gap-2 border-b border-surface-200 px-4 dark:border-dark-border">
         <span className="text-title-md font-semibold text-surface-900 dark:text-white">
           Project Workbench

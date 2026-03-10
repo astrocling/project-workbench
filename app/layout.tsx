@@ -22,14 +22,23 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+function isProductionEnv(): boolean {
+  const vercelEnv = process.env.VERCEL_ENV;
+  const nodeEnv = process.env.NODE_ENV;
+  return vercelEnv === "production" || (nodeEnv === "production" && !vercelEnv);
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const hasEnvBanner = !isProductionEnv();
   return (
     <html lang="en" suppressHydrationWarning className={raleway.variable}>
-      <body className="antialiased font-sans">
+      <body
+        className={`antialiased font-sans ${hasEnvBanner ? "has-env-banner" : ""}`}
+      >
         <EnvironmentBanner />
         <ThemeProvider>
           <SessionProvider>{children}</SessionProvider>
