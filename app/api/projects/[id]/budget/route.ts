@@ -33,6 +33,7 @@ export async function GET(
     include: {
       budgetLines: true,
       assignments: { include: { role: true, person: true } },
+      projectRoleRates: true,
       plannedHours: true,
       actualHours: true,
     },
@@ -44,6 +45,10 @@ export async function GET(
     project.useSingleRate && project.singleBillRate != null
       ? Number(project.singleBillRate)
       : null;
+  const rateByRoleId = new Map<string, number>();
+  for (const prr of project.projectRoleRates) {
+    rateByRoleId.set(prr.roleId, Number(prr.billRate));
+  }
   const rateByRole = new Map<string, number>();
   for (const a of project.assignments) {
     const override = a.billRateOverride ? Number(a.billRateOverride) : null;
@@ -52,12 +57,8 @@ export async function GET(
     } else if (singleRate != null) {
       rateByRole.set(`${a.personId}-${a.roleId}`, singleRate);
     } else {
-      const prr = await prisma.projectRoleRate.findUnique({
-        where: {
-          projectId_roleId: { projectId: id, roleId: a.roleId },
-        },
-      });
-      rateByRole.set(`${a.personId}-${a.roleId}`, prr ? Number(prr.billRate) : 0);
+      const rate = rateByRoleId.get(a.roleId) ?? 0;
+      rateByRole.set(`${a.personId}-${a.roleId}`, rate);
     }
   }
 

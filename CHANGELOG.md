@@ -14,7 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Project detail performance**: The server now passes initial project data, assignments, budget status (last week with actuals, missing actuals, rollups), and missing-rate role names to the client. Overview and the header use this data on first load instead of firing multiple overlapping API requests, reducing load time and server CPU.
+- **Budget API**: Project role rates are loaded in a single query and used in memory instead of one query per assignment (removes N+1).
+- **Project ID resolution**: `getProjectId` is cached for 30 seconds so parallel project-scoped API calls (project, assignments, rates, budget, etc.) share one DB lookup.
+- **Project and metadata**: Project detail page and `generateMetadata` use a shared cached project lookup (`getCachedProjectBySlugOrId`) so metadata and page body do not duplicate the project query.
+- **Lazy tab content**: Resourcing, Budget, Timeline, Status Reports, and CDA tabs are loaded with `next/dynamic`; each tab’s JavaScript and data load only when that tab is selected.
+- **Edit project (Settings)**: The edit layout fetches the project on the server and provides it via context. The client no longer fetches the project on mount and only requests eligible-key-roles when needed.
+
 ### Fixed
+
+- **Resourcing grids**: Fixed error when loading project detail with cached project data (`ph.weekStartDate.toISOString is not a function`). Cached or serialized date fields are now handled whether they are `Date` objects or ISO date strings.
 
 ## [0.1.7] - 2025-03-09
 

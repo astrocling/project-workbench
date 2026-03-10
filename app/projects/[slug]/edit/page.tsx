@@ -9,11 +9,13 @@ import { PersonCombobox, PersonMultiCombobox } from "@/components/PersonCombobox
 import { Toggle } from "@/components/Toggle";
 import { RatesTab } from "@/components/RatesTab";
 import { AssignmentsTab } from "@/components/AssignmentsTab";
+import { useEditProjectData } from "./EditProjectDataContext";
 
 export default function EditProjectPage() {
   const router = useRouter();
   const params = useParams();
   const { data: session } = useSession();
+  const { initialProject: initialProjectFromLayout, initialEligiblePeople: initialEligibleFromLayout } = useEditProjectData();
   const slug = params.slug as string;
   const [name, setName] = useState("");
   const [clientName, setClientName] = useState("");
@@ -102,44 +104,84 @@ export default function EditProjectPage() {
     ]
   );
 
+  function applyProjectToState(p: {
+    id?: string;
+    name?: string;
+    clientName?: string;
+    startDate?: string;
+    endDate?: string | null;
+    status?: string;
+    cdaEnabled?: boolean;
+    actualsLowThresholdPercent?: number | null;
+    actualsHighThresholdPercent?: number | null;
+    clientSponsor?: string | null;
+    clientSponsor2?: string | null;
+    otherContact?: string | null;
+    keyStaffName?: string | null;
+    sowLink?: string | null;
+    estimateLink?: string | null;
+    floatLink?: string | null;
+    metricLink?: string | null;
+    projectKeyRoles?: Array<{ type: string; personId: string; person: { id: string; name: string } }>;
+  }) {
+    if (!p) return;
+    setProjectId(p.id ?? "");
+    setName(p.name ?? "");
+    setClientName(p.clientName ?? "");
+    setStartDate(p.startDate ? new Date(p.startDate).toISOString().slice(0, 10) : "");
+    setEndDate(p.endDate ? new Date(p.endDate).toISOString().slice(0, 10) : "");
+    setStatus((p.status as "Active" | "Closed") ?? "Active");
+    setCdaEnabled(p.cdaEnabled ?? false);
+    setActualsLowThresholdPercent(p.actualsLowThresholdPercent != null ? String(p.actualsLowThresholdPercent) : "");
+    setActualsHighThresholdPercent(p.actualsHighThresholdPercent != null ? String(p.actualsHighThresholdPercent) : "");
+    const keyRoles = (p.projectKeyRoles ?? []) as { type: string; personId: string; person: { id: string; name: string } }[];
+    setPmPersonIds(keyRoles.filter((kr) => kr.type === "PM").map((kr) => kr.personId));
+    setPgmPersonId(keyRoles.find((kr) => kr.type === "PGM")?.personId ?? "");
+    setCadPersonId(keyRoles.find((kr) => kr.type === "CAD")?.personId ?? "");
+    setClientSponsor(p.clientSponsor ?? "");
+    setClientSponsor2(p.clientSponsor2 ?? "");
+    setOtherContact(p.otherContact ?? "");
+    setKeyStaffName(p.keyStaffName ?? "");
+    setSowLink(p.sowLink ?? "");
+    setEstimateLink(p.estimateLink ?? "");
+    setFloatLink(p.floatLink ?? "");
+    setMetricLink(p.metricLink ?? "");
+  }
+
+  function applyEligiblePeople(people: { id: string; name: string }[], keyRoles: { type: string; personId: string; person: { id: string; name: string } }[]) {
+    const eligible = Array.isArray(people) ? people : [];
+    const currentIds = new Set(eligible.map((x) => x.id));
+    const fromRoles = keyRoles.map((kr) => kr.person).filter((p) => p && !currentIds.has(p.id));
+    setEligiblePeople([...eligible, ...fromRoles].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "")));
+  }
+
   useEffect(() => {
+    if (initialProjectFromLayout) {
+      applyProjectToState(initialProjectFromLayout);
+      if (initialEligibleFromLayout && initialEligibleFromLayout.length >= 0) {
+        setEligiblePeople(initialEligibleFromLayout);
+      } else {
+        fetch("/api/people/eligible-key-roles")
+          .then((r) => r.json())
+          .then((people) => {
+            applyEligiblePeople(people, initialProjectFromLayout.projectKeyRoles);
+          })
+          .catch(() => {});
+      }
+      setLoading(false);
+      return;
+    }
     Promise.all([
       fetch(`/api/projects/${slug}`).then((r) => r.json()),
       fetch("/api/people/eligible-key-roles").then((r) => r.json()),
     ])
       .then(([p, people]) => {
-        setProjectId(p?.id ?? "");
-        setName(p.name ?? "");
-        setClientName(p.clientName ?? "");
-        setStartDate(p.startDate ? new Date(p.startDate).toISOString().slice(0, 10) : "");
-        setEndDate(p.endDate ? new Date(p.endDate).toISOString().slice(0, 10) : "");
-        setStatus(p.status ?? "Active");
-        setCdaEnabled(p.cdaEnabled ?? false);
-        setActualsLowThresholdPercent(p.actualsLowThresholdPercent != null ? String(p.actualsLowThresholdPercent) : "");
-        setActualsHighThresholdPercent(p.actualsHighThresholdPercent != null ? String(p.actualsHighThresholdPercent) : "");
-        const keyRoles = (p.projectKeyRoles ?? []) as { type: string; personId: string; person: { id: string; name: string } }[];
-        setPmPersonIds(keyRoles.filter((kr) => kr.type === "PM").map((kr) => kr.personId));
-        setPgmPersonId(keyRoles.find((kr) => kr.type === "PGM")?.personId ?? "");
-        setCadPersonId(keyRoles.find((kr) => kr.type === "CAD")?.personId ?? "");
-        setClientSponsor(p.clientSponsor ?? "");
-        setClientSponsor2(p.clientSponsor2 ?? "");
-        setOtherContact(p.otherContact ?? "");
-        setKeyStaffName(p.keyStaffName ?? "");
-        setSowLink(p.sowLink ?? "");
-        setEstimateLink(p.estimateLink ?? "");
-        setFloatLink(p.floatLink ?? "");
-        setMetricLink(p.metricLink ?? "");
-        const eligible = Array.isArray(people) ? people : [];
-        const currentIds = new Set(eligible.map((x: { id: string }) => x.id));
-        const fromRoles = keyRoles
-          .map((kr) => kr.person)
-          .filter((p) => p && !currentIds.has(p.id));
-        setEligiblePeople(
-          [...eligible, ...fromRoles].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""))
-        );
+        applyProjectToState(p);
+        const keyRoles = (p?.projectKeyRoles ?? []) as { type: string; personId: string; person: { id: string; name: string } }[];
+        applyEligiblePeople(Array.isArray(people) ? people : [], keyRoles);
       })
       .finally(() => setLoading(false));
-  }, [slug]);
+  }, [slug, initialProjectFromLayout, initialEligibleFromLayout]);
 
   // Record initial payload once load completes so we don't auto-save on first paint
   useEffect(() => {

@@ -4,7 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { getSessionPermissionLevel, canAccessAdmin, canEditProject } from "@/lib/auth";
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
-import { getAsOfDate } from "@/lib/weekUtils";
+import { getAsOfDate, getAllWeeks } from "@/lib/weekUtils";
+import { getBudgetStatusForDisplay } from "@/lib/budgetCalculations";
+import { getCachedProjectBySlugOrId } from "@/lib/projectCache";
 import { ProjectDetailTabs } from "./ProjectDetailTabs";
 import { ThemeToggle } from "@/components/ThemeProvider";
 import type { Metadata } from "next";
@@ -17,10 +19,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug: slugParam } = await params;
-  const project = await prisma.project.findUnique({
-    where: { slug: slugParam },
-    select: { name: true },
-  });
+  const project = await getCachedProjectBySlugOrId(slugParam);
   if (!project) return { title: "Project" };
   return { title: project.name };
 }
@@ -38,27 +37,13 @@ export default async function ProjectDetailPage({
   const { slug: slugParam } = await params;
   const { tab = "overview" } = await searchParams;
 
-  // Backward compatibility: if URL looks like old cuid, resolve by id and redirect to slug
-  if (CUID_REGEX.test(slugParam)) {
-    const byId = await prisma.project.findUnique({
-      where: { id: slugParam },
-      select: { slug: true },
-    });
-    if (byId?.slug) {
-      redirect(`/projects/${byId.slug}`);
-    }
-  }
-
-  const project = await prisma.project.findUnique({
-    where: { slug: slugParam },
-    include: {
-      assignments: { include: { person: true, role: true } },
-      projectRoleRates: { include: { role: true } },
-      projectKeyRoles: { include: { person: true } },
-    },
-  });
-
+  const project = await getCachedProjectBySlugOrId(slugParam);
   if (!project) notFound();
+
+  // Backward compatibility: if URL looks like old cuid, redirect to canonical slug
+  if (CUID_REGEX.test(slugParam) && project.slug !== slugParam) {
+    redirect(`/projects/${project.slug}`);
+  }
 
   const lastImport = await prisma.floatImportRun.findFirst({
     orderBy: { completedAt: "desc" },
@@ -66,6 +51,98 @@ export default async function ProjectDetailPage({
 
   const permissionLevel = getSessionPermissionLevel(session.user);
   const canEdit = canEditProject(permissionLevel);
+
+  // Serialize for client: overview + rates-alert can use this and skip refetch on load
+  const initialProject = {
+    notes: project.notes ?? null,
+    sowLink: project.sowLink ?? null,
+    estimateLink: project.estimateLink ?? null,
+    floatLink: project.floatLink ?? null,
+    metricLink: project.metricLink ?? null,
+    useSingleRate: project.useSingleRate ?? false,
+    singleBillRate: project.singleBillRate != null ? Number(project.singleBillRate) : null,
+    projectKeyRoles: project.projectKeyRoles.map((kr) => ({
+      type: kr.type,
+      person: { name: kr.person.name },
+    })),
+  };
+  const initialAssignments = project.assignments.map((a) => ({
+    personId: a.personId,
+    person: { name: a.person.name },
+    role: { name: a.role.name, id: a.role.id },
+  }));
+  const hasSingleRate = project.useSingleRate && project.singleBillRate != null;
+  const initialMissingRateRoleNames: string[] = hasSingleRate
+    ? []
+    : (() => {
+        const resourcedRoleIds = new Set(project.assignments.map((a) => a.roleId));
+        const rateRoleIds = new Set(project.projectRoleRates.map((prr) => prr.roleId));
+        const missingRoleIds = [...resourcedRoleIds].filter((id) => !rateRoleIds.has(id));
+        const roleIdToName = new Map(project.assignments.map((a) => [a.role.id, a.role.name]));
+        return missingRoleIds.map((id) => roleIdToName.get(id)).filter(Boolean) as string[];
+      })();
+
+  const singleRate =
+    project.useSingleRate && project.singleBillRate != null
+      ? Number(project.singleBillRate)
+      : null;
+  const rateByRoleId = new Map(project.projectRoleRates.map((prr) => [prr.roleId, Number(prr.billRate)]));
+  const rateByRole = new Map<string, number>();
+  for (const a of project.assignments) {
+    const override = a.billRateOverride ? Number(a.billRateOverride) : null;
+    if (override != null) {
+      rateByRole.set(`${a.personId}-${a.roleId}`, override);
+    } else if (singleRate != null) {
+      rateByRole.set(`${a.personId}-${a.roleId}`, singleRate);
+    } else {
+      rateByRole.set(`${a.personId}-${a.roleId}`, rateByRoleId.get(a.roleId) ?? 0);
+    }
+  }
+  // Cached/serialized project may have date fields as strings; normalize to YYYY-MM-DD for comparison
+  const toDateKey = (d: Date | string): string =>
+    typeof d === "string" ? d.slice(0, 10) : d.toISOString().slice(0, 10);
+
+  const allWeeks = getAllWeeks(project.startDate, project.endDate);
+  const weeklyRows: Array<{
+    weekStartDate: Date;
+    plannedHours: number;
+    actualHours: number | null;
+    rate: number;
+  }> = [];
+  for (const a of project.assignments) {
+    const rate = rateByRole.get(`${a.personId}-${a.roleId}`) ?? 0;
+    for (const weekDate of allWeeks) {
+      const wk = weekDate.toISOString().slice(0, 10);
+      const planned = project.plannedHours.find(
+        (ph) =>
+          ph.personId === a.personId &&
+          toDateKey(ph.weekStartDate) === wk
+      );
+      const actual = project.actualHours.find(
+        (ah) =>
+          ah.personId === a.personId &&
+          toDateKey(ah.weekStartDate) === wk
+      );
+      weeklyRows.push({
+        weekStartDate: new Date(weekDate),
+        plannedHours: planned ? Number(planned.hours) : 0,
+        actualHours: actual?.hours != null ? Number(actual.hours) : null,
+        rate,
+      });
+    }
+  }
+  const budgetLinesForStatus = project.budgetLines.map((bl) => ({
+    lowHours: Number(bl.lowHours),
+    highHours: Number(bl.highHours),
+    lowDollars: Number(bl.lowDollars),
+    highDollars: Number(bl.highDollars),
+  }));
+  const initialBudgetStatus = getBudgetStatusForDisplay(
+    project.startDate,
+    project.endDate,
+    weeklyRows,
+    budgetLinesForStatus
+  );
 
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-dark-bg">
@@ -103,6 +180,10 @@ export default async function ProjectDetailPage({
           canEdit={!!canEdit}
           floatLastUpdated={lastImport?.completedAt ?? null}
           cdaEnabled={project.cdaEnabled ?? false}
+          initialProject={initialProject}
+          initialAssignments={initialAssignments}
+          initialMissingRateRoleNames={initialMissingRateRoleNames}
+          initialBudgetStatus={initialBudgetStatus}
         />
       </main>
     </div>

@@ -241,3 +241,28 @@ export function hasMissingActuals(
   if (weekStart > asOfDate) return false; // future: no actuals expected
   return plannedHours > 0 && actualHours === null;
 }
+
+/**
+ * Budget status for display (e.g. project detail header and overview cards).
+ * Returns last week with actuals, missingActuals, and full rollups so the client can skip the budget API on load.
+ */
+export function getBudgetStatusForDisplay(
+  projectStart: Date,
+  projectEnd: Date | null | undefined,
+  weeklyRows: WeeklyHoursRow[],
+  budgetLines: BudgetLineInput[]
+): { lastWeekWithActuals: string | null; missingActuals: boolean; rollups: BudgetResult } {
+  const rollups = computeBudgetRollups(projectStart, projectEnd, weeklyRows, budgetLines);
+  const weeksWithActuals = weeklyRows
+    .filter((r) => r.actualHours != null)
+    .map((r) => r.weekStartDate.getTime());
+  const lastWeekWithActuals =
+    weeksWithActuals.length > 0
+      ? new Date(Math.max(...weeksWithActuals)).toISOString().slice(0, 10)
+      : null;
+  return {
+    lastWeekWithActuals,
+    missingActuals: rollups.missingActuals,
+    rollups,
+  };
+}
