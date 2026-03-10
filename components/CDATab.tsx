@@ -74,12 +74,19 @@ type CdaMilestone = {
   completed: boolean;
 };
 
+type InitialBudgetData = {
+  budgetLines: Array<{ highDollars?: number; highHours?: number }>;
+  rollups?: Record<string, unknown> | null | unknown;
+};
+
 export function CDATab({
   projectId,
   canEdit,
+  initialBudgetData,
 }: {
   projectId: string;
   canEdit: boolean;
+  initialBudgetData?: InitialBudgetData | null;
 }) {
   const [rows, setRows] = useState<CdaRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,8 +148,28 @@ export function CDATab({
     setStatusReportMonthKey(currentInRows ? currentMonthKey : rows[0].monthKey);
   }, [rows, currentMonthKey, statusReportMonthKey]);
 
-  /** Fetch budget for OVERALL table (total $ and actual $) and total budget hours for hours-per-month remaining. */
+  /** Use server-passed budget data or fetch for OVERALL table (total $ and actual $) and total budget hours. */
   useEffect(() => {
+    if (initialBudgetData) {
+      const lines = initialBudgetData.budgetLines ?? [];
+      const rollups = initialBudgetData.rollups ?? {};
+      const totalDollars = lines.reduce(
+        (s: number, bl: { highDollars?: number }) => s + Number(bl.highDollars ?? 0),
+        0
+      );
+      const actualDollars = Number((rollups as { actualDollarsToDate?: number }).actualDollarsToDate ?? 0);
+      const budgetHours = lines.reduce(
+        (s: number, bl: { highHours?: number }) => s + Number(bl.highHours ?? 0),
+        0
+      );
+      setTotalBudgetHours(budgetHours);
+      if (totalDollars > 0 || actualDollars > 0) {
+        setOverallBudget({ totalDollars, actualDollars });
+      } else {
+        setOverallBudget(null);
+      }
+      return;
+    }
     let cancelled = false;
     fetch(`/api/projects/${projectId}/budget`)
       .then((r) => r.json())
@@ -175,7 +202,7 @@ export function CDATab({
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, initialBudgetData]);
 
   const loadMilestones = useCallback(() => {
     fetch(`/api/projects/${projectId}/cda-milestones`)

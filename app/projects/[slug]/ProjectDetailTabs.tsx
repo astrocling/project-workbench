@@ -58,6 +58,7 @@ export function ProjectDetailTabs({
   initialAssignments,
   initialMissingRateRoleNames,
   initialBudgetStatus,
+  initialBudgetData,
 }: {
   projectId: string;
   projectSlug: string;
@@ -72,6 +73,12 @@ export function ProjectDetailTabs({
     lastWeekWithActuals: string | null;
     missingActuals: boolean;
     rollups: Record<string, unknown> | null;
+  };
+  initialBudgetData?: {
+    budgetLines: Array<{ id: string; type: string; label: string; lowHours: number; highHours: number; lowDollars: number; highDollars: number }>;
+    rollups: unknown;
+    lastWeekWithActuals: string | null;
+    peopleSummary: Array<{ personName: string; roleName: string; rate: number; projectedHours: number; projectedRevenue: number; actualHours: number; actualRevenue: number }>;
   };
 }) {
   const pathname = usePathname();
@@ -667,10 +674,10 @@ export function ProjectDetailTabs({
           onActualsUpdated={refetchBudgetStatus}
         />
       )}
-      {tab === "budget" && <BudgetTab projectId={projectId} canEdit={canEdit} />}
+      {tab === "budget" && <BudgetTab projectId={projectId} canEdit={canEdit} initialBudgetData={initialBudgetData} />}
       {tab === "timeline" && <TimelineTab projectId={projectId} canEdit={canEdit} />}
-      {tab === "status-reports" && <StatusReportsTab projectId={projectId} projectSlug={projectSlug} canEdit={canEdit} cdaEnabled={cdaEnabled} />}
-      {tab === "cda" && cdaEnabled && <CDATab projectId={projectId} canEdit={canEdit} />}
+      {tab === "status-reports" && <StatusReportsTab projectId={projectId} projectSlug={projectSlug} canEdit={canEdit} cdaEnabled={cdaEnabled} initialBudgetData={initialBudgetData} />}
+      {tab === "cda" && cdaEnabled && <CDATab projectId={projectId} canEdit={canEdit} initialBudgetData={initialBudgetData} />}
     </div>
   );
 }

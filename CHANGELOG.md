@@ -11,9 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Descriptive browser tab titles**: Each page now shows a specific title in the browser tab (e.g. "Projects | Project Workbench", "Project Name | Project Workbench" for project detail, "Edit: Project Name | Project Workbench" for project settings, "Sign in | Project Workbench", and section-specific titles for Admin, Changelog, and dashboards).
+- **Resourcing API**: New `GET /api/projects/[id]/resourcing` returns all data for the Resourcing tab (project, assignments, planned/actual/float hours, ready-for-float, cell comments) in one request instead of seven.
 
 ### Changed
 
+- **Resourcing tab**: Uses the single resourcing API so opening the tab triggers one request instead of seven.
+- **Budget, Status Reports, and CDA tabs**: The project detail page now passes full budget data (budget lines, rollups, people summary) to these tabs so they can show data immediately without an extra budget API call on first load.
+- **At-risk filter**: The at-risk projects response is cached for 60 seconds so repeated visits or refreshes reuse the result.
+- **Edit project (Settings)**: The edit layout now fetches eligible key-role people on the server and passes them via context, so the Settings page no longer requests them on mount.
 - **Project detail performance**: The server now passes initial project data, assignments, budget status (last week with actuals, missing actuals, rollups), and missing-rate role names to the client. Overview and the header use this data on first load instead of firing multiple overlapping API requests, reducing load time and server CPU.
 - **Budget API**: Project role rates are loaded in a single query and used in memory instead of one query per assignment (removes N+1).
 - **Project ID resolution**: `getProjectId` is cached for 30 seconds so parallel project-scoped API calls (project, assignments, rates, budget, etc.) share one DB lookup.

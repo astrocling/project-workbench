@@ -218,21 +218,29 @@ const VARIATIONS = [
   { value: "Milestones", label: "Milestones (Fixed Fee No Budget)" },
 ] as const;
 
+type InitialBudgetData = {
+  budgetLines: BudgetLine[];
+  rollups: Rollups | null | unknown;
+  lastWeekWithActuals: string | null;
+};
+
 export function StatusReportsTab({
   projectId,
   projectSlug,
   canEdit,
   cdaEnabled = false,
+  initialBudgetData,
 }: {
   projectId: string;
   projectSlug: string;
   canEdit: boolean;
   cdaEnabled?: boolean;
+  initialBudgetData?: InitialBudgetData | null;
 }) {
-  const [budgetLines, setBudgetLines] = useState<BudgetLine[]>([]);
-  const [rollups, setRollups] = useState<Rollups | null>(null);
-  const [lastWeekWithActuals, setLastWeekWithActuals] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [budgetLines, setBudgetLines] = useState<BudgetLine[]>(initialBudgetData?.budgetLines ?? []);
+  const [rollups, setRollups] = useState<Rollups | null>((initialBudgetData?.rollups as Rollups) ?? null);
+  const [lastWeekWithActuals, setLastWeekWithActuals] = useState<string | null>(initialBudgetData?.lastWeekWithActuals ?? null);
+  const [loading, setLoading] = useState(!initialBudgetData);
   const [cdaRows, setCdaRows] = useState<CdaRow[]>([]);
   const [cdaMilestones, setCdaMilestones] = useState<CdaMilestone[]>([]);
   const [cdaLoading, setCdaLoading] = useState(false);
@@ -274,8 +282,8 @@ export function StatusReportsTab({
   }, [projectId]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (!initialBudgetData) load();
+  }, [load, initialBudgetData]);
 
   const loadCda = useCallback(() => {
     if (!cdaEnabled) return;

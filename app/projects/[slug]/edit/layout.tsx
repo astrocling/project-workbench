@@ -1,4 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth.config";
+import { getEligibleKeyRoles } from "@/lib/eligibleKeyRoles";
 import type { Metadata } from "next";
 import { EditProjectDataProvider } from "./EditProjectDataContext";
 
@@ -58,8 +61,12 @@ export default async function EditProjectLayout({
       }
     : null;
 
+  const session = await getServerSession(authOptions);
+  const initialEligiblePeople =
+    session != null ? await getEligibleKeyRoles() : null;
+
   return (
-    <EditProjectDataProvider initialProject={initialProject} initialEligiblePeople={null}>
+    <EditProjectDataProvider initialProject={initialProject} initialEligiblePeople={initialEligiblePeople}>
       {children}
     </EditProjectDataProvider>
   );

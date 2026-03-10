@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { unstable_cache } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
@@ -196,10 +197,17 @@ function getRecoveryRisks(project: ProjectWithRelations): string[] {
   return risks;
 }
 
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
+async function computeAtRiskResults(): Promise<
+  Array<{
+    id: string;
+    slug: string;
+    name: string;
+    clientName: string;
+    status: string;
+    keyRoles: { pms: string[]; pgm: string | null; cad: string | null };
+    risks: string[];
+  }>
+> {
   const projects = await prisma.project.findMany({
     where: { status: "Active" },
     include: {
@@ -246,6 +254,19 @@ export async function GET() {
       risks,
     });
   }
+
+  return results;
+}
+
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const results = await unstable_cache(
+    () => computeAtRiskResults(),
+    ["at-risk-projects"],
+    { revalidate: 60 }
+  )();
 
   return NextResponse.json(results);
 }

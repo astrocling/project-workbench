@@ -144,6 +144,47 @@ export default async function ProjectDetailPage({
     budgetLinesForStatus
   );
 
+  const peopleSummary = project.assignments.map((a) => {
+    let projectedHours = 0;
+    let actualHoursSum = 0;
+    for (const weekDate of allWeeks) {
+      const wk = weekDate.toISOString().slice(0, 10);
+      const ph = project.plannedHours.find(
+        (p) => p.personId === a.personId && toDateKey(p.weekStartDate) === wk
+      );
+      const ah = project.actualHours.find(
+        (h) => h.personId === a.personId && toDateKey(h.weekStartDate) === wk
+      );
+      projectedHours += ph ? Number(ph.hours) : 0;
+      if (ah?.hours != null) actualHoursSum += Number(ah.hours);
+    }
+    const rate = rateByRole.get(`${a.personId}-${a.roleId}`) ?? 0;
+    return {
+      personName: a.person.name,
+      roleName: a.role.name,
+      rate,
+      projectedHours,
+      projectedRevenue: projectedHours * rate,
+      actualHours: actualHoursSum,
+      actualRevenue: actualHoursSum * rate,
+    };
+  });
+
+  const initialBudgetData = {
+    budgetLines: project.budgetLines.map((bl) => ({
+      id: bl.id,
+      type: bl.type,
+      label: bl.label,
+      lowHours: Number(bl.lowHours),
+      highHours: Number(bl.highHours),
+      lowDollars: Number(bl.lowDollars),
+      highDollars: Number(bl.highDollars),
+    })),
+    rollups: initialBudgetStatus.rollups,
+    lastWeekWithActuals: initialBudgetStatus.lastWeekWithActuals,
+    peopleSummary,
+  };
+
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-dark-bg">
       <header className="sticky top-0 z-30 flex items-center justify-between px-6 py-4 bg-surface-50 dark:bg-dark-bg border-b border-surface-200 dark:border-dark-border">
@@ -184,6 +225,7 @@ export default async function ProjectDetailPage({
           initialAssignments={initialAssignments}
           initialMissingRateRoleNames={initialMissingRateRoleNames}
           initialBudgetStatus={initialBudgetStatus}
+          initialBudgetData={initialBudgetData}
         />
       </main>
     </div>
