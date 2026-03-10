@@ -116,50 +116,6 @@ export default async function PMDashboardPage() {
             </p>
           </div>
         </div>
-
-        {portfolioMetrics.revenueRecovery != null && (
-          <div className="mt-4">
-            {portfolioMetrics.staleActuals && (
-              <p className="text-body-sm text-surface-600 dark:text-surface-400 mb-3 flex flex-wrap items-center gap-2">
-                <span
-                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide uppercase ring-2 shadow-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 ring-amber-400 dark:ring-amber-500"
-                  title="One or more of your projects has completed weeks with planned hours but no actuals entered. Update hours in the Resourcing tab for each project."
-                >
-                  Actuals Stale
-                </span>
-              </p>
-            )}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
-              <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-2">
-                Portfolio revenue recovery
-              </p>
-              <p className="text-body-sm text-surface-500 dark:text-surface-400 mb-3 flex items-center gap-2 flex-wrap">
-                To date
-              </p>
-              <RecoveryCardContent data={portfolioMetrics.revenueRecovery.toDate} />
-              </div>
-              <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
-              <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-2">
-                Portfolio revenue recovery
-              </p>
-              <p className="text-body-sm text-surface-500 dark:text-surface-400 mb-3 flex items-center gap-2 flex-wrap">
-                This week {formatWeekLabelShort(portfolioMetrics.revenueRecovery.thisWeek.weekStartDate)}
-              </p>
-              <RecoveryCardContent data={portfolioMetrics.revenueRecovery.thisWeek} />
-              </div>
-              <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
-              <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-2">
-                Portfolio revenue recovery
-              </p>
-              <p className="text-body-sm text-surface-500 dark:text-surface-400 mb-3 flex items-center gap-2 flex-wrap">
-                Previous 4 weeks
-              </p>
-              <RecoveryCardContent data={portfolioMetrics.revenueRecovery.prevFourWeeks} />
-              </div>
-            </div>
-          </div>
-        )}
       </section>
 
       <section aria-label="Your projects" className="mt-8">
@@ -254,6 +210,50 @@ export default async function PMDashboardPage() {
           </div>
         )}
       </section>
+
+      {portfolioMetrics.revenueRecovery != null && (
+        <section aria-label="Portfolio revenue recovery" className="mt-8">
+          {portfolioMetrics.staleActuals && (
+            <p className="text-body-sm text-surface-600 dark:text-surface-400 mb-3 flex flex-wrap items-center gap-2">
+              <span
+                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide uppercase ring-2 shadow-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 ring-amber-400 dark:ring-amber-500"
+                title="One or more of your projects has completed weeks with planned hours but no actuals entered. Update hours in the Resourcing tab for each project."
+              >
+                Actuals Stale
+              </span>
+            </p>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
+              <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-2">
+                Portfolio revenue recovery
+              </p>
+              <p className="text-body-sm text-surface-500 dark:text-surface-400 mb-3 flex items-center gap-2 flex-wrap">
+                To date
+              </p>
+              <RecoveryCardContent data={portfolioMetrics.revenueRecovery.toDate} />
+            </div>
+            <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
+              <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-2">
+                Portfolio revenue recovery
+              </p>
+              <p className="text-body-sm text-surface-500 dark:text-surface-400 mb-3 flex items-center gap-2 flex-wrap">
+                This week {formatWeekLabelShort(portfolioMetrics.revenueRecovery.thisWeek.weekStartDate)}
+              </p>
+              <RecoveryCardContent data={portfolioMetrics.revenueRecovery.thisWeek} />
+            </div>
+            <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
+              <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-2">
+                Portfolio revenue recovery
+              </p>
+              <p className="text-body-sm text-surface-500 dark:text-surface-400 mb-3 flex items-center gap-2 flex-wrap">
+                Previous 4 weeks
+              </p>
+              <RecoveryCardContent data={portfolioMetrics.revenueRecovery.prevFourWeeks} />
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
