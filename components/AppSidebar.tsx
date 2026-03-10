@@ -18,8 +18,8 @@ function OpenTabsIcon({ className }: { className?: string }) {
 
 const navItems = [
   { href: "/pm-dashboard", label: "PM Dashboard", active: true },
-  { href: "/pgm-dashboard", label: "PGM Dashboard", active: false },
-  { href: "/cad-dashboard", label: "CAD Dashboard", active: false },
+  { href: "/pgm-dashboard", label: "PGM Dashboard", active: true },
+  { href: "/cad-dashboard", label: "CAD Dashboard", active: true },
   { href: "/projects", label: "Projects", active: true },
 ] as const;
 
