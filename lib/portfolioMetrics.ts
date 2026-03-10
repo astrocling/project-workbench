@@ -1,8 +1,10 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import {
-  computeRevenueRecoveryToDate,
-  computeRevenueRecoveryRecentWeeks,
+  buildPlannedActualMaps,
+  plannedActualKey,
+  computeRevenueRecoveryToDateWithMaps,
+  computeRevenueRecoveryRecentWeeksWithMaps,
   type RevenueRecoveryToDate,
   type RevenueRecoveryWeek,
 } from "@/lib/revenueRecovery";
@@ -11,7 +13,7 @@ import {
   type WeeklyHoursRow,
   type BudgetResult,
 } from "@/lib/budgetCalculations";
-import { getAllWeeks } from "@/lib/weekUtils";
+import { getAllWeeks, getAsOfDate } from "@/lib/weekUtils";
 
 export type PmProjectTableRow = {
   id: string;
@@ -46,6 +48,244 @@ export type PortfolioMetrics = {
   projectTableRows?: PmProjectTableRow[];
 };
 
+type KeyRoleType = "PM" | "PGM" | "CAD";
+
+/**
+ * Internal: fetch portfolio metrics for a person and role (PM/PGM/CAD).
+ * Uses single asOf, Map-based lookups for planned/actual, and WithMaps revenue recovery.
+ */
+async function getPortfolioMetricsForRole(
+  personId: string,
+  role: KeyRoleType
+): Promise<PortfolioMetrics> {
+  const activeProjects = await prisma.project.findMany({
+    where: {
+      status: "Active",
+      projectKeyRoles: {
+        some: { personId, type: role },
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      cdaEnabled: true,
+      startDate: true,
+      endDate: true,
+      useSingleRate: true,
+      singleBillRate: true,
+      budgetLines: {
+        select: {
+          lowHours: true,
+          highHours: true,
+          lowDollars: true,
+          highDollars: true,
+        },
+      },
+      assignments: {
+        select: { personId: true, roleId: true, billRateOverride: true },
+      },
+      plannedHours: true,
+      actualHours: true,
+      projectRoleRates: { select: { roleId: true, billRate: true } },
+    },
+  });
+
+  const totalActive = activeProjects.length;
+  const activeCda = activeProjects.filter((p) => p.cdaEnabled === true).length;
+  const activeNonCda = activeProjects.filter((p) => p.cdaEnabled !== true).length;
+  const portfolioValue = activeProjects.reduce((sum, p) => {
+    const projectBudget = p.budgetLines.reduce(
+      (s, bl) => s + Number(bl.highDollars),
+      0
+    );
+    return sum + projectBudget;
+  }, 0);
+
+  const asOf = getAsOfDate();
+  let staleActuals = false;
+  let revenueRecovery: PortfolioRevenueRecovery | null = null;
+  const projectTableRows: PmProjectTableRow[] = [];
+  let sumForecast = 0;
+  let sumActual = 0;
+  const weekSums = [
+    { f: 0, a: 0 },
+    { f: 0, a: 0 },
+    { f: 0, a: 0 },
+    { f: 0, a: 0 },
+  ];
+  let thisWeekStartDate = "";
+
+  for (const project of activeProjects) {
+    const { plannedMap, actualMap } = buildPlannedActualMaps(
+      project.plannedHours,
+      project.actualHours
+    );
+
+    const singleRate =
+      project.useSingleRate && project.singleBillRate != null
+        ? Number(project.singleBillRate)
+        : null;
+    const rateByRole = new Map<string, number>();
+    for (const a of project.assignments) {
+      const override = a.billRateOverride ? Number(a.billRateOverride) : null;
+      if (override != null) {
+        rateByRole.set(`${a.personId}-${a.roleId}`, override);
+      } else if (singleRate != null) {
+        rateByRole.set(`${a.personId}-${a.roleId}`, singleRate);
+      } else {
+        const prr = project.projectRoleRates.find((r) => r.roleId === a.roleId);
+        rateByRole.set(
+          `${a.personId}-${a.roleId}`,
+          prr ? Number(prr.billRate) : 0
+        );
+      }
+    }
+    const getRate = (pid: string, rid: string) =>
+      rateByRole.get(`${pid}-${rid}`) ?? 0;
+
+    const assignmentsList = project.assignments.map((a) => ({
+      personId: a.personId,
+      roleId: a.roleId,
+    }));
+
+    const toDate = computeRevenueRecoveryToDateWithMaps(
+      project.startDate,
+      project.endDate,
+      assignmentsList,
+      plannedMap,
+      actualMap,
+      getRate,
+      asOf
+    );
+    sumForecast += toDate.forecastDollars;
+    sumActual += toDate.actualDollars;
+
+    const recentWeeks = computeRevenueRecoveryRecentWeeksWithMaps(
+      project.startDate,
+      project.endDate,
+      assignmentsList,
+      plannedMap,
+      actualMap,
+      getRate,
+      asOf
+    );
+    if (recentWeeks.length > 0 && !thisWeekStartDate) {
+      thisWeekStartDate = recentWeeks[0].weekStartDate;
+    }
+    recentWeeks.forEach((w, i) => {
+      if (i < 4) {
+        weekSums[i].f += w.forecastDollars;
+        weekSums[i].a += w.actualDollars;
+      }
+    });
+
+    const end = project.endDate ?? new Date();
+    const allWeeks = getAllWeeks(project.startDate, end);
+    const weeklyRows: WeeklyHoursRow[] = [];
+    for (const a of project.assignments) {
+      const rate = getRate(a.personId, a.roleId);
+      for (const weekDate of allWeeks) {
+        const wk = weekDate.toISOString().slice(0, 10);
+        const plannedHours =
+          plannedMap.get(plannedActualKey(a.personId, wk)) ?? 0;
+        const actualVal = actualMap.get(plannedActualKey(a.personId, wk));
+        weeklyRows.push({
+          weekStartDate: new Date(weekDate),
+          plannedHours,
+          actualHours: actualVal != null ? actualVal : null,
+          rate,
+        });
+      }
+    }
+
+    const budgetLinesInput = project.budgetLines.map((bl) => ({
+      lowHours: Number(bl.lowHours),
+      highHours: Number(bl.highHours),
+      lowDollars: Number(bl.lowDollars),
+      highDollars: Number(bl.highDollars),
+    }));
+    const rollups = computeBudgetRollups(
+      project.startDate,
+      project.endDate,
+      weeklyRows,
+      budgetLinesInput,
+      asOf
+    );
+    if (rollups.missingActuals) staleActuals = true;
+
+    const totalBudgetHours =
+      rollups.remainingHoursHigh + rollups.actualHoursToDate;
+    const bufferPercent =
+      totalBudgetHours > 0
+        ? (rollups.remainingAfterProjectedBurnHoursHigh / totalBudgetHours) * 100
+        : null;
+    const sum4Forecast = recentWeeks
+      .slice(0, 4)
+      .reduce((s, w) => s + w.forecastDollars, 0);
+    const sum4Actual = recentWeeks
+      .slice(0, 4)
+      .reduce((s, w) => s + w.actualDollars, 0);
+    const recovery4WeekPercent =
+      sum4Forecast > 0 ? (sum4Actual / sum4Forecast) * 100 : null;
+
+    projectTableRows.push({
+      id: project.id,
+      name: project.name,
+      slug: project.slug,
+      cdaEnabled: project.cdaEnabled === true,
+      burnPercent: rollups.burnPercentHighHours,
+      bufferPercent,
+      recovery4WeekPercent,
+      actualsStatus: rollups.actualsStatus,
+      recoveryToDatePercent: toDate.recoveryPercent ?? null,
+    });
+  }
+
+  if (activeProjects.length > 0) {
+    const prevFourForecast =
+      weekSums[0].f + weekSums[1].f + weekSums[2].f + weekSums[3].f;
+    const prevFourActual =
+      weekSums[0].a + weekSums[1].a + weekSums[2].a + weekSums[3].a;
+    revenueRecovery = {
+      toDate: {
+        forecastDollars: sumForecast,
+        actualDollars: sumActual,
+        recoveryPercent:
+          sumForecast > 0 ? (sumActual / sumForecast) * 100 : null,
+        dollarsDelta: sumActual - sumForecast,
+      },
+      thisWeek: {
+        weekStartDate: thisWeekStartDate,
+        forecastDollars: weekSums[0].f,
+        actualDollars: weekSums[0].a,
+        recoveryPercent:
+          weekSums[0].f > 0 ? (weekSums[0].a / weekSums[0].f) * 100 : null,
+        dollarsDelta: weekSums[0].a - weekSums[0].f,
+      },
+      prevFourWeeks: {
+        forecastDollars: prevFourForecast,
+        actualDollars: prevFourActual,
+        recoveryPercent:
+          prevFourForecast > 0
+            ? (prevFourActual / prevFourForecast) * 100
+            : null,
+        dollarsDelta: prevFourActual - prevFourForecast,
+      },
+    };
+  }
+
+  return {
+    totalActive,
+    activeCda,
+    activeNonCda,
+    portfolioValue,
+    revenueRecovery,
+    staleActuals: activeProjects.length > 0 ? staleActuals : undefined,
+    projectTableRows,
+  };
+}
+
 export async function getCachedPortfolioMetrics(): Promise<PortfolioMetrics> {
   return unstable_cache(
     async () => {
@@ -70,7 +310,7 @@ export async function getCachedPortfolioMetrics(): Promise<PortfolioMetrics> {
       return { totalActive, activeCda, activeNonCda, portfolioValue };
     },
     ["portfolio-metrics"],
-    { revalidate: 60 }
+    { revalidate: 60, tags: ["portfolio-metrics"] }
   )();
 }
 
@@ -79,216 +319,9 @@ export async function getCachedPortfolioMetricsForPm(
   personId: string
 ): Promise<PortfolioMetrics> {
   return unstable_cache(
-    async () => {
-      const activeProjects = await prisma.project.findMany({
-        where: {
-          status: "Active",
-          projectKeyRoles: {
-            some: { personId, type: "PM" },
-          },
-        },
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          cdaEnabled: true,
-          startDate: true,
-          endDate: true,
-          useSingleRate: true,
-          singleBillRate: true,
-          budgetLines: {
-            select: { lowHours: true, highHours: true, lowDollars: true, highDollars: true },
-          },
-          assignments: {
-            select: { personId: true, roleId: true, billRateOverride: true },
-          },
-          plannedHours: true,
-          actualHours: true,
-          projectRoleRates: { select: { roleId: true, billRate: true } },
-        },
-      });
-      const totalActive = activeProjects.length;
-      const activeCda = activeProjects.filter((p) => p.cdaEnabled === true).length;
-      const activeNonCda = activeProjects.filter((p) => p.cdaEnabled !== true).length;
-      const portfolioValue = activeProjects.reduce((sum, p) => {
-        const projectBudget = p.budgetLines.reduce(
-          (s, bl) => s + Number(bl.highDollars),
-          0
-        );
-        return sum + projectBudget;
-      }, 0);
-
-      let staleActuals = false;
-      let revenueRecovery: PortfolioRevenueRecovery | null = null;
-      const projectTableRows: PmProjectTableRow[] = [];
-      let sumForecast = 0;
-      let sumActual = 0;
-      const weekSums = [
-        { f: 0, a: 0 },
-        { f: 0, a: 0 },
-        { f: 0, a: 0 },
-        { f: 0, a: 0 },
-      ];
-      let thisWeekStartDate = "";
-
-      for (const project of activeProjects) {
-        const singleRate =
-          project.useSingleRate && project.singleBillRate != null
-            ? Number(project.singleBillRate)
-            : null;
-        const rateByRole = new Map<string, number>();
-        for (const a of project.assignments) {
-          const override = a.billRateOverride ? Number(a.billRateOverride) : null;
-          if (override != null) {
-            rateByRole.set(`${a.personId}-${a.roleId}`, override);
-          } else if (singleRate != null) {
-            rateByRole.set(`${a.personId}-${a.roleId}`, singleRate);
-          } else {
-            const prr = project.projectRoleRates.find((r) => r.roleId === a.roleId);
-            rateByRole.set(`${a.personId}-${a.roleId}`, prr ? Number(prr.billRate) : 0);
-          }
-        }
-        const getRate = (pid: string, rid: string) =>
-          rateByRole.get(`${pid}-${rid}`) ?? 0;
-        const toDate = computeRevenueRecoveryToDate(
-          project.startDate,
-          project.endDate,
-          project.assignments.map((a) => ({ personId: a.personId, roleId: a.roleId })),
-          project.plannedHours,
-          project.actualHours,
-          getRate
-        );
-        sumForecast += toDate.forecastDollars;
-        sumActual += toDate.actualDollars;
-
-        const recentWeeks = computeRevenueRecoveryRecentWeeks(
-          project.startDate,
-          project.endDate,
-          project.assignments.map((a) => ({ personId: a.personId, roleId: a.roleId })),
-          project.plannedHours,
-          project.actualHours,
-          getRate
-        );
-        if (recentWeeks.length > 0 && !thisWeekStartDate) {
-          thisWeekStartDate = recentWeeks[0].weekStartDate;
-        }
-        recentWeeks.forEach((w, i) => {
-          if (i < 4) {
-            weekSums[i].f += w.forecastDollars;
-            weekSums[i].a += w.actualDollars;
-          }
-        });
-
-        const end = project.endDate ?? new Date();
-        const allWeeks = getAllWeeks(project.startDate, end);
-        const weeklyRows: WeeklyHoursRow[] = [];
-        for (const a of project.assignments) {
-          const rate = getRate(a.personId, a.roleId);
-          for (const weekDate of allWeeks) {
-            const wk = weekDate.toISOString().slice(0, 10);
-            const planned = project.plannedHours.find(
-              (ph) =>
-                ph.personId === a.personId &&
-                ph.weekStartDate.toISOString().slice(0, 10) === wk
-            );
-            const actual = project.actualHours.find(
-              (ah) =>
-                ah.personId === a.personId &&
-                ah.weekStartDate.toISOString().slice(0, 10) === wk
-            );
-            weeklyRows.push({
-              weekStartDate: new Date(weekDate),
-              plannedHours: planned ? Number(planned.hours) : 0,
-              actualHours: actual?.hours != null ? Number(actual.hours) : null,
-              rate,
-            });
-          }
-        }
-        const budgetLinesInput = project.budgetLines.map((bl) => ({
-          lowHours: Number(bl.lowHours),
-          highHours: Number(bl.highHours),
-          lowDollars: Number(bl.lowDollars),
-          highDollars: Number(bl.highDollars),
-        }));
-        const rollups = computeBudgetRollups(
-          project.startDate,
-          project.endDate,
-          weeklyRows,
-          budgetLinesInput
-        );
-        if (rollups.missingActuals) staleActuals = true;
-
-        const totalBudgetHours =
-          rollups.remainingHoursHigh + rollups.actualHoursToDate;
-        const bufferPercent =
-          totalBudgetHours > 0
-            ? (rollups.remainingAfterProjectedBurnHoursHigh / totalBudgetHours) * 100
-            : null;
-        const sum4Forecast = recentWeeks
-          .slice(0, 4)
-          .reduce((s, w) => s + w.forecastDollars, 0);
-        const sum4Actual = recentWeeks
-          .slice(0, 4)
-          .reduce((s, w) => s + w.actualDollars, 0);
-        const recovery4WeekPercent =
-          sum4Forecast > 0 ? (sum4Actual / sum4Forecast) * 100 : null;
-
-        projectTableRows.push({
-          id: project.id,
-          name: project.name,
-          slug: project.slug,
-          cdaEnabled: project.cdaEnabled === true,
-          burnPercent: rollups.burnPercentHighHours,
-          bufferPercent,
-          recovery4WeekPercent,
-          actualsStatus: rollups.actualsStatus,
-          recoveryToDatePercent: toDate.recoveryPercent ?? null,
-        });
-      }
-
-      if (activeProjects.length > 0) {
-        const prevFourForecast = weekSums[0].f + weekSums[1].f + weekSums[2].f + weekSums[3].f;
-        const prevFourActual = weekSums[0].a + weekSums[1].a + weekSums[2].a + weekSums[3].a;
-        revenueRecovery = {
-          toDate: {
-            forecastDollars: sumForecast,
-            actualDollars: sumActual,
-            recoveryPercent:
-              sumForecast > 0 ? (sumActual / sumForecast) * 100 : null,
-            dollarsDelta: sumActual - sumForecast,
-          },
-          thisWeek: {
-            weekStartDate: thisWeekStartDate,
-            forecastDollars: weekSums[0].f,
-            actualDollars: weekSums[0].a,
-            recoveryPercent:
-              weekSums[0].f > 0 ? (weekSums[0].a / weekSums[0].f) * 100 : null,
-            dollarsDelta: weekSums[0].a - weekSums[0].f,
-          },
-          prevFourWeeks: {
-            forecastDollars: prevFourForecast,
-            actualDollars: prevFourActual,
-            recoveryPercent:
-              prevFourForecast > 0
-                ? (prevFourActual / prevFourForecast) * 100
-                : null,
-            dollarsDelta: prevFourActual - prevFourForecast,
-          },
-        };
-      }
-
-      return {
-        totalActive,
-        activeCda,
-        activeNonCda,
-        portfolioValue,
-        revenueRecovery,
-        staleActuals: activeProjects.length > 0 ? staleActuals : undefined,
-        projectTableRows,
-      };
-    },
+    () => getPortfolioMetricsForRole(personId, "PM"),
     ["portfolio-metrics-pm", personId],
-    { revalidate: 60 }
+    { revalidate: 60, tags: ["portfolio-metrics"] }
   )();
 }
 
@@ -297,216 +330,9 @@ export async function getCachedPortfolioMetricsForPgm(
   personId: string
 ): Promise<PortfolioMetrics> {
   return unstable_cache(
-    async () => {
-      const activeProjects = await prisma.project.findMany({
-        where: {
-          status: "Active",
-          projectKeyRoles: {
-            some: { personId, type: "PGM" },
-          },
-        },
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          cdaEnabled: true,
-          startDate: true,
-          endDate: true,
-          useSingleRate: true,
-          singleBillRate: true,
-          budgetLines: {
-            select: { lowHours: true, highHours: true, lowDollars: true, highDollars: true },
-          },
-          assignments: {
-            select: { personId: true, roleId: true, billRateOverride: true },
-          },
-          plannedHours: true,
-          actualHours: true,
-          projectRoleRates: { select: { roleId: true, billRate: true } },
-        },
-      });
-      const totalActive = activeProjects.length;
-      const activeCda = activeProjects.filter((p) => p.cdaEnabled === true).length;
-      const activeNonCda = activeProjects.filter((p) => p.cdaEnabled !== true).length;
-      const portfolioValue = activeProjects.reduce((sum, p) => {
-        const projectBudget = p.budgetLines.reduce(
-          (s, bl) => s + Number(bl.highDollars),
-          0
-        );
-        return sum + projectBudget;
-      }, 0);
-
-      let staleActuals = false;
-      let revenueRecovery: PortfolioRevenueRecovery | null = null;
-      const projectTableRows: PmProjectTableRow[] = [];
-      let sumForecast = 0;
-      let sumActual = 0;
-      const weekSums = [
-        { f: 0, a: 0 },
-        { f: 0, a: 0 },
-        { f: 0, a: 0 },
-        { f: 0, a: 0 },
-      ];
-      let thisWeekStartDate = "";
-
-      for (const project of activeProjects) {
-        const singleRate =
-          project.useSingleRate && project.singleBillRate != null
-            ? Number(project.singleBillRate)
-            : null;
-        const rateByRole = new Map<string, number>();
-        for (const a of project.assignments) {
-          const override = a.billRateOverride ? Number(a.billRateOverride) : null;
-          if (override != null) {
-            rateByRole.set(`${a.personId}-${a.roleId}`, override);
-          } else if (singleRate != null) {
-            rateByRole.set(`${a.personId}-${a.roleId}`, singleRate);
-          } else {
-            const prr = project.projectRoleRates.find((r) => r.roleId === a.roleId);
-            rateByRole.set(`${a.personId}-${a.roleId}`, prr ? Number(prr.billRate) : 0);
-          }
-        }
-        const getRate = (pid: string, rid: string) =>
-          rateByRole.get(`${pid}-${rid}`) ?? 0;
-        const toDate = computeRevenueRecoveryToDate(
-          project.startDate,
-          project.endDate,
-          project.assignments.map((a) => ({ personId: a.personId, roleId: a.roleId })),
-          project.plannedHours,
-          project.actualHours,
-          getRate
-        );
-        sumForecast += toDate.forecastDollars;
-        sumActual += toDate.actualDollars;
-
-        const recentWeeks = computeRevenueRecoveryRecentWeeks(
-          project.startDate,
-          project.endDate,
-          project.assignments.map((a) => ({ personId: a.personId, roleId: a.roleId })),
-          project.plannedHours,
-          project.actualHours,
-          getRate
-        );
-        if (recentWeeks.length > 0 && !thisWeekStartDate) {
-          thisWeekStartDate = recentWeeks[0].weekStartDate;
-        }
-        recentWeeks.forEach((w, i) => {
-          if (i < 4) {
-            weekSums[i].f += w.forecastDollars;
-            weekSums[i].a += w.actualDollars;
-          }
-        });
-
-        const end = project.endDate ?? new Date();
-        const allWeeks = getAllWeeks(project.startDate, end);
-        const weeklyRows: WeeklyHoursRow[] = [];
-        for (const a of project.assignments) {
-          const rate = getRate(a.personId, a.roleId);
-          for (const weekDate of allWeeks) {
-            const wk = weekDate.toISOString().slice(0, 10);
-            const planned = project.plannedHours.find(
-              (ph) =>
-                ph.personId === a.personId &&
-                ph.weekStartDate.toISOString().slice(0, 10) === wk
-            );
-            const actual = project.actualHours.find(
-              (ah) =>
-                ah.personId === a.personId &&
-                ah.weekStartDate.toISOString().slice(0, 10) === wk
-            );
-            weeklyRows.push({
-              weekStartDate: new Date(weekDate),
-              plannedHours: planned ? Number(planned.hours) : 0,
-              actualHours: actual?.hours != null ? Number(actual.hours) : null,
-              rate,
-            });
-          }
-        }
-        const budgetLinesInput = project.budgetLines.map((bl) => ({
-          lowHours: Number(bl.lowHours),
-          highHours: Number(bl.highHours),
-          lowDollars: Number(bl.lowDollars),
-          highDollars: Number(bl.highDollars),
-        }));
-        const rollups = computeBudgetRollups(
-          project.startDate,
-          project.endDate,
-          weeklyRows,
-          budgetLinesInput
-        );
-        if (rollups.missingActuals) staleActuals = true;
-
-        const totalBudgetHours =
-          rollups.remainingHoursHigh + rollups.actualHoursToDate;
-        const bufferPercent =
-          totalBudgetHours > 0
-            ? (rollups.remainingAfterProjectedBurnHoursHigh / totalBudgetHours) * 100
-            : null;
-        const sum4Forecast = recentWeeks
-          .slice(0, 4)
-          .reduce((s, w) => s + w.forecastDollars, 0);
-        const sum4Actual = recentWeeks
-          .slice(0, 4)
-          .reduce((s, w) => s + w.actualDollars, 0);
-        const recovery4WeekPercent =
-          sum4Forecast > 0 ? (sum4Actual / sum4Forecast) * 100 : null;
-
-        projectTableRows.push({
-          id: project.id,
-          name: project.name,
-          slug: project.slug,
-          cdaEnabled: project.cdaEnabled === true,
-          burnPercent: rollups.burnPercentHighHours,
-          bufferPercent,
-          recovery4WeekPercent,
-          actualsStatus: rollups.actualsStatus,
-          recoveryToDatePercent: toDate.recoveryPercent ?? null,
-        });
-      }
-
-      if (activeProjects.length > 0) {
-        const prevFourForecast = weekSums[0].f + weekSums[1].f + weekSums[2].f + weekSums[3].f;
-        const prevFourActual = weekSums[0].a + weekSums[1].a + weekSums[2].a + weekSums[3].a;
-        revenueRecovery = {
-          toDate: {
-            forecastDollars: sumForecast,
-            actualDollars: sumActual,
-            recoveryPercent:
-              sumForecast > 0 ? (sumActual / sumForecast) * 100 : null,
-            dollarsDelta: sumActual - sumForecast,
-          },
-          thisWeek: {
-            weekStartDate: thisWeekStartDate,
-            forecastDollars: weekSums[0].f,
-            actualDollars: weekSums[0].a,
-            recoveryPercent:
-              weekSums[0].f > 0 ? (weekSums[0].a / weekSums[0].f) * 100 : null,
-            dollarsDelta: weekSums[0].a - weekSums[0].f,
-          },
-          prevFourWeeks: {
-            forecastDollars: prevFourForecast,
-            actualDollars: prevFourActual,
-            recoveryPercent:
-              prevFourForecast > 0
-                ? (prevFourActual / prevFourForecast) * 100
-                : null,
-            dollarsDelta: prevFourActual - prevFourForecast,
-          },
-        };
-      }
-
-      return {
-        totalActive,
-        activeCda,
-        activeNonCda,
-        portfolioValue,
-        revenueRecovery,
-        staleActuals: activeProjects.length > 0 ? staleActuals : undefined,
-        projectTableRows,
-      };
-    },
+    () => getPortfolioMetricsForRole(personId, "PGM"),
     ["portfolio-metrics-pgm", personId],
-    { revalidate: 60 }
+    { revalidate: 60, tags: ["portfolio-metrics"] }
   )();
 }
 
@@ -515,216 +341,9 @@ export async function getCachedPortfolioMetricsForCad(
   personId: string
 ): Promise<PortfolioMetrics> {
   return unstable_cache(
-    async () => {
-      const activeProjects = await prisma.project.findMany({
-        where: {
-          status: "Active",
-          projectKeyRoles: {
-            some: { personId, type: "CAD" },
-          },
-        },
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          cdaEnabled: true,
-          startDate: true,
-          endDate: true,
-          useSingleRate: true,
-          singleBillRate: true,
-          budgetLines: {
-            select: { lowHours: true, highHours: true, lowDollars: true, highDollars: true },
-          },
-          assignments: {
-            select: { personId: true, roleId: true, billRateOverride: true },
-          },
-          plannedHours: true,
-          actualHours: true,
-          projectRoleRates: { select: { roleId: true, billRate: true } },
-        },
-      });
-      const totalActive = activeProjects.length;
-      const activeCda = activeProjects.filter((p) => p.cdaEnabled === true).length;
-      const activeNonCda = activeProjects.filter((p) => p.cdaEnabled !== true).length;
-      const portfolioValue = activeProjects.reduce((sum, p) => {
-        const projectBudget = p.budgetLines.reduce(
-          (s, bl) => s + Number(bl.highDollars),
-          0
-        );
-        return sum + projectBudget;
-      }, 0);
-
-      let staleActuals = false;
-      let revenueRecovery: PortfolioRevenueRecovery | null = null;
-      const projectTableRows: PmProjectTableRow[] = [];
-      let sumForecast = 0;
-      let sumActual = 0;
-      const weekSums = [
-        { f: 0, a: 0 },
-        { f: 0, a: 0 },
-        { f: 0, a: 0 },
-        { f: 0, a: 0 },
-      ];
-      let thisWeekStartDate = "";
-
-      for (const project of activeProjects) {
-        const singleRate =
-          project.useSingleRate && project.singleBillRate != null
-            ? Number(project.singleBillRate)
-            : null;
-        const rateByRole = new Map<string, number>();
-        for (const a of project.assignments) {
-          const override = a.billRateOverride ? Number(a.billRateOverride) : null;
-          if (override != null) {
-            rateByRole.set(`${a.personId}-${a.roleId}`, override);
-          } else if (singleRate != null) {
-            rateByRole.set(`${a.personId}-${a.roleId}`, singleRate);
-          } else {
-            const prr = project.projectRoleRates.find((r) => r.roleId === a.roleId);
-            rateByRole.set(`${a.personId}-${a.roleId}`, prr ? Number(prr.billRate) : 0);
-          }
-        }
-        const getRate = (pid: string, rid: string) =>
-          rateByRole.get(`${pid}-${rid}`) ?? 0;
-        const toDate = computeRevenueRecoveryToDate(
-          project.startDate,
-          project.endDate,
-          project.assignments.map((a) => ({ personId: a.personId, roleId: a.roleId })),
-          project.plannedHours,
-          project.actualHours,
-          getRate
-        );
-        sumForecast += toDate.forecastDollars;
-        sumActual += toDate.actualDollars;
-
-        const recentWeeks = computeRevenueRecoveryRecentWeeks(
-          project.startDate,
-          project.endDate,
-          project.assignments.map((a) => ({ personId: a.personId, roleId: a.roleId })),
-          project.plannedHours,
-          project.actualHours,
-          getRate
-        );
-        if (recentWeeks.length > 0 && !thisWeekStartDate) {
-          thisWeekStartDate = recentWeeks[0].weekStartDate;
-        }
-        recentWeeks.forEach((w, i) => {
-          if (i < 4) {
-            weekSums[i].f += w.forecastDollars;
-            weekSums[i].a += w.actualDollars;
-          }
-        });
-
-        const end = project.endDate ?? new Date();
-        const allWeeks = getAllWeeks(project.startDate, end);
-        const weeklyRows: WeeklyHoursRow[] = [];
-        for (const a of project.assignments) {
-          const rate = getRate(a.personId, a.roleId);
-          for (const weekDate of allWeeks) {
-            const wk = weekDate.toISOString().slice(0, 10);
-            const planned = project.plannedHours.find(
-              (ph) =>
-                ph.personId === a.personId &&
-                ph.weekStartDate.toISOString().slice(0, 10) === wk
-            );
-            const actual = project.actualHours.find(
-              (ah) =>
-                ah.personId === a.personId &&
-                ah.weekStartDate.toISOString().slice(0, 10) === wk
-            );
-            weeklyRows.push({
-              weekStartDate: new Date(weekDate),
-              plannedHours: planned ? Number(planned.hours) : 0,
-              actualHours: actual?.hours != null ? Number(actual.hours) : null,
-              rate,
-            });
-          }
-        }
-        const budgetLinesInput = project.budgetLines.map((bl) => ({
-          lowHours: Number(bl.lowHours),
-          highHours: Number(bl.highHours),
-          lowDollars: Number(bl.lowDollars),
-          highDollars: Number(bl.highDollars),
-        }));
-        const rollups = computeBudgetRollups(
-          project.startDate,
-          project.endDate,
-          weeklyRows,
-          budgetLinesInput
-        );
-        if (rollups.missingActuals) staleActuals = true;
-
-        const totalBudgetHours =
-          rollups.remainingHoursHigh + rollups.actualHoursToDate;
-        const bufferPercent =
-          totalBudgetHours > 0
-            ? (rollups.remainingAfterProjectedBurnHoursHigh / totalBudgetHours) * 100
-            : null;
-        const sum4Forecast = recentWeeks
-          .slice(0, 4)
-          .reduce((s, w) => s + w.forecastDollars, 0);
-        const sum4Actual = recentWeeks
-          .slice(0, 4)
-          .reduce((s, w) => s + w.actualDollars, 0);
-        const recovery4WeekPercent =
-          sum4Forecast > 0 ? (sum4Actual / sum4Forecast) * 100 : null;
-
-        projectTableRows.push({
-          id: project.id,
-          name: project.name,
-          slug: project.slug,
-          cdaEnabled: project.cdaEnabled === true,
-          burnPercent: rollups.burnPercentHighHours,
-          bufferPercent,
-          recovery4WeekPercent,
-          actualsStatus: rollups.actualsStatus,
-          recoveryToDatePercent: toDate.recoveryPercent ?? null,
-        });
-      }
-
-      if (activeProjects.length > 0) {
-        const prevFourForecast = weekSums[0].f + weekSums[1].f + weekSums[2].f + weekSums[3].f;
-        const prevFourActual = weekSums[0].a + weekSums[1].a + weekSums[2].a + weekSums[3].a;
-        revenueRecovery = {
-          toDate: {
-            forecastDollars: sumForecast,
-            actualDollars: sumActual,
-            recoveryPercent:
-              sumForecast > 0 ? (sumActual / sumForecast) * 100 : null,
-            dollarsDelta: sumActual - sumForecast,
-          },
-          thisWeek: {
-            weekStartDate: thisWeekStartDate,
-            forecastDollars: weekSums[0].f,
-            actualDollars: weekSums[0].a,
-            recoveryPercent:
-              weekSums[0].f > 0 ? (weekSums[0].a / weekSums[0].f) * 100 : null,
-            dollarsDelta: weekSums[0].a - weekSums[0].f,
-          },
-          prevFourWeeks: {
-            forecastDollars: prevFourForecast,
-            actualDollars: prevFourActual,
-            recoveryPercent:
-              prevFourForecast > 0
-                ? (prevFourActual / prevFourForecast) * 100
-                : null,
-            dollarsDelta: prevFourActual - prevFourForecast,
-          },
-        };
-      }
-
-      return {
-        totalActive,
-        activeCda,
-        activeNonCda,
-        portfolioValue,
-        revenueRecovery,
-        staleActuals: activeProjects.length > 0 ? staleActuals : undefined,
-        projectTableRows,
-      };
-    },
+    () => getPortfolioMetricsForRole(personId, "CAD"),
     ["portfolio-metrics-cad", personId],
-    { revalidate: 60 }
+    { revalidate: 60, tags: ["portfolio-metrics"] }
   )();
 }
 

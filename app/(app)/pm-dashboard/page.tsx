@@ -2,11 +2,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
 import {
   getCachedPortfolioMetricsForPm,
   formatPortfolioDollars,
 } from "@/lib/portfolioMetrics";
+import { getDashboardContext } from "@/lib/dashboardContext";
 import {
   RecoveryCardContent,
   formatWeekLabelShort,
@@ -38,28 +38,7 @@ export default async function PMDashboardPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  let currentPersonId: string | null = null;
-  if (session.user?.id) {
-    const userEmail = session.user.email ?? undefined;
-    let person = userEmail
-      ? await prisma.person.findFirst({
-          where: { email: { equals: userEmail, mode: "insensitive" } },
-        })
-      : null;
-    if (!person && session.user?.id) {
-      const user = await prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { firstName: true, lastName: true },
-      });
-      const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
-      if (fullName) {
-        person = await prisma.person.findFirst({
-          where: { name: { equals: fullName, mode: "insensitive" } },
-        });
-      }
-    }
-    currentPersonId = person?.id ?? null;
-  }
+  const { personId: currentPersonId } = await getDashboardContext(session);
 
   const portfolioMetrics =
     currentPersonId != null

@@ -45,27 +45,33 @@ function FolderIcon({ className }: { className?: string }) {
 export function AppSidebar({
   userDisplayName,
   isAdmin,
+  pmSlugs: pmSlugsFromServer,
 }: {
   userDisplayName: string | null;
   isAdmin: boolean;
+  /** When provided (from layout), sidebar skips client fetch for "Open my projects". */
+  pmSlugs?: string[];
 }) {
   const pathname = usePathname();
-  const [pmSlugs, setPmSlugs] = useState<string[] | null>(null);
+  const [pmSlugsFetched, setPmSlugsFetched] = useState<string[] | null>(null);
+  const pmSlugs =
+    pmSlugsFromServer ?? (pmSlugsFetched !== null ? pmSlugsFetched : null);
 
   useEffect(() => {
+    if (pmSlugsFromServer != null) return;
     let cancelled = false;
     fetch("/api/projects/my-pm-slugs")
       .then((res) => (res.ok ? res.json() : { slugs: [] }))
       .then((data: { slugs?: string[] }) => {
-        if (!cancelled && Array.isArray(data.slugs)) setPmSlugs(data.slugs);
+        if (!cancelled && Array.isArray(data.slugs)) setPmSlugsFetched(data.slugs);
       })
       .catch(() => {
-        if (!cancelled) setPmSlugs([]);
+        if (!cancelled) setPmSlugsFetched([]);
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [pmSlugsFromServer]);
 
   function openMyProjectsInNewWindow() {
     if (!pmSlugs?.length || typeof document === "undefined") return;
