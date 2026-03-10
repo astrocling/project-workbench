@@ -7,8 +7,23 @@ import { redirect, notFound } from "next/navigation";
 import { getAsOfDate } from "@/lib/weekUtils";
 import { ProjectDetailTabs } from "./ProjectDetailTabs";
 import { ThemeToggle } from "@/components/ThemeProvider";
+import type { Metadata } from "next";
 
 const CUID_REGEX = /^c[a-z0-9]{24}$/i;
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug: slugParam } = await params;
+  const project = await prisma.project.findUnique({
+    where: { slug: slugParam },
+    select: { name: true },
+  });
+  if (!project) return { title: "Project" };
+  return { title: project.name };
+}
 
 export default async function ProjectDetailPage({
   params,

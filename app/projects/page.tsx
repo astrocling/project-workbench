@@ -44,6 +44,10 @@ async function getCachedLastImport() {
   )();
 }
 
+export const metadata = {
+  title: "Projects",
+};
+
 export default async function ProjectsPage({
   searchParams,
 }: {

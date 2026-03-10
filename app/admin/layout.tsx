@@ -1,5 +1,10 @@
 import Link from "next/link";
 import { ThemeToggle } from "@/components/ThemeProvider";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Admin",
+};
 
 export default function AdminLayout({
   children,

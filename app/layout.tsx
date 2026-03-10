@@ -17,7 +17,10 @@ const raleway = Raleway({
 });
 
 export const metadata: Metadata = {
-  title: "Project Workbench",
+  title: {
+    default: "Project Workbench",
+    template: "%s | Project Workbench",
+  },
   description: "Project budget and resourcing tracker",
   robots: { index: false, follow: false },
 };
