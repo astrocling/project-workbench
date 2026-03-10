@@ -6,8 +6,24 @@ import {
   type RevenueRecoveryToDate,
   type RevenueRecoveryWeek,
 } from "@/lib/revenueRecovery";
-import { computeBudgetRollups, type WeeklyHoursRow } from "@/lib/budgetCalculations";
+import {
+  computeBudgetRollups,
+  type WeeklyHoursRow,
+  type BudgetResult,
+} from "@/lib/budgetCalculations";
 import { getAllWeeks } from "@/lib/weekUtils";
+
+export type PmProjectTableRow = {
+  id: string;
+  name: string;
+  slug: string;
+  cdaEnabled: boolean;
+  burnPercent: number | null;
+  bufferPercent: number | null;
+  recovery4WeekPercent: number | null;
+  actualsStatus: BudgetResult["actualsStatus"];
+  recoveryToDatePercent?: number | null;
+};
 
 export type PortfolioRevenueRecovery = {
   toDate: RevenueRecoveryToDate;
@@ -26,6 +42,8 @@ export type PortfolioMetrics = {
   revenueRecovery?: PortfolioRevenueRecovery | null;
   /** True if any PM project has missing actuals (completed weeks with planned but no actuals). */
   staleActuals?: boolean;
+  /** Per-project rows for PM dashboard table (only when from getCachedPortfolioMetricsForPm). */
+  projectTableRows?: PmProjectTableRow[];
 };
 
 export async function getCachedPortfolioMetrics(): Promise<PortfolioMetrics> {
@@ -71,6 +89,8 @@ export async function getCachedPortfolioMetricsForPm(
         },
         select: {
           id: true,
+          name: true,
+          slug: true,
           cdaEnabled: true,
           startDate: true,
           endDate: true,
@@ -100,6 +120,7 @@ export async function getCachedPortfolioMetricsForPm(
 
       let staleActuals = false;
       let revenueRecovery: PortfolioRevenueRecovery | null = null;
+      const projectTableRows: PmProjectTableRow[] = [];
       let sumForecast = 0;
       let sumActual = 0;
       const weekSums = [
@@ -196,6 +217,33 @@ export async function getCachedPortfolioMetricsForPm(
           budgetLinesInput
         );
         if (rollups.missingActuals) staleActuals = true;
+
+        const totalBudgetHours =
+          rollups.remainingHoursHigh + rollups.actualHoursToDate;
+        const bufferPercent =
+          totalBudgetHours > 0
+            ? (rollups.remainingAfterProjectedBurnHoursHigh / totalBudgetHours) * 100
+            : null;
+        const sum4Forecast = recentWeeks
+          .slice(0, 4)
+          .reduce((s, w) => s + w.forecastDollars, 0);
+        const sum4Actual = recentWeeks
+          .slice(0, 4)
+          .reduce((s, w) => s + w.actualDollars, 0);
+        const recovery4WeekPercent =
+          sum4Forecast > 0 ? (sum4Actual / sum4Forecast) * 100 : null;
+
+        projectTableRows.push({
+          id: project.id,
+          name: project.name,
+          slug: project.slug,
+          cdaEnabled: project.cdaEnabled === true,
+          burnPercent: rollups.burnPercentHighHours,
+          bufferPercent,
+          recovery4WeekPercent,
+          actualsStatus: rollups.actualsStatus,
+          recoveryToDatePercent: toDate.recoveryPercent ?? null,
+        });
       }
 
       if (activeProjects.length > 0) {
@@ -236,6 +284,7 @@ export async function getCachedPortfolioMetricsForPm(
         portfolioValue,
         revenueRecovery,
         staleActuals: activeProjects.length > 0 ? staleActuals : undefined,
+        projectTableRows,
       };
     },
     ["portfolio-metrics-pm", personId],

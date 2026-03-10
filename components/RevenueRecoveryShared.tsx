@@ -24,6 +24,23 @@ export function getRecoveryColorClass(recoveryPercent: number | null): string {
   return "text-jred-600 dark:text-jred-400";
 }
 
+/** Budget burn % health: green < 90%, amber 90–100%, red > 100%. */
+export function getBurnHealthClass(percent: number | null): string {
+  if (percent == null) return "text-surface-600 dark:text-surface-300";
+  if (percent > 100) return "text-jred-600 dark:text-jred-400";
+  if (percent >= 90) return "text-amber-600 dark:text-amber-400";
+  return "text-green-600 dark:text-green-400";
+}
+
+/** Buffer % health: green ≥ 10%, amber 5–10%, red < 5% or over budget (< 0). */
+export function getBufferHealthClass(percent: number | null): string {
+  if (percent == null) return "text-surface-600 dark:text-surface-300";
+  if (percent < 0) return "text-jred-600 dark:text-jred-400";
+  if (percent < 5) return "text-jred-600 dark:text-jred-400";
+  if (percent < 10) return "text-amber-600 dark:text-amber-400";
+  return "text-green-600 dark:text-green-400";
+}
+
 export type RecoveryCardData = {
   weekStartDate?: string;
   forecastDollars: number;

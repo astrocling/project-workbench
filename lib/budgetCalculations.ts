@@ -57,6 +57,8 @@ export type BudgetResult = {
   remainingAfterProjectedBurnHoursHigh: number;
   remainingAfterProjectedBurnDollarsLow: number;
   remainingAfterProjectedBurnDollarsHigh: number;
+  /** Actuals freshness: up-to-date, 1 week behind, or more than 1 week behind. */
+  actualsStatus: "up-to-date" | "1-week-behind" | "more-than-1-week-behind";
 };
 
 function toDateOnly(d: Date): Date {
@@ -163,6 +165,29 @@ export function computeBudgetRollups(
   const burnPercentHighDollars =
     totalBudgetHighDollars > 0 ? (actualDollarsToDate / totalBudgetHighDollars) * 100 : null;
 
+  const sortedCompletedKeys = Array.from(completedKeys).sort();
+  const lastCompletedKey =
+    sortedCompletedKeys.length > 0 ? sortedCompletedKeys[sortedCompletedKeys.length - 1]! : null;
+  let earliestMissingKey: string | null = null;
+  for (const key of sortedCompletedKeys) {
+    const hasMissing = weeklyRows.some(
+      (r) =>
+        toDateOnly(r.weekStartDate).toISOString().slice(0, 10) === key &&
+        r.plannedHours > 0 &&
+        r.actualHours === null
+    );
+    if (hasMissing) {
+      earliestMissingKey = key;
+      break;
+    }
+  }
+  const actualsStatus: BudgetResult["actualsStatus"] =
+    !earliestMissingKey
+      ? "up-to-date"
+      : lastCompletedKey && earliestMissingKey === lastCompletedKey
+        ? "1-week-behind"
+        : "more-than-1-week-behind";
+
   return {
     plannedHoursToDate,
     actualHoursToDate,
@@ -193,6 +218,7 @@ export function computeBudgetRollups(
     remainingAfterProjectedBurnHoursHigh: totalBudgetHighHours - projectedBurnHours,
     remainingAfterProjectedBurnDollarsLow: totalBudgetLowDollars - projectedBurnDollars,
     remainingAfterProjectedBurnDollarsHigh: totalBudgetHighDollars - projectedBurnDollars,
+    actualsStatus,
   };
 }
 
