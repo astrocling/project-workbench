@@ -1,8 +1,20 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/ThemeProvider";
+
+function OpenTabsIcon({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M7 3v18" />
+      <path d="M3 9h4" />
+      <path d="M3 15h4" />
+    </svg>
+  );
+}
 
 const navItems = [
   { href: "/pm-dashboard", label: "PM Dashboard", active: true },
@@ -38,6 +50,39 @@ export function AppSidebar({
   isAdmin: boolean;
 }) {
   const pathname = usePathname();
+  const [pmSlugs, setPmSlugs] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/projects/my-pm-slugs")
+      .then((res) => (res.ok ? res.json() : { slugs: [] }))
+      .then((data: { slugs?: string[] }) => {
+        if (!cancelled && Array.isArray(data.slugs)) setPmSlugs(data.slugs);
+      })
+      .catch(() => {
+        if (!cancelled) setPmSlugs([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function openMyProjectsInNewWindow() {
+    if (!pmSlugs?.length || typeof document === "undefined") return;
+    const origin = window.location.origin;
+    const base = `${origin}/projects`;
+    // Use temporary <a target="_blank"> and .click() so the browser allows multiple new tabs
+    // from one user gesture (popup blockers often allow link clicks but block multiple window.open).
+    for (const slug of pmSlugs) {
+      const a = document.createElement("a");
+      a.href = `${base}/${slug}`;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  }
 
   return (
     <aside className="flex w-[240px] shrink-0 flex-col border-r border-surface-200 bg-surface-100 dark:border-dark-border dark:bg-dark-raised">
@@ -47,6 +92,20 @@ export function AppSidebar({
         </span>
       </div>
       <nav className="flex flex-1 flex-col gap-0.5 p-2" aria-label="Main">
+        <button
+          type="button"
+          onClick={openMyProjectsInNewWindow}
+          disabled={pmSlugs === null}
+          className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-body-sm font-medium text-surface-700 transition-colors hover:bg-surface-200 disabled:opacity-60 dark:text-surface-200 dark:hover:bg-dark-muted"
+          title="Open all projects where you are PM in new tabs"
+        >
+          <OpenTabsIcon />
+          {pmSlugs === null
+            ? "Loading…"
+            : pmSlugs.length === 0
+              ? "Open my projects (0)"
+              : `Open my projects (${pmSlugs.length})`}
+        </button>
         {navItems.map((item) => {
           const isActive =
             item.active &&
