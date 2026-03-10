@@ -1,12 +1,11 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
-import { getSessionPermissionLevel, canAccessAdmin, canEditProject } from "@/lib/auth";
+import { getSessionPermissionLevel, canEditProject } from "@/lib/auth";
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { getAsOfDate } from "@/lib/weekUtils";
 import { ProjectDetailTabs } from "./ProjectDetailTabs";
-import { ThemeToggle } from "@/components/ThemeProvider";
 
 const CUID_REGEX = /^c[a-z0-9]{24}$/i;
 
@@ -53,43 +52,32 @@ export default async function ProjectDetailPage({
   const canEdit = canEditProject(permissionLevel);
 
   return (
-    <div className="min-h-screen bg-surface-50 dark:bg-dark-bg">
-      <header className="sticky top-0 z-30 flex items-center justify-between px-6 py-4 bg-surface-50 dark:bg-dark-bg border-b border-surface-200 dark:border-dark-border">
-        <h1 className="text-display-md font-bold text-surface-900 dark:text-white">
-          {project.name}
-        </h1>
-        <div className="flex gap-4 items-center">
-          <span className="text-label-md text-surface-500 dark:text-surface-400">
-            As-of: {getAsOfDate().toISOString().slice(0, 10)}
-          </span>
-          <ThemeToggle />
-          {canAccessAdmin(permissionLevel) && (
-            <Link
-              href="/admin/float-import"
-              className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
-            >
-              Admin
-            </Link>
-          )}
+    <div>
+      <div className="flex items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-4">
           <Link
-            href="/api/auth/signout"
+            href="/projects"
             className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
           >
-            Sign out
+            ← Projects
           </Link>
+          <h1 className="text-display-md font-bold text-surface-900 dark:text-white">
+            {project.name}
+          </h1>
         </div>
-      </header>
+        <span className="text-label-md text-surface-500 dark:text-surface-400">
+          As-of: {getAsOfDate().toISOString().slice(0, 10)}
+        </span>
+      </div>
 
-      <main className="px-8 py-6 max-w-[1440px] mx-auto">
-        <ProjectDetailTabs
-          projectId={project.id}
-          projectSlug={project.slug}
-          tab={tab}
-          canEdit={!!canEdit}
-          floatLastUpdated={lastImport?.completedAt ?? null}
-          cdaEnabled={project.cdaEnabled ?? false}
-        />
-      </main>
+      <ProjectDetailTabs
+        projectId={project.id}
+        projectSlug={project.slug}
+        tab={tab}
+        canEdit={!!canEdit}
+        floatLastUpdated={lastImport?.completedAt ?? null}
+        cdaEnabled={project.cdaEnabled ?? false}
+      />
     </div>
   );
 }

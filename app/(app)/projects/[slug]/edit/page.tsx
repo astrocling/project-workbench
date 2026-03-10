@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { getSessionPermissionLevel, canAccessAdmin, canEditProject } from "@/lib/auth";
+import { getSessionPermissionLevel, canEditProject } from "@/lib/auth";
 import { PersonCombobox, PersonMultiCombobox } from "@/components/PersonCombobox";
 import { Toggle } from "@/components/Toggle";
 import { RatesTab } from "@/components/RatesTab";
@@ -218,37 +218,20 @@ export default function EditProjectPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-surface-50 dark:bg-dark-bg flex items-center justify-center">
+      <div className="flex items-center justify-center py-12">
         <p className="text-body-sm text-surface-500 dark:text-surface-400">Loading…</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-surface-50 dark:bg-dark-bg">
-      <header className="sticky top-0 z-30 flex items-center justify-between bg-white/80 dark:bg-dark-bg/90 backdrop-blur-md border-b border-surface-200 dark:border-dark-border px-6 py-4">
-        <Link href={`/projects/${slug}`} className="text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium">
+    <div className="max-w-3xl">
+      <div className="mb-6">
+        <Link href={`/projects/${slug}`} className="text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium text-body-sm">
           ← Back to project
         </Link>
-        <div className="flex gap-4 items-center">
-          {canAccessAdmin(permissionLevel) && (
-            <Link
-              href="/admin/float-import"
-              className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
-            >
-              Admin
-            </Link>
-          )}
-          <Link
-            href="/api/auth/signout"
-            className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
-          >
-            Sign out
-          </Link>
-        </div>
-      </header>
-      <main className="p-8 max-w-3xl">
-        <h1 className="text-display-md font-bold text-surface-900 dark:text-white mb-6">Project Settings</h1>
+      </div>
+      <h1 className="text-display-md font-bold text-surface-900 dark:text-white mb-6">Project Settings</h1>
         <form id="edit-project-form" onSubmit={handleSubmit} className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark">
           <nav className="flex gap-2 border-b border-surface-200 dark:border-dark-border px-6 pt-6 -mb-px" aria-label="Settings sections">
             {[
@@ -576,7 +559,6 @@ export default function EditProjectPage() {
             </button>
           )}
         </div>
-      </main>
     </div>
   );
 }
