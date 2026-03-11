@@ -15,6 +15,8 @@ const ragEnum = z.enum(["Red", "Amber", "Green"]);
 const createSchema = z.object({
   reportDate: z.string().refine((s) => !isNaN(Date.parse(s)), "Invalid date"),
   variation: variationEnum.default("Standard"),
+  /** Number of months before report date to show on timeline (1–4). Default 1. */
+  timelinePreviousMonths: z.number().int().min(1).max(4).default(1),
   completedActivities: z.string(),
   upcomingActivities: z.string(),
   risksIssuesDecisions: z.string(),
@@ -140,7 +142,9 @@ export async function POST(
   });
 
   // Lock period, budget, milestones, and timeline to creation time so they don't change when project is edited
-  const pdfData = await buildStatusReportPdfData(id, report.id);
+  const pdfData = await buildStatusReportPdfData(id, report.id, {
+    timelinePreviousMonths: parsed.data.timelinePreviousMonths,
+  });
   if (pdfData) {
     const snapshot: StatusReportSnapshot = {
       period: pdfData.period,
@@ -148,6 +152,7 @@ export async function POST(
       budget: pdfData.budget,
       cda: pdfData.cda,
       timeline: pdfData.timeline,
+      timelinePreviousMonths: parsed.data.timelinePreviousMonths,
     };
     await prisma.statusReport.update({
       where: { id: report.id },

@@ -10,6 +10,8 @@ export type StatusReportSnapshot = {
   budget?: StatusReportPDFData["budget"];
   cda?: StatusReportPDFData["cda"];
   timeline?: StatusReportPDFData["timeline"];
+  /** Number of months before report date to show on timeline (1–4). */
+  timelinePreviousMonths?: number;
 };
 
 function isStatusReportSnapshot(obj: unknown): obj is StatusReportSnapshot {
@@ -23,9 +25,15 @@ function isStatusReportSnapshot(obj: unknown): obj is StatusReportSnapshot {
   );
 }
 
+export type BuildStatusReportPdfDataOptions = {
+  /** Number of months before report date to show on timeline (1–4). Used when creating a new report before snapshot exists. */
+  timelinePreviousMonths?: number;
+};
+
 export async function buildStatusReportPdfData(
   projectId: string,
-  reportId: string
+  reportId: string,
+  options?: BuildStatusReportPdfDataOptions
 ): Promise<StatusReportPDFData | null> {
   const report = await prisma.statusReport.findFirst({
     where: { id: reportId, projectId },
@@ -228,6 +236,12 @@ export async function buildStatusReportPdfData(
   if (timeline === undefined && project.endDate != null) {
     const startStr = project.startDate.toISOString().slice(0, 10);
     const endStr = project.endDate.toISOString().slice(0, 10);
+    // On status report, limit how many months before the report date are shown (1–4)
+    const previousMonths = Math.min(4, Math.max(1, options?.timelinePreviousMonths ?? 1));
+    const reportDate = new Date(report.reportDate);
+    const minStartDate = new Date(Date.UTC(reportDate.getUTCFullYear(), reportDate.getUTCMonth() - previousMonths, 1));
+    const minStartStr = minStartDate.toISOString().slice(0, 10);
+    const effectiveStartStr = startStr < minStartStr ? minStartStr : startStr;
     const bars = (project.timelineBars ?? [])
       .sort((a, b) => a.rowIndex - b.rowIndex || a.startDate.getTime() - b.startDate.getTime())
       .map((b) => ({
@@ -244,7 +258,7 @@ export async function buildStatusReportPdfData(
         shape: m.shape,
         rowIndex: m.rowIndex,
       }));
-    timeline = { startDate: startStr, endDate: endStr, bars, markers };
+    timeline = { startDate: effectiveStartStr, endDate: endStr, bars, markers };
   }
 
   return {

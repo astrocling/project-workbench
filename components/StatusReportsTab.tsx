@@ -23,6 +23,7 @@ type StatusReportRecord = {
   ragScopeExplanation?: string | null;
   ragScheduleExplanation?: string | null;
   ragBudgetExplanation?: string | null;
+  snapshot?: { timelinePreviousMonths?: number } | null;
 };
 
 function roundToQuarter(hours: number): number {
@@ -254,6 +255,7 @@ export function StatusReportsTab({
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [formReportDate, setFormReportDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [formVariation, setFormVariation] = useState<"Standard" | "Milestones" | "CDA">("Standard");
+  const [formTimelinePreviousMonths, setFormTimelinePreviousMonths] = useState<number>(1);
   const [formCompleted, setFormCompleted] = useState("");
   const [formUpcoming, setFormUpcoming] = useState("");
   const [formRisks, setFormRisks] = useState("");
@@ -375,6 +377,7 @@ export function StatusReportsTab({
         setEditingReportId(null);
         setFormReportDate(today);
         setFormVariation(cdaEnabled ? "CDA" : "Standard");
+        setFormTimelinePreviousMonths(1);
         setFormCompleted("");
         setFormUpcoming("");
         setFormRisks("");
@@ -398,6 +401,10 @@ export function StatusReportsTab({
     setEditingReportId(r.id);
     setFormReportDate(r.reportDate.slice(0, 10));
     setFormVariation((r.variation as "Standard" | "Milestones" | "CDA") || "Standard");
+    const prevMonths = r.snapshot?.timelinePreviousMonths;
+    setFormTimelinePreviousMonths(
+      typeof prevMonths === "number" && prevMonths >= 1 && prevMonths <= 4 ? prevMonths : 1
+    );
     setFormCompleted(r.completedActivities ?? "");
     setFormUpcoming(r.upcomingActivities ?? "");
     setFormRisks(r.risksIssuesDecisions ?? "");
@@ -431,6 +438,7 @@ export function StatusReportsTab({
     setFormSaving(true);
     const payload: Record<string, unknown> = {
       ...(!editingReportId && { reportDate: formReportDate }),
+      ...(!editingReportId && { timelinePreviousMonths: formTimelinePreviousMonths }),
       variation: formVariation,
       completedActivities: formCompleted,
       upcomingActivities: formUpcoming,
@@ -465,7 +473,7 @@ export function StatusReportsTab({
     } finally {
       setFormSaving(false);
     }
-  }, [projectId, editingReportId, rollups, formReportDate, formVariation, formCompleted, formUpcoming, formRisks, formMeetingNotes, formRagOverall, formRagScope, formRagSchedule, formRagBudget, formRagOverallExplanation, formRagScopeExplanation, formRagScheduleExplanation, formRagBudgetExplanation, loadReports]);
+  }, [projectId, editingReportId, rollups, formReportDate, formVariation, formTimelinePreviousMonths, formCompleted, formUpcoming, formRisks, formMeetingNotes, formRagOverall, formRagScope, formRagSchedule, formRagBudget, formRagOverallExplanation, formRagScopeExplanation, formRagScheduleExplanation, formRagBudgetExplanation, loadReports]);
 
   const estBudgetLow = budgetLines.reduce((s, bl) => s + Number(bl.lowDollars), 0);
   const estBudgetHigh = budgetLines.reduce((s, bl) => s + Number(bl.highDollars), 0);
@@ -847,6 +855,28 @@ export function StatusReportsTab({
                 ))}
               </select>
             </div>
+            {(formVariation === "Standard" || formVariation === "Milestones") && (
+              <div>
+                <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">
+                  Previous months on timeline{editingReportId ? " (locked)" : ""}
+                </label>
+                {editingReportId ? (
+                  <p className="text-body-sm text-surface-600 dark:text-surface-300 pt-1.5">
+                    {formTimelinePreviousMonths} {formTimelinePreviousMonths === 1 ? "month" : "months"}
+                  </p>
+                ) : (
+                  <select
+                    value={formTimelinePreviousMonths}
+                    onChange={(e) => setFormTimelinePreviousMonths(Number(e.target.value))}
+                    className="block w-full max-w-xs h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
+                  >
+                    {[1, 2, 3, 4].map((n) => (
+                      <option key={n} value={n}>{n} {n === 1 ? "month" : "months"} before report date</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
             <div>
               <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1.5">Project Status</label>
               <div className="rounded-md border border-surface-200 dark:border-dark-border overflow-hidden">
