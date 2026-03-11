@@ -10,12 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Dashboard client filter**: PM, PGM, and CAD dashboards now include a client filter dropdown. The dropdown lists only clients that appear in that dashboard’s scope (projects where you are PM, PGM, or CAD). Choosing a client filters metrics and the project table to that client; "All clients" clears the filter. The filter is driven by the `?client=` URL param. Invalid or stale client params redirect to the dashboard base URL so the view defaults to "All clients" on load and when returning to the page. A Client column was added to each dashboard’s project table.
+- **Account page and change password**: New Account page (`/account`) lets signed-in users change their password. Form requires current password, new password, and confirmation; new password must be at least 6 characters. Sidebar includes an "Account" link. API `POST /api/account/change-password` updates the password for the current user after verifying the current password.
+
 ### Changed
 
 - **Buffer % color coding**: Buffer percentages now use updated color rules everywhere they appear (PM/PGM/CAD dashboards, project Overview, Budget tab). Values under 7% show orange; negative values (over budget) show red; 7% and above show green. The "low buffer" warning threshold was updated from 5% to 7% to match (Overview and Budget tab messages, and at-risk API).
 - **Status reports — auto-prefill from previous**: When you create a new report, the form now opens with RAG values, explanations, completed/upcoming/risks text, and meeting notes prefilled from the most recent report on or before the selected report date. The "Pre-fill from previous report" button was removed. The API now returns the previous report using "on or before" the date so that creating a second report on the same day correctly prefills from the report you just saved.
 
 ### Fixed
+
+- **Sign out**: Sign out now correctly redirects to the app login page instead of an external auth URL. Sidebar uses client-side `signOut({ callbackUrl: "/login" })`; changelog page sign-out link includes `callbackUrl=/login`.
+- **Login after sign-in**: After successful sign-in, the login page now performs a full page navigation so the new session is recognized and the user is taken to the dashboard instead of remaining on the login form.
 
 ## [0.1.8] - 2025-03-10
 

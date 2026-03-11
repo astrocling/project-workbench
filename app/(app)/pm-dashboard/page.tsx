@@ -14,17 +14,20 @@ import {
   getBurnHealthClass,
   getBufferHealthClass,
 } from "@/components/RevenueRecoveryShared";
+import { DashboardClientFilter } from "@/components/DashboardClientFilter";
 
 const emptyMetrics = {
   totalActive: 0,
   activeCda: 0,
   activeNonCda: 0,
   portfolioValue: 0,
+  clientsInScope: [] as string[],
   revenueRecovery: null,
   projectTableRows: [] as Array<{
     id: string;
     name: string;
     slug: string;
+    clientName: string;
     cdaEnabled: boolean;
     burnPercent: number | null;
     bufferPercent: number | null;
@@ -34,16 +37,34 @@ const emptyMetrics = {
   }>,
 };
 
-export default async function PMDashboardPage() {
+export default async function PMDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ client?: string }>;
+}) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
   const { personId: currentPersonId } = await getDashboardContext(session);
+  const { client: clientParam } = await searchParams;
 
-  const portfolioMetrics =
+  const metricsNoFilter =
     currentPersonId != null
       ? await getCachedPortfolioMetricsForPm(currentPersonId).catch(() => emptyMetrics)
       : emptyMetrics;
+  const clientsInScope = metricsNoFilter.clientsInScope ?? [];
+  const validClient =
+    clientParam && clientsInScope.includes(clientParam) ? clientParam : undefined;
+  if (clientParam != null && clientParam !== "" && validClient == null) {
+    redirect("/pm-dashboard");
+  }
+  const portfolioMetrics =
+    currentPersonId != null && validClient
+      ? await getCachedPortfolioMetricsForPm(currentPersonId, validClient).catch(
+          () => metricsNoFilter
+        )
+      : metricsNoFilter;
+  const selectedClient = validClient ?? null;
 
   return (
     <div>
@@ -59,6 +80,12 @@ export default async function PMDashboardPage() {
           View all projects →
         </Link>
       </p>
+
+      <DashboardClientFilter
+        clientsInScope={clientsInScope}
+        selectedClient={selectedClient}
+        basePath="/pm-dashboard"
+      />
 
       <section aria-label="Portfolio metrics" className="mb-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -113,6 +140,9 @@ export default async function PMDashboardPage() {
                   <th className="text-left px-4 py-2.5 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
                     Project
                   </th>
+                  <th className="text-left px-4 py-2.5 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
+                    Client
+                  </th>
                   <th className="text-right px-4 py-2.5 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
                     Budget burn
                   </th>
@@ -150,6 +180,9 @@ export default async function PMDashboardPage() {
                           </span>
                         )}
                       </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-surface-600 dark:text-surface-400">
+                      {row.clientName}
                     </td>
                     <td
                       className={`px-4 py-2.5 text-right tabular-nums font-medium ${getBurnHealthClass(row.burnPercent)}`}

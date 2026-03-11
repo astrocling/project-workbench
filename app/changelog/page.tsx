@@ -79,7 +79,7 @@ export default function ChangelogPage() {
         <div className="flex gap-4 items-center">
           <ThemeToggle />
           <Link
-            href="/api/auth/signout"
+            href="/api/auth/signout?callbackUrl=/login"
             className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
           >
             Sign out

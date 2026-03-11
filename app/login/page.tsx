@@ -2,7 +2,7 @@
 
 import { signIn } from "next-auth/react";
 import { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { ThemeToggle } from "@/components/ThemeProvider";
 
 /** Allow only relative paths (same-origin). Reject protocol-relative or absolute URLs. */
@@ -13,7 +13,6 @@ function safeCallbackUrl(raw: string | null): string {
 }
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = safeCallbackUrl(searchParams.get("callbackUrl"));
   const [email, setEmail] = useState("");
@@ -36,8 +35,8 @@ function LoginForm() {
       setError("Invalid email or password");
       return;
     }
-    router.push(callbackUrl);
-    router.refresh();
+    // Full page navigation so the new session cookie is sent and server sees the session
+    window.location.href = callbackUrl;
   }
 
   return (

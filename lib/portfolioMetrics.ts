@@ -19,6 +19,7 @@ export type PmProjectTableRow = {
   id: string;
   name: string;
   slug: string;
+  clientName: string;
   cdaEnabled: boolean;
   burnPercent: number | null;
   bufferPercent: number | null;
@@ -40,6 +41,8 @@ export type PortfolioMetrics = {
   activeCda: number;
   activeNonCda: number;
   portfolioValue: number;
+  /** Distinct client names from projects in scope (for filter dropdown). */
+  clientsInScope: string[];
   /** Aggregated revenue recovery across PM's projects (only for PM-scoped metrics). */
   revenueRecovery?: PortfolioRevenueRecovery | null;
   /** True if any PM project has missing actuals (completed weeks with planned but no actuals). */
@@ -56,9 +59,10 @@ type KeyRoleType = "PM" | "PGM" | "CAD";
  */
 async function getPortfolioMetricsForRole(
   personId: string,
-  role: KeyRoleType
+  role: KeyRoleType,
+  clientFilter?: string
 ): Promise<PortfolioMetrics> {
-  const activeProjects = await prisma.project.findMany({
+  let activeProjects = await prisma.project.findMany({
     where: {
       status: "Active",
       projectKeyRoles: {
@@ -69,6 +73,7 @@ async function getPortfolioMetricsForRole(
       id: true,
       name: true,
       slug: true,
+      clientName: true,
       cdaEnabled: true,
       startDate: true,
       endDate: true,
@@ -90,6 +95,11 @@ async function getPortfolioMetricsForRole(
       projectRoleRates: { select: { roleId: true, billRate: true } },
     },
   });
+
+  const clientsInScope = [...new Set(activeProjects.map((p) => p.clientName))].sort();
+  if (clientFilter && clientFilter.trim() !== "") {
+    activeProjects = activeProjects.filter((p) => p.clientName === clientFilter);
+  }
 
   const totalActive = activeProjects.length;
   const activeCda = activeProjects.filter((p) => p.cdaEnabled === true).length;
@@ -233,6 +243,7 @@ async function getPortfolioMetricsForRole(
       id: project.id,
       name: project.name,
       slug: project.slug,
+      clientName: project.clientName,
       cdaEnabled: project.cdaEnabled === true,
       burnPercent: rollups.burnPercentHighHours,
       bufferPercent,
@@ -280,6 +291,7 @@ async function getPortfolioMetricsForRole(
     activeCda,
     activeNonCda,
     portfolioValue,
+    clientsInScope,
     revenueRecovery,
     staleActuals: activeProjects.length > 0 ? staleActuals : undefined,
     projectTableRows,
@@ -307,7 +319,7 @@ export async function getCachedPortfolioMetrics(): Promise<PortfolioMetrics> {
         );
         return sum + projectBudget;
       }, 0);
-      return { totalActive, activeCda, activeNonCda, portfolioValue };
+      return { totalActive, activeCda, activeNonCda, portfolioValue, clientsInScope: [] };
     },
     ["portfolio-metrics"],
     { revalidate: 60, tags: ["portfolio-metrics"] }
@@ -316,33 +328,36 @@ export async function getCachedPortfolioMetrics(): Promise<PortfolioMetrics> {
 
 /** Portfolio metrics for projects where the given person is Project Manager (PM). */
 export async function getCachedPortfolioMetricsForPm(
-  personId: string
+  personId: string,
+  clientFilter?: string
 ): Promise<PortfolioMetrics> {
   return unstable_cache(
-    () => getPortfolioMetricsForRole(personId, "PM"),
-    ["portfolio-metrics-pm", personId],
+    () => getPortfolioMetricsForRole(personId, "PM", clientFilter),
+    ["portfolio-metrics-pm", personId, clientFilter ?? ""],
     { revalidate: 60, tags: ["portfolio-metrics"] }
   )();
 }
 
 /** Portfolio metrics for projects where the given person is Program Manager (PGM). */
 export async function getCachedPortfolioMetricsForPgm(
-  personId: string
+  personId: string,
+  clientFilter?: string
 ): Promise<PortfolioMetrics> {
   return unstable_cache(
-    () => getPortfolioMetricsForRole(personId, "PGM"),
-    ["portfolio-metrics-pgm", personId],
+    () => getPortfolioMetricsForRole(personId, "PGM", clientFilter),
+    ["portfolio-metrics-pgm", personId, clientFilter ?? ""],
     { revalidate: 60, tags: ["portfolio-metrics"] }
   )();
 }
 
 /** Portfolio metrics for projects where the given person is Client Account Director (CAD). */
 export async function getCachedPortfolioMetricsForCad(
-  personId: string
+  personId: string,
+  clientFilter?: string
 ): Promise<PortfolioMetrics> {
   return unstable_cache(
-    () => getPortfolioMetricsForRole(personId, "CAD"),
-    ["portfolio-metrics-cad", personId],
+    () => getPortfolioMetricsForRole(personId, "CAD", clientFilter),
+    ["portfolio-metrics-cad", personId, clientFilter ?? ""],
     { revalidate: 60, tags: ["portfolio-metrics"] }
   )();
 }

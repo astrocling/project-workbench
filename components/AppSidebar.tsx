@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { ThemeToggle } from "@/components/ThemeProvider";
 
 function OpenTabsIcon({ className }: { className?: string }) {
@@ -165,6 +166,12 @@ export function AppSidebar({
             </p>
           </div>
         )}
+        <Link
+          href="/account"
+          className="flex items-center gap-2 rounded-md px-3 py-2 text-body-sm text-surface-700 hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-dark-muted"
+        >
+          Account
+        </Link>
         {isAdmin && (
           <Link
             href="/admin/float-import"
@@ -173,12 +180,13 @@ export function AppSidebar({
             Admin
           </Link>
         )}
-        <Link
-          href="/api/auth/signout"
-          className="flex items-center gap-2 rounded-md px-3 py-2 text-body-sm text-surface-700 hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-dark-muted"
+        <button
+          type="button"
+          onClick={() => signOut({ callbackUrl: "/login" })}
+          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-body-sm text-surface-700 hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-dark-muted"
         >
           Sign out
-        </Link>
+        </button>
       </div>
     </aside>
   );
