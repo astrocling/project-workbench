@@ -3,6 +3,13 @@ import path from "path";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@react-pdf/renderer"],
+  // Turbopack (used by default for next build in Next 16) – ensures tailwind resolves from project root
+  turbopack: {
+    resolveAlias: {
+      tailwindcss: path.join(process.cwd(), "node_modules", "tailwindcss"),
+    },
+  },
+  // Webpack (used when running next dev --webpack) – same alias for dev
   webpack: (config, { dir }) => {
     config.resolve = config.resolve ?? {};
     config.resolve.alias = {

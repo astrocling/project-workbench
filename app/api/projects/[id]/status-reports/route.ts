@@ -50,7 +50,7 @@ export async function GET(
     const report = await prisma.statusReport.findFirst({
       where: {
         projectId: id,
-        reportDate: { lt: limit },
+        reportDate: { lte: limit },
       },
       orderBy: { reportDate: "desc" },
       select: {
@@ -60,6 +60,7 @@ export async function GET(
         completedActivities: true,
         upcomingActivities: true,
         risksIssuesDecisions: true,
+        meetingNotes: true,
         ragOverall: true,
         ragScope: true,
         ragSchedule: true,

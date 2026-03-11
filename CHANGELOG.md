@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Status reports — auto-prefill from previous**: When you create a new report, the form now opens with RAG values, explanations, completed/upcoming/risks text, and meeting notes prefilled from the most recent report on or before the selected report date. The "Pre-fill from previous report" button was removed. The API now returns the previous report using "on or before" the date so that creating a second report on the same day correctly prefills from the report you just saved.
+
 ### Fixed
 
 ## [0.1.8] - 2025-03-10

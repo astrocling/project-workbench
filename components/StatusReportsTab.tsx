@@ -249,6 +249,7 @@ export function StatusReportsTab({
 
   const [reports, setReports] = useState<StatusReportRecord[]>([]);
   const [reportsLoading, setReportsLoading] = useState(true);
+  const [openingNewForm, setOpeningNewForm] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [formReportDate, setFormReportDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -330,6 +331,7 @@ export function StatusReportsTab({
       setFormUpcoming(prev.upcomingActivities ?? "");
       setFormRisks(prev.risksIssuesDecisions ?? "");
     }
+    setFormMeetingNotes(prev.meetingNotes ?? "");
     setFormRagOverall((prev.ragOverall as RagValue) ?? "");
     setFormRagScope((prev.ragScope as RagValue) ?? "");
     setFormRagSchedule((prev.ragSchedule as RagValue) ?? "");
@@ -340,38 +342,56 @@ export function StatusReportsTab({
     setFormRagBudgetExplanation(prev.ragBudgetExplanation ?? "");
   }, []);
 
-  const prefillFromPrevious = useCallback(() => {
-    fetch(`/api/projects/${projectId}/status-reports?previousFor=${formReportDate}`)
-      .then((r) => r.json())
-      .then((prev) => applyPreviousReport(prev ?? null))
-      .catch(() => {});
-  }, [projectId, formReportDate, applyPreviousReport]);
-
   const openNewForm = useCallback(() => {
-    setEditingReportId(null);
     const today = new Date().toISOString().slice(0, 10);
-    setFormReportDate(today);
-    setFormVariation(cdaEnabled ? "CDA" : "Standard");
-    setFormCompleted("");
-    setFormUpcoming("");
-    setFormRisks("");
-    setFormMeetingNotes("");
-    setFormRagOverall("");
-    setFormRagScope("");
-    setFormRagSchedule("");
-    setFormRagBudget("");
-    setFormRagOverallExplanation("");
-    setFormRagScopeExplanation("");
-    setFormRagScheduleExplanation("");
-    setFormRagBudgetExplanation("");
-    setFormError(null);
-    setSavedReportId(null);
-    setShowForm(true);
-    // Optionally prefill from most recent report
+    setOpeningNewForm(true);
     fetch(`/api/projects/${projectId}/status-reports?previousFor=${today}`)
       .then((r) => r.json())
-      .then((prev) => applyPreviousReport(prev ?? null))
-      .catch(() => {});
+      .then((prev: StatusReportRecord | null) => {
+        setEditingReportId(null);
+        setFormReportDate(today);
+        setFormVariation(cdaEnabled ? "CDA" : "Standard");
+        if (prev) {
+          applyPreviousReport(prev);
+        } else {
+          setFormCompleted("");
+          setFormUpcoming("");
+          setFormRisks("");
+          setFormMeetingNotes("");
+          setFormRagOverall("");
+          setFormRagScope("");
+          setFormRagSchedule("");
+          setFormRagBudget("");
+          setFormRagOverallExplanation("");
+          setFormRagScopeExplanation("");
+          setFormRagScheduleExplanation("");
+          setFormRagBudgetExplanation("");
+        }
+        setFormError(null);
+        setSavedReportId(null);
+        setShowForm(true);
+      })
+      .catch(() => {
+        setEditingReportId(null);
+        setFormReportDate(today);
+        setFormVariation(cdaEnabled ? "CDA" : "Standard");
+        setFormCompleted("");
+        setFormUpcoming("");
+        setFormRisks("");
+        setFormMeetingNotes("");
+        setFormRagOverall("");
+        setFormRagScope("");
+        setFormRagSchedule("");
+        setFormRagBudget("");
+        setFormRagOverallExplanation("");
+        setFormRagScopeExplanation("");
+        setFormRagScheduleExplanation("");
+        setFormRagBudgetExplanation("");
+        setFormError(null);
+        setSavedReportId(null);
+        setShowForm(true);
+      })
+      .finally(() => setOpeningNewForm(false));
   }, [cdaEnabled, projectId, applyPreviousReport]);
 
   const openEditForm = useCallback((r: StatusReportRecord) => {
@@ -713,11 +733,11 @@ export function StatusReportsTab({
               <button
                 type="button"
                 onClick={openNewForm}
-                disabled={actualsStale}
+                disabled={actualsStale || openingNewForm}
                 title={actualsStale ? "Actuals are stale. Update hours in the Resourcing tab first." : undefined}
                 className="inline-flex items-center justify-center h-8 px-3 rounded text-label-sm bg-jblue-500 hover:bg-jblue-700 text-white font-medium focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1 disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
               >
-                New report
+                {openingNewForm ? "Opening…" : "New report"}
               </button>
             </div>
           )}
@@ -826,11 +846,6 @@ export function StatusReportsTab({
                   <option key={v.value} value={v.value}>{v.label}</option>
                 ))}
               </select>
-            </div>
-            <div>
-              <button type="button" onClick={prefillFromPrevious} className="text-label-sm text-jblue-600 dark:text-jblue-400 hover:underline">
-                Pre-fill from previous report
-              </button>
             </div>
             <div>
               <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1.5">Project Status</label>
