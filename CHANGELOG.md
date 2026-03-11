@@ -10,11 +10,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.1.8] - 2025-03-10
+
+### Added
+
+- **App layout with sidebar**: A shared layout for the main app wraps Projects, project detail/edit/new, and all dashboards. It includes a sticky left sidebar (AppSidebar), a top header with "Project Workbench" and the as-of date, and a main content area. Routes live under the `(app)` route group so the URL paths are unchanged (e.g. `/projects`, `/pm-dashboard`).
+- **AppSidebar**: New sidebar component with navigation links (Projects, PM Dashboard, PGM Dashboard, CAD Dashboard, Admin when permitted, Changelog), theme toggle, sign out, and the current user’s display name. For users who are PM on any project, an "Open my projects" control opens each of those project overview pages in a new browser tab.
+- **PM Dashboard** (`/pm-dashboard`): Dedicated page for projects where you are Project Manager. Shows portfolio-level metrics (Portfolio Value, Total Active Projects, Active CDA’s, Active Non-CDA), a table of those projects with Budget burn %, Buffer %, 4‑wk recovery %, and Actuals status (up-to-date / 1 week behind / more than 1 week behind). When revenue recovery data exists, shows three cards: recovery to date, this week, and previous 4 weeks. Displays an "Actuals Stale" banner when any project has completed weeks with planned hours but no actuals.
+- **PGM Dashboard** (`/pgm-dashboard`): Same structure as PM Dashboard for projects where you are Program Manager (PGM). Portfolio metrics and project table are scoped to your PGM projects; revenue recovery and actuals-stale messaging apply to that set.
+- **CAD Dashboard** (`/cad-dashboard`): Same structure for projects where you are Client Account Director (CAD). Portfolio metrics and project table are scoped to your CAD projects.
+- **My PM slugs API**: New `GET /api/projects/my-pm-slugs` returns the list of project slugs for projects where the current user is PM. Used by the sidebar "Open my projects" feature; layout can pass this from server-side to avoid an extra client request.
+- **Dashboard context**: `getDashboardContext(session)` resolves the current user’s Person id and PM project slugs (cached per user). Used by the app layout and by PM/PGM/CAD dashboard pages so personId and pmSlugs are available without duplicate lookups.
+- **Portfolio metrics**: Cached helpers `getCachedPortfolioMetricsForPm`, `getCachedPortfolioMetricsForPgm`, and `getCachedPortfolioMetricsForCad` return portfolio value, active project counts, per-project table rows (burn, buffer, 4‑wk recovery, actuals status), and optional revenue recovery aggregates (to date, this week, previous 4 weeks). Shared `formatPortfolioDollars` for consistent currency display.
+- **Revenue recovery shared UI**: `RevenueRecoveryShared` exports `RecoveryCardContent`, `formatWeekLabelShort`, and color/health helpers (`getRecoveryColorClass`, `getBurnHealthClass`, `getBufferHealthClass`) so PM, PGM, and CAD dashboards share the same card layout and styling for recovery and burn/buffer indicators.
 - **Descriptive browser tab titles**: Each page now shows a specific title in the browser tab (e.g. "Projects | Project Workbench", "Project Name | Project Workbench" for project detail, "Edit: Project Name | Project Workbench" for project settings, "Sign in | Project Workbench", and section-specific titles for Admin, Changelog, and dashboards).
 - **Resourcing API**: New `GET /api/projects/[id]/resourcing` returns all data for the Resourcing tab (project, assignments, planned/actual/float hours, ready-for-float, cell comments) in one request instead of seven.
 
 ### Changed
 
+- **Projects and dashboards under app layout**: Projects list (`/projects`), project detail (`/projects/[slug]`), project edit and new project, and the three dashboards now render inside the shared `(app)` layout (sidebar + header + main). The previous full-page projects view (with its own header and chrome) was removed in favor of this single app shell.
+- **Single dashboard routes**: Removed duplicate root-level dashboard pages (`app/cad-dashboard`, `app/pm-dashboard`, `app/pgm-dashboard`) that conflicted with the `(app)` versions. Only the dashboard pages under `app/(app)/` remain, so `/pm-dashboard`, `/pgm-dashboard`, and `/cad-dashboard` each resolve to one page with the sidebar layout.
 - **Resourcing tab**: Uses the single resourcing API so opening the tab triggers one request instead of seven.
 - **Budget, Status Reports, and CDA tabs**: The project detail page now passes full budget data (budget lines, rollups, people summary) to these tabs so they can show data immediately without an extra budget API call on first load.
 - **At-risk filter**: The at-risk projects response is cached for 60 seconds so repeated visits or refreshes reuse the result.
