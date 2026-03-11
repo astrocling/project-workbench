@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   getAllWeeks,
@@ -221,6 +221,14 @@ export function ResourcingGrids({
     }
   }, [openCommentCell]);
 
+  const allPersonIdsForRollup = useMemo(() => {
+    const s = new Set<string>();
+    planned.forEach((p) => s.add(p.personId));
+    actual.forEach((p) => s.add(p.personId));
+    float.forEach((p) => s.add(p.personId));
+    return s;
+  }, [planned, actual, float]);
+
   if (loading || !project) return <p className="text-body-sm text-surface-700 dark:text-surface-200">Loading grids...</p>;
 
   const start = new Date(project.startDate);
@@ -293,14 +301,14 @@ export function ResourcingGrids({
     (a.person.name || "").localeCompare(b.person.name || "", undefined, { sensitivity: "base" })
   );
   const plannedWeekTotal = (weekKey: string) =>
-    assignments.reduce((sum, a) => sum + getPlanned(a.personId, weekKey), 0);
+    Array.from(allPersonIdsForRollup).reduce((sum, pid) => sum + getPlanned(pid, weekKey), 0);
   const actualWeekTotal = (weekKey: string) =>
-    assignments.reduce(
-      (sum, a) => sum + (getActual(a.personId, weekKey) ?? 0),
+    Array.from(allPersonIdsForRollup).reduce(
+      (sum, pid) => sum + (getActual(pid, weekKey) ?? 0),
       0
     );
   const floatWeekTotal = (weekKey: string) =>
-    assignments.reduce((sum, a) => sum + getFloat(a.personId, weekKey), 0);
+    Array.from(allPersonIdsForRollup).reduce((sum, pid) => sum + getFloat(pid, weekKey), 0);
 
   const formatTotal = (n: number) => {
     const x = Number(n);

@@ -61,28 +61,22 @@ export async function GET(
       actualsHighThresholdPercent: project.actualsHighThresholdPercent ?? null,
     },
     assignments: visibleAssignments,
-    plannedHours: project.plannedHours
-      .filter((r) => visiblePersonIds.has(r.personId))
-      .map((r) => ({
-        ...r,
-        weekStartDate: toDateStr(r.weekStartDate),
-        hours: Number(r.hours),
-      })),
-    actualHours: project.actualHours
-      .filter((r) => visiblePersonIds.has(r.personId))
-      .map((r) => ({
-        ...r,
-        weekStartDate: toDateStr(r.weekStartDate),
-        hours: r.hours != null ? Number(r.hours) : null,
-      })),
-    floatHours: floatRows
-      .filter((r) => visiblePersonIds.has(r.personId))
-      .map((r) => ({
-        projectId: r.projectId,
-        personId: r.personId,
-        weekStartDate: formatWeekKey(r.weekStartDate),
-        hours: Number(r.hours),
-      })),
+    plannedHours: project.plannedHours.map((r) => ({
+      ...r,
+      weekStartDate: toDateStr(r.weekStartDate),
+      hours: Number(r.hours),
+    })),
+    actualHours: project.actualHours.map((r) => ({
+      ...r,
+      weekStartDate: toDateStr(r.weekStartDate),
+      hours: r.hours != null ? Number(r.hours) : null,
+    })),
+    floatHours: floatRows.map((r) => ({
+      projectId: r.projectId,
+      personId: r.personId,
+      weekStartDate: formatWeekKey(r.weekStartDate),
+      hours: Number(r.hours),
+    })),
     readyForFloat: readyForFloatRows.filter((r) => visiblePersonIds.has(r.personId)),
     cellComments: commentRows
       .filter((r) => visiblePersonIds.has(r.personId))
