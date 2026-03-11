@@ -113,23 +113,32 @@ type PeopleSummaryRow = {
   actualRevenue: number;
 };
 
+type InitialBudgetData = {
+  budgetLines: BudgetLine[];
+  rollups: Rollups | null | unknown;
+  lastWeekWithActuals: string | null;
+  peopleSummary: PeopleSummaryRow[];
+};
+
 export function BudgetTab({
   projectId,
   canEdit,
+  initialBudgetData,
 }: {
   projectId: string;
   canEdit: boolean;
+  initialBudgetData?: InitialBudgetData | null;
 }) {
-  const [budgetLines, setBudgetLines] = useState<BudgetLine[]>([]);
-  const [rollups, setRollups] = useState<Rollups | null>(null);
-  const [peopleSummary, setPeopleSummary] = useState<PeopleSummaryRow[]>([]);
+  const [budgetLines, setBudgetLines] = useState<BudgetLine[]>(initialBudgetData?.budgetLines ?? []);
+  const [rollups, setRollups] = useState<Rollups | null>((initialBudgetData?.rollups as Rollups) ?? null);
+  const [peopleSummary, setPeopleSummary] = useState<PeopleSummaryRow[]>(initialBudgetData?.peopleSummary ?? []);
   const [newLabel, setNewLabel] = useState("");
   const [newType, setNewType] = useState<"SOW" | "CO" | "Other">("SOW");
   const [newLowHours, setNewLowHours] = useState("");
   const [newHighHours, setNewHighHours] = useState("");
   const [newLowDollars, setNewLowDollars] = useState("");
   const [newHighDollars, setNewHighDollars] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialBudgetData);
 
   function load() {
     fetch(`/api/projects/${projectId}/budget`)
@@ -143,8 +152,8 @@ export function BudgetTab({
   }
 
   useEffect(() => {
-    load();
-  }, [projectId]);
+    if (!initialBudgetData) load();
+  }, [projectId, initialBudgetData]);
 
   async function addLine(e: React.FormEvent) {
     e.preventDefault();

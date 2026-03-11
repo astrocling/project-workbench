@@ -7,7 +7,7 @@ import remarkGfm from "remark-gfm";
 import { ThemeToggle } from "@/components/ThemeProvider";
 
 export const metadata = {
-  title: "Changelog | Project Workbench",
+  title: "Changelog",
   description: "Release history and changes for Project Workbench",
 };
 

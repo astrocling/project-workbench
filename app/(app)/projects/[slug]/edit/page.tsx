@@ -4,16 +4,18 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { getSessionPermissionLevel, canAccessAdmin, canEditProject } from "@/lib/auth";
+import { getSessionPermissionLevel, canEditProject } from "@/lib/auth";
 import { PersonCombobox, PersonMultiCombobox } from "@/components/PersonCombobox";
 import { Toggle } from "@/components/Toggle";
 import { RatesTab } from "@/components/RatesTab";
 import { AssignmentsTab } from "@/components/AssignmentsTab";
+import { useEditProjectData } from "./EditProjectDataContext";
 
 export default function EditProjectPage() {
   const router = useRouter();
   const params = useParams();
   const { data: session } = useSession();
+  const { initialProject: initialProjectFromLayout, initialEligiblePeople: initialEligibleFromLayout } = useEditProjectData();
   const slug = params.slug as string;
   const [name, setName] = useState("");
   const [clientName, setClientName] = useState("");
@@ -102,44 +104,84 @@ export default function EditProjectPage() {
     ]
   );
 
+  function applyProjectToState(p: {
+    id?: string;
+    name?: string;
+    clientName?: string;
+    startDate?: string;
+    endDate?: string | null;
+    status?: string;
+    cdaEnabled?: boolean;
+    actualsLowThresholdPercent?: number | null;
+    actualsHighThresholdPercent?: number | null;
+    clientSponsor?: string | null;
+    clientSponsor2?: string | null;
+    otherContact?: string | null;
+    keyStaffName?: string | null;
+    sowLink?: string | null;
+    estimateLink?: string | null;
+    floatLink?: string | null;
+    metricLink?: string | null;
+    projectKeyRoles?: Array<{ type: string; personId: string; person: { id: string; name: string } }>;
+  }) {
+    if (!p) return;
+    setProjectId(p.id ?? "");
+    setName(p.name ?? "");
+    setClientName(p.clientName ?? "");
+    setStartDate(p.startDate ? new Date(p.startDate).toISOString().slice(0, 10) : "");
+    setEndDate(p.endDate ? new Date(p.endDate).toISOString().slice(0, 10) : "");
+    setStatus((p.status as "Active" | "Closed") ?? "Active");
+    setCdaEnabled(p.cdaEnabled ?? false);
+    setActualsLowThresholdPercent(p.actualsLowThresholdPercent != null ? String(p.actualsLowThresholdPercent) : "");
+    setActualsHighThresholdPercent(p.actualsHighThresholdPercent != null ? String(p.actualsHighThresholdPercent) : "");
+    const keyRoles = (p.projectKeyRoles ?? []) as { type: string; personId: string; person: { id: string; name: string } }[];
+    setPmPersonIds(keyRoles.filter((kr) => kr.type === "PM").map((kr) => kr.personId));
+    setPgmPersonId(keyRoles.find((kr) => kr.type === "PGM")?.personId ?? "");
+    setCadPersonId(keyRoles.find((kr) => kr.type === "CAD")?.personId ?? "");
+    setClientSponsor(p.clientSponsor ?? "");
+    setClientSponsor2(p.clientSponsor2 ?? "");
+    setOtherContact(p.otherContact ?? "");
+    setKeyStaffName(p.keyStaffName ?? "");
+    setSowLink(p.sowLink ?? "");
+    setEstimateLink(p.estimateLink ?? "");
+    setFloatLink(p.floatLink ?? "");
+    setMetricLink(p.metricLink ?? "");
+  }
+
+  function applyEligiblePeople(people: { id: string; name: string }[], keyRoles: { type: string; personId: string; person: { id: string; name: string } }[]) {
+    const eligible = Array.isArray(people) ? people : [];
+    const currentIds = new Set(eligible.map((x) => x.id));
+    const fromRoles = keyRoles.map((kr) => kr.person).filter((p) => p && !currentIds.has(p.id));
+    setEligiblePeople([...eligible, ...fromRoles].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "")));
+  }
+
   useEffect(() => {
+    if (initialProjectFromLayout) {
+      applyProjectToState(initialProjectFromLayout);
+      if (initialEligibleFromLayout && initialEligibleFromLayout.length >= 0) {
+        setEligiblePeople(initialEligibleFromLayout);
+      } else {
+        fetch("/api/people/eligible-key-roles")
+          .then((r) => r.json())
+          .then((people) => {
+            applyEligiblePeople(people, initialProjectFromLayout.projectKeyRoles);
+          })
+          .catch(() => {});
+      }
+      setLoading(false);
+      return;
+    }
     Promise.all([
       fetch(`/api/projects/${slug}`).then((r) => r.json()),
       fetch("/api/people/eligible-key-roles").then((r) => r.json()),
     ])
       .then(([p, people]) => {
-        setProjectId(p?.id ?? "");
-        setName(p.name ?? "");
-        setClientName(p.clientName ?? "");
-        setStartDate(p.startDate ? new Date(p.startDate).toISOString().slice(0, 10) : "");
-        setEndDate(p.endDate ? new Date(p.endDate).toISOString().slice(0, 10) : "");
-        setStatus(p.status ?? "Active");
-        setCdaEnabled(p.cdaEnabled ?? false);
-        setActualsLowThresholdPercent(p.actualsLowThresholdPercent != null ? String(p.actualsLowThresholdPercent) : "");
-        setActualsHighThresholdPercent(p.actualsHighThresholdPercent != null ? String(p.actualsHighThresholdPercent) : "");
-        const keyRoles = (p.projectKeyRoles ?? []) as { type: string; personId: string; person: { id: string; name: string } }[];
-        setPmPersonIds(keyRoles.filter((kr) => kr.type === "PM").map((kr) => kr.personId));
-        setPgmPersonId(keyRoles.find((kr) => kr.type === "PGM")?.personId ?? "");
-        setCadPersonId(keyRoles.find((kr) => kr.type === "CAD")?.personId ?? "");
-        setClientSponsor(p.clientSponsor ?? "");
-        setClientSponsor2(p.clientSponsor2 ?? "");
-        setOtherContact(p.otherContact ?? "");
-        setKeyStaffName(p.keyStaffName ?? "");
-        setSowLink(p.sowLink ?? "");
-        setEstimateLink(p.estimateLink ?? "");
-        setFloatLink(p.floatLink ?? "");
-        setMetricLink(p.metricLink ?? "");
-        const eligible = Array.isArray(people) ? people : [];
-        const currentIds = new Set(eligible.map((x: { id: string }) => x.id));
-        const fromRoles = keyRoles
-          .map((kr) => kr.person)
-          .filter((p) => p && !currentIds.has(p.id));
-        setEligiblePeople(
-          [...eligible, ...fromRoles].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""))
-        );
+        applyProjectToState(p);
+        const keyRoles = (p?.projectKeyRoles ?? []) as { type: string; personId: string; person: { id: string; name: string } }[];
+        applyEligiblePeople(Array.isArray(people) ? people : [], keyRoles);
       })
       .finally(() => setLoading(false));
-  }, [slug]);
+  }, [slug, initialProjectFromLayout, initialEligibleFromLayout]);
 
   // Record initial payload once load completes so we don't auto-save on first paint
   useEffect(() => {
@@ -218,37 +260,20 @@ export default function EditProjectPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-surface-50 dark:bg-dark-bg flex items-center justify-center">
+      <div className="flex items-center justify-center py-12">
         <p className="text-body-sm text-surface-500 dark:text-surface-400">Loading…</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-surface-50 dark:bg-dark-bg">
-      <header className="sticky top-0 z-30 flex items-center justify-between bg-white/80 dark:bg-dark-bg/90 backdrop-blur-md border-b border-surface-200 dark:border-dark-border px-6 py-4">
-        <Link href={`/projects/${slug}`} className="text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium">
+    <div className="max-w-3xl">
+      <div className="mb-6">
+        <Link href={`/projects/${slug}`} className="text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium text-body-sm">
           ← Back to project
         </Link>
-        <div className="flex gap-4 items-center">
-          {canAccessAdmin(permissionLevel) && (
-            <Link
-              href="/admin/float-import"
-              className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
-            >
-              Admin
-            </Link>
-          )}
-          <Link
-            href="/api/auth/signout"
-            className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
-          >
-            Sign out
-          </Link>
-        </div>
-      </header>
-      <main className="p-8 max-w-3xl">
-        <h1 className="text-display-md font-bold text-surface-900 dark:text-white mb-6">Project Settings</h1>
+      </div>
+      <h1 className="text-display-md font-bold text-surface-900 dark:text-white mb-6">Project Settings</h1>
         <form id="edit-project-form" onSubmit={handleSubmit} className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark">
           <nav className="flex gap-2 border-b border-surface-200 dark:border-dark-border px-6 pt-6 -mb-px" aria-label="Settings sections">
             {[
@@ -576,7 +601,6 @@ export default function EditProjectPage() {
             </button>
           )}
         </div>
-      </main>
     </div>
   );
 }

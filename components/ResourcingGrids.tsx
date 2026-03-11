@@ -71,50 +71,38 @@ export function ResourcingGrids({
   const firstWeekColRef = useRef<HTMLTableCellElement>(null);
 
   useEffect(() => {
-    Promise.all([
-      fetch(`/api/projects/${projectId}`).then((r) => r.json()),
-      fetch(`/api/projects/${projectId}/assignments`).then((r) => r.json()),
-      fetch(`/api/projects/${projectId}/planned-hours`).then((r) => r.json()),
-      fetch(`/api/projects/${projectId}/actual-hours`).then((r) => r.json()),
-      fetch(`/api/projects/${projectId}/float-hours`).then((r) => r.json()),
-      fetch(`/api/projects/${projectId}/ready-for-float`).then((r) => r.json()),
-      fetch(`/api/projects/${projectId}/cell-comments`).then((r) => r.json()),
-    ]).then(([p, a, pl, ac, fl, rf, commentsRes]) => {
-      setProject({
-        startDate: p.startDate,
-        endDate: p.endDate,
-        actualsLowThresholdPercent: p.actualsLowThresholdPercent ?? null,
-        actualsHighThresholdPercent: p.actualsHighThresholdPercent ?? null,
-      });
-      setAssignments(a);
-      setPlanned(
-        (pl ?? []).map((row: PlannedRow) => ({
-          ...row,
-          hours: Number(row.hours),
-        }))
-      );
-      setActual(
-        (ac ?? []).map((row: ActualRow) => ({
-          ...row,
-          hours: row.hours == null ? null : Number(row.hours),
-        }))
-      );
-      setFloat(
-        (fl ?? []).map((row: FloatRow) => ({
-          ...row,
-          hours: Number(row.hours),
-        }))
-      );
-      setReadyForFloat(rf ?? []);
-      const commentMap = new Map<string, string>();
-      (commentsRes ?? []).forEach((row: { personId: string; weekStartDate: string | Date; gridType: GridCommentType; comment: string }) => {
-        const week = typeof row.weekStartDate === "string"
-          ? (row.weekStartDate.includes("T") ? row.weekStartDate.slice(0, 10) : row.weekStartDate)
-          : (row.weekStartDate as Date).toISOString().slice(0, 10);
-        commentMap.set(commentKey(row.personId, week, row.gridType), row.comment ?? "");
-      });
-      setComments(commentMap);
-    }).finally(() => setLoading(false));
+    fetch(`/api/projects/${projectId}/resourcing`)
+      .then((r) => r.json())
+      .then((data: {
+        project?: { startDate: string; endDate: string | null; actualsLowThresholdPercent: number | null; actualsHighThresholdPercent: number | null };
+        assignments?: Assignment[];
+        plannedHours?: PlannedRow[];
+        actualHours?: ActualRow[];
+        floatHours?: FloatRow[];
+        readyForFloat?: ReadyRow[];
+        cellComments?: Array<{ personId: string; weekStartDate: string; gridType: GridCommentType; comment: string }>;
+      }) => {
+        if (data.project) {
+          setProject({
+            startDate: data.project.startDate,
+            endDate: data.project.endDate ?? null,
+            actualsLowThresholdPercent: data.project.actualsLowThresholdPercent ?? null,
+            actualsHighThresholdPercent: data.project.actualsHighThresholdPercent ?? null,
+          });
+        }
+        setAssignments(data.assignments ?? []);
+        setPlanned((data.plannedHours ?? []).map((row) => ({ ...row, hours: Number(row.hours) })));
+        setActual((data.actualHours ?? []).map((row) => ({ ...row, hours: row.hours != null ? Number(row.hours) : null })));
+        setFloat((data.floatHours ?? []).map((row) => ({ ...row, hours: Number(row.hours) })));
+        setReadyForFloat(data.readyForFloat ?? []);
+        const commentMap = new Map<string, string>();
+        (data.cellComments ?? []).forEach((row) => {
+          const week = typeof row.weekStartDate === "string" ? row.weekStartDate.slice(0, 10) : row.weekStartDate;
+          commentMap.set(commentKey(row.personId, week, row.gridType), row.comment ?? "");
+        });
+        setComments(commentMap);
+      })
+      .finally(() => setLoading(false));
   }, [projectId, refreshTrigger]);
 
   useEffect(() => {

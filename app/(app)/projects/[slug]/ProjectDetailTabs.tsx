@@ -1,13 +1,25 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ResourcingGrids } from "@/components/ResourcingGrids";
-import { BudgetTab } from "@/components/BudgetTab";
-import { TimelineTab } from "@/components/TimelineTab";
-import { StatusReportsTab } from "@/components/StatusReportsTab";
-import { CDATab } from "@/components/CDATab";
+
+const ResourcingGrids = dynamic(() => import("@/components/ResourcingGrids").then((m) => ({ default: m.ResourcingGrids })), {
+  loading: () => <div className="min-h-[200px] flex items-center justify-center text-surface-500 dark:text-surface-400">Loading…</div>,
+});
+const BudgetTab = dynamic(() => import("@/components/BudgetTab").then((m) => ({ default: m.BudgetTab })), {
+  loading: () => <div className="min-h-[200px] flex items-center justify-center text-surface-500 dark:text-surface-400">Loading…</div>,
+});
+const TimelineTab = dynamic(() => import("@/components/TimelineTab").then((m) => ({ default: m.TimelineTab })), {
+  loading: () => <div className="min-h-[200px] flex items-center justify-center text-surface-500 dark:text-surface-400">Loading…</div>,
+});
+const StatusReportsTab = dynamic(() => import("@/components/StatusReportsTab").then((m) => ({ default: m.StatusReportsTab })), {
+  loading: () => <div className="min-h-[200px] flex items-center justify-center text-surface-500 dark:text-surface-400">Loading…</div>,
+});
+const CDATab = dynamic(() => import("@/components/CDATab").then((m) => ({ default: m.CDATab })), {
+  loading: () => <div className="min-h-[200px] flex items-center justify-center text-surface-500 dark:text-surface-400">Loading…</div>,
+});
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -19,6 +31,22 @@ const TABS = [
   { id: "edit", label: "Settings", hrefOnly: true },
 ] as const;
 
+type InitialProject = {
+  notes: string | null;
+  sowLink: string | null;
+  estimateLink: string | null;
+  floatLink: string | null;
+  metricLink: string | null;
+  useSingleRate: boolean;
+  singleBillRate: number | null;
+  projectKeyRoles: Array<{ type: string; person: { name: string } }>;
+};
+type InitialAssignment = {
+  personId: string;
+  person: { name: string };
+  role: { name: string; id: string };
+};
+
 export function ProjectDetailTabs({
   projectId,
   projectSlug,
@@ -26,6 +54,11 @@ export function ProjectDetailTabs({
   canEdit,
   floatLastUpdated,
   cdaEnabled = false,
+  initialProject,
+  initialAssignments,
+  initialMissingRateRoleNames,
+  initialBudgetStatus,
+  initialBudgetData,
 }: {
   projectId: string;
   projectSlug: string;
@@ -33,6 +66,20 @@ export function ProjectDetailTabs({
   canEdit: boolean;
   floatLastUpdated: Date | null;
   cdaEnabled?: boolean;
+  initialProject?: InitialProject;
+  initialAssignments?: InitialAssignment[];
+  initialMissingRateRoleNames?: string[];
+  initialBudgetStatus?: {
+    lastWeekWithActuals: string | null;
+    missingActuals: boolean;
+    rollups: Record<string, unknown> | null;
+  };
+  initialBudgetData?: {
+    budgetLines: Array<{ id: string; type: string; label: string; lowHours: number; highHours: number; lowDollars: number; highDollars: number }>;
+    rollups: unknown;
+    lastWeekWithActuals: string | null;
+    peopleSummary: Array<{ personName: string; roleName: string; rate: number; projectedHours: number; projectedRevenue: number; actualHours: number; actualRevenue: number }>;
+  };
 }) {
   const pathname = usePathname();
   const base = pathname;
@@ -41,7 +88,7 @@ export function ProjectDetailTabs({
     lastWeekWithActuals: string | null;
     missingActuals: boolean;
     rollups: Record<string, unknown> | null;
-  } | null>(null);
+  } | null>(initialBudgetStatus ?? null);
 
   const [revenueRecoveryToDate, setRevenueRecoveryToDate] = useState<number | null>(null);
 
@@ -77,6 +124,10 @@ export function ProjectDetailTabs({
       setMissingRateRoleNames(null);
       return;
     }
+    if (initialMissingRateRoleNames != null) {
+      setMissingRateRoleNames(initialMissingRateRoleNames);
+      return;
+    }
     let cancelled = false;
     setMissingRateRoleNames(null);
     Promise.all([
@@ -108,7 +159,7 @@ export function ProjectDetailTabs({
     return () => {
       cancelled = true;
     };
-  }, [projectId, tab]);
+  }, [projectId, tab, initialMissingRateRoleNames]);
 
   const prefetchOverview = useCallback(() => {
     if (overviewPrefetched.current || tab === "overview") return;
@@ -150,6 +201,31 @@ export function ProjectDetailTabs({
       return;
     }
     setOverviewLoading(true);
+    if (initialProject && initialAssignments) {
+      setTeamMembers(initialAssignments);
+      setProjectNotes(initialProject.notes ?? null);
+      setSowLink(initialProject.sowLink ?? null);
+      setEstimateLink(initialProject.estimateLink ?? null);
+      setFloatLink(initialProject.floatLink ?? null);
+      setMetricLink(initialProject.metricLink ?? null);
+      setProjectNotesDirty(false);
+      const keyRoles = initialProject.projectKeyRoles ?? [];
+      const pm = keyRoles
+        .filter((kr) => kr.type === "PM")
+        .map((kr) => kr.person?.name)
+        .filter(Boolean);
+      const pgm = keyRoles.find((kr) => kr.type === "PGM")?.person?.name ?? null;
+      const ad = keyRoles.find((kr) => kr.type === "CAD")?.person?.name ?? null;
+      setKeyRoleNames({ pm, pgm, ad });
+      fetch(`/api/projects/${projectId}/revenue-recovery`)
+        .then((r) => r.json())
+        .then((revenue) => {
+          setRevenueRecoveryToDate(revenue?.toDate?.recoveryPercent ?? null);
+        })
+        .catch(() => {})
+        .finally(() => setOverviewLoading(false));
+      return;
+    }
     Promise.allSettled([
       fetch(`/api/projects/${projectId}/revenue-recovery`).then((r) => r.json()),
       fetch(`/api/projects/${projectId}/assignments`).then((r) => r.json()),
@@ -185,7 +261,7 @@ export function ProjectDetailTabs({
       }
       setOverviewLoading(false);
     });
-  }, [tab, projectId]);
+  }, [tab, projectId, initialProject, initialAssignments]);
 
   const saveProjectNotes = useCallback(() => {
     if (!projectNotesDirty || projectNotesSaving) return;
@@ -204,8 +280,8 @@ export function ProjectDetailTabs({
   }, [projectId, projectNotes, projectNotesDirty, projectNotesSaving]);
 
   useEffect(() => {
-    refetchBudgetStatus();
-  }, [projectId, refetchBudgetStatus]);
+    if (initialBudgetStatus == null) refetchBudgetStatus();
+  }, [projectId, refetchBudgetStatus, initialBudgetStatus]);
 
   const freshnessWarning =
     floatLastUpdated && (() => {
@@ -217,13 +293,7 @@ export function ProjectDetailTabs({
 
   return (
     <div>
-      <div className="sticky top-16 z-20 -mx-8 -mt-6 px-8 pt-6 pb-4 mb-6 bg-surface-50 dark:bg-dark-bg border-b border-surface-200 dark:border-dark-border">
-        <Link
-          href="/projects"
-          className="block text-label-md text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 mb-3"
-        >
-          ← Projects
-        </Link>
+      <div className="sticky top-14 z-20 -mx-8 -mt-6 px-8 pt-6 pb-4 mb-6 bg-surface-50 dark:bg-dark-bg border-b border-surface-200 dark:border-dark-border">
         <nav className="flex gap-2 mb-3">
           {TABS.filter((t) => (t.id !== "edit" || canEdit) && (t.id !== "cda" || cdaEnabled)).map((t) => {
             const href = "hrefOnly" in t && t.hrefOnly ? `/projects/${projectSlug}/edit` : `${base}?tab=${t.id}`;
@@ -598,10 +668,10 @@ export function ProjectDetailTabs({
           onActualsUpdated={refetchBudgetStatus}
         />
       )}
-      {tab === "budget" && <BudgetTab projectId={projectId} canEdit={canEdit} />}
+      {tab === "budget" && <BudgetTab projectId={projectId} canEdit={canEdit} initialBudgetData={initialBudgetData} />}
       {tab === "timeline" && <TimelineTab projectId={projectId} canEdit={canEdit} />}
-      {tab === "status-reports" && <StatusReportsTab projectId={projectId} projectSlug={projectSlug} canEdit={canEdit} cdaEnabled={cdaEnabled} />}
-      {tab === "cda" && cdaEnabled && <CDATab projectId={projectId} canEdit={canEdit} />}
+      {tab === "status-reports" && <StatusReportsTab projectId={projectId} projectSlug={projectSlug} canEdit={canEdit} cdaEnabled={cdaEnabled} initialBudgetData={initialBudgetData} />}
+      {tab === "cda" && cdaEnabled && <CDATab projectId={projectId} canEdit={canEdit} initialBudgetData={initialBudgetData} />}
     </div>
   );
 }

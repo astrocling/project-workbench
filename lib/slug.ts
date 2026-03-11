@@ -2,17 +2,25 @@
  * Slug utilities for project URL slugs (name-based, unique).
  */
 
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
 /**
  * Resolve project id from URL segment (id or slug). Returns null if not found.
+ * Cached 30s to reduce DB load when many project-scoped API requests run in parallel.
  */
 export async function getProjectId(idOrSlug: string): Promise<string | null> {
-  const project = await prisma.project.findFirst({
-    where: { OR: [{ id: idOrSlug }, { slug: idOrSlug }] },
-    select: { id: true },
-  });
-  return project?.id ?? null;
+  return unstable_cache(
+    async () => {
+      const project = await prisma.project.findFirst({
+        where: { OR: [{ id: idOrSlug }, { slug: idOrSlug }] },
+        select: { id: true },
+      });
+      return project?.id ?? null;
+    },
+    ["project-id", idOrSlug],
+    { revalidate: 30 }
+  )();
 }
 
 /**

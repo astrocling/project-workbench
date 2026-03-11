@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
@@ -153,6 +154,7 @@ export async function PATCH(
       projectKeyRoles: { include: { person: true } },
     },
   });
+  revalidateTag("portfolio-metrics", "max");
   return NextResponse.json(project);
 }
 
@@ -171,5 +173,6 @@ export async function DELETE(
   const project = await resolveProject(idOrSlug);
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
   await prisma.project.delete({ where: { id: project.id } });
+  revalidateTag("portfolio-metrics", "max");
   return NextResponse.json({ ok: true });
 }
