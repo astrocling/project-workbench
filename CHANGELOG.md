@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Sign out**: Sign out now correctly redirects to the app login page instead of an external auth URL. Sidebar uses client-side `signOut({ callbackUrl: "/login" })`; changelog page sign-out link includes `callbackUrl=/login`.
 - **Login after sign-in**: After successful sign-in, the login page now performs a full page navigation so the new session is recognized and the user is taken to the dashboard instead of remaining on the login form.
+- **Build errors**: Resolved build errors in PM, PGM, and CAD dashboard pages and in the account change-password API.
 
 ## [0.1.8] - 2025-03-10
 
