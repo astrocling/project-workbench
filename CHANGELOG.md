@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Dashboard projects table sorting**: The projects tables on the PM, PGM, and CAD dashboards are now sortable. Default sort is alphabetical by client (A–Z). Column headers (Project, Client, Budget burn, Buffer, 4‑wk recovery, Actuals) are clickable; each click toggles ascending/descending and the current sort is shown with an arrow. Sort and direction are reflected in the URL (`?sort=...&dir=...`); the client filter is preserved when changing sort.
 - **Dashboard client filter**: PM, PGM, and CAD dashboards now include a client filter dropdown. The dropdown lists only clients that appear in that dashboard’s scope (projects where you are PM, PGM, or CAD). Choosing a client filters metrics and the project table to that client; "All clients" clears the filter. The filter is driven by the `?client=` URL param. Invalid or stale client params redirect to the dashboard base URL so the view defaults to "All clients" on load and when returning to the page. A Client column was added to each dashboard’s project table.
 - **Account page and change password**: New Account page (`/account`) lets signed-in users change their password. Form requires current password, new password, and confirmation; new password must be at least 6 characters. Sidebar includes an "Account" link. API `POST /api/account/change-password` updates the password for the current user after verifying the current password.
 
