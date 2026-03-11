@@ -14,6 +14,7 @@ import {
 } from "@/lib/weekUtils";
 import { hasPlanningMismatch, hasMissingActuals } from "@/lib/budgetCalculations";
 import { Toggle } from "@/components/Toggle";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 /** Round to nearest 0.25 for resourcing hours. */
 function roundToQuarter(n: number): number {
@@ -69,6 +70,11 @@ export function ResourcingGrids({
   const commentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const firstWeekColRef = useRef<HTMLTableCellElement>(null);
+  const [scrollState, setScrollState] = useState({
+    scrollable: false,
+    canScrollLeft: false,
+    canScrollRight: false,
+  });
 
   useEffect(() => {
     fetch(`/api/projects/${projectId}/resourcing`)
@@ -147,6 +153,52 @@ export function ResourcingGrids({
       el.removeEventListener("scrollend", handleScrollEnd);
       clearTimeout(scrollEndTimer);
     };
+  }, [loading]);
+
+  const updateScrollState = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const scrollable = el.scrollWidth > el.clientWidth;
+    const canScrollLeft = el.scrollLeft > 0;
+    const canScrollRight = el.scrollLeft < el.scrollWidth - el.clientWidth - 1;
+    setScrollState((prev) =>
+      prev.scrollable !== scrollable || prev.canScrollLeft !== canScrollLeft || prev.canScrollRight !== canScrollRight
+        ? { scrollable, canScrollLeft, canScrollRight }
+        : prev
+    );
+  }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    updateScrollState();
+    el.addEventListener("scroll", updateScrollState, { passive: true });
+    const ro = new ResizeObserver(updateScrollState);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", updateScrollState);
+      ro.disconnect();
+    };
+  }, [loading, updateScrollState]);
+
+  const scrollHorizontal = useCallback((direction: "left" | "right") => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const step = el.clientWidth * 0.8;
+    el.scrollLeft += direction === "left" ? -step : step;
+  }, []);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.shiftKey) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
   }, [loading]);
 
   const closeCommentPopover = useCallback(() => {
@@ -597,6 +649,28 @@ export function ResourcingGrids({
 
   return (
     <div className="space-y-6">
+      {scrollState.scrollable && (
+        <div className="flex items-center gap-2" role="group" aria-label="Scroll weeks">
+          <button
+            type="button"
+            aria-label="Scroll left"
+            disabled={!scrollState.canScrollLeft}
+            onClick={() => scrollHorizontal("left")}
+            className="inline-flex h-9 w-9 items-center justify-center rounded border border-surface-200 bg-white text-surface-700 shadow-sm transition hover:bg-surface-50 hover:text-surface-900 disabled:pointer-events-none disabled:opacity-50 dark:border-dark-border dark:bg-dark-surface dark:text-surface-200 dark:hover:bg-dark-raised dark:hover:text-white"
+          >
+            <ChevronLeft className="h-5 w-5" aria-hidden />
+          </button>
+          <button
+            type="button"
+            aria-label="Scroll right"
+            disabled={!scrollState.canScrollRight}
+            onClick={() => scrollHorizontal("right")}
+            className="inline-flex h-9 w-9 items-center justify-center rounded border border-surface-200 bg-white text-surface-700 shadow-sm transition hover:bg-surface-50 hover:text-surface-900 disabled:pointer-events-none disabled:opacity-50 dark:border-dark-border dark:bg-dark-surface dark:text-surface-200 dark:hover:bg-dark-raised dark:hover:text-white"
+          >
+            <ChevronRight className="h-5 w-5" aria-hidden />
+          </button>
+        </div>
+      )}
       <div ref={scrollContainerRef} className="overflow-x-auto overscroll-x-contain space-y-6">
         <div className="rounded-lg border border-surface-200 dark:border-dark-border overflow-clip shadow-card-light dark:shadow-card-dark bg-white dark:bg-dark-surface" style={{ minWidth: tableMinWidth }}>
           <table className="border-separate border-spacing-0 text-sm w-full" style={{ tableLayout: "fixed", minWidth: tableMinWidth }}>
