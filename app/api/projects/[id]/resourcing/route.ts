@@ -47,6 +47,9 @@ export async function GET(
 
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  const visibleAssignments = project.assignments.filter((a) => !a.hiddenFromGrid);
+  const visiblePersonIds = new Set(visibleAssignments.map((a) => a.personId));
+
   const toDateStr = (d: Date | string): string =>
     typeof d === "string" ? d.slice(0, 10) : d.toISOString().slice(0, 10);
 
@@ -57,30 +60,38 @@ export async function GET(
       actualsLowThresholdPercent: project.actualsLowThresholdPercent ?? null,
       actualsHighThresholdPercent: project.actualsHighThresholdPercent ?? null,
     },
-    assignments: project.assignments,
-    plannedHours: project.plannedHours.map((r) => ({
-      ...r,
-      weekStartDate: toDateStr(r.weekStartDate),
-      hours: Number(r.hours),
-    })),
-    actualHours: project.actualHours.map((r) => ({
-      ...r,
-      weekStartDate: toDateStr(r.weekStartDate),
-      hours: r.hours != null ? Number(r.hours) : null,
-    })),
-    floatHours: floatRows.map((r) => ({
-      projectId: r.projectId,
-      personId: r.personId,
-      weekStartDate: formatWeekKey(r.weekStartDate),
-      hours: Number(r.hours),
-    })),
-    readyForFloat: readyForFloatRows,
-    cellComments: commentRows.map((r) => ({
-      projectId: r.projectId,
-      personId: r.personId,
-      weekStartDate: toDateStr(r.weekStartDate),
-      gridType: r.gridType,
-      comment: r.comment,
-    })),
+    assignments: visibleAssignments,
+    plannedHours: project.plannedHours
+      .filter((r) => visiblePersonIds.has(r.personId))
+      .map((r) => ({
+        ...r,
+        weekStartDate: toDateStr(r.weekStartDate),
+        hours: Number(r.hours),
+      })),
+    actualHours: project.actualHours
+      .filter((r) => visiblePersonIds.has(r.personId))
+      .map((r) => ({
+        ...r,
+        weekStartDate: toDateStr(r.weekStartDate),
+        hours: r.hours != null ? Number(r.hours) : null,
+      })),
+    floatHours: floatRows
+      .filter((r) => visiblePersonIds.has(r.personId))
+      .map((r) => ({
+        projectId: r.projectId,
+        personId: r.personId,
+        weekStartDate: formatWeekKey(r.weekStartDate),
+        hours: Number(r.hours),
+      })),
+    readyForFloat: readyForFloatRows.filter((r) => visiblePersonIds.has(r.personId)),
+    cellComments: commentRows
+      .filter((r) => visiblePersonIds.has(r.personId))
+      .map((r) => ({
+        projectId: r.projectId,
+        personId: r.personId,
+        weekStartDate: toDateStr(r.weekStartDate),
+        gridType: r.gridType,
+        comment: r.comment,
+      })),
   });
 }

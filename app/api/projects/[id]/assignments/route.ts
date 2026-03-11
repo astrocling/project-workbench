@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { getProjectId } from "@/lib/slug";
+import { getAsOfDate } from "@/lib/weekUtils";
 import { z } from "zod";
 
 const addSchema = z.object({
@@ -20,6 +21,7 @@ const patchSchema = z.object({
   personId: z.string(),
   roleId: z.string().optional(),
   billRateOverride: z.number().nullable().optional(),
+  hiddenFromGrid: z.boolean().optional(),
 });
 
 export async function GET(
@@ -32,11 +34,34 @@ export async function GET(
   const { id: idOrSlug } = await params;
   const id = await getProjectId(idOrSlug);
   if (!id) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  const assignments = await prisma.projectAssignment.findMany({
-    where: { projectId: id },
-    include: { person: true, role: true },
-  });
-  return NextResponse.json(assignments);
+
+  const [assignments, plannedHours, floatHours] = await Promise.all([
+    prisma.projectAssignment.findMany({
+      where: { projectId: id },
+      include: { person: true, role: true },
+    }),
+    prisma.plannedHours.findMany({ where: { projectId: id } }),
+    prisma.floatScheduledHours.findMany({ where: { projectId: id } }),
+  ]);
+
+  const asOf = getAsOfDate();
+  const hasUpcoming = (personId: string): boolean => {
+    const isFuture = (d: Date) => new Date(d) > asOf;
+    const planned = plannedHours.some(
+      (r) => r.personId === personId && isFuture(r.weekStartDate) && Number(r.hours) > 0
+    );
+    const float = floatHours.some(
+      (r) => r.personId === personId && isFuture(r.weekStartDate) && Number(r.hours) > 0
+    );
+    return planned || float;
+  };
+
+  const withFlags = assignments.map((a) => ({
+    ...a,
+    hasUpcomingHours: hasUpcoming(a.personId),
+  }));
+
+  return NextResponse.json(withFlags);
 }
 
 export async function POST(
@@ -141,9 +166,10 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });
   }
 
-  const data: { roleId?: string; billRateOverride?: number | null } = {};
+  const data: { roleId?: string; billRateOverride?: number | null; hiddenFromGrid?: boolean } = {};
   if (parsed.data.roleId !== undefined) data.roleId = parsed.data.roleId;
   if (parsed.data.billRateOverride !== undefined) data.billRateOverride = parsed.data.billRateOverride;
+  if (parsed.data.hiddenFromGrid !== undefined) data.hiddenFromGrid = parsed.data.hiddenFromGrid;
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });
   }

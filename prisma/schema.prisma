@@ -244,6 +244,8 @@ model ProjectAssignment {
   personId        String
   roleId          String
   billRateOverride Decimal? @db.Decimal(10, 2)
+  /// When true, this person's row is hidden in the project Resourcing tab only.
+  hiddenFromGrid  Boolean   @default(false)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

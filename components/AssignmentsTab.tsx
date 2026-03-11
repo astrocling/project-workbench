@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { PersonCombobox } from "@/components/PersonCombobox";
+import { Toggle } from "@/components/Toggle";
 
 type Person = { id: string; name: string; email?: string | null };
 type Role = { id: string; name: string };
@@ -10,6 +11,8 @@ type Assignment = {
   person: Person;
   role: Role;
   billRateOverride: number | null;
+  hiddenFromGrid?: boolean;
+  hasUpcomingHours?: boolean;
 };
 
 export function AssignmentsTab({
@@ -73,8 +76,23 @@ export function AssignmentsTab({
     });
     if (res.ok) {
       const a = await res.json();
-      setAssignments((prev) => [...prev, a]);
+      setAssignments((prev) => [...prev, { ...a, hasUpcomingHours: false }]);
       setSelectedPerson("");
+    }
+  }
+
+  async function toggleHiddenFromGrid(personId: string, nextValue: boolean) {
+    if (!canEdit) return;
+    const res = await fetch(`/api/projects/${projectId}/assignments`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ personId, hiddenFromGrid: nextValue }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setAssignments((prev) =>
+        prev.map((x) => (x.personId === personId ? { ...updated, hasUpcomingHours: x.hasUpcomingHours } : x))
+      );
     }
   }
 
@@ -117,7 +135,9 @@ export function AssignmentsTab({
     if (res.ok) {
       const updated = await res.json();
       setAssignments((prev) =>
-        prev.map((x) => (x.personId === personId ? updated : x))
+        prev.map((x) =>
+          x.personId === personId ? { ...updated, hasUpcomingHours: (updated as Assignment).hasUpcomingHours ?? x.hasUpcomingHours } : x
+        )
       );
       setEditingPersonId(null);
     }
@@ -162,6 +182,7 @@ export function AssignmentsTab({
               <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Person</th>
               <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Role</th>
               <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Rate Override</th>
+              <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Hidden from grid</th>
               {canEdit && <th className="px-4 py-3" />}
             </tr>
           </thead>
@@ -200,6 +221,30 @@ export function AssignmentsTab({
                     />
                   ) : (
                     a.billRateOverride ?? "—"
+                  )}
+                </td>
+                <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
+                  {canEdit ? (
+                    <div className="flex flex-col gap-1">
+                      <Toggle
+                        checked={a.hiddenFromGrid === true}
+                        onChange={(checked) => toggleHiddenFromGrid(a.personId, checked)}
+                        aria-label={`Hide ${a.person.name} from resourcing grid`}
+                        size="sm"
+                      />
+                      {a.hiddenFromGrid && a.hasUpcomingHours && (
+                        <span className="text-body-sm text-amber-600 dark:text-amber-400 font-medium">
+                          Has upcoming hours
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-body-sm text-surface-600 dark:text-surface-400">
+                      {a.hiddenFromGrid ? "Yes" : "No"}
+                      {a.hiddenFromGrid && a.hasUpcomingHours && (
+                        <span className="block text-amber-600 dark:text-amber-400 font-medium mt-0.5">Has upcoming hours</span>
+                      )}
+                    </span>
                   )}
                 </td>
                 {canEdit && (

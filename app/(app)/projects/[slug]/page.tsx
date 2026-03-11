@@ -44,12 +44,25 @@ export default async function ProjectDetailPage({
     redirect(`/projects/${project.slug}`);
   }
 
-  const lastImport = await prisma.floatImportRun.findFirst({
-    orderBy: { completedAt: "desc" },
-  });
+  const [lastImport, floatScheduledHours] = await Promise.all([
+    prisma.floatImportRun.findFirst({ orderBy: { completedAt: "desc" } }),
+    prisma.floatScheduledHours.findMany({ where: { projectId: project.id } }),
+  ]);
 
   const permissionLevel = getSessionPermissionLevel(session.user);
   const canEdit = canEditProject(permissionLevel);
+
+  const asOf = getAsOfDate();
+  const hasUpcomingHours = (personId: string): boolean => {
+    const isFuture = (d: Date) => new Date(d) > asOf;
+    const planned = project.plannedHours.some(
+      (r) => r.personId === personId && isFuture(r.weekStartDate) && Number(r.hours) > 0
+    );
+    const float = floatScheduledHours.some(
+      (r) => r.personId === personId && isFuture(r.weekStartDate) && Number(r.hours) > 0
+    );
+    return planned || float;
+  };
 
   // Serialize for client: overview + rates-alert can use this and skip refetch on load
   const initialProject = {
@@ -69,6 +82,8 @@ export default async function ProjectDetailPage({
     personId: a.personId,
     person: { name: a.person.name },
     role: { name: a.role.name, id: a.role.id },
+    hiddenFromGrid: a.hiddenFromGrid ?? false,
+    hasUpcomingHours: hasUpcomingHours(a.personId),
   }));
   const hasSingleRate = project.useSingleRate && project.singleBillRate != null;
   const initialMissingRateRoleNames: string[] = hasSingleRate

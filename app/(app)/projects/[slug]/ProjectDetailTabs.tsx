@@ -46,6 +46,8 @@ type InitialAssignment = {
   personId: string;
   person: { name: string };
   role: { name: string; id: string };
+  hiddenFromGrid?: boolean;
+  hasUpcomingHours?: boolean;
 };
 
 export function ProjectDetailTabs({
@@ -98,6 +100,8 @@ export function ProjectDetailTabs({
       personId: string;
       person: { name: string };
       role: { name: string };
+      hiddenFromGrid?: boolean;
+      hasUpcomingHours?: boolean;
     }>
   >([]);
 
@@ -375,6 +379,41 @@ export function ProjectDetailTabs({
           </div>
         )}
 
+      {tab === "overview" &&
+        !overviewLoading &&
+        (() => {
+          const hiddenWithUpcoming = teamMembers.filter(
+            (a) => a.hiddenFromGrid && a.hasUpcomingHours
+          );
+          return (
+            hiddenWithUpcoming.length > 0 && (
+              <div
+                className="rounded-md border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 p-3 text-body-sm text-amber-800 dark:text-amber-400 mb-6"
+                role="alert"
+              >
+                <p className="font-medium">
+                  Hidden from resourcing grid but have future allocations
+                </p>
+                <p className="mt-1">
+                  The following people are hidden from the resourcing grid but
+                  have hours in upcoming weeks:{" "}
+                  <strong>
+                    {hiddenWithUpcoming.map((a) => a.person.name).join(", ")}
+                  </strong>
+                  .{" "}
+                  <Link
+                    href={`/projects/${projectSlug}/edit`}
+                    className="text-amber-700 dark:text-amber-300 font-semibold underline hover:no-underline"
+                  >
+                    Manage in Settings → Assignments
+                  </Link>
+                  .
+                </p>
+              </div>
+            )
+          );
+        })()}
+
       {tab === "overview" && overviewLoading && (
         <div className="space-y-6" aria-busy="true" aria-label="Loading overview">
           <div className="flex flex-wrap gap-3">
@@ -595,14 +634,21 @@ export function ProjectDetailTabs({
                     {teamMembers.map((a) => (
                       <li
                         key={a.personId}
-                        className="px-4 py-3 flex items-center justify-between gap-4 text-body-sm text-surface-700 dark:text-surface-200"
+                        className="px-4 py-3 flex flex-col gap-0.5 text-body-sm text-surface-700 dark:text-surface-200"
                       >
-                        <span className="font-medium text-surface-800 dark:text-surface-100">
-                          {a.person.name}
-                        </span>
-                        <span className="text-surface-500 dark:text-surface-400">
-                          {a.role.name}
-                        </span>
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="font-medium text-surface-800 dark:text-surface-100">
+                            {a.person.name}
+                          </span>
+                          <span className="text-surface-500 dark:text-surface-400">
+                            {a.role.name}
+                          </span>
+                        </div>
+                        {a.hiddenFromGrid && a.hasUpcomingHours && (
+                          <span className="text-body-sm text-amber-600 dark:text-amber-400 font-medium">
+                            Hidden from grid · Has upcoming hours
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ul>
