@@ -142,7 +142,7 @@ export default async function PGMDashboardPage({
           Projects
         </h3>
         <DashboardProjectsTable
-          rows={portfolioMetrics.projectTableRows}
+          rows={portfolioMetrics.projectTableRows ?? []}
           basePath="/pgm-dashboard"
           clientParam={validClient}
           emptyMessage="No active projects where you are PGM."

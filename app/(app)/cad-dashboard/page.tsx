@@ -142,7 +142,7 @@ export default async function CADDashboardPage({
           Projects
         </h3>
         <DashboardProjectsTable
-          rows={portfolioMetrics.projectTableRows}
+          rows={portfolioMetrics.projectTableRows ?? []}
           basePath="/cad-dashboard"
           clientParam={validClient}
           emptyMessage="No active projects where you are CAD."
