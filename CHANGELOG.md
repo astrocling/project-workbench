@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Buffer % color coding**: Buffer percentages now use updated color rules everywhere they appear (PM/PGM/CAD dashboards, project Overview, Budget tab). Values under 7% show orange; negative values (over budget) show red; 7% and above show green. The "low buffer" warning threshold was updated from 5% to 7% to match (Overview and Budget tab messages, and at-risk API).
 - **Status reports — auto-prefill from previous**: When you create a new report, the form now opens with RAG values, explanations, completed/upcoming/risks text, and meeting notes prefilled from the most recent report on or before the selected report date. The "Pre-fill from previous report" button was removed. The API now returns the previous report using "on or before" the date so that creating a second report on the same day correctly prefills from the report you just saved.
 
 ### Fixed

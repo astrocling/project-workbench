@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { RevenueRecoveryCard } from "@/components/RevenueRecoveryCard";
+import { getBufferHealthClass } from "@/components/RevenueRecoveryShared";
 
 function roundToQuarter(hours: number): number {
   return Math.round(hours * 4) / 4;
@@ -239,7 +240,7 @@ export function BudgetTab({
               const bufferPercentHours =
                 totalBudgetHours > 0 ? (remainingHours / totalBudgetHours) * 100 : null;
               const isLowBuffer =
-                bufferPercentHours != null && (bufferPercentHours < 5 || bufferPercentHours < 0);
+                bufferPercentHours != null && (bufferPercentHours < 7 || bufferPercentHours < 0);
               return (
                 <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
                   <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-3">Expected remaining</p>
@@ -258,11 +259,11 @@ export function BudgetTab({
                     {formatHours(remainingHours)} hrs
                   </p>
                   <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider mt-4">Buffer</p>
-                  <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
+                  <p className={`text-display-md font-extrabold tabular-nums mt-1 ${getBufferHealthClass(bufferPercentHours)}`}>
                     {bufferPercentHours != null ? `${bufferPercentHours.toFixed(1)}%` : "—"}
                   </p>
                   {isLowBuffer && (
-                    <p className="text-body-sm font-semibold text-amber-600 dark:text-amber-400 mt-2">
+                    <p className={`text-body-sm font-semibold mt-2 ${bufferPercentHours != null && bufferPercentHours < 0 ? "text-jred-600 dark:text-jred-400" : "text-orange-600 dark:text-orange-400"}`}>
                       {bufferPercentHours != null && bufferPercentHours < 0 ? "Over budget" : "Low buffer"}
                     </p>
                   )}

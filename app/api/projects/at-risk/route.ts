@@ -105,7 +105,7 @@ function getBudgetRisks(project: ProjectWithRelations): string[] {
       : null;
   if (
     bufferPercentHours != null &&
-    (bufferPercentHours < 5 || bufferPercentHours < 0)
+    (bufferPercentHours < 7 || bufferPercentHours < 0)
   ) {
     risks.push("Low buffer");
   }

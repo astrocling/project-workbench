@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getBufferHealthClass } from "@/components/RevenueRecoveryShared";
 
 const ResourcingGrids = dynamic(() => import("@/components/ResourcingGrids").then((m) => ({ default: m.ResourcingGrids })), {
   loading: () => <div className="min-h-[200px] flex items-center justify-center text-surface-500 dark:text-surface-400">Loading…</div>,
@@ -549,17 +550,17 @@ export function ProjectDetailTabs({
                   : null;
               const isLowBuffer =
                 bufferPercent != null &&
-                (bufferPercent < 5 || bufferPercent < 0);
+                (bufferPercent < 7 || bufferPercent < 0);
               return (
                 <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5">
                   <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider">
                     Buffer %
                   </p>
-                  <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
+                  <p className={`text-display-md font-extrabold tabular-nums mt-1 ${getBufferHealthClass(bufferPercent)}`}>
                     {bufferPercent != null ? `${bufferPercent.toFixed(1)}%` : "—"}
                   </p>
                   {isLowBuffer && (
-                    <p className="text-body-sm font-semibold text-amber-600 dark:text-amber-400 mt-2">
+                    <p className={`text-body-sm font-semibold mt-2 ${bufferPercent != null && bufferPercent < 0 ? "text-jred-600 dark:text-jred-400" : "text-orange-600 dark:text-orange-400"}`}>
                       {bufferPercent != null && bufferPercent < 0
                         ? "Over budget"
                         : "Low buffer"}

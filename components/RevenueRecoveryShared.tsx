@@ -32,12 +32,11 @@ export function getBurnHealthClass(percent: number | null): string {
   return "text-green-600 dark:text-green-400";
 }
 
-/** Buffer % health: green ≥ 10%, amber 5–10%, red < 5% or over budget (< 0). */
+/** Buffer % health: red for overage (< 0), orange for < 7%, green otherwise. */
 export function getBufferHealthClass(percent: number | null): string {
   if (percent == null) return "text-surface-600 dark:text-surface-300";
   if (percent < 0) return "text-jred-600 dark:text-jred-400";
-  if (percent < 5) return "text-jred-600 dark:text-jred-400";
-  if (percent < 10) return "text-amber-600 dark:text-amber-400";
+  if (percent < 7) return "text-orange-600 dark:text-orange-400";
   return "text-green-600 dark:text-green-400";
 }
 
