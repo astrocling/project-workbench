@@ -7,8 +7,8 @@ import { ThemeToggle } from "@/components/ThemeProvider";
 
 /** Allow only relative paths (same-origin). Reject protocol-relative or absolute URLs. */
 function safeCallbackUrl(raw: string | null): string {
-  const url = (raw ?? "/projects").trim();
-  if (url === "" || url[0] !== "/" || url.startsWith("//")) return "/projects";
+  const url = (raw ?? "/pm-dashboard").trim();
+  if (url === "" || url[0] !== "/" || url.startsWith("//")) return "/pm-dashboard";
   return url;
 }
 

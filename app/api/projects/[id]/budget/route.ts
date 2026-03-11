@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
@@ -191,6 +192,7 @@ export async function POST(
       highDollars: parsed.data.highDollars,
     },
   });
+  revalidateTag("portfolio-metrics", "max");
   return NextResponse.json(line);
 }
 
@@ -223,5 +225,6 @@ export async function DELETE(
   }
 
   await prisma.budgetLine.delete({ where: { id: lineId } });
+  revalidateTag("portfolio-metrics", "max");
   return new NextResponse(null, { status: 204 });
 }

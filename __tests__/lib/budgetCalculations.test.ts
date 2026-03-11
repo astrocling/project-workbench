@@ -106,6 +106,71 @@ describe("computeBudgetRollups", () => {
     expect(result.missingActuals).toBe(true);
     expect(result.forecastIncomplete).toBe(true);
   });
+
+  describe("actualsStatus", () => {
+    const projectStart = new Date("2025-02-03");
+    const asOf = new Date("2025-02-16T23:59:59Z"); // completed weeks: 02-03, 02-10. Last completed: 02-10.
+
+    it("returns up-to-date when no missing actuals", () => {
+      const weeklyRows = [
+        { weekStartDate: new Date("2025-02-03"), plannedHours: 40, actualHours: 40, rate: 100 },
+        { weekStartDate: new Date("2025-02-10"), plannedHours: 40, actualHours: 38, rate: 100 },
+      ];
+      const result = computeBudgetRollups(
+        projectStart,
+        null,
+        weeklyRows,
+        [{ lowHours: 200, highHours: 200, lowDollars: 20000, highDollars: 20000 }],
+        asOf
+      );
+      expect(result.actualsStatus).toBe("up-to-date");
+    });
+
+    it("returns 1-week-behind when missing actuals only in last completed week", () => {
+      const weeklyRows = [
+        { weekStartDate: new Date("2025-02-03"), plannedHours: 40, actualHours: 40, rate: 100 },
+        { weekStartDate: new Date("2025-02-10"), plannedHours: 40, actualHours: null, rate: 100 },
+      ];
+      const result = computeBudgetRollups(
+        projectStart,
+        null,
+        weeklyRows,
+        [{ lowHours: 200, highHours: 200, lowDollars: 20000, highDollars: 20000 }],
+        asOf
+      );
+      expect(result.actualsStatus).toBe("1-week-behind");
+    });
+
+    it("returns more-than-1-week-behind when missing actuals in earlier completed week", () => {
+      const weeklyRows = [
+        { weekStartDate: new Date("2025-02-03"), plannedHours: 40, actualHours: null, rate: 100 },
+        { weekStartDate: new Date("2025-02-10"), plannedHours: 40, actualHours: 40, rate: 100 },
+      ];
+      const result = computeBudgetRollups(
+        projectStart,
+        null,
+        weeklyRows,
+        [{ lowHours: 200, highHours: 200, lowDollars: 20000, highDollars: 20000 }],
+        asOf
+      );
+      expect(result.actualsStatus).toBe("more-than-1-week-behind");
+    });
+
+    it("returns more-than-1-week-behind when multiple weeks missing actuals", () => {
+      const weeklyRows = [
+        { weekStartDate: new Date("2025-02-03"), plannedHours: 40, actualHours: null, rate: 100 },
+        { weekStartDate: new Date("2025-02-10"), plannedHours: 40, actualHours: null, rate: 100 },
+      ];
+      const result = computeBudgetRollups(
+        projectStart,
+        null,
+        weeklyRows,
+        [{ lowHours: 200, highHours: 200, lowDollars: 20000, highDollars: 20000 }],
+        asOf
+      );
+      expect(result.actualsStatus).toBe("more-than-1-week-behind");
+    });
+  });
 });
 
 describe("weeklyUtilization", () => {

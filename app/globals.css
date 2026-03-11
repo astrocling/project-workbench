@@ -185,6 +185,12 @@
   --scrollbar-track: transparent;
 }
 
+/* When env banner is shown (non-production), push body content down so nothing is covered by the fixed banner */
+.has-env-banner {
+  --env-banner-height: 2.25rem;
+  padding-top: var(--env-banner-height);
+}
+
 .dark {
   --scrollbar-thumb: #1e2e47;
   --scrollbar-track: transparent;

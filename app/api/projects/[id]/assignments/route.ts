@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
@@ -116,6 +117,7 @@ export async function POST(
     },
     include: { person: true, role: true },
   });
+  revalidateTag("portfolio-metrics", "max");
   return NextResponse.json(assignment);
 }
 
@@ -153,6 +155,7 @@ export async function PATCH(
     data,
     include: { person: true, role: true },
   });
+  revalidateTag("portfolio-metrics", "max");
   return NextResponse.json(assignment);
 }
 
@@ -181,5 +184,6 @@ export async function DELETE(
       projectId_personId: { projectId: id, personId },
     },
   });
+  revalidateTag("portfolio-metrics", "max");
   return NextResponse.json({ ok: true });
 }
