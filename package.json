@@ -7,7 +7,7 @@
   },
   "scripts": {
     "postinstall": "prisma generate",
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "prisma migrate deploy && next build",
     "db:deploy": "prisma migrate deploy && prisma db seed",
     "start": "next start",
