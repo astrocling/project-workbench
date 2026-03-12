@@ -1,0 +1,9 @@
+---
+description: Status report preview and PDF export — single source of truth
+globs: components/StatusReportView.tsx, components/StatusReportPreview.tsx, components/StatusReportPageContent.tsx, lib/statusReportPdfCapture.ts
+---
+
+# Status report layout and PDF
+
+- **Single source of truth:** The only place to change layout or styling for both preview and PDF export is `components/StatusReportView.tsx`. The PDF is produced by client-side capture of that view (html2canvas + jsPDF in `lib/statusReportPdfCapture.ts`).
+- Do not add a separate PDF-only layout or component. Any visual change must be made in StatusReportView so preview and exported PDF stay identical.

@@ -293,7 +293,18 @@ function milestonesForExport<T extends { completed: boolean }>(milestones: T[]):
     .slice(0, MAX_MILESTONES_ON_PDF);
 }
 
-export function StatusReportView({ data }: { data: StatusReportPDFData }) {
+export type StatusReportViewRefs = {
+  slideRef?: React.RefObject<HTMLDivElement | null>;
+  meetingNotesRef?: React.RefObject<HTMLDivElement | null>;
+};
+
+export function StatusReportView({
+  data,
+  slideRef,
+  meetingNotesRef,
+}: {
+  data: StatusReportPDFData;
+} & StatusReportViewRefs) {
   const { report, project, period, today } = data;
   const { cad, pm, pgm, keyStaff } = getKeyRoleNames(data);
   const bioTitle = project.name.toUpperCase();
@@ -312,7 +323,8 @@ export function StatusReportView({ data }: { data: StatusReportPDFData }) {
       <div className="flex justify-center" style={{ width: "100%" }}>
         <div style={{ width: slideWidth * slideScale, maxWidth: "100%", minHeight: scaledHeight }}>
           <div
-            className="relative border-2 border-dashed border-gray-400 origin-top"
+            ref={slideRef}
+            className="status-report-slide relative border-2 border-dashed border-gray-400 origin-top"
             style={{
               width: 720,
               aspectRatio: "16/9",
@@ -385,7 +397,7 @@ export function StatusReportView({ data }: { data: StatusReportPDFData }) {
           {/* Three columns: completed / upcoming / risks — tight spacing to fit 7 items */}
           <div className="flex flex-row gap-3 mb-0 flex-1 min-h-0">
             <div className="flex-1 min-w-0 flex flex-col min-h-0">
-              <h3 className="text-[9px] font-bold mb-0.5 shrink-0" style={{ color: "#060066" }}>Completed activities</h3>
+              <h3 className="text-[9px] font-bold mb-0.5 shrink-0" style={{ color: "#060066" }}>Completed Activities</h3>
               <div className="flex-1 min-h-0 flex flex-col gap-px">
                 {bulletLines(report.completedActivities)
                   .slice(0, 7)
@@ -397,7 +409,7 @@ export function StatusReportView({ data }: { data: StatusReportPDFData }) {
               </div>
             </div>
             <div className="flex-1 min-w-0 flex flex-col min-h-0">
-              <h3 className="text-[9px] font-bold mb-0.5 shrink-0" style={{ color: "#060066" }}>Upcoming activities</h3>
+              <h3 className="text-[9px] font-bold mb-0.5 shrink-0" style={{ color: "#060066" }}>Upcoming Activities</h3>
               <div className="flex-1 min-h-0 flex flex-col gap-px">
                 {bulletLines(report.upcomingActivities)
                   .slice(0, 7)
@@ -611,7 +623,10 @@ export function StatusReportView({ data }: { data: StatusReportPDFData }) {
 
       {/* Meeting notes page (if present) */}
       {report.meetingNotes && report.meetingNotes.trim() && (
-        <div className="w-full max-w-[720px] mx-auto mt-8 pt-9 px-9 pb-11 text-[10px]">
+        <div
+          ref={meetingNotesRef}
+          className="w-full max-w-[720px] mx-auto mt-8 pt-9 px-9 pb-11 text-[10px]"
+        >
           <h2 className="text-sm font-bold uppercase mb-0.5" style={{ color: BIO_TITLE_COLOR }}>Meeting Notes</h2>
           <div className="h-px mb-3" style={{ backgroundColor: BIO_TITLE_COLOR }} />
           {bulletLines(report.meetingNotes).map((line, i) => (

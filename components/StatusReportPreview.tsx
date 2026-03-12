@@ -3,6 +3,10 @@
 import { useState, useEffect, useRef } from "react";
 import { StatusReportView } from "@/components/StatusReportView";
 import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument";
+import {
+  captureStatusReportToPdf,
+  sanitizeForFilename,
+} from "@/lib/statusReportPdfCapture";
 
 export function StatusReportPreview({
   projectId,
@@ -19,7 +23,11 @@ export function StatusReportPreview({
   const [data, setData] = useState<StatusReportPDFData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [pdfDownloading, setPdfDownloading] = useState(false);
   const mounted = useRef(true);
+  const slideRef = useRef<HTMLDivElement>(null);
+  const meetingNotesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     mounted.current = true;
@@ -60,14 +68,50 @@ export function StatusReportPreview({
             <h2 className="text-title-sm font-semibold text-surface-800 dark:text-surface-100">
               Status report preview
             </h2>
-            <div className="flex items-center gap-2">
-              <a
-                href={`/api/projects/${projectSlug}/status-reports/${reportId}/pdf?download=1`}
-                download
-                className="inline-flex items-center justify-center h-8 px-3 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white text-body-sm font-medium focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+            <div className="flex flex-col items-end gap-1">
+              {pdfError && (
+                <p className="text-body-sm text-jred-600 dark:text-jred-400">
+                  {pdfError}
+                  {" "}
+                  <a
+                    href={`/api/projects/${projectSlug}/status-reports/${reportId}/pdf?download=1`}
+                    download
+                    className="font-medium text-jblue-600 hover:text-jblue-700 dark:text-jblue-400 underline"
+                  >
+                    Download PDF (server)
+                  </a>
+                </p>
+              )}
+              <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!slideRef.current || !data) return;
+                  setPdfDownloading(true);
+                  setPdfError(null);
+                  try {
+                    const safeProjectName = sanitizeForFilename(data.project.name);
+                    const filename = `Status Report - ${safeProjectName} - ${data.report.reportDate}.pdf`;
+                    await captureStatusReportToPdf({
+                      slideElement: slideRef.current,
+                      meetingNotesElement: meetingNotesRef.current ?? undefined,
+                      filename,
+                    });
+                  } catch (err) {
+                    if (process.env.NODE_ENV === "development") {
+                      console.error("Status report PDF capture failed:", err);
+                    }
+                    setPdfError("Download failed. Try again or use the server PDF.");
+                  } finally {
+                    if (mounted.current) setPdfDownloading(false);
+                  }
+                }}
+                disabled={!data || pdfDownloading}
+                aria-label="Download PDF"
+                className="inline-flex items-center justify-center h-8 px-3 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white text-body-sm font-medium focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1 disabled:opacity-50 disabled:pointer-events-none"
               >
-                Download PDF
-              </a>
+                {pdfDownloading ? "Generating PDF…" : "Download PDF"}
+              </button>
               <button
                 type="button"
                 onClick={onClose}
@@ -75,6 +119,7 @@ export function StatusReportPreview({
               >
                 Close
               </button>
+              </div>
             </div>
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
@@ -89,7 +134,11 @@ export function StatusReportPreview({
               </div>
             )}
             {data && !loading && (
-              <StatusReportView data={data} />
+              <StatusReportView
+                data={data}
+                slideRef={slideRef}
+                meetingNotesRef={meetingNotesRef}
+              />
             )}
           </div>
         </div>

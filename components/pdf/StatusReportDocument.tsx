@@ -1284,13 +1284,13 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
             <View style={styles.middleContent}>
               <View style={styles.threeCol}>
                 <View style={styles.col}>
-                  <Text style={styles.colTitle}>Completed activities</Text>
+                  <Text style={styles.colTitle}>Completed Activities</Text>
                   {bulletLines(report.completedActivities).slice(0, 7).map((line, i) => (
                     <Text key={i} style={styles.bulletText}>• {renderTextWithLinks(line)}</Text>
                   ))}
                 </View>
                 <View style={styles.col}>
-                  <Text style={styles.colTitle}>Upcoming activities</Text>
+                  <Text style={styles.colTitle}>Upcoming Activities</Text>
                   {bulletLines(report.upcomingActivities).slice(0, 7).map((line, i) => (
                     <Text key={i} style={styles.bulletText}>• {renderTextWithLinks(line)}</Text>
                   ))}

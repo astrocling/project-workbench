@@ -937,7 +937,7 @@ export function StatusReportsTab({
               </div>
             </div>
             <div>
-              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Completed activities</label>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Completed Activities</label>
               <textarea
                 value={formCompleted}
                 onChange={(e) => setFormCompleted(e.target.value)}
@@ -948,7 +948,7 @@ export function StatusReportsTab({
               <p className="mt-1 text-body-sm text-surface-500 dark:text-surface-400">Only the first 7 items appear on the exported status report. Paste a URL to add a link, or use [link text](url) for custom link text.</p>
             </div>
             <div>
-              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Upcoming activities</label>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Upcoming Activities</label>
               <textarea
                 value={formUpcoming}
                 onChange={(e) => setFormUpcoming(e.target.value)}
