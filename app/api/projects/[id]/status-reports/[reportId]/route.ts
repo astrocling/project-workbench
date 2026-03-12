@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { getProjectId } from "@/lib/slug";
+import { deleteCachedPdf } from "@/lib/statusReportPdfCache";
 import { z } from "zod";
 
 const variationEnum = z.enum(["Standard", "Milestones", "CDA"]);
@@ -107,6 +109,8 @@ export async function PATCH(
     where: { id: reportId },
     data,
   });
+  await deleteCachedPdf(reportId);
+  revalidateTag(`status-report-${reportId}`, "default");
   return NextResponse.json(report);
 }
 
@@ -131,5 +135,7 @@ export async function DELETE(
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   await prisma.statusReport.delete({ where: { id: reportId } });
+  await deleteCachedPdf(reportId);
+  revalidateTag(`status-report-${reportId}`, "default");
   return new NextResponse(null, { status: 204 });
 }

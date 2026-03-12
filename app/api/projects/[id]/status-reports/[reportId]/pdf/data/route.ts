@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_cache } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { getProjectId } from "@/lib/slug";
@@ -15,7 +16,11 @@ export async function GET(
   const projectId = await getProjectId(idOrSlug);
   if (!projectId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const pdfData = await buildStatusReportPdfData(projectId, reportId);
+  const pdfData = await unstable_cache(
+    () => buildStatusReportPdfData(projectId, reportId),
+    ["status-report-pdf-data", reportId],
+    { revalidate: 60, tags: [`status-report-${reportId}`] }
+  )();
   if (!pdfData) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   return NextResponse.json(pdfData);

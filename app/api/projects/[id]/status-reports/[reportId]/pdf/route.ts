@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth.config";
 import { getProjectId } from "@/lib/slug";
 import { buildStatusReportPdfData } from "@/lib/statusReportPdfData";
 import { registerStatusReportFonts } from "@/lib/statusReportFonts";
+import { getCachedPdf, setCachedPdf } from "@/lib/statusReportPdfCache";
 import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 import { StatusReportDocument } from "@/components/pdf/StatusReportDocument";
@@ -28,25 +29,40 @@ export async function GET(
   const projectId = await getProjectId(idOrSlug);
   if (!projectId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const pdfData = await buildStatusReportPdfData(projectId, reportId);
-  if (!pdfData) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  let buffer: Uint8Array;
+  let pdfData: Awaited<ReturnType<typeof buildStatusReportPdfData>> = null;
+  const cached = await getCachedPdf(reportId);
+  if (cached) {
+    buffer = cached;
+  } else {
+    pdfData = await buildStatusReportPdfData(projectId, reportId);
+    if (!pdfData) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const serverFontPath = path.join(
-    process.cwd(),
-    "node_modules/@fontsource/raleway/files"
-  );
-  registerStatusReportFonts(serverFontPath);
+    const serverFontPath = path.join(
+      process.cwd(),
+      "node_modules/@fontsource/raleway/files"
+    );
+    registerStatusReportFonts(serverFontPath);
 
-  const element = React.createElement(StatusReportDocument, { data: pdfData });
-  // renderToBuffer is typed for Document root; our component renders Document internally
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const buffer = await renderToBuffer(element as any);
+    const element = React.createElement(StatusReportDocument, { data: pdfData });
+    // renderToBuffer is typed for Document root; our component renders Document internally
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rendered = await renderToBuffer(element as any);
+    buffer = new Uint8Array(rendered);
+    await setCachedPdf(reportId, buffer);
+  }
 
-  const reportDate = pdfData.report.reportDate;
-  const safeProjectName = sanitizeForFilename(pdfData.project.name);
-  const filename = `Status Report - ${safeProjectName} - ${reportDate}.pdf`;
   const disposition = req.nextUrl.searchParams.get("download") === "1" ? "attachment" : "inline";
-  return new NextResponse(new Uint8Array(buffer), {
+  let filename = "status-report.pdf";
+  if (disposition === "attachment") {
+    const meta = pdfData ?? (await buildStatusReportPdfData(projectId, reportId));
+    if (meta) {
+      const reportDate = meta.report.reportDate;
+      const safeProjectName = sanitizeForFilename(meta.project.name);
+      filename = `Status Report - ${safeProjectName} - ${reportDate}.pdf`;
+    }
+  }
+  return new NextResponse(Buffer.from(buffer), {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",

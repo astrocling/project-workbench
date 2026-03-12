@@ -1,27 +1,18 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { PDFViewer } from "@react-pdf/renderer";
-import { registerStatusReportFonts } from "@/lib/statusReportFonts";
-import { StatusReportDocument } from "@/components/pdf/StatusReportDocument";
+import { StatusReportView } from "@/components/StatusReportView";
 import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument";
-
-const FONTS_REGISTERED_KEY = "status-report-fonts-registered";
-
-function ensureFontsRegistered(): void {
-  if (typeof window === "undefined") return;
-  if ((window as unknown as { [FONTS_REGISTERED_KEY]?: boolean })[FONTS_REGISTERED_KEY])
-    return;
-  registerStatusReportFonts("/fonts");
-  (window as unknown as { [FONTS_REGISTERED_KEY]: boolean })[FONTS_REGISTERED_KEY] = true;
-}
 
 export function StatusReportPreview({
   projectId,
+  projectSlug,
   reportId,
   onClose,
 }: {
   projectId: string;
+  /** Slug or id for PDF download URL (API accepts both). */
+  projectSlug: string;
   reportId: string;
   onClose: () => void;
 }) {
@@ -36,16 +27,13 @@ export function StatusReportPreview({
     setError(null);
     setData(null);
 
-    fetch(`/api/projects/${projectId}/status-reports/${reportId}/pdf/data`)
+    fetch(`/api/projects/${projectSlug}/status-reports/${reportId}/pdf/data`)
       .then((res) => {
         if (!res.ok) throw new Error(res.status === 404 ? "Report not found" : "Failed to load");
         return res.json();
       })
       .then((json) => {
-        if (mounted.current) {
-          setData(json);
-          ensureFontsRegistered();
-        }
+        if (mounted.current) setData(json);
       })
       .catch((err) => {
         if (mounted.current) setError(err instanceof Error ? err.message : "Failed to load");
@@ -57,7 +45,7 @@ export function StatusReportPreview({
     return () => {
       mounted.current = false;
     };
-  }, [projectId, reportId]);
+  }, [projectSlug, reportId]);
 
   return (
     <div
@@ -74,7 +62,7 @@ export function StatusReportPreview({
             </h2>
             <div className="flex items-center gap-2">
               <a
-                href={`/api/projects/${projectId}/status-reports/${reportId}/pdf?download=1`}
+                href={`/api/projects/${projectSlug}/status-reports/${reportId}/pdf?download=1`}
                 download
                 className="inline-flex items-center justify-center h-8 px-3 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white text-body-sm font-medium focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
               >
@@ -89,9 +77,9 @@ export function StatusReportPreview({
               </button>
             </div>
           </div>
-          <div className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 min-h-0 overflow-auto">
             {loading && (
-              <div className="flex flex-1 items-center justify-center text-body-sm text-surface-500 dark:text-surface-400">
+              <div className="flex flex-1 items-center justify-center py-12 text-body-sm text-surface-500 dark:text-surface-400">
                 Loading…
               </div>
             )}
@@ -101,16 +89,7 @@ export function StatusReportPreview({
               </div>
             )}
             {data && !loading && (
-              <div className="flex-1 min-h-0 w-full">
-                <PDFViewer
-                  width="100%"
-                  height="100%"
-                  showToolbar={true}
-                  style={{ border: "none", minHeight: "480px" }}
-                >
-                  <StatusReportDocument data={data} />
-                </PDFViewer>
-              </div>
+              <StatusReportView data={data} />
             )}
           </div>
         </div>

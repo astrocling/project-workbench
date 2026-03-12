@@ -1366,6 +1366,7 @@ export function StatusReportsTab({
       {previewReportId && (
         <StatusReportPreview
           projectId={projectId}
+          projectSlug={projectSlug}
           reportId={previewReportId}
           onClose={() => setPreviewReportId(null)}
         />
