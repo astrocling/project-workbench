@@ -3,6 +3,10 @@
 import React from "react";
 import { BRAND_COLORS } from "@/lib/brandColors";
 import { parseLinkSegments } from "@/lib/statusReportLinks";
+import {
+  isMeetingNotesHtml,
+  sanitizeMeetingNotesHtml,
+} from "@/lib/meetingNotesHtml";
 import type { StatusReportPDFData, RagStatus } from "@/components/pdf/StatusReportDocument";
 
 // Mirror PDF layout: 16:9 slide, same colors and structure
@@ -621,19 +625,31 @@ export function StatusReportView({
         </div>
       </div>
 
-      {/* Meeting notes page (if present) */}
+      {/* Meeting notes — no overflow/max-height so full content is visible and PDF capture gets everything */}
       {report.meetingNotes && report.meetingNotes.trim() && (
         <div
           ref={meetingNotesRef}
-          className="w-full max-w-[720px] mx-auto mt-8 pt-9 px-9 pb-11 text-[10px]"
+          className="w-full max-w-[720px] mx-auto mt-8 pt-9 px-9 pb-11 text-[10px] overflow-visible min-h-0"
         >
           <h2 className="text-sm font-bold uppercase mb-0.5" style={{ color: BIO_TITLE_COLOR }}>Meeting Notes</h2>
           <div className="h-px mb-3" style={{ backgroundColor: BIO_TITLE_COLOR }} />
-          {bulletLines(report.meetingNotes).map((line, i) => (
-            <p key={i} className="mb-1.5 leading-snug">
-              <TextWithLinks line={line} />
-            </p>
-          ))}
+          {isMeetingNotesHtml(report.meetingNotes) ? (
+            <div
+              className="meeting-notes-html overflow-visible [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_li]:my-0.5 [&_strong]:font-bold [&_b]:font-bold [&_a]:text-jblue-600 [&_a]:underline [&_p]:mb-2 [&_p:last-child]:mb-0"
+              style={{ fontFamily: "inherit" }}
+              dangerouslySetInnerHTML={{
+                __html: sanitizeMeetingNotesHtml(report.meetingNotes),
+              }}
+            />
+          ) : (
+            <>
+              {bulletLines(report.meetingNotes).map((line, i) => (
+                <p key={i} className="mb-1.5 leading-snug">
+                  <TextWithLinks line={line} />
+                </p>
+              ))}
+            </>
+          )}
           <div className="mt-4 pt-2 border-t flex flex-row items-center" style={{ borderColor: FOOTER_LINE_COLOR }}>
             <span className="text-[10px] font-bold" style={{ color: FOOTER_BRAND_COLOR }}>JAKALA</span>
             <span className="flex-1 text-center text-[9px]" style={{ color: FOOTER_MUTED_COLOR }}>Company Confidential</span>

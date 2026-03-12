@@ -70,6 +70,8 @@ export async function captureStatusReportToPdf(
     pdf.addImage(slideImgData, "PNG", 0, 0, SLIDE_WIDTH_PT, SLIDE_HEIGHT_PT);
 
     if (meetingNotesElement && meetingNotesElement.offsetParent !== null) {
+      meetingNotesElement.scrollIntoView({ behavior: "instant", block: "start" });
+      await new Promise((r) => requestAnimationFrame(r));
       const notesCanvas = await html2canvas(meetingNotesElement, CAPTURE_OPTS);
       const notesHeight = Math.min(
         (notesCanvas.height / notesCanvas.width) * NOTES_PAGE_WIDTH_PT,
