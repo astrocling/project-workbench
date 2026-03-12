@@ -299,6 +299,9 @@ export function StatusReportView({ data }: { data: StatusReportPDFData }) {
   const bioTitle = project.name.toUpperCase();
 
   const slideScale = 1.25;
+  const slideWidth = 720;
+  const slideHeight = slideWidth * (9 / 16); // 16:9 aspect
+  const scaledHeight = slideHeight * slideScale;
 
   return (
     <div
@@ -307,7 +310,7 @@ export function StatusReportView({ data }: { data: StatusReportPDFData }) {
     >
       {/* Main slide — 16:9 aspect; scaled up for readability, spacing unchanged */}
       <div className="flex justify-center" style={{ width: "100%" }}>
-        <div style={{ width: 720 * slideScale, maxWidth: "100%" }}>
+        <div style={{ width: slideWidth * slideScale, maxWidth: "100%", minHeight: scaledHeight }}>
           <div
             className="relative border-2 border-dashed border-gray-400 origin-top"
             style={{
@@ -609,7 +612,8 @@ export function StatusReportView({ data }: { data: StatusReportPDFData }) {
       {/* Meeting notes page (if present) */}
       {report.meetingNotes && report.meetingNotes.trim() && (
         <div className="w-full max-w-[720px] mx-auto mt-8 pt-9 px-9 pb-11 text-[10px]">
-          <h2 className="text-sm font-bold mb-3">Meeting notes</h2>
+          <h2 className="text-sm font-bold uppercase mb-0.5" style={{ color: BIO_TITLE_COLOR }}>Meeting Notes</h2>
+          <div className="h-px mb-3" style={{ backgroundColor: BIO_TITLE_COLOR }} />
           {bulletLines(report.meetingNotes).map((line, i) => (
             <p key={i} className="mb-1.5 leading-snug">
               <TextWithLinks line={line} />

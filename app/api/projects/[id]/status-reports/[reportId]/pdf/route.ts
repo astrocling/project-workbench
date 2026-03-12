@@ -49,7 +49,11 @@ export async function GET(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rendered = await renderToBuffer(element as any);
     buffer = new Uint8Array(rendered);
-    await setCachedPdf(reportId, buffer);
+    try {
+      await setCachedPdf(reportId, buffer);
+    } catch {
+      // Cache is optional (e.g. BLOB_READ_WRITE_TOKEN not set in local dev); still return the PDF
+    }
   }
 
   const disposition = req.nextUrl.searchParams.get("download") === "1" ? "attachment" : "inline";

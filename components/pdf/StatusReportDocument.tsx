@@ -269,10 +269,11 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     color: "#060066",
   },
+  /** Bullet items in activities columns; match StatusReportView: 7px font, 1.15 line-height, small gap between items. */
   bulletText: {
-    fontSize: 8,
-    marginBottom: 2,
-    lineHeight: 1.3,
+    fontSize: 7,
+    marginBottom: 3,
+    lineHeight: 1.2,
   },
   table: {
     marginTop: 6,
@@ -696,7 +697,7 @@ const styles = StyleSheet.create({
   ragHeaderRow: {
     flexDirection: "row",
     backgroundColor: BIO_TITLE_COLOR,
-    minHeight: 18,
+    minHeight: 16,
   },
   ragHeaderCell: {
     paddingVertical: 2,
@@ -716,7 +717,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: "#e5e7eb",
     backgroundColor: "#F5F5F5",
-    minHeight: 16,
+    minHeight: 14,
   },
   ragDataRowAlt: {
     backgroundColor: "#fff",
@@ -728,7 +729,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   ragLabelText: {
-    fontSize: 9,
+    fontSize: 7,
     fontWeight: "bold",
     color: BIO_LABEL_COLOR,
   },
@@ -752,7 +753,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
   },
   ragExplanationText: {
-    fontSize: 9,
+    fontSize: 7,
     color: BIO_VALUE_COLOR,
   },
 });
