@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { redirect, notFound } from "next/navigation";
 import { authOptions } from "@/lib/auth.config";
 import { getProjectId } from "@/lib/slug";
-import { buildStatusReportPdfData } from "@/lib/statusReportPdfData";
+import { getCachedStatusReportPdfData } from "@/lib/statusReportPdfData";
 import { StatusReportPageContent } from "@/components/StatusReportPageContent";
 
 export default async function StatusReportViewPage({
@@ -17,7 +17,7 @@ export default async function StatusReportViewPage({
   const projectId = await getProjectId(slug);
   if (!projectId) notFound();
 
-  const pdfData = await buildStatusReportPdfData(projectId, reportId);
+  const pdfData = await getCachedStatusReportPdfData(projectId, reportId);
   if (!pdfData) notFound();
 
   return (

@@ -1,7 +1,27 @@
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { computeBudgetRollups } from "@/lib/budgetCalculations";
 import { getMonthsInRange } from "@/lib/monthUtils";
 import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument";
+
+const CACHE_KEY = "status-report-pdf-data";
+const CACHE_REVALIDATE = 60;
+
+/**
+ * Returns status report PDF/view data with Next.js cache (60s revalidate, tag per report).
+ * Use for view page, share page, and pdf/data API so they share one cached build per report.
+ * For report create (snapshot build) call buildStatusReportPdfData directly so cache is not used.
+ */
+export async function getCachedStatusReportPdfData(
+  projectId: string,
+  reportId: string
+): Promise<StatusReportPDFData | null> {
+  return unstable_cache(
+    () => buildStatusReportPdfData(projectId, reportId),
+    [CACHE_KEY, reportId],
+    { revalidate: CACHE_REVALIDATE, tags: [`status-report-${reportId}`] }
+  )();
+}
 
 /** Snapshot of period, budget, CDA, and timeline at report creation so they stay locked when project is edited. */
 export type StatusReportSnapshot = {
@@ -98,6 +118,7 @@ export async function buildStatusReportPdfData(
         ? Number(project.singleBillRate)
         : null;
     const rateByRole = new Map<string, number>();
+    const roleIdsNeedingRate = new Set<string>();
     for (const a of project.assignments) {
       const override = a.billRateOverride ? Number(a.billRateOverride) : null;
       if (override != null) {
@@ -105,12 +126,19 @@ export async function buildStatusReportPdfData(
       } else if (singleRate != null) {
         rateByRole.set(`${a.personId}-${a.roleId}`, singleRate);
       } else {
-        const prr = await prisma.projectRoleRate.findUnique({
-          where: {
-            projectId_roleId: { projectId, roleId: a.roleId },
-          },
-        });
-        rateByRole.set(`${a.personId}-${a.roleId}`, prr ? Number(prr.billRate) : 0);
+        roleIdsNeedingRate.add(a.roleId);
+      }
+    }
+    if (roleIdsNeedingRate.size > 0) {
+      const rates = await prisma.projectRoleRate.findMany({
+        where: { projectId, roleId: { in: [...roleIdsNeedingRate] } },
+        select: { roleId: true, billRate: true },
+      });
+      const rateByRoleId = new Map(rates.map((r) => [r.roleId, Number(r.billRate)]));
+      for (const a of project.assignments) {
+        if (!rateByRole.has(`${a.personId}-${a.roleId}`)) {
+          rateByRole.set(`${a.personId}-${a.roleId}`, rateByRoleId.get(a.roleId) ?? 0);
+        }
       }
     }
 

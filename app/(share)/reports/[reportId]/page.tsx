@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { redirect, notFound } from "next/navigation";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
-import { buildStatusReportPdfData } from "@/lib/statusReportPdfData";
+import { getCachedStatusReportPdfData } from "@/lib/statusReportPdfData";
 import { StatusReportPageContent } from "@/components/StatusReportPageContent";
 
 export async function generateMetadata({
@@ -37,7 +37,7 @@ export default async function ReportPermalinkPage({
   });
   if (!report) notFound();
 
-  const pdfData = await buildStatusReportPdfData(report.projectId, reportId);
+  const pdfData = await getCachedStatusReportPdfData(report.projectId, reportId);
   if (!pdfData) notFound();
 
   return (

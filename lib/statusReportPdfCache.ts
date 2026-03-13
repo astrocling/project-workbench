@@ -3,7 +3,7 @@
  * Blob is invalidated on report PATCH/DELETE via deleteCachedPdf(reportId).
  */
 
-import { get, put, del, list } from "@vercel/blob";
+import { get, put, del } from "@vercel/blob";
 
 const PREFIX = "status-reports";
 const CACHE_PATH = (reportId: string) => `${PREFIX}/${reportId}.pdf`;
@@ -42,12 +42,12 @@ export async function setCachedPdf(
 
 /**
  * Removes the cached PDF for a report. Call on report PATCH/DELETE.
+ * Uses pathname for delete so we avoid listing all blobs under the prefix.
  */
 export async function deleteCachedPdf(reportId: string): Promise<void> {
   try {
-    const { blobs } = await list({ prefix: PREFIX + "/" });
-    const match = blobs.find((b) => b.pathname === CACHE_PATH(reportId));
-    if (match) await del(match.url);
+    const pathname = CACHE_PATH(reportId);
+    await del(pathname, { access: "private" });
   } catch {
     // Ignore: blob may not exist or store may be unavailable
   }

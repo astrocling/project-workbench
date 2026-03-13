@@ -2,6 +2,7 @@ import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
+import { prisma } from "@/lib/prisma";
 import { getProjectId } from "@/lib/slug";
 import { buildStatusReportPdfData } from "@/lib/statusReportPdfData";
 import { registerStatusReportFonts } from "@/lib/statusReportFonts";
@@ -59,11 +60,21 @@ export async function GET(
   const disposition = req.nextUrl.searchParams.get("download") === "1" ? "attachment" : "inline";
   let filename = "status-report.pdf";
   if (disposition === "attachment") {
-    const meta = pdfData ?? (await buildStatusReportPdfData(projectId, reportId));
-    if (meta) {
-      const reportDate = meta.report.reportDate;
-      const safeProjectName = sanitizeForFilename(meta.project.name);
+    if (pdfData) {
+      const reportDate = pdfData.report.reportDate;
+      const safeProjectName = sanitizeForFilename(pdfData.project.name);
       filename = `Status Report - ${safeProjectName} - ${reportDate}.pdf`;
+    } else {
+      const meta = await prisma.statusReport.findFirst({
+        where: { id: reportId, projectId },
+        select: { reportDate: true },
+        include: { project: { select: { name: true } } },
+      });
+      if (meta) {
+        const reportDate = meta.reportDate.toISOString().slice(0, 10);
+        const safeProjectName = sanitizeForFilename(meta.project.name);
+        filename = `Status Report - ${safeProjectName} - ${reportDate}.pdf`;
+      }
     }
   }
   return new NextResponse(Buffer.from(buffer), {

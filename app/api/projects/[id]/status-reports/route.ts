@@ -76,9 +76,50 @@ export async function GET(
     return NextResponse.json(report ?? null);
   }
 
+  const pageParam = searchParams.get("page");
+  const limitParam = searchParams.get("limit");
+
+  const listSelect = {
+    id: true,
+    reportDate: true,
+    variation: true,
+    updatedAt: true,
+    createdAt: true,
+    completedActivities: true,
+    upcomingActivities: true,
+    risksIssuesDecisions: true,
+    meetingNotes: true,
+    ragOverall: true,
+    ragScope: true,
+    ragSchedule: true,
+    ragBudget: true,
+    ragOverallExplanation: true,
+    ragScopeExplanation: true,
+    ragScheduleExplanation: true,
+    ragBudgetExplanation: true,
+  } as const;
+
+  if (pageParam != null && limitParam != null) {
+    const page = Math.max(1, parseInt(pageParam, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(limitParam, 10) || 10));
+    const skip = (page - 1) * limit;
+    const [reports, total] = await Promise.all([
+      prisma.statusReport.findMany({
+        where: { projectId: id },
+        orderBy: { reportDate: "desc" },
+        select: listSelect,
+        skip,
+        take: limit,
+      }),
+      prisma.statusReport.count({ where: { projectId: id } }),
+    ]);
+    return NextResponse.json({ reports, total });
+  }
+
   const reports = await prisma.statusReport.findMany({
     where: { projectId: id },
     orderBy: { reportDate: "desc" },
+    select: listSelect,
   });
   return NextResponse.json(reports);
 }

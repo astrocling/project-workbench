@@ -1,36 +1,27 @@
 /**
  * Sanitization and detection for meeting notes rich text (e.g. from Teams Copilot).
- * Use in client components only (DOMPurify requires DOM).
+ * Uses isomorphic-dompurify so the same sanitized HTML is produced on server and client,
+ * avoiding hydration mismatch (no server/client branch).
  */
+
+import DOMPurify from "isomorphic-dompurify";
 
 const MEETING_NOTES_ALLOWED_TAGS = [
   "p", "br", "div", "ul", "ol", "li", "strong", "b", "em", "i", "u",
   "a", "h1", "h2", "h3", "h4", "span",
 ];
-// style: allow so pasted content (e.g. Teams <span style="font-weight:bold">) keeps formatting; DOMPurify sanitizes style values
 const MEETING_NOTES_ALLOWED_ATTRS = ["href", "target", "rel", "style"];
 
-let sanitizeFn: ((dirty: string) => string) | null = null;
+const SANITIZE_CONFIG: DOMPurify.Config = {
+  ALLOWED_TAGS: MEETING_NOTES_ALLOWED_TAGS,
+  ALLOWED_ATTR: MEETING_NOTES_ALLOWED_ATTRS,
+  ADD_ATTR: ["target", "rel"],
+};
 
-function getSanitize(): (dirty: string) => string {
-  if (sanitizeFn) return sanitizeFn;
-  if (typeof window === "undefined") {
-    return (dirty: string) => dirty.replace(/<[^>]+>/g, "");
-  }
-  const DOMPurify = require("dompurify");
-  sanitizeFn = (dirty: string) =>
-    DOMPurify.sanitize(dirty, {
-      ALLOWED_TAGS: MEETING_NOTES_ALLOWED_TAGS,
-      ALLOWED_ATTR: MEETING_NOTES_ALLOWED_ATTRS,
-      ADD_ATTR: ["target", "rel"],
-    });
-  return sanitizeFn;
-}
-
-/** Sanitize HTML for meeting notes (safe to store and render). Call only in browser. */
+/** Sanitize HTML for meeting notes (safe to store and render). Same output on server and client. */
 export function sanitizeMeetingNotesHtml(html: string): string {
   if (!html || !html.trim()) return "";
-  return getSanitize()(html.trim());
+  return DOMPurify.sanitize(html.trim(), SANITIZE_CONFIG);
 }
 
 /** True if content looks like HTML (e.g. contains tags). */

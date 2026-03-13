@@ -300,6 +300,7 @@ export function StatusReportsTab({
   const [copyChartFeedback, setCopyChartFeedback] = useState<string | null>(null);
 
   const [reports, setReports] = useState<StatusReportRecord[]>([]);
+  const [reportsTotal, setReportsTotal] = useState(0);
   const [reportsLoading, setReportsLoading] = useState(true);
   const [reportsPage, setReportsPage] = useState(1);
   const [openingNewForm, setOpeningNewForm] = useState(false);
@@ -366,25 +367,37 @@ export function StatusReportsTab({
     }
   }, [cdaEnabled, loadCda, loadCdaMilestones]);
 
-  const loadReports = useCallback(() => {
+  const loadReports = useCallback((page: number = 1) => {
     setReportsLoading(true);
-    fetch(`/api/projects/${projectId}/status-reports`)
+    const params = new URLSearchParams({ page: String(page), limit: String(REPORTS_PER_PAGE) });
+    fetch(`/api/projects/${projectId}/status-reports?${params}`)
       .then((r) => r.json())
-      .then((list) => setReports(Array.isArray(list) ? list : []))
-      .catch(() => setReports([]))
+      .then((data: { reports?: StatusReportRecord[]; total?: number } | StatusReportRecord[]) => {
+        if (data && typeof data === "object" && "reports" in data && "total" in data) {
+          setReports(Array.isArray(data.reports) ? data.reports : []);
+          setReportsTotal(typeof data.total === "number" ? data.total : 0);
+        } else {
+          setReports(Array.isArray(data) ? data : []);
+          setReportsTotal(Array.isArray(data) ? data.length : 0);
+        }
+      })
+      .catch(() => {
+        setReports([]);
+        setReportsTotal(0);
+      })
       .finally(() => setReportsLoading(false));
   }, [projectId]);
 
   useEffect(() => {
-    loadReports();
-  }, [loadReports]);
+    loadReports(reportsPage);
+  }, [loadReports, reportsPage]);
 
   useEffect(() => {
-    const totalPages = Math.ceil(reports.length / REPORTS_PER_PAGE) || 1;
-    if (reportsPage > totalPages) {
+    const totalPages = Math.ceil(reportsTotal / REPORTS_PER_PAGE) || 1;
+    if (reportsPage > totalPages && totalPages > 0) {
       setReportsPage(totalPages);
     }
-  }, [reports.length, reportsPage]);
+  }, [reportsTotal, reportsPage]);
 
   const applyPreviousReport = useCallback((prev: StatusReportRecord | null) => {
     if (!prev) return;
@@ -818,10 +831,9 @@ export function StatusReportsTab({
         ) : (
           <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border overflow-hidden">
             {(() => {
-              const totalPages = Math.ceil(reports.length / REPORTS_PER_PAGE) || 1;
+              const totalPages = Math.ceil(reportsTotal / REPORTS_PER_PAGE) || 1;
               const currentPage = Math.min(Math.max(1, reportsPage), totalPages);
               const start = (currentPage - 1) * REPORTS_PER_PAGE;
-              const paginatedReports = reports.slice(start, start + REPORTS_PER_PAGE);
               return (
                 <>
             <table className="w-full text-body-sm">
@@ -835,7 +847,7 @@ export function StatusReportsTab({
                 </tr>
               </thead>
               <tbody>
-                {paginatedReports.map((r) => (
+                {reports.map((r) => (
                   <tr key={r.id} className="border-b border-surface-100 dark:border-dark-border last:border-0">
                     <td className="py-2 px-3 text-surface-700 dark:text-surface-200">
                       {new Date(r.reportDate).toLocaleDateString("en-US", { dateStyle: "medium" })}
@@ -932,7 +944,7 @@ export function StatusReportsTab({
                                 onClick={async () => {
                                   if (!confirm("Delete this report?")) return;
                                   const res = await fetch(`/api/projects/${projectId}/status-reports/${r.id}`, { method: "DELETE" });
-                                  if (res.ok) loadReports();
+                                  if (res.ok) loadReports(reportsPage);
                                 }}
                                 title="Delete"
                                 aria-label="Delete"
@@ -952,10 +964,10 @@ export function StatusReportsTab({
                 ))}
               </tbody>
             </table>
-            {reports.length > REPORTS_PER_PAGE && (
+            {reportsTotal > REPORTS_PER_PAGE && (
               <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-t border-surface-200 dark:border-dark-border bg-surface-50 dark:bg-dark-raised">
                 <p className="text-body-sm text-surface-600 dark:text-surface-300">
-                  Showing {start + 1}–{start + paginatedReports.length} of {reports.length} reports
+                  Showing {start + 1}–{start + reports.length} of {reportsTotal} reports
                 </p>
                 <div className="flex items-center gap-2">
                   <button
