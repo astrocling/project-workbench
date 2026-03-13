@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Dashboard projects table — status report indicator**: The projects table on the PM, PGM, and CAD dashboards now includes a Status column after Actuals. It shows the overall RAG (Red, Amber, Green) from each project’s most recent status report when that report is within the last 2 weeks. If the most recent report is older than 2 weeks, a blue indicator is shown (so you can tell reports exist but are stale). If there are no status reports, the indicator is gray. The Status column is sortable like the other columns.
 - **Status report view — HTML rendering**: Status reports can be viewed in the browser as HTML instead of requiring PDF generation. This reduces server load and improves UX when opening or previewing a report; the same content is rendered in a dedicated view and in the preview modal.
 - **Status report present mode and shareable links**: Status report view page supports a present mode for full-screen presentation. Reports have shareable links so you can open or present a specific report in a new tab. Icon styling on the status report page was updated for clarity and consistency.
 - **Status report list — updated date and pagination**: The status reports table on the project Status Reports tab now shows an "Updated" date for each report and includes pagination so long lists are easier to browse.

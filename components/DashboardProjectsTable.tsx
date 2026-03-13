@@ -7,6 +7,8 @@ import {
   getBufferHealthClass,
 } from "@/components/RevenueRecoveryShared";
 
+export type RagOverall = "Red" | "Amber" | "Green";
+
 export type DashboardProjectRow = {
   id: string;
   name: string;
@@ -17,6 +19,10 @@ export type DashboardProjectRow = {
   bufferPercent: number | null;
   recovery4WeekPercent: number | null;
   actualsStatus: "up-to-date" | "1-week-behind" | "more-than-1-week-behind";
+  /** Overall RAG from the most recent status report, if within 2 weeks. */
+  ragOverall: RagOverall | null;
+  /** True when the project has a status report but the most recent is older than 2 weeks. */
+  statusReportStale?: boolean;
   recoveryToDatePercent?: number | null;
 };
 
@@ -27,6 +33,7 @@ const SORT_KEYS = [
   ["bufferPercent", "Buffer"],
   ["recovery4WeekPercent", "4-wk recovery"],
   ["actualsStatus", "Actuals"],
+  ["ragOverall", "Status"],
 ] as const;
 
 type SortKey = (typeof SORT_KEYS)[number][0];
@@ -35,6 +42,13 @@ const ACTUALS_ORDER: Record<DashboardProjectRow["actualsStatus"], number> = {
   "up-to-date": 0,
   "1-week-behind": 1,
   "more-than-1-week-behind": 2,
+};
+
+/** Sort order for RAG: Red worst (2), Amber (1), Green best (0), null last. */
+const RAG_ORDER: Record<NonNullable<DashboardProjectRow["ragOverall"]>, number> = {
+  Red: 2,
+  Amber: 1,
+  Green: 0,
 };
 
 function compare(
@@ -67,6 +81,11 @@ function compare(
     case "actualsStatus": {
       const va = ACTUALS_ORDER[a.actualsStatus];
       const vb = ACTUALS_ORDER[b.actualsStatus];
+      return mult * (va - vb);
+    }
+    case "ragOverall": {
+      const va = a.ragOverall != null ? RAG_ORDER[a.ragOverall] : -1;
+      const vb = b.ragOverall != null ? RAG_ORDER[b.ragOverall] : -1;
       return mult * (va - vb);
     }
     default:
@@ -102,6 +121,58 @@ function ActualsStatusLight({
       title={label}
       className={`inline-block w-3 h-3 rounded-full ${className}`}
       aria-label={label}
+    />
+  );
+}
+
+function RagStatusLight({
+  status,
+  statusReportStale,
+}: {
+  status: DashboardProjectRow["ragOverall"];
+  statusReportStale?: boolean;
+}) {
+  if (status != null) {
+    const config: Record<NonNullable<DashboardProjectRow["ragOverall"]>, { label: string; className: string }> = {
+      Green: {
+        label: "Green",
+        className:
+          "bg-green-500 dark:bg-green-400 ring-2 ring-green-400/50 dark:ring-green-500/50",
+      },
+      Amber: {
+        label: "Amber",
+        className:
+          "bg-amber-500 dark:bg-amber-400 ring-2 ring-amber-400/50 dark:ring-amber-500/50",
+      },
+      Red: {
+        label: "Red",
+        className:
+          "bg-jred-500 dark:bg-jred-400 ring-2 ring-jred-400/50 dark:ring-jred-500/50",
+      },
+    };
+    const { label, className } = config[status];
+    return (
+      <span
+        title={`Status report: ${label}`}
+        className={`inline-block w-3 h-3 rounded-full ${className}`}
+        aria-label={`Status report: ${label}`}
+      />
+    );
+  }
+  if (statusReportStale) {
+    return (
+      <span
+        title="Status report older than 2 weeks"
+        className="inline-block w-3 h-3 rounded-full bg-jblue-500 dark:bg-jblue-400 ring-2 ring-jblue-400/50 dark:ring-jblue-500/50"
+        aria-label="Status report older than 2 weeks"
+      />
+    );
+  }
+  return (
+    <span
+      title="No status report"
+      className="inline-block w-3 h-3 rounded-full bg-surface-300 dark:bg-dark-muted ring-2 ring-surface-200 dark:ring-dark-border"
+      aria-label="No status report"
     />
   );
 }
@@ -150,7 +221,7 @@ export function DashboardProjectsTable({
               const isActive = sortKey === key;
               const nextDir = isActive && sortDir === "asc" ? "desc" : "asc";
               const isRight = key === "burnPercent" || key === "bufferPercent" || key === "recovery4WeekPercent";
-              const isCenter = key === "actualsStatus";
+              const isCenter = key === "actualsStatus" || key === "ragOverall";
               return (
                 <th
                   key={key}
@@ -231,6 +302,9 @@ export function DashboardProjectsTable({
               </td>
               <td className="px-4 py-2.5 text-center">
                 <ActualsStatusLight status={row.actualsStatus} />
+              </td>
+              <td className="px-4 py-2.5 text-center">
+                <RagStatusLight status={row.ragOverall} statusReportStale={row.statusReportStale} />
               </td>
             </tr>
           ))}

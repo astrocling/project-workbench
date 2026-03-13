@@ -15,6 +15,8 @@ import {
 } from "@/lib/budgetCalculations";
 import { getAllWeeks, getAsOfDate } from "@/lib/weekUtils";
 
+export type RagOverall = "Red" | "Amber" | "Green";
+
 export type PmProjectTableRow = {
   id: string;
   name: string;
@@ -25,6 +27,10 @@ export type PmProjectTableRow = {
   bufferPercent: number | null;
   recovery4WeekPercent: number | null;
   actualsStatus: BudgetResult["actualsStatus"];
+  /** Overall RAG from the most recent status report, if within 2 weeks. */
+  ragOverall: RagOverall | null;
+  /** True when the project has at least one status report but the most recent is older than 2 weeks. */
+  statusReportStale?: boolean;
   recoveryToDatePercent?: number | null;
 };
 
@@ -93,6 +99,11 @@ async function getPortfolioMetricsForRole(
       plannedHours: true,
       actualHours: true,
       projectRoleRates: { select: { roleId: true, billRate: true } },
+      statusReports: {
+        orderBy: { reportDate: "desc" },
+        take: 1,
+        select: { ragOverall: true, reportDate: true },
+      },
     },
   });
 
@@ -239,6 +250,22 @@ async function getPortfolioMetricsForRole(
     const recovery4WeekPercent =
       sum4Forecast > 0 ? (sum4Actual / sum4Forecast) * 100 : null;
 
+    const latestStatusReport = project.statusReports[0];
+    const twoWeeksAgo = new Date(asOf);
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    twoWeeksAgo.setHours(0, 0, 0, 0);
+    const reportDate = latestStatusReport?.reportDate
+      ? new Date(latestStatusReport.reportDate)
+      : null;
+    if (reportDate) reportDate.setHours(0, 0, 0, 0);
+    const reportIsRecent =
+      reportDate != null && reportDate >= twoWeeksAgo;
+    const ragOverall =
+      reportIsRecent && latestStatusReport?.ragOverall
+        ? latestStatusReport.ragOverall
+        : null;
+    const statusReportStale = !!latestStatusReport && !reportIsRecent;
+
     projectTableRows.push({
       id: project.id,
       name: project.name,
@@ -249,6 +276,8 @@ async function getPortfolioMetricsForRole(
       bufferPercent,
       recovery4WeekPercent,
       actualsStatus: rollups.actualsStatus,
+      ragOverall,
+      statusReportStale,
       recoveryToDatePercent: toDate.recoveryPercent ?? null,
     });
   }

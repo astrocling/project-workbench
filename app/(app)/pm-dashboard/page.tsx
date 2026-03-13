@@ -14,7 +14,7 @@ import {
 import { DashboardClientFilter } from "@/components/DashboardClientFilter";
 import { DashboardProjectsTable } from "@/components/DashboardProjectsTable";
 
-const DASHBOARD_SORT_KEYS = ["name", "clientName", "burnPercent", "bufferPercent", "recovery4WeekPercent", "actualsStatus"] as const;
+const DASHBOARD_SORT_KEYS = ["name", "clientName", "burnPercent", "bufferPercent", "recovery4WeekPercent", "actualsStatus", "ragOverall"] as const;
 type DashboardSortKey = (typeof DASHBOARD_SORT_KEYS)[number];
 
 function normalizeSort(raw: string | undefined): DashboardSortKey {
@@ -44,6 +44,8 @@ const emptyMetrics = {
     bufferPercent: number | null;
     recovery4WeekPercent: number | null;
     actualsStatus: "up-to-date" | "1-week-behind" | "more-than-1-week-behind";
+    ragOverall: "Red" | "Amber" | "Green" | null;
+    statusReportStale?: boolean;
     recoveryToDatePercent?: number | null;
   }>,
 };
