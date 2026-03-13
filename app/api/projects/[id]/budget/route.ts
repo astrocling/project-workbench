@@ -225,7 +225,7 @@ export async function POST(
     },
   });
   revalidateTag("portfolio-metrics", "max");
-  revalidateTag("project-budget");
+  revalidateTag("project-budget", "max");
   return NextResponse.json(line);
 }
 
@@ -259,6 +259,6 @@ export async function DELETE(
 
   await prisma.budgetLine.delete({ where: { id: lineId } });
   revalidateTag("portfolio-metrics", "max");
-  revalidateTag("project-budget");
+  revalidateTag("project-budget", "max");
   return new NextResponse(null, { status: 204 });
 }

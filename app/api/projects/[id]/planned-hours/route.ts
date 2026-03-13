@@ -79,7 +79,7 @@ export async function PATCH(
     results.push(row);
   }
   revalidateTag("portfolio-metrics", "max");
-  revalidateTag("project-budget");
-  revalidateTag("project-revenue");
+  revalidateTag("project-budget", "max");
+  revalidateTag("project-revenue", "max");
   return NextResponse.json(results.length === 1 ? results[0] : results);
 }
