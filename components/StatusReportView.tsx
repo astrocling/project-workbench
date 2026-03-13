@@ -151,34 +151,41 @@ function BudgetBurnDonut({
   const circumference = 2 * Math.PI * r;
   const filled = (clamped / 100) * circumference;
   const gap = circumference - filled;
+  const percentText = burnPercent != null ? `${burnPercent.toFixed(0)}%` : "—";
+  const textSize = compact ? "text-[8px]" : "text-[10px]";
   return (
     <div className="flex flex-col items-center justify-center flex-shrink-0">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="block">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke="#9ca3af"
-          strokeWidth={stroke}
-        />
-        {clamped > 0 && (
+      <div className="relative inline-block" style={{ width: size, height: size }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="block">
           <circle
             cx={size / 2}
             cy={size / 2}
             r={r}
             fill="none"
-            stroke="#1941FA"
+            stroke="#9ca3af"
             strokeWidth={stroke}
-            strokeDasharray={`${filled} ${gap}`}
-            strokeLinecap="round"
-            transform={`rotate(-90 ${size / 2} ${size / 2})`}
           />
-        )}
-      </svg>
-      <span className="text-[10px] font-bold mt-0.5" style={{ color: "#060066" }}>
-        {burnPercent != null ? `${burnPercent.toFixed(0)}%` : "—"}
-      </span>
+          {clamped > 0 && (
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              stroke="#1941FA"
+              strokeWidth={stroke}
+              strokeDasharray={`${filled} ${gap}`}
+              strokeLinecap="round"
+              transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            />
+          )}
+        </svg>
+        <span
+          className={`absolute inset-0 flex items-center justify-center font-bold ${textSize} pointer-events-none`}
+          style={{ color: "#060066" }}
+        >
+          {percentText}
+        </span>
+      </div>
       <span className="text-[6px] uppercase tracking-wide text-gray-500 mt-0.5 text-center">{label}</span>
     </div>
   );
@@ -328,7 +335,7 @@ export function StatusReportView({
         <div style={{ width: slideWidth * slideScale, maxWidth: "100%", minHeight: scaledHeight }}>
           <div
             ref={slideRef}
-            className="status-report-slide relative border-2 border-dashed border-gray-400 origin-top"
+            className="status-report-slide relative border border-gray-200 origin-top"
             style={{
               width: 720,
               aspectRatio: "16/9",
@@ -337,7 +344,7 @@ export function StatusReportView({
               transformOrigin: "top center",
             }}
           >
-        <div className="h-full flex flex-col pt-6 px-6 pb-4 text-[9px]">
+        <div className="h-full flex flex-col pt-6 px-6 pb-8 text-[9px]">
           <div className="flex flex-row items-start gap-3 mb-1.5">
             {/* Left: biographical block — extra flex so labels/values have room and wrap less */}
             <div className="min-w-0 flex-[1.35]">
@@ -609,7 +616,7 @@ export function StatusReportView({
 
         {/* Footer */}
         <div
-          className="absolute left-6 right-6 bottom-0 h-[14px] border-t flex flex-row items-center pt-0.5"
+          className="absolute left-6 right-6 bottom-1.5 h-[14px] border-t flex flex-row items-center pt-0.5"
           style={{ borderColor: FOOTER_LINE_COLOR }}
         >
           <div className="flex-1">
