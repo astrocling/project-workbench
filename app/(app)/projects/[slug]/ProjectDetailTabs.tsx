@@ -791,13 +791,10 @@ export function ProjectDetailTabs({
           {statusReports.length > 0 && (
             <section className="space-y-3">
               <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100 border-b border-surface-200 dark:border-dark-border pb-2">
-                Status report history
+                Status Report History
               </h2>
               <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <p className="text-body-sm text-surface-500 dark:text-surface-400">
-                    Green = On Track · Amber = At Risk · Red = Off Track
-                  </p>
                   <Link
                     href={`/projects/${projectSlug}/status-reports`}
                     className="text-body-sm font-medium text-jblue-600 dark:text-jblue-400 hover:underline"
