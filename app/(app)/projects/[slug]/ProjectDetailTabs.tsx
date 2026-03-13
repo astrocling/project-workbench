@@ -321,20 +321,22 @@ export function ProjectDetailTabs({
           })}
         </nav>
         <div className="text-body-sm text-surface-700 dark:text-surface-200 space-y-1">
-          <p className="flex items-center gap-3 flex-wrap">
-            <span>Float last updated: {floatLastUpdated ? new Date(floatLastUpdated).toLocaleString() : "Never"}</span>
-            {freshnessWarning && (
-              <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide uppercase ring-2 shadow-md ${
-                  freshnessWarning.strong
-                    ? "bg-jred-100 text-jred-700 dark:bg-jred-900/30 dark:text-jred-400 ring-jred-400 dark:ring-jred-500"
-                    : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 ring-amber-400 dark:ring-amber-500"
-                }`}
-              >
-                Float Stale
-              </span>
-            )}
-          </p>
+          {tab !== "status-reports" && (
+            <p className="flex items-center gap-3 flex-wrap">
+              <span>Float last updated: {floatLastUpdated ? new Date(floatLastUpdated).toLocaleString() : "Never"}</span>
+              {freshnessWarning && (
+                <span
+                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide uppercase ring-2 shadow-md ${
+                    freshnessWarning.strong
+                      ? "bg-jred-100 text-jred-700 dark:bg-jred-900/30 dark:text-jred-400 ring-jred-400 dark:ring-jred-500"
+                      : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 ring-amber-400 dark:ring-amber-500"
+                  }`}
+                >
+                  Float Stale
+                </span>
+              )}
+            </p>
+          )}
           <p className="flex items-center gap-3 flex-wrap">
             <span>
               Actuals through week of{" "}

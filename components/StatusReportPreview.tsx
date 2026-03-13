@@ -60,13 +60,13 @@ export function StatusReportPreview({
       className="fixed inset-0 z-50 flex flex-col bg-black/50"
       role="dialog"
       aria-modal="true"
-      aria-label="Status report preview"
+      aria-label="Status Report Preview"
     >
       <div className="flex flex-1 min-h-0 p-4">
         <div className="flex flex-col flex-1 min-w-0 min-h-0 rounded-lg border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface shadow-lg overflow-hidden">
           <div className="flex items-center justify-between shrink-0 px-4 py-2 border-b border-surface-200 dark:border-dark-border">
             <h2 className="text-title-sm font-semibold text-surface-800 dark:text-surface-100">
-              Status report preview
+              Status Report Preview
             </h2>
             <div className="flex flex-col items-end gap-1">
               {pdfError && (

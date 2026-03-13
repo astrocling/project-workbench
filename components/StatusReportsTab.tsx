@@ -10,6 +10,8 @@ import {
   Pencil,
   Trash2,
   Plus,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { BRAND_COLORS } from "@/lib/brandColors";
 import { StatusReportPreview } from "@/components/StatusReportPreview";
@@ -20,6 +22,7 @@ type StatusReportRecord = {
   id: string;
   reportDate: string;
   variation: string;
+  updatedAt?: string;
   completedActivities: string;
   upcomingActivities: string;
   risksIssuesDecisions: string;
@@ -163,6 +166,45 @@ function getMonthFullName(monthKey: string): string {
 /** Max milestones shown on the status report slide (completed omitted first). Matches PDF export. */
 const MAX_MILESTONES_ON_PDF = 6;
 
+const REPORTS_PER_PAGE = 5;
+
+function RagStatusLight({ status }: { status: RagValue | null | undefined }) {
+  if (status == null || status === "") {
+    return (
+      <span
+        title="No status"
+        className="inline-block w-3 h-3 rounded-full bg-surface-300 dark:bg-dark-muted ring-2 ring-surface-200 dark:ring-dark-border"
+        aria-label="No status"
+      />
+    );
+  }
+  const config: Record<RagValue, { label: string; className: string }> = {
+    Green: {
+      label: "Green",
+      className:
+        "bg-green-500 dark:bg-green-400 ring-2 ring-green-400/50 dark:ring-green-500/50",
+    },
+    Amber: {
+      label: "Amber",
+      className:
+        "bg-amber-500 dark:bg-amber-400 ring-2 ring-amber-400/50 dark:ring-amber-500/50",
+    },
+    Red: {
+      label: "Red",
+      className:
+        "bg-jred-500 dark:bg-jred-400 ring-2 ring-jred-400/50 dark:ring-jred-500/50",
+    },
+  };
+  const { label, className } = config[status];
+  return (
+    <span
+      title={label}
+      className={`inline-block w-3 h-3 rounded-full ${className}`}
+      aria-label={label}
+    />
+  );
+}
+
 function milestonesForPdfExport<T extends { completed: boolean }>(milestones: T[]): T[] {
   return [...milestones]
     .sort((a, b) => Number(a.completed) - Number(b.completed))
@@ -259,6 +301,7 @@ export function StatusReportsTab({
 
   const [reports, setReports] = useState<StatusReportRecord[]>([]);
   const [reportsLoading, setReportsLoading] = useState(true);
+  const [reportsPage, setReportsPage] = useState(1);
   const [openingNewForm, setOpeningNewForm] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
@@ -335,6 +378,13 @@ export function StatusReportsTab({
   useEffect(() => {
     loadReports();
   }, [loadReports]);
+
+  useEffect(() => {
+    const totalPages = Math.ceil(reports.length / REPORTS_PER_PAGE) || 1;
+    if (reportsPage > totalPages) {
+      setReportsPage(totalPages);
+    }
+  }, [reports.length, reportsPage]);
 
   const applyPreviousReport = useCallback((prev: StatusReportRecord | null) => {
     if (!prev) return;
@@ -739,7 +789,7 @@ export function StatusReportsTab({
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-200 dark:border-dark-border pb-2">
           <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100">
-            Status reports
+            Status Reports
           </h2>
           {canEdit && (
             <div className="flex flex-wrap items-center gap-2 justify-end">
@@ -767,21 +817,41 @@ export function StatusReportsTab({
           <p className="text-body-sm text-surface-500 dark:text-surface-400">No saved reports yet. Create one to export a PDF.</p>
         ) : (
           <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border overflow-hidden">
+            {(() => {
+              const totalPages = Math.ceil(reports.length / REPORTS_PER_PAGE) || 1;
+              const currentPage = Math.min(Math.max(1, reportsPage), totalPages);
+              const start = (currentPage - 1) * REPORTS_PER_PAGE;
+              const paginatedReports = reports.slice(start, start + REPORTS_PER_PAGE);
+              return (
+                <>
             <table className="w-full text-body-sm">
               <thead>
                 <tr className="border-b border-surface-200 dark:border-dark-border bg-surface-50 dark:bg-dark-raised">
                   <th className="text-left py-2 px-3 font-semibold text-surface-800 dark:text-surface-100">Report date</th>
                   <th className="text-left py-2 px-3 font-semibold text-surface-800 dark:text-surface-100">Variation</th>
+                  <th className="text-left py-2 px-3 font-semibold text-surface-800 dark:text-surface-100">Last updated</th>
+                  <th className="text-center py-2 px-3 font-semibold text-surface-800 dark:text-surface-100">Status</th>
                   <th className="text-right py-2 px-3 font-semibold text-surface-800 dark:text-surface-100">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {reports.map((r) => (
+                {paginatedReports.map((r) => (
                   <tr key={r.id} className="border-b border-surface-100 dark:border-dark-border last:border-0">
                     <td className="py-2 px-3 text-surface-700 dark:text-surface-200">
                       {new Date(r.reportDate).toLocaleDateString("en-US", { dateStyle: "medium" })}
                     </td>
                     <td className="py-2 px-3 text-surface-700 dark:text-surface-200">{r.variation}</td>
+                    <td className="py-2 px-3 text-surface-600 dark:text-surface-300 text-body-sm">
+                      {r.updatedAt
+                        ? new Date(r.updatedAt).toLocaleString("en-US", {
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          })
+                        : "—"}
+                    </td>
+                    <td className="py-2 px-3 text-center">
+                      <RagStatusLight status={r.ragOverall ?? null} />
+                    </td>
                     <td className="py-2 px-3 text-right">
                       <div className="flex flex-wrap items-center justify-end gap-2">
                         <div className="relative group">
@@ -882,6 +952,39 @@ export function StatusReportsTab({
                 ))}
               </tbody>
             </table>
+            {reports.length > REPORTS_PER_PAGE && (
+              <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-t border-surface-200 dark:border-dark-border bg-surface-50 dark:bg-dark-raised">
+                <p className="text-body-sm text-surface-600 dark:text-surface-300">
+                  Showing {start + 1}–{start + paginatedReports.length} of {reports.length} reports
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReportsPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                    aria-label="Previous page"
+                    className="inline-flex items-center justify-center h-8 w-8 rounded border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-dark-border disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                  >
+                    <ChevronLeft className="h-4 w-4" aria-hidden />
+                  </button>
+                  <span className="text-body-sm font-medium text-surface-700 dark:text-surface-200 tabular-nums">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setReportsPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages}
+                    aria-label="Next page"
+                    className="inline-flex items-center justify-center h-8 w-8 rounded border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-dark-border disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                  >
+                    <ChevronRight className="h-4 w-4" aria-hidden />
+                  </button>
+                </div>
+              </div>
+            )}
+                </>
+              );
+            })()}
           </div>
         )}
 
@@ -1088,7 +1191,7 @@ export function StatusReportsTab({
 
       <section className="space-y-4">
         <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100 border-b border-surface-200 dark:border-dark-border pb-2">
-          Status report summary
+          Status Report Summary
         </h2>
         {formVariation === "CDA" && cdaEnabled ? (
           <div className="flex flex-col lg:flex-row gap-8 items-stretch">
