@@ -81,5 +81,7 @@ export async function PATCH(
     results.push(row);
   }
   revalidateTag("portfolio-metrics", "max");
+  revalidateTag("project-budget");
+  revalidateTag("project-revenue");
   return NextResponse.json(results.length === 1 ? results[0] : results);
 }
