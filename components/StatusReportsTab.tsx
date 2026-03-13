@@ -2,6 +2,15 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import {
+  Eye,
+  ExternalLink,
+  Copy,
+  Check,
+  Pencil,
+  Trash2,
+  Plus,
+} from "lucide-react";
 import { BRAND_COLORS } from "@/lib/brandColors";
 import { StatusReportPreview } from "@/components/StatusReportPreview";
 
@@ -272,6 +281,7 @@ export function StatusReportsTab({
   const [formError, setFormError] = useState<string | null>(null);
   const [savedReportId, setSavedReportId] = useState<string | null>(null);
   const [previewReportId, setPreviewReportId] = useState<string | null>(null);
+  const [copiedReportId, setCopiedReportId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     fetch(`/api/projects/${projectId}/budget`)
@@ -743,8 +753,9 @@ export function StatusReportsTab({
                 onClick={openNewForm}
                 disabled={actualsStale || openingNewForm}
                 title={actualsStale ? "Actuals are stale. Update hours in the Resourcing tab first." : undefined}
-                className="inline-flex items-center justify-center h-8 px-3 rounded text-label-sm bg-jblue-500 hover:bg-jblue-700 text-white font-medium focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1 disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
+                className="inline-flex items-center justify-center gap-2 h-8 px-3 rounded text-label-sm bg-jblue-500 hover:bg-jblue-700 text-white font-medium focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1 disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
               >
+                <Plus className="h-4 w-4" aria-hidden />
                 {openingNewForm ? "Opening…" : "New report"}
               </button>
             </div>
@@ -773,33 +784,96 @@ export function StatusReportsTab({
                     <td className="py-2 px-3 text-surface-700 dark:text-surface-200">{r.variation}</td>
                     <td className="py-2 px-3 text-right">
                       <div className="flex flex-wrap items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setPreviewReportId(r.id)}
-                          className="inline-flex items-center justify-center h-8 px-3 rounded text-label-sm font-medium border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-dark-border focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
-                        >
-                          View
-                        </button>
+                        <div className="relative group">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewReportId(r.id)}
+                            title="Preview Report"
+                            aria-label="Preview Report"
+                            className="inline-flex items-center justify-center h-8 w-8 rounded border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-dark-border focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                          >
+                            <Eye className="h-4 w-4" aria-hidden />
+                          </button>
+                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-xs font-medium whitespace-nowrap rounded bg-surface-800 text-white dark:bg-surface-700 dark:text-surface-100 opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                            Preview Report
+                          </span>
+                        </div>
+                        <div className="relative group">
+                          <a
+                            href={`/reports/${r.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Present Report"
+                            aria-label="Present Report"
+                            className="inline-flex items-center justify-center h-8 w-8 rounded border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-dark-border focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1 no-underline"
+                          >
+                            <ExternalLink className="h-4 w-4" aria-hidden />
+                          </a>
+                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-xs font-medium whitespace-nowrap rounded bg-surface-800 text-white dark:bg-surface-700 dark:text-surface-100 opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                            Present Report
+                          </span>
+                        </div>
+                        <div className="relative group">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const permalink = `${window.location.origin}/reports/${r.id}`;
+                              try {
+                                await navigator.clipboard.writeText(permalink);
+                                setCopiedReportId(r.id);
+                                setTimeout(() => setCopiedReportId(null), 2000);
+                              } catch {
+                                setCopiedReportId(null);
+                              }
+                            }}
+                            title={copiedReportId === r.id ? "Copied" : "Copy Link"}
+                            aria-label={copiedReportId === r.id ? "Copied" : "Copy Link"}
+                            className="inline-flex items-center justify-center h-8 w-8 rounded border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-dark-border focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                          >
+                            {copiedReportId === r.id ? (
+                              <Check className="h-4 w-4 text-green-600 dark:text-green-400" aria-hidden />
+                            ) : (
+                              <Copy className="h-4 w-4" aria-hidden />
+                            )}
+                          </button>
+                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-xs font-medium whitespace-nowrap rounded bg-surface-800 text-white dark:bg-surface-700 dark:text-surface-100 opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                            {copiedReportId === r.id ? "Copied" : "Copy Link"}
+                          </span>
+                        </div>
                         {canEdit && (
                           <>
-                            <button
-                              type="button"
-                              onClick={() => openEditForm(r)}
-                              className="inline-flex items-center justify-center h-8 px-3 rounded text-label-sm font-medium border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-dark-border focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                if (!confirm("Delete this report?")) return;
-                                const res = await fetch(`/api/projects/${projectId}/status-reports/${r.id}`, { method: "DELETE" });
-                                if (res.ok) loadReports();
-                              }}
-                              className="inline-flex items-center justify-center h-8 px-3 rounded text-label-sm font-medium border border-jred-500 dark:border-jred-400 text-jred-600 dark:text-jred-400 hover:bg-jred-50 dark:hover:bg-jred-900/20 focus:outline-none focus:ring-1 focus:ring-jred-400 focus:ring-offset-1"
-                            >
-                              Delete
-                            </button>
+                            <div className="relative group">
+                              <button
+                                type="button"
+                                onClick={() => openEditForm(r)}
+                                title="Edit"
+                                aria-label="Edit"
+                                className="inline-flex items-center justify-center h-8 w-8 rounded border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-dark-border focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                              >
+                                <Pencil className="h-4 w-4" aria-hidden />
+                              </button>
+                              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-xs font-medium whitespace-nowrap rounded bg-surface-800 text-white dark:bg-surface-700 dark:text-surface-100 opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                                Edit
+                              </span>
+                            </div>
+                            <div className="relative group">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (!confirm("Delete this report?")) return;
+                                  const res = await fetch(`/api/projects/${projectId}/status-reports/${r.id}`, { method: "DELETE" });
+                                  if (res.ok) loadReports();
+                                }}
+                                title="Delete"
+                                aria-label="Delete"
+                                className="inline-flex items-center justify-center h-8 w-8 rounded border border-jred-500 dark:border-jred-400 text-jred-600 dark:text-jred-400 hover:bg-jred-50 dark:hover:bg-jred-900/20 focus:outline-none focus:ring-1 focus:ring-jred-400 focus:ring-offset-1"
+                              >
+                                <Trash2 className="h-4 w-4" aria-hidden />
+                              </button>
+                              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-xs font-medium whitespace-nowrap rounded bg-surface-800 text-white dark:bg-surface-700 dark:text-surface-100 opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
+                                Delete
+                              </span>
+                            </div>
                           </>
                         )}
                       </div>

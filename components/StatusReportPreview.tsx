@@ -83,6 +83,14 @@ export function StatusReportPreview({
                 </p>
               )}
               <div className="flex items-center gap-2">
+              <a
+                href={`/reports/${reportId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center h-8 px-3 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 text-body-sm font-medium hover:bg-surface-50 dark:hover:bg-dark-bg focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+              >
+                Open in new tab
+              </a>
               <button
                 type="button"
                 onClick={async () => {
