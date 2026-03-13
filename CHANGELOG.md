@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-03-13
+
+### Fixed
+
+- **Float import — actuals for removed people (hotfix)**: When a person was removed from a project in Float, the float import only upserted rows present in the CSV and never cleared existing `FloatScheduledHours`. Removed people’s old hours stayed in the database, so the Resourcing tab showed incorrect “float actuals” for them. The import now replaces float data per project: for each project that has data in the import, all existing `FloatScheduledHours` for that project are deleted before upserting from the CSV, so the export is the source of truth and removed people no longer have stale float hours.
+
 ## [0.2.0] - 2025-03-13
 
 ### Added

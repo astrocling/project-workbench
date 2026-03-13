@@ -298,6 +298,14 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const projectIdsInImport = [...new Set(floatHoursRows.map((r) => r.projectId))];
+
+  // Replace float data for each project in this import: delete existing then upsert from CSV.
+  // This ensures removed people (no longer in Float export) no longer have stale FloatScheduledHours.
+  for (const projectId of projectIdsInImport) {
+    await prisma.floatScheduledHours.deleteMany({ where: { projectId } });
+  }
+
   // Bulk upsert FloatScheduledHours in chunks (INSERT ... ON CONFLICT DO UPDATE)
   for (let i = 0; i < floatHoursRows.length; i += FLOAT_HOURS_BATCH_SIZE) {
     const chunk = floatHoursRows.slice(i, i + FLOAT_HOURS_BATCH_SIZE);
