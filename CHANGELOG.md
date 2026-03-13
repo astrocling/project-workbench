@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-03-13
+
 ### Added
 
 - **Dashboard projects table — status report indicator**: The projects table on the PM, PGM, and CAD dashboards now includes a Status column after Actuals. It shows the overall RAG (Red, Amber, Green) from each project’s most recent status report when that report is within the last 2 weeks. If the most recent report is older than 2 weeks, a blue indicator is shown (so you can tell reports exist but are stale). If there are no status reports, the indicator is gray. The Status column is sortable like the other columns.
@@ -19,10 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Status report slide layout**: The status report slide (PDF and HTML) layout was cleaned up for a clearer presentation. Layout and styling changes improve readability and visual hierarchy.
 - **Status report notes formatting**: Meeting notes and other text areas in status reports now preserve formatting (e.g. line breaks and structure) when viewing and in the exported PDF.
+- **Overview and resourcing performance**: Overview and resourcing pages received performance improvements for faster load and smoother interaction.
+- **Project overview**: Project overview layout and content were updated for clarity and usability.
+- **Helper text**: Helper text and labels were adjusted across the app for consistency and clarity.
 
 ### Fixed
 
 - **Status report PDF export**: PDF export for status reports now generates and downloads correctly. Export uses the same data and layout as the HTML view and preview.
+- **Build**: Resolved build errors and compatibility issues.
 
 ## [0.1.9] - 2025-03-11
 
