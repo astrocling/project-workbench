@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Status report view — HTML rendering**: Status reports can be viewed in the browser as HTML instead of requiring PDF generation. This reduces server load and improves UX when opening or previewing a report; the same content is rendered in a dedicated view and in the preview modal.
+- **Status report present mode and shareable links**: Status report view page supports a present mode for full-screen presentation. Reports have shareable links so you can open or present a specific report in a new tab. Icon styling on the status report page was updated for clarity and consistency.
+- **Status report list — updated date and pagination**: The status reports table on the project Status Reports tab now shows an "Updated" date for each report and includes pagination so long lists are easier to browse.
+
+### Changed
+
+- **Status report slide layout**: The status report slide (PDF and HTML) layout was cleaned up for a clearer presentation. Layout and styling changes improve readability and visual hierarchy.
+- **Status report notes formatting**: Meeting notes and other text areas in status reports now preserve formatting (e.g. line breaks and structure) when viewing and in the exported PDF.
+
+### Fixed
+
+- **Status report PDF export**: PDF export for status reports now generates and downloads correctly. Export uses the same data and layout as the HTML view and preview.
 
 ## [0.1.9] - 2025-03-11
 
