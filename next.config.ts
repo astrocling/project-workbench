@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@react-pdf/renderer"],
   // Turbopack (used by default for next build in Next 16) – ensures tailwind resolves from project root
   turbopack: {
+    root: path.join(process.cwd()),
     resolveAlias: {
       tailwindcss: path.join(process.cwd(), "node_modules", "tailwindcss"),
     },

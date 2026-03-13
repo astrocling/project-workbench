@@ -47,7 +47,7 @@ export async function setCachedPdf(
 export async function deleteCachedPdf(reportId: string): Promise<void> {
   try {
     const pathname = CACHE_PATH(reportId);
-    await del(pathname, { access: "private" });
+    await del(pathname);
   } catch {
     // Ignore: blob may not exist or store may be unavailable
   }

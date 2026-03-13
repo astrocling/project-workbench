@@ -67,8 +67,10 @@ export async function GET(
     } else {
       const meta = await prisma.statusReport.findFirst({
         where: { id: reportId, projectId },
-        select: { reportDate: true },
-        include: { project: { select: { name: true } } },
+        select: {
+          reportDate: true,
+          project: { select: { name: true } },
+        },
       });
       if (meta) {
         const reportDate = meta.reportDate.toISOString().slice(0, 10);

@@ -40,6 +40,62 @@ export function getBufferHealthClass(percent: number | null): string {
   return "text-green-600 dark:text-green-400";
 }
 
+/** Donut chart for budget burn % (used on overview and can be reused on Budget tab). */
+export function BudgetBurnDonut({
+  burnPercent,
+  size = 120,
+  label = "Budget burn",
+}: {
+  burnPercent: number | null;
+  size?: number;
+  label?: string;
+}) {
+  const r = Math.round(size * 0.35);
+  const stroke = Math.max(12, Math.round(size * 0.15));
+  const circumference = 2 * Math.PI * r;
+  const clamped = burnPercent == null ? 0 : Math.min(100, Math.max(0, burnPercent));
+  const dash = (clamped / 100) * circumference;
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="-rotate-90" aria-hidden>
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke="#E2E5EC"
+            strokeWidth={stroke}
+          />
+          {clamped > 0 && (
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              stroke="#1941FA"
+              strokeWidth={stroke}
+              strokeDasharray={`${dash} ${circumference}`}
+              strokeLinecap="round"
+            />
+          )}
+        </svg>
+        <div
+          className="absolute inset-0 flex items-center justify-center text-title-md font-semibold text-surface-900 dark:text-white tabular-nums"
+          style={{ fontSize: size < 140 ? "0.875rem" : undefined }}
+          aria-live="polite"
+        >
+          {burnPercent != null ? `${burnPercent.toFixed(1)}%` : "—"}
+        </div>
+      </div>
+      <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider text-center">
+        {label}
+      </p>
+    </div>
+  );
+}
+
 export type RecoveryCardData = {
   weekStartDate?: string;
   forecastDollars: number;
@@ -50,12 +106,15 @@ export type RecoveryCardData = {
 
 export function RevenueRecoveryPieChart({
   recoveryPercent,
+  label = "Recovery",
+  size = 120,
 }: {
   recoveryPercent: number | null;
+  label?: string;
+  size?: number;
 }) {
-  const size = 160;
-  const r = 56;
-  const stroke = 24;
+  const r = Math.round(size * 0.35);
+  const stroke = Math.max(12, Math.round(size * 0.15));
   const circumference = 2 * Math.PI * r;
   const clamped =
     recoveryPercent == null ? 0 : Math.max(0, recoveryPercent);
@@ -73,8 +132,8 @@ export function RevenueRecoveryPieChart({
             : "#9aa3b2"; // neutral gray when null
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="relative" style={{ width: size, height: size }}>
+    <div className="flex flex-col items-center gap-1">
+      <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="-rotate-90" aria-hidden>
           <circle
             cx={size / 2}
@@ -98,7 +157,8 @@ export function RevenueRecoveryPieChart({
           )}
         </svg>
         <div
-          className="absolute inset-0 flex items-center justify-center text-title-lg font-semibold text-surface-900 dark:text-white tabular-nums"
+          className="absolute inset-0 flex items-center justify-center font-semibold text-surface-900 dark:text-white tabular-nums"
+          style={{ fontSize: size < 140 ? "0.875rem" : undefined }}
           aria-live="polite"
         >
           {recoveryPercent != null
@@ -106,9 +166,11 @@ export function RevenueRecoveryPieChart({
             : "—"}
         </div>
       </div>
-      <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider text-center">
-        Recovery
-      </p>
+      {label ? (
+        <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider text-center">
+          {label}
+        </p>
+      ) : null}
     </div>
   );
 }

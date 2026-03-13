@@ -4,7 +4,11 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getBufferHealthClass } from "@/components/RevenueRecoveryShared";
+import {
+  getBufferHealthClass,
+  BudgetBurnDonut,
+  RevenueRecoveryPieChart,
+} from "@/components/RevenueRecoveryShared";
 
 const ResourcingGrids = dynamic(() => import("@/components/ResourcingGrids").then((m) => ({ default: m.ResourcingGrids })), {
   loading: () => <div className="min-h-[200px] flex items-center justify-center text-surface-500 dark:text-surface-400">Loading…</div>,
@@ -21,7 +25,6 @@ const StatusReportsTab = dynamic(() => import("@/components/StatusReportsTab").t
 const CDATab = dynamic(() => import("@/components/CDATab").then((m) => ({ default: m.CDATab })), {
   loading: () => <div className="min-h-[200px] flex items-center justify-center text-surface-500 dark:text-surface-400">Loading…</div>,
 });
-
 const TABS = [
   { id: "overview", label: "Overview" },
   { id: "resourcing", label: "Resourcing" },
@@ -31,6 +34,21 @@ const TABS = [
   { id: "status-reports", label: "Status Reports" },
   { id: "edit", label: "Settings", hrefOnly: true },
 ] as const;
+
+const OVERVIEW_RAG_CONFIG: Record<string, { label: string; className: string }> = {
+  Green: {
+    label: "On Track",
+    className: "bg-green-500 dark:bg-green-400 ring-2 ring-green-400/50 dark:ring-green-500/50",
+  },
+  Amber: {
+    label: "At Risk",
+    className: "bg-amber-500 dark:bg-amber-400 ring-2 ring-amber-400/50 dark:ring-amber-500/50",
+  },
+  Red: {
+    label: "Off Track",
+    className: "bg-jred-500 dark:bg-jred-400 ring-2 ring-jred-400/50 dark:ring-jred-500/50",
+  },
+};
 
 type InitialProject = {
   notes: string | null;
@@ -94,6 +112,26 @@ export function ProjectDetailTabs({
   } | null>(initialBudgetStatus ?? null);
 
   const [revenueRecoveryToDate, setRevenueRecoveryToDate] = useState<number | null>(null);
+  const [revenueRecoveryData, setRevenueRecoveryData] = useState<{
+    weeks: Array<{ weekStartDate: string; forecastDollars?: number; actualDollars?: number; recoveryPercent?: number | null }>;
+    monthly: Array<{
+      monthKey: string;
+      monthLabel: string;
+      forecastDollars: number;
+      actualDollars: number;
+      recoveryPercent: number | null;
+      overallRecoveryPercent: number | null;
+    }>;
+  } | null>(null);
+  const [statusReports, setStatusReports] = useState<
+    Array<{
+      id: string;
+      reportDate: string;
+      ragOverall: string | null;
+      variation?: string;
+      updatedAt?: string;
+    }>
+  >([]);
 
   const [teamMembers, setTeamMembers] = useState<
     Array<{
@@ -170,6 +208,7 @@ export function ProjectDetailTabs({
     if (overviewPrefetched.current || tab === "overview") return;
     overviewPrefetched.current = true;
     fetch(`/api/projects/${projectId}/revenue-recovery`).catch(() => {});
+    fetch(`/api/projects/${projectId}/status-reports?limit=6&page=1`).catch(() => {});
     fetch(`/api/projects/${projectId}/assignments`).catch(() => {});
     fetch(`/api/projects/${projectId}`).catch(() => {});
   }, [projectId, tab]);
@@ -195,6 +234,8 @@ export function ProjectDetailTabs({
     if (tab !== "overview") {
       setOverviewLoading(false);
       setRevenueRecoveryToDate(null);
+      setRevenueRecoveryData(null);
+      setStatusReports([]);
       setTeamMembers([]);
       setProjectNotes(null);
       setProjectNotesDirty(false);
@@ -222,10 +263,27 @@ export function ProjectDetailTabs({
       const pgm = keyRoles.find((kr) => kr.type === "PGM")?.person?.name ?? null;
       const ad = keyRoles.find((kr) => kr.type === "CAD")?.person?.name ?? null;
       setKeyRoleNames({ pm, pgm, ad });
-      fetch(`/api/projects/${projectId}/revenue-recovery`)
-        .then((r) => r.json())
-        .then((revenue) => {
+      Promise.all([
+        fetch(`/api/projects/${projectId}/revenue-recovery`).then((r) => r.json()),
+        fetch(`/api/projects/${projectId}/status-reports?limit=6&page=1`).then((r) => r.json()),
+      ])
+        .then(([revenue, reportsPayload]) => {
           setRevenueRecoveryToDate(revenue?.toDate?.recoveryPercent ?? null);
+          setRevenueRecoveryData(
+            revenue?.monthly != null && revenue?.weeks != null
+              ? { weeks: revenue.weeks, monthly: revenue.monthly }
+              : null
+          );
+          const list = reportsPayload?.reports ?? (Array.isArray(reportsPayload) ? reportsPayload : []);
+          setStatusReports(
+            list.slice(0, 6).map((r: { id: string; reportDate: string; ragOverall: string | null; variation?: string; updatedAt?: string }) => ({
+              id: r.id,
+              reportDate: r.reportDate,
+              ragOverall: r.ragOverall ?? null,
+              variation: r.variation,
+              updatedAt: r.updatedAt,
+            }))
+          );
         })
         .catch(() => {})
         .finally(() => setOverviewLoading(false));
@@ -233,13 +291,30 @@ export function ProjectDetailTabs({
     }
     Promise.allSettled([
       fetch(`/api/projects/${projectId}/revenue-recovery`).then((r) => r.json()),
+      fetch(`/api/projects/${projectId}/status-reports?limit=6&page=1`).then((r) => r.json()),
       fetch(`/api/projects/${projectId}/assignments`).then((r) => r.json()),
       fetch(`/api/projects/${projectId}`).then((r) => r.json()),
-    ]).then(([revenueRes, assignmentsRes, projectRes]) => {
+    ]).then(([revenueRes, reportsRes, assignmentsRes, projectRes]) => {
       const revenue = revenueRes.status === "fulfilled" ? revenueRes.value : null;
+      const reportsPayload = reportsRes.status === "fulfilled" ? reportsRes.value : null;
       const assignments = assignmentsRes.status === "fulfilled" ? assignmentsRes.value : [];
       const p = projectRes.status === "fulfilled" ? projectRes.value : null;
       setRevenueRecoveryToDate(revenue?.toDate?.recoveryPercent ?? null);
+      setRevenueRecoveryData(
+        revenue?.monthly != null && revenue?.weeks != null
+          ? { weeks: revenue.weeks, monthly: revenue.monthly }
+          : null
+      );
+      const list = reportsPayload?.reports ?? (Array.isArray(reportsPayload) ? reportsPayload : []);
+      setStatusReports(
+        list.slice(0, 6).map((r: { id: string; reportDate: string; ragOverall: string | null; variation?: string; updatedAt?: string }) => ({
+          id: r.id,
+          reportDate: r.reportDate,
+          ragOverall: r.ragOverall ?? null,
+          variation: r.variation,
+          updatedAt: r.updatedAt,
+        }))
+      );
       setTeamMembers(Array.isArray(assignments) ? assignments : []);
       if (p) {
         setProjectNotes(p.notes ?? null);
@@ -458,19 +533,24 @@ export function ProjectDetailTabs({
       )}
       {tab === "overview" && !overviewLoading && (
         <div className="space-y-6">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-body-sm text-surface-700 dark:text-surface-200">
-            <span>
-              <span className="font-semibold text-surface-800 dark:text-surface-100">PM:</span>{" "}
-              {keyRoleNames.pm.length > 0 ? keyRoleNames.pm.join(", ") : "—"}
-            </span>
-            <span>
-              <span className="font-semibold text-surface-800 dark:text-surface-100">PGM:</span>{" "}
-              {keyRoleNames.pgm ?? "—"}
-            </span>
-            <span>
-              <span className="font-semibold text-surface-800 dark:text-surface-100">AD:</span>{" "}
-              {keyRoleNames.ad ?? "—"}
-            </span>
+          <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark px-4 py-3">
+            <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider mb-2">
+              Key roles
+            </p>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-body-sm text-surface-700 dark:text-surface-200">
+              <span>
+                <span className="font-semibold text-surface-800 dark:text-surface-100">PM:</span>{" "}
+                {keyRoleNames.pm.length > 0 ? keyRoleNames.pm.join(", ") : "—"}
+              </span>
+              <span>
+                <span className="font-semibold text-surface-800 dark:text-surface-100">PGM:</span>{" "}
+                {keyRoleNames.pgm ?? "—"}
+              </span>
+              <span>
+                <span className="font-semibold text-surface-800 dark:text-surface-100">AD:</span>{" "}
+                {keyRoleNames.ad ?? "—"}
+              </span>
+            </div>
           </div>
           <div className="flex flex-wrap gap-3">
             {sowLink ? (
@@ -567,17 +647,53 @@ export function ProjectDetailTabs({
             )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 border-t-2 border-t-jblue-500">
-              <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider">
-                Overall budget burn
-              </p>
-              <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
-                {budgetStatus?.rollups != null &&
-                (budgetStatus.rollups.burnPercentHighHours as number) != null
-                  ? `${Number(budgetStatus.rollups.burnPercentHighHours).toFixed(1)}%`
-                  : "—"}
-              </p>
+            <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 border-t-2 border-t-jblue-500 flex flex-col items-center">
+              <BudgetBurnDonut
+                burnPercent={
+                  budgetStatus?.rollups != null &&
+                  (budgetStatus.rollups.burnPercentHighHours as number) != null
+                    ? Number(budgetStatus.rollups.burnPercentHighHours)
+                    : null
+                }
+                size={120}
+                label="Overall budget burn"
+              />
+              {budgetStatus?.rollups != null && (budgetStatus.rollups.actualsStatus as string) != null && (
+                <p className="text-body-sm text-surface-500 dark:text-surface-400 mt-1 text-center">
+                  Actuals:{" "}
+                  {(budgetStatus.rollups.actualsStatus as string) === "up-to-date"
+                    ? "Up to date"
+                    : (budgetStatus.rollups.actualsStatus as string) === "1-week-behind"
+                      ? "1 week behind"
+                      : "More than 1 week behind"}
+                </p>
+              )}
             </div>
+            <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 flex flex-col items-center">
+              <RevenueRecoveryPieChart recoveryPercent={revenueRecoveryToDate} label="Revenue recovery to date" />
+            </div>
+            {(() => {
+              const weeks = revenueRecoveryData?.weeks ?? [];
+              const prevFour = weeks.reduce(
+                (acc, w) => {
+                  const r = w as { forecastDollars?: number; actualDollars?: number };
+                  return {
+                    f: acc.f + (r.forecastDollars ?? 0),
+                    a: acc.a + (r.actualDollars ?? 0),
+                  };
+                },
+                { f: 0, a: 0 }
+              );
+              const fourWeekRecovery =
+                prevFour.f > 0 ? (prevFour.a / prevFour.f) * 100 : null;
+              return (
+                <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 flex flex-col items-center">
+                  <RevenueRecoveryPieChart recoveryPercent={fourWeekRecovery} label="4-week revenue recovery" />
+                </div>
+              );
+            })()}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {(() => {
               const rollups = budgetStatus?.rollups;
               const remainingHoursHigh = Number(rollups?.remainingHoursHigh) ?? 0;
@@ -610,17 +726,149 @@ export function ProjectDetailTabs({
                 </div>
               );
             })()}
-            <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5">
-              <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider">
-                Revenue recovery to date
-              </p>
-              <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
-                {revenueRecoveryToDate != null
-                  ? `${revenueRecoveryToDate.toFixed(1)}%`
-                  : "—"}
-              </p>
-            </div>
+            {(() => {
+              const latest = statusReports[0];
+              const reportDate = latest?.reportDate
+                ? new Date(latest.reportDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                : null;
+              const twoWeeksAgo = new Date();
+              twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+              const isStale =
+                latest?.reportDate != null && new Date(latest.reportDate) < twoWeeksAgo;
+              const rag = latest?.ragOverall ?? null;
+              return (
+                <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5">
+                  <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider">
+                    Latest status report
+                  </p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    {rag != null && OVERVIEW_RAG_CONFIG[rag] ? (
+                      <span
+                        title={`Status: ${OVERVIEW_RAG_CONFIG[rag].label}`}
+                        className={`inline-block w-4 h-4 rounded-full flex-shrink-0 ${OVERVIEW_RAG_CONFIG[rag].className}`}
+                        aria-label={`Status: ${OVERVIEW_RAG_CONFIG[rag].label}`}
+                      />
+                    ) : (
+                      <span
+                        title="No status report"
+                        className="inline-block w-4 h-4 rounded-full flex-shrink-0 bg-surface-300 dark:bg-dark-muted"
+                        aria-label="No status report"
+                      />
+                    )}
+                    <span className="text-display-sm font-semibold text-surface-900 dark:text-white">
+                      {rag != null ? OVERVIEW_RAG_CONFIG[rag]?.label ?? rag : "No report"}
+                    </span>
+                    {reportDate != null && (
+                      <span className="text-body-sm text-surface-500 dark:text-surface-400">
+                        {reportDate}
+                        {isStale && (
+                          <span className="ml-1 text-amber-600 dark:text-amber-400" title="Report older than 2 weeks">
+                            (stale)
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  {statusReports.length > 0 ? (
+                    <Link
+                      href={`/projects/${projectSlug}/status-reports`}
+                      className="text-body-sm font-medium text-jblue-600 dark:text-jblue-400 hover:underline mt-2 inline-block"
+                    >
+                      View all status reports →
+                    </Link>
+                  ) : (
+                    <Link
+                      href={`/projects/${projectSlug}/status-reports`}
+                      className="text-body-sm font-medium text-jblue-600 dark:text-jblue-400 hover:underline mt-2 inline-block"
+                    >
+                      Create your first report →
+                    </Link>
+                  )}
+                </div>
+              );
+            })()}
           </div>
+          {statusReports.length > 0 && (
+            <section className="space-y-3">
+              <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100 border-b border-surface-200 dark:border-dark-border pb-2">
+                Status report history
+              </h2>
+              <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <p className="text-body-sm text-surface-500 dark:text-surface-400">
+                    Green = On Track · Amber = At Risk · Red = Off Track
+                  </p>
+                  <Link
+                    href={`/projects/${projectSlug}/status-reports`}
+                    className="text-body-sm font-medium text-jblue-600 dark:text-jblue-400 hover:underline"
+                  >
+                    View all →
+                  </Link>
+                </div>
+                <div
+                  className="flex flex-wrap gap-2"
+                  aria-label="Status reports in chronological order, newest first"
+                >
+                  {statusReports.map((r, i) => {
+                    const date = new Date(r.reportDate);
+                    const dateShort = date.toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    });
+                    const dateFull = date.toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    });
+                    const ragConfig = r.ragOverall ? OVERVIEW_RAG_CONFIG[r.ragOverall] : undefined;
+                    const ragLabel = ragConfig?.label ?? (r.ragOverall ?? "No status");
+                    const toneClasses =
+                      r.ragOverall === "Green"
+                        ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-500/40"
+                        : r.ragOverall === "Amber"
+                          ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-500/40"
+                          : r.ragOverall === "Red"
+                            ? "bg-red-50 dark:bg-red-900/25 border-jred-200 dark:border-jred-500/40"
+                            : "bg-surface-50 dark:bg-dark-raised border-surface-200 dark:border-dark-border";
+                    return (
+                      <Link
+                        key={r.id}
+                        href={`/projects/${projectSlug}/status-reports/${r.id}/view`}
+                        className={`group relative flex flex-col justify-center min-w-[120px] max-w-[180px] px-3 py-2 rounded-md border text-left transition-colors ${toneClasses}`}
+                        aria-label={`View status report for ${dateFull}, ${ragLabel}`}
+                        title={`${dateFull}: ${ragLabel}${r.variation ? ` · ${r.variation}` : ""}`}
+                      >
+                        <div className="flex items-center gap-1">
+                          {ragConfig ? (
+                            <span
+                              className={`inline-block w-2.5 h-2.5 rounded-full flex-shrink-0 ${ragConfig.className}`}
+                              aria-hidden
+                            />
+                          ) : (
+                            <span
+                              className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0 bg-surface-300 dark:bg-dark-muted"
+                              aria-hidden
+                            />
+                          )}
+                          <span
+                            className={`text-body-sm font-medium text-surface-800 dark:text-surface-100 truncate ${
+                              i === 0 ? "font-semibold" : ""
+                            }`}
+                          >
+                            {dateShort}
+                          </span>
+                        </div>
+                        <span className="mt-0.5 text-[0.75rem] text-surface-500 dark:text-surface-400 truncate">
+                          {ragLabel}
+                          {r.variation ? ` · ${r.variation}` : ""}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+          )}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <section className="space-y-3">
               <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100 border-b border-surface-200 dark:border-dark-border pb-2">

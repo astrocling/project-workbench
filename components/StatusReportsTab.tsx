@@ -168,7 +168,7 @@ const MAX_MILESTONES_ON_PDF = 6;
 
 const REPORTS_PER_PAGE = 5;
 
-function RagStatusLight({ status }: { status: RagValue | null | undefined }) {
+function RagStatusLight({ status }: { status: RagValue | "" | null | undefined }) {
   if (status == null || status === "") {
     return (
       <span

@@ -12,11 +12,11 @@ const MEETING_NOTES_ALLOWED_TAGS = [
 ];
 const MEETING_NOTES_ALLOWED_ATTRS = ["href", "target", "rel", "style"];
 
-const SANITIZE_CONFIG: DOMPurify.Config = {
+const SANITIZE_CONFIG = {
   ALLOWED_TAGS: MEETING_NOTES_ALLOWED_TAGS,
   ALLOWED_ATTR: MEETING_NOTES_ALLOWED_ATTRS,
   ADD_ATTR: ["target", "rel"],
-};
+} satisfies Partial<Parameters<typeof DOMPurify.sanitize>[1]>;
 
 /** Sanitize HTML for meeting notes (safe to store and render). Same output on server and client. */
 export function sanitizeMeetingNotesHtml(html: string): string {
