@@ -371,7 +371,6 @@ export function BudgetTab({
           <input
             required
             type="number"
-            min={0}
             step="any"
             value={newLowHours}
             onChange={(e) => setNewLowHours(e.target.value)}
@@ -381,7 +380,6 @@ export function BudgetTab({
           <input
             required
             type="number"
-            min={0}
             step="any"
             value={newHighHours}
             onChange={(e) => setNewHighHours(e.target.value)}
@@ -391,7 +389,6 @@ export function BudgetTab({
           <input
             required
             type="number"
-            min={0}
             step="any"
             value={newLowDollars}
             onChange={(e) => setNewLowDollars(e.target.value)}
@@ -401,7 +398,6 @@ export function BudgetTab({
           <input
             required
             type="number"
-            min={0}
             step="any"
             value={newHighDollars}
             onChange={(e) => setNewHighDollars(e.target.value)}

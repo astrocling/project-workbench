@@ -11,10 +11,10 @@ const budgetLineSchema = z.object({
   id: z.string().optional(),
   type: z.enum(["SOW", "CO", "Other"]),
   label: z.string(),
-  lowHours: z.number().min(0),
-  highHours: z.number().min(0),
-  lowDollars: z.number().min(0),
-  highDollars: z.number().min(0),
+  lowHours: z.number(),
+  highHours: z.number(),
+  lowDollars: z.number(),
+  highDollars: z.number(),
 }).refine((d) => d.lowHours <= d.highHours && d.lowDollars <= d.highDollars, {
   message: "low must be <= high",
 });
