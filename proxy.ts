@@ -4,7 +4,7 @@ import { type NextRequestWithAuth, withAuth } from "next-auth/middleware";
 import { getClientIp, loginRatelimit } from "@/lib/ratelimit";
 
 const withAuthMiddleware = withAuth(
-  function middleware(req) {
+  function onAuthorized(req) {
     const token = req.nextauth.token;
     const path = req.nextUrl.pathname;
 
@@ -34,7 +34,7 @@ function isLoginPost(path: string, method: string): boolean {
   return path.includes("signin") || path.includes("callback");
 }
 
-export default async function middleware(req: NextRequest, event: NextFetchEvent) {
+export default async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
   if (isLoginPost(path, req.method)) {
     const ip = getClientIp(req.headers);
@@ -46,7 +46,9 @@ export default async function middleware(req: NextRequest, event: NextFetchEvent
       );
     }
   }
-  return withAuthMiddleware(req as NextRequestWithAuth, event);
+  // NextAuth withAuth expects (req, event); proxy only receives request. Pass a no-op event.
+  const noopEvent = {} as NextFetchEvent;
+  return withAuthMiddleware(req as NextRequestWithAuth, noopEvent);
 }
 
 export const config = {
