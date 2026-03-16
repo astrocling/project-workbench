@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-03-16
+
 ### Changed
 
 - **Budget tab — negative values for contracts**: When adding contract lines (e.g. SOW, CO, Other), hours and dollars now accept negative numbers so you can model change orders (COs) that remove budget or hours. The API and form no longer restrict values to non-negative; low must still be ≤ high.
