@@ -160,6 +160,14 @@ Your **My projects** filter uses your user **position role** (set in Admin → U
 | **Project names must match** (Float import) | Create projects in Workbench with the exact names used in the Float CSV, or adjust the CSV to match existing project names. Add missing roles in Admin → Roles and re-import if needed. |
 | **File too large** (Float import) | Maximum upload size is 10 MB. Split the export or reduce the date range. |
 | **Too many import requests** | Wait and try again later; the import is rate-limited when Redis is configured. |
+| **Page looks broken** (overlapping layout, wrong styles, sidebar over content) | Try a **hard refresh** (e.g. Mac: `Cmd+Shift+R`). If it persists, a **browser extension** may be injecting styles or scripts — see *Browser extensions* below. |
+
+### Browser extensions
+
+Some Chrome extensions can inject CSS or JavaScript into every page and break Project Workbench’s layout and styling. If the site looks correct in an **Incognito/Private** window but broken in a normal tab, the cause is likely an extension.
+
+- **What to do:** Disable extensions one by one (or use Incognito for Workbench) until the layout is normal. Then either leave that extension disabled or restrict it so it doesn’t run on the Workbench site: right‑click the extension icon → **Manage extension** → set site access to *On specific sites* and remove your Workbench URL, or *On click*.
+- **Known problematic extension:** The [Google Maps API Key Checker](https://chromewebstore.google.com/detail/google-maps-api-key-check/gjpanmpojpplcipiaigglekleicmgmel) extension has been observed to break the UI; disabling it or excluding the Workbench domain fixes the issue.
 
 ---
 
