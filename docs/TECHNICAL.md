@@ -23,18 +23,24 @@ The schema is defined in `prisma/schema.prisma`. Main entities:
 | Entity | Purpose |
 |--------|---------|
 | **User** | App login (email, password hash, permissions: User/Admin, optional position role). |
-| **Person** | Resource (name, email, active). Used for assignments and Float import; may be linked to User by email/name for “My projects”. |
+| **Person** | Resource (name, email, active, optional externalId). Used for assignments and Float import; may be linked to User by email/name for “My Projects”. |
 | **Role** | Role type (e.g. Project Manager, FE Developer). Used on assignments and in Float CSV. |
-| **Project** | Project (slug, name, client, start/end dates, status, optional single rate, notes, SOW/estimate/float/metric links, resourcing thresholds). |
-| **ProjectAssignment** | Person assigned to a project in a role; optional bill-rate override. |
+| **Project** | Project (slug, name, client, start/end dates, status, optional single rate, notes, SOW/estimate/float/metric links, resourcing thresholds, cdaEnabled, optional clientSponsor/keyStaffName for status reports). |
+| **ProjectAssignment** | Person assigned to a project in a role; optional bill-rate override; optional hiddenFromGrid (hide from Resourcing tab only). |
 | **ProjectRoleRate** | Per-role bill rate for a project (rate card). |
 | **ProjectKeyRole** | Key role assignment (PM, PGM, CAD) per project and person. |
 | **PlannedHours** | Planned hours by project, person, week (Monday). |
 | **ActualHours** | Actual hours by project, person, week (Monday); null = missing. |
 | **FloatScheduledHours** | Float-imported scheduled hours by project, person, week (Monday). |
 | **PTOHolidayImpact** | PTO/holiday by person and week. |
-| **BudgetLine** | Budget line (type: SOW/CO/Other, label, low/high hours and dollars). |
+| **BudgetLine** | Budget line (type: SOW/CO/Other, label, low/high hours and dollars; values may be negative for change orders). |
 | **ReadyForFloatUpdate** | Per-project, per-person flag for Float sync. |
+| **GridCellComment** | Optional comment on a resourcing grid cell (Planned or Actual) by project, person, week. |
+| **StatusReport** | Status report (reportDate, variation: Standard/Milestones/CDA, RAG fields, completed/upcoming/risks/meeting notes, snapshot JSON). |
+| **CdaMonth** | CDA monthly planned and MTD actuals by project and month (YYYY-MM). |
+| **CdaMilestone** | CDA milestone (phase, dev/UAT/deploy dates, completed). |
+| **TimelineBar** | Timeline bar (row, label, start/end date) for a project. |
+| **TimelineMarker** | Timeline marker (shape, label, date) on a bar row. |
 | **FloatImportRun** | Metadata for each Float import (timestamp, unknown roles, new people, project names, JSON for backfill and client mapping). |
 
 Weeks are always identified by **week start date** (Monday) in UTC. All hour tables use `(projectId, personId, weekStartDate)` (or equivalent for PTO) as the scope.
@@ -53,6 +59,7 @@ Weeks are always identified by **week start date** (Monday) in UTC. All hour tab
 | **SEED_SECRET** | Optional | Used for one-time seed via API (Bearer token). |
 | **UPSTASH_REDIS_REST_URL** | Optional | Upstash Redis REST URL for rate limiting. |
 | **UPSTASH_REDIS_REST_TOKEN** | Optional | Upstash Redis REST token. |
+| **BLOB_READ_WRITE_TOKEN** | Optional | Vercel Blob token for caching status report PDFs; if unset, PDFs are generated on demand without cache. |
 
 When Upstash is set, rate limits apply: login (per IP), seed (per IP), float-import (per user). Without them, rate limiting is skipped (e.g. local dev).
 
@@ -73,14 +80,14 @@ Implemented in `lib/weekUtils.ts`:
 
 ## Permissions
 
-Defined in `lib/auth.ts`:
+Permission helpers live in `lib/auth.ts`; NextAuth configuration (session, credentials provider) is in `lib/auth.config.ts`.
 
 | Permission | Capabilities |
 |------------|--------------|
 | **User** | View and edit projects (assignments, hours, budget, rates, key roles). Cannot access Admin. |
 | **Admin** | Everything User can do, plus: Admin area (Float Import, Roles, People, Users), delete projects. |
 
-Session permission is read from the current user’s `permissions` field (User or Admin). “My projects” filter uses the user’s optional position role (PM, PGM, CAD) and matches projects where that person is a key role.
+Session permission is read from the current user’s `permissions` field (User or Admin). “My Projects” filter uses the user’s optional position role (PM, PGM, CAD) and matches projects where that person is a key role.
 
 In production, `NEXTAUTH_SECRET` must be set and at least 32 characters; the app fails fast at startup if not.
 
@@ -114,13 +121,20 @@ API routes live under `app/api/`. This is a high-level overview for maintainers.
 | Projects | `GET /api/projects/at-risk` | List projects that are at risk (over/under resourced). |
 | Project | `GET/PATCH/DELETE /api/projects/[id]` | Single project CRUD. |
 | Project | `/api/projects/[id]/assignments` | Assignments for a project. |
+| Project | `/api/projects/[id]/resourcing` | Single endpoint for Resourcing tab (assignments, planned/actual/float hours, cell comments). |
 | Project | `/api/projects/[id]/planned-hours`, `actual-hours`, `float-hours` | Hour entries by project. |
+| Project | `/api/projects/[id]/cell-comments` | Grid cell comments (Planned/Actual) for resourcing. |
 | Project | `/api/projects/[id]/budget` | Budget rollups and status. |
 | Project | `/api/projects/[id]/rates` | Role rates for the project. |
 | Project | `/api/projects/[id]/revenue-recovery` | Revenue recovery to date. |
+| Project | `/api/projects/[id]/cda`, `/api/projects/[id]/cda-milestones` | CDA monthly data and milestones. |
+| Project | `/api/projects/[id]/timeline`, `timeline/bars`, `timeline/markers` | Timeline bars and markers. |
+| Project | `/api/projects/[id]/status-reports`, `status-reports/[reportId]`, `status-reports/[reportId]/pdf` | Status reports CRUD and PDF export (PDF may be cached in Vercel Blob). |
 | Project | `/api/projects/[id]/float-default-roles`, `backfill-float`, `ready-for-float` | Float-related backfill and flags. |
+| Projects | `GET /api/projects/my-pm-slugs` | Project slugs where current user is PM (e.g. for sidebar). |
 | People | `GET /api/people`, `/api/people/eligible-key-roles` | List people, people eligible for key roles. |
 | Roles | `GET /api/roles` | List roles. |
+| Account | `POST /api/account/change-password` | Change password for current user (current password required). |
 | Admin | `GET/POST /api/admin/float-import` | Float CSV import (Admin only). |
 | Admin | `/api/admin/roles`, `/api/admin/people`, `/api/admin/users` | CRUD for roles, people, app users (Admin only). |
 
@@ -130,8 +144,8 @@ All project and admin routes require an authenticated session; admin routes addi
 
 ## Deployment
 
-- **Build** — Vercel (or similar) runs `next build`; no database connection during build.
-- **Migrations and seed** — Run separately after deploy: `npm run db:deploy` with production `DATABASE_URL`, or use the one-time seed API with `SEED_SECRET` and `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`.
+- **Build** — The build script runs `prisma migrate deploy` then `next build`, so `DATABASE_URL` must be set for the build environment (e.g. Vercel Production and Preview if you deploy there). Pending migrations are applied at build time; seed does not run during build.
+- **Migrations and seed** — After deploy, create the initial admin user via `npm run db:deploy` (with production `DATABASE_URL`) or the one-time seed API (`POST /api/seed` with Bearer token and `SEED_SECRET`; set `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` in production).
 
 For full steps (Vercel env vars, rate limiting, one-time seed), see the main **README** in the repository.
 

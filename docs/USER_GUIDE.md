@@ -10,7 +10,7 @@ This guide explains how to use Project Workbench for project budget and resourci
 
 1. Open the app URL (e.g. `https://your-app.vercel.app` or `http://localhost:3000`).
 2. Enter your **email** and **password**.
-3. After signing in, you are taken to the **Projects** list.
+3. After signing in, you are taken to the app—by default the **PM Dashboard** (or the page you were trying to open, such as the Projects list).
 
 If you see "Invalid email or password", an administrator may need to run the initial database seed or add your user account (see Technical documentation).
 
@@ -26,11 +26,11 @@ The main Projects page shows all projects you can access. Use the filter tabs to
 
 | Filter | Description |
 |--------|-------------|
-| **My projects** | Projects where you are listed as PM, PGM, or CAD (based on your user profile). |
-| **Active** | All projects with status Active. |
-| **Closed** | All projects with status Closed. |
-| **All** | Every project. |
-| **At risk** | Projects that are over- or under-resourced compared to plan (based on actuals and thresholds). |
+| **My Projects** | Projects where you are listed as PM, PGM, or CAD (based on your user profile). |
+| **Active Projects** | All projects with status Active. |
+| **Closed Projects** | All projects with status Closed. |
+| **All Projects** | Every project. |
+| **At Risk** | Projects that are over- or under-resourced compared to plan (based on actuals and thresholds). |
 
 From the table you can:
 
@@ -49,11 +49,11 @@ Each project has a detail page with several tabs. The header shows the **as-of d
 |-----|---------|
 | **Overview** | Summary, key roles (PM, PGM, CAD), project notes, SOW, Estimate, Float, and Metric links, and a snapshot of budget and revenue recovery. |
 | **Resourcing** | Planned hours, actual hours, and Float scheduled hours by person and week. Use this to compare plan vs actual vs Float and spot gaps. |
+| **CDA** | (When enabled in Settings) Monthly planned and actuals for CDA reporting. |
 | **Budget** | Budget lines (e.g. SOW, CO, Other) with low/high hours and dollars, and burn to date. |
-| **Status Reports** | Summary table of estimated budget, $ spent, $ remaining, budgeted/actual/remaining hours, with copy-to-clipboard and a % budget used (high est.) circle chart. |
-| **Rates** | Per-role rate card for the project, or a single bill rate if the project uses one rate for all roles. |
-| **Assignments** | People assigned to the project, their roles, and any bill-rate overrides. |
-| **Settings** | Edit project name, client, dates, status, single rate, notes, SOW/Estimate/Float/Metric links, resourcing thresholds, and key roles. |
+| **Timeline** | Timeline view of the project. |
+| **Status Reports** | Summary table of estimated budget, $ spent, $ remaining, budgeted/actual/remaining hours, with copy-to-clipboard and a % budget used (high est.) circle chart. You can create, edit, view, and export status reports. |
+| **Settings** | Edit project name, client, dates, status, single rate, notes, SOW/Estimate/Float/Metric links, resourcing thresholds, key roles, and optional CDA tab. Within Settings, sub-sections include **Details**, **Links**, **Key roles**, **Resourcing** (thresholds), **Rates** (per-role rate card or single bill rate), and **Assignments** (people assigned, their roles, bill-rate overrides, and “hidden from grid” for the Resourcing tab). |
 
 Only users with edit permission can change data; the **Settings** tab may be read-only for some viewers.
 
@@ -119,7 +119,17 @@ Available from the Admin area (link in the header).
 |------|---------|
 | **Roles** | Create and manage roles (e.g. Project Manager, FE Developer). Role names must match the ones used in project assignments and in Float CSV exports. |
 | **People** | Manage people (name, email, active). These are the resources that appear on project assignments and in Float import. |
-| **Users** | Manage app logins (email and password) and permissions. Set **User** or **Admin**, and optionally set a **position role** (Project Manager, Program Manager, Client Account Director) so “My projects” shows the right list. |
+| **Users** | Manage app logins (email and password) and permissions. Set **User** or **Admin**, and optionally set a **position role** (Project Manager, Program Manager, Client Account Director) so “My Projects” shows the right list. |
+
+---
+
+## Dashboards and Account
+
+- **PM Dashboard** (`/pm-dashboard`): Projects where you are Project Manager. Shows portfolio metrics, a table of those projects (burn, buffer, recovery, actuals status), and revenue recovery when available.
+- **PGM Dashboard** (`/pgm-dashboard`): Same for projects where you are Program Manager.
+- **CAD Dashboard** (`/cad-dashboard`): Same for projects where you are Client Account Director.
+
+Use the sidebar to open these dashboards. The **Account** page (sidebar) lets you change your password (current password required).
 
 ---
 
@@ -148,7 +158,7 @@ Each project can have people in **key roles**:
 - **PGM** — Program Manager  
 - **CAD** — Client Account Director  
 
-Your **My projects** filter uses your user **position role** (set in Admin → Users) to show only projects where you are PM, PGM, or CAD.
+Your **My Projects** filter uses your user **position role** (set in Admin → Users) to show only projects where you are PM, PGM, or CAD.
 
 ---
 
