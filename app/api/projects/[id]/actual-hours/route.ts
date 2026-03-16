@@ -55,10 +55,13 @@ export async function GET(
   const { id: idOrSlug } = await params;
   const id = await getProjectId(idOrSlug);
   if (!id) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  const [rows, monthSplits] = await Promise.all([
-    prisma.actualHours.findMany({ where: { projectId: id } }),
-    prisma.actualHoursMonthSplit.findMany({ where: { projectId: id } }),
-  ]);
+  const rows = await prisma.actualHours.findMany({ where: { projectId: id } });
+  let monthSplits: Array<{ projectId: string; personId: string; weekStartDate: Date; monthKey: string; hours: unknown }> = [];
+  try {
+    monthSplits = await prisma.actualHoursMonthSplit.findMany({ where: { projectId: id } });
+  } catch {
+    // ActualHoursMonthSplit table may not exist on older branches or before migration
+  }
   return NextResponse.json({
     rows,
     monthSplits: monthSplits.map((m) => ({
@@ -108,44 +111,64 @@ export async function PATCH(
       }
     }
     const totalHours = parts[0].hours + parts[1].hours;
-    await prisma.$transaction([
-      prisma.actualHoursMonthSplit.upsert({
-        where: {
-          projectId_personId_weekStartDate_monthKey: {
+    const hasMonthSplit = "actualHoursMonthSplit" in prisma && prisma.actualHoursMonthSplit != null;
+    if (hasMonthSplit) {
+      await prisma.$transaction([
+        prisma.actualHoursMonthSplit.upsert({
+          where: {
+            projectId_personId_weekStartDate_monthKey: {
+              projectId: id,
+              personId,
+              weekStartDate: weekStart,
+              monthKey: parts[0].monthKey,
+            },
+          },
+          create: {
             projectId: id,
             personId,
             weekStartDate: weekStart,
             monthKey: parts[0].monthKey,
+            hours: parts[0].hours,
           },
-        },
-        create: {
-          projectId: id,
-          personId,
-          weekStartDate: weekStart,
-          monthKey: parts[0].monthKey,
-          hours: parts[0].hours,
-        },
-        update: { hours: parts[0].hours },
-      }),
-      prisma.actualHoursMonthSplit.upsert({
-        where: {
-          projectId_personId_weekStartDate_monthKey: {
+          update: { hours: parts[0].hours },
+        }),
+        prisma.actualHoursMonthSplit.upsert({
+          where: {
+            projectId_personId_weekStartDate_monthKey: {
+              projectId: id,
+              personId,
+              weekStartDate: weekStart,
+              monthKey: parts[1].monthKey,
+            },
+          },
+          create: {
             projectId: id,
             personId,
             weekStartDate: weekStart,
             monthKey: parts[1].monthKey,
+            hours: parts[1].hours,
           },
-        },
-        create: {
-          projectId: id,
-          personId,
-          weekStartDate: weekStart,
-          monthKey: parts[1].monthKey,
-          hours: parts[1].hours,
-        },
-        update: { hours: parts[1].hours },
-      }),
-      prisma.actualHours.upsert({
+          update: { hours: parts[1].hours },
+        }),
+        prisma.actualHours.upsert({
+          where: {
+            projectId_personId_weekStartDate: {
+              projectId: id,
+              personId,
+              weekStartDate: weekStart,
+            },
+          },
+          create: {
+            projectId: id,
+            personId,
+            weekStartDate: weekStart,
+            hours: totalHours,
+          },
+          update: { hours: totalHours },
+        }),
+      ]);
+    } else {
+      await prisma.actualHours.upsert({
         where: {
           projectId_personId_weekStartDate: {
             projectId: id,
@@ -160,8 +183,8 @@ export async function PATCH(
           hours: totalHours,
         },
         update: { hours: totalHours },
-      }),
-    ]);
+      });
+    }
     const updated = await prisma.actualHours.findFirst({
       where: {
         projectId: id,
@@ -181,13 +204,15 @@ export async function PATCH(
       return NextResponse.json({ error: parsed.error.message }, { status: 400 });
     }
     const weekStart = new Date(parsed.data.weekStartDate);
-    await prisma.actualHoursMonthSplit.deleteMany({
-      where: {
-        projectId: id,
-        personId: parsed.data.personId,
-        weekStartDate: weekStart,
-      },
-    });
+    if ("actualHoursMonthSplit" in prisma && prisma.actualHoursMonthSplit != null) {
+      await prisma.actualHoursMonthSplit.deleteMany({
+        where: {
+          projectId: id,
+          personId: parsed.data.personId,
+          weekStartDate: weekStart,
+        },
+      });
+    }
     const row = await prisma.actualHours.upsert({
       where: {
         projectId_personId_weekStartDate: {
