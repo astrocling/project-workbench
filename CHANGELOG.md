@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-03-17
+
 ### Added
 
 - **Projects list — icon actions and confirmations**: The Projects list Actions column now uses icon buttons: **Edit** (pencil), **Backfill** (refresh), and **Delete** (trash). Users with edit permission see Edit and Backfill; Admins also see Delete. **Delete** opens a confirmation modal: you must type the project name to confirm before the project and all its data are permanently removed. **Backfill** opens a confirmation dialog that explains it will update the project’s Float scheduled hours from import data (overwriting existing float hours for that project) and notes that this isn’t a common action—if you aren’t doing it on purpose (e.g. to fix missing historical data after a bug), it’s best to cancel.
