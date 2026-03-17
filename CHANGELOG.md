@@ -8,13 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Projects list — icon actions and confirmations**: The Projects list Actions column now uses icon buttons: **Edit** (pencil), **Backfill** (refresh), and **Delete** (trash). Users with edit permission see Edit and Backfill; Admins also see Delete. **Delete** opens a confirmation modal: you must type the project name to confirm before the project and all its data are permanently removed. **Backfill** opens a confirmation dialog that explains it will update the project’s Float scheduled hours from import data (overwriting existing float hours for that project) and notes that this isn’t a common action—if you aren’t doing it on purpose (e.g. to fix missing historical data after a bug), it’s best to cancel.
+- **Float import — integration test**: An integration test (`__tests__/api/admin/float-import-cleanup.test.ts`) verifies that after importing a CSV that omits a person from a project, that person’s future Float scheduled hours are deleted while their past weeks and assignment remain. Requires `DATABASE_URL` and a reachable database.
+
 ### Changed
 
 - **Float import — preserve past weeks, clear future for removed people**: The import no longer overwrites or deletes past weeks’ Float scheduled hours, so revenue recovery and historical actuals are preserved when the Float export only covers a limited window (e.g. today through one year out). Only current and future weeks are updated from the CSV. If a person no longer appears on a project in the export, only their **future** Float scheduled hours for that project are removed; past weeks and their project assignment are left unchanged (you can remove them from the project manually in Settings → Assignments if desired).
-
-### Added
-
-- **Float import — integration test**: An integration test (`__tests__/api/admin/float-import-cleanup.test.ts`) verifies that after importing a CSV that omits a person from a project, that person’s future Float scheduled hours are deleted while their past weeks and assignment remain. Requires `DATABASE_URL` and a reachable database.
 
 ## [0.2.2] - 2026-03-16
 

@@ -140,7 +140,7 @@ API routes live under `app/api/`. This is a high-level overview for maintainers.
 | Project | `/api/projects/[id]/cda`, `/api/projects/[id]/cda-milestones` | CDA monthly data and milestones. |
 | Project | `/api/projects/[id]/timeline`, `timeline/bars`, `timeline/markers` | Timeline bars and markers. |
 | Project | `/api/projects/[id]/status-reports`, `status-reports/[reportId]`, `status-reports/[reportId]/pdf` | Status reports CRUD and PDF export (PDF may be cached in Vercel Blob). |
-| Project | `/api/projects/[id]/float-default-roles`, `backfill-float`, `ready-for-float` | Float-related backfill and flags. |
+| Project | `/api/projects/[id]/float-default-roles`, `backfill-float`, `ready-for-float` | Float-related backfill and flags. Backfill is also available from the Projects list via the backfill icon (with confirmation); use it to repopulate a project’s Float scheduled hours from stored import runs (e.g. when the project was created after an import or historical data was missing). |
 | Projects | `GET /api/projects/my-pm-slugs` | Project slugs where current user is PM (e.g. for sidebar). |
 | People | `GET /api/people`, `/api/people/eligible-key-roles` | List people, people eligible for key roles. |
 | Roles | `GET /api/roles` | List roles. |
@@ -149,6 +149,8 @@ API routes live under `app/api/`. This is a high-level overview for maintainers.
 | Admin | `/api/admin/roles`, `/api/admin/people`, `/api/admin/users` | CRUD for roles, people, app users (Admin only). |
 
 All project and admin routes require an authenticated session; admin routes additionally require Admin permission.
+
+**Projects list actions:** The Projects list shows an Actions column (for users with edit or delete permission) with icon buttons: Edit (link to project edit page), Backfill (confirmation dialog then POST to `backfill-float`), and Delete (Admin only; confirmation modal with type-to-confirm before DELETE).
 
 ---
 

@@ -35,7 +35,10 @@ The main Projects page shows all projects you can access. Use the filter tabs to
 From the table you can:
 
 - Click a **project name** to open the project detail page.
-- (Admins only) Use **Delete** to remove a project.
+- Use the **Actions** column (icons) when you have edit or delete permission:
+  - **Edit** (pencil) — Opens the project edit page (Settings and key details).
+  - **Backfill** (refresh) — Repopulates this project’s Float scheduled hours from stored Float import data. Use this when a project is missing historical float data (e.g. the project was created after an import). A confirmation dialog appears first; it explains that existing float hours for the project may be overwritten and that this isn’t a common action—if you aren’t doing it on purpose, it’s best to cancel.
+  - **Delete** (trash, Admins only) — Permanently removes the project and all its data. A confirmation modal appears: you must type the project name exactly to confirm before the delete is performed. This cannot be undone.
 
 ---
 

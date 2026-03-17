@@ -2,12 +2,12 @@ import { unstable_cache } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
-import { getSessionPermissionLevel, requirePermission, canDeleteProject } from "@/lib/auth";
+import { getSessionPermissionLevel, requirePermission, canEditProject, canDeleteProject } from "@/lib/auth";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AtRiskTable } from "@/components/AtRiskTable";
-import { DeleteProjectButton } from "@/components/DeleteProjectButton";
 import { LocalTime } from "@/components/LocalTime";
+import { ProjectRowActions } from "@/components/ProjectRowActions";
 
 const FILTER_VALUES = ["my", "active", "closed", "all", "atRisk"] as const;
 type FilterValue = (typeof FILTER_VALUES)[number];
@@ -140,7 +140,9 @@ export default async function ProjectsPage({
   }
 
   const permissionLevel = getSessionPermissionLevel(session.user);
+  const canEdit = canEditProject(permissionLevel);
   const canDelete = canDeleteProject(permissionLevel);
+  const showActions = canEdit || canDelete;
 
   return (
     <>
@@ -226,8 +228,8 @@ export default async function ProjectsPage({
                     </th>
                   );
                 })}
-                {canDelete && (
-                  <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold w-24">
+                {showActions && (
+                  <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold w-28">
                     Actions
                   </th>
                 )}
@@ -266,9 +268,15 @@ export default async function ProjectsPage({
                     <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
                       {cad?.person.name ?? "—"}
                     </td>
-                    {canDelete && (
+                    {showActions && (
                       <td className="px-4 py-3">
-                        <DeleteProjectButton projectId={p.id} projectName={p.name} />
+                        <ProjectRowActions
+                          projectId={p.id}
+                          slug={p.slug}
+                          projectName={p.name}
+                          canEdit={canEdit}
+                          canDelete={canDelete}
+                        />
                       </td>
                     )}
                   </tr>
