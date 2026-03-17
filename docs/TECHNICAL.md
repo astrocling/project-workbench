@@ -45,6 +45,16 @@ The schema is defined in `prisma/schema.prisma`. Main entities:
 
 Weeks are always identified by **week start date** (Monday) in UTC. All hour tables use `(projectId, personId, weekStartDate)` (or equivalent for PTO) as the scope.
 
+### Float import behavior
+
+Implemented in `app/api/admin/float-import/route.ts`:
+
+- **Writes:** Only **current and future** weeks are written to `FloatScheduledHours` (weeks with `weekStartDate > asOf`). Past weeks are never overwritten, so historical float data (e.g. for revenue recovery) is preserved when the Float export covers a limited date range (e.g. one year forward).
+- **Cleanup:** After upserting from the CSV, the import deletes **future** `FloatScheduledHours` for any `(projectId, personId)` that appears in the DB for a project in the import but is **not** in the current CSV (person removed from the project in Float). Past weeks for that person are never deleted. Project assignments are not modified.
+- **New projects:** When a project is created or backfill-float is run, data comes from stored `FloatImportRun.projectFloatHours` (and `getProjectDataFromAllImports` for project create), which can include all weeks from prior imports; the cleanup step runs only during the float import, not on create or backfill.
+
+An integration test in `__tests__/api/admin/float-import-cleanup.test.ts` asserts that a person omitted from the CSV has their future float hours removed and past weeks retained.
+
 ---
 
 ## Environment variables

@@ -104,6 +104,12 @@ The import expects a CSV that looks like a Float export:
 - **Project names** in the CSV must match existing projects in Workbench if you want hours to land on those projects. Otherwise, add the projects first (or create them from the import), then run the import again or use backfill if your deployment supports it.
 - **Roles** must exist in Workbench (Admin → Roles). If the CSV contains roles that don’t exist yet, the import records them as “unknown”; add those roles in Admin → Roles and re-import if needed.
 
+### What the import does
+
+- **Assignments and hours:** For each person and project in the CSV, the import updates project assignments (and creates people/roles if needed) and writes Float scheduled hours for the weeks that appear as columns in the file.
+- **Past weeks:** Only **current and future** weeks are updated from the file. Past weeks are **never** overwritten or deleted, so revenue recovery and historical Float actuals stay intact even when your Float export only covers a limited range (e.g. today through one year out).
+- **Person removed from a project in Float:** If someone no longer appears on a project in the export (e.g. they were removed in Float), their **future** Float scheduled hours for that project are cleared in Workbench. Their **past** weeks and their **assignment** on the project are left as-is—they will still appear on the Resourcing tab until you remove them in **Settings → Assignments** if you want. Keeping them can serve as a check that they had prior hours.
+
 ### Limits
 
 - **File size:** Maximum 10 MB per file.
