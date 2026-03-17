@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth.config";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import Papa from "papaparse";
-import { parseFloatWeekHeader, formatWeekKey } from "@/lib/weekUtils";
+import { getAsOfDate, isCompletedWeek, parseFloatWeekHeader, formatWeekKey } from "@/lib/weekUtils";
 import { floatImportRatelimit, getClientIp } from "@/lib/ratelimit";
 
 /** Chunk size for bulk FloatScheduledHours upserts to avoid huge queries. */
@@ -298,17 +298,16 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const projectIdsInImport = [...new Set(floatHoursRows.map((r) => r.projectId))];
+  // Only write current and future weeks; do not overwrite past weeks (lock previous Float Actuals).
+  const asOf = getAsOfDate();
+  const floatHoursRowsToWrite = floatHoursRows.filter(
+    (r) => !isCompletedWeek(r.weekStartDate, asOf)
+  );
 
-  // Replace float data for each project in this import: delete existing then upsert from CSV.
-  // This ensures removed people (no longer in Float export) no longer have stale FloatScheduledHours.
-  for (const projectId of projectIdsInImport) {
-    await prisma.floatScheduledHours.deleteMany({ where: { projectId } });
-  }
-
-  // Bulk upsert FloatScheduledHours in chunks (INSERT ... ON CONFLICT DO UPDATE)
-  for (let i = 0; i < floatHoursRows.length; i += FLOAT_HOURS_BATCH_SIZE) {
-    const chunk = floatHoursRows.slice(i, i + FLOAT_HOURS_BATCH_SIZE);
+  // Bulk upsert FloatScheduledHours in chunks (INSERT ... ON CONFLICT DO UPDATE).
+  // Past weeks are never written, so existing historical float data is preserved.
+  for (let i = 0; i < floatHoursRowsToWrite.length; i += FLOAT_HOURS_BATCH_SIZE) {
+    const chunk = floatHoursRowsToWrite.slice(i, i + FLOAT_HOURS_BATCH_SIZE);
     if (chunk.length === 0) continue;
     await prisma.$executeRaw`
       INSERT INTO "FloatScheduledHours" ("projectId", "personId", "weekStartDate", "hours", "createdAt", "updatedAt")
@@ -320,6 +319,42 @@ export async function POST(req: NextRequest) {
       ON CONFLICT ("projectId", "personId", "weekStartDate")
       DO UPDATE SET hours = EXCLUDED.hours, "updatedAt" = now()
     `;
+  }
+
+  // Remove future FloatScheduledHours for (project, person) no longer in this import.
+  // Past weeks are never deleted; assignments are unchanged (person can stay on grid).
+  const inImportSet = new Set<string>();
+  for (const entry of mergedFloatByProjectPerson.values()) {
+    const projectId = projectsByName.get(entry.projectName.toLowerCase());
+    const personId = personByName.get(entry.personName.toLowerCase());
+    if (projectId && personId) inImportSet.add(`${projectId}|${personId}`);
+  }
+  const projectIdsInImport = Array.from(projectNamesSet)
+    .map((name) => projectsByName.get(name.toLowerCase()))
+    .filter((id): id is string => Boolean(id));
+  if (projectIdsInImport.length > 0) {
+    const futureFloatRows = await prisma.floatScheduledHours.findMany({
+      where: {
+        projectId: { in: projectIdsInImport },
+        weekStartDate: { gt: asOf },
+      },
+      select: { projectId: true, personId: true },
+      distinct: ["projectId", "personId"],
+    });
+    const removedPairs = futureFloatRows.filter(
+      (r) => !inImportSet.has(`${r.projectId}|${r.personId}`)
+    );
+    if (removedPairs.length > 0) {
+      for (const pair of removedPairs) {
+        await prisma.floatScheduledHours.deleteMany({
+          where: {
+            projectId: pair.projectId,
+            personId: pair.personId,
+            weekStartDate: { gt: asOf },
+          },
+        });
+      }
+    }
   }
 
   // Build projectFloatHours after the loop that populated projectFloatHoursMap (used for backfilling new projects)

@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { getProjectId } from "@/lib/slug";
 import { z } from "zod";
-import { getWeekStartDate } from "@/lib/weekUtils";
+import { getAsOfDate, getWeekStartDate, isCompletedWeek } from "@/lib/weekUtils";
 
 const QUARTER_HOUR_EPS = 1e-9;
 function isQuarterIncrement(n: number): boolean {
@@ -52,29 +52,41 @@ export async function PATCH(
   const id = await getProjectId(idOrSlug);
   if (!id) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const body = await req.json();
-  const items = Array.isArray(body) ? body : [body];
-  const results = [];
-  for (const item of items) {
+  const rawItems = Array.isArray(body) ? body : [body];
+  const parsedItems: { personId: string; weekStartDate: string; hours: number }[] = [];
+  const asOf = getAsOfDate();
+  for (const item of rawItems) {
     const parsed = updateSchema.safeParse(item);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.message }, { status: 400 });
     }
-    const weekStart = new Date(parsed.data.weekStartDate);
+    const weekStart = getWeekStartDate(new Date(parsed.data.weekStartDate));
+    if (isCompletedWeek(weekStart, asOf)) {
+      return NextResponse.json(
+        { error: "Cannot edit planned hours for past weeks." },
+        { status: 403 }
+      );
+    }
+    parsedItems.push(parsed.data);
+  }
+  const results = [];
+  for (const data of parsedItems) {
+    const weekStart = new Date(data.weekStartDate);
     const row = await prisma.plannedHours.upsert({
       where: {
         projectId_personId_weekStartDate: {
           projectId: id,
-          personId: parsed.data.personId,
+          personId: data.personId,
           weekStartDate: weekStart,
         },
       },
       create: {
         projectId: id,
-        personId: parsed.data.personId,
+        personId: data.personId,
         weekStartDate: weekStart,
-        hours: parsed.data.hours,
+        hours: data.hours,
       },
-      update: { hours: parsed.data.hours },
+      update: { hours: data.hours },
     });
     results.push(row);
   }

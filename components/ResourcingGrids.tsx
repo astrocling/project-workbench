@@ -417,8 +417,9 @@ export function ResourcingGrids({
     if (!canEdit || syncingPlan) return;
     setSyncingPlan(true);
     try {
+      const editableWeeks = weeks.filter((w) => !isCompletedWeek(w, asOf));
       const payload = assignments.flatMap((a) =>
-        weeks.map((w) => {
+        editableWeeks.map((w) => {
           const weekKey = formatWeekKey(w);
           return {
             personId: a.personId,
@@ -437,14 +438,25 @@ export function ResourcingGrids({
       const rows = Array.isArray(updated) ? updated : [updated];
       const normalize = (d: string | Date) =>
         typeof d === "string" ? (d.includes("T") ? d.slice(0, 10) : d) : (d as Date).toISOString().slice(0, 10);
-      setPlanned(
-        rows.map((r: { projectId: string; personId: string; weekStartDate: string | Date; hours: number }) => ({
-          projectId: r.projectId,
-          personId: r.personId,
-          weekStartDate: normalize(r.weekStartDate),
-          hours: Number(r.hours),
-        }))
+      const updatedKeys = new Set(
+        rows.map((r: { personId: string; weekStartDate: string | Date }) =>
+          `${r.personId}|${normalize(r.weekStartDate)}`
+        )
       );
+      setPlanned((prev) => {
+        const fromPrev = prev.filter(
+          (p) => !updatedKeys.has(`${p.personId}|${p.weekStartDate.slice(0, 10)}`)
+        );
+        const fromRes = rows.map(
+          (r: { projectId?: string; personId: string; weekStartDate: string | Date; hours: number }) => ({
+            projectId: r.projectId ?? projectId,
+            personId: r.personId,
+            weekStartDate: normalize(r.weekStartDate),
+            hours: Number(r.hours),
+          })
+        );
+        return [...fromPrev, ...fromRes];
+      });
     } finally {
       setSyncingPlan(false);
     }
