@@ -76,6 +76,7 @@ The Resourcing tab shows three grids (Planned, Actual, Float) by person and by w
 The Status Reports tab is where you create and maintain status reports and export them as PDFs.
 
 - **Preview and PDF match**: The in-app preview and the exported PDF use the same layout and styling.
+- **Bigger, presentation-friendly default size**: The preview is auto-scaled larger (while still fitting your screen), and the downloaded PDF is generated at a larger default page size so you can present at 100% zoom without squinting.
 - **Typography**: Status report fonts were updated for readability; the preview and exported PDF use the same typography.
 
 ---

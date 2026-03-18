@@ -177,6 +177,9 @@ All project and admin routes require an authenticated session; admin routes addi
 
 The status report preview and exported PDF are generated from the same component (`components/StatusReportView.tsx`). Any layout or typography changes (including fonts) must be made there so HTML preview and PDF export stay identical.
 
+- **Preview scale**: The in-app preview uses a responsive visual scale (CSS transform) to render the 16:9 slide larger for readability/presenting, while still fitting common viewport widths. This is *visual-only* and does not change the underlying layout dimensions of the slide.
+- **PDF export scale**: Client-side export (`lib/statusReportPdfCapture.ts`) captures the DOM at its native layout size for pixel-perfect fidelity, then applies `exportScale` by generating a larger PDF page and placing the captured image at that larger size. This keeps the exported PDF matching the on-screen content while making the PDF easier to present at 100% zoom.
+
 ---
 
 ## Deployment
