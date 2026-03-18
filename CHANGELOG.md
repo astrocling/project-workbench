@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+## [0.2.4] - 2026-03-18
+
+### Changed
+
 - **Resourcing tab — no “load more weeks” clicks**: The Resourcing tab now loads the full project week range by default (project start → project end). This removes the need to click “Load earlier weeks” / “Load later weeks” to see the full grid.
 - **Status report typography**: Updated the Status Report HTML/PDF view fonts for improved readability; preview and exported PDF remain identical because they share the same `StatusReportView`.
 - **Status report preview + PDF — larger default rendering**: The status report preview now auto-scales to a larger, presentation-friendly size without clipping, and client-side PDF export generates a larger default page size (while preserving pixel-perfect match to the preview content).
