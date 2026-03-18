@@ -48,6 +48,7 @@ export function StatusReportPageContent({
         slideElement: slideRef.current,
         meetingNotesElement: meetingNotesRef.current ?? undefined,
         filename,
+        exportScale: 1.5,
       });
     } catch {
       setDownloadError("Download failed. Try again.");

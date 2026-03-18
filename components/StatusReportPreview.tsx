@@ -104,6 +104,7 @@ export function StatusReportPreview({
                       slideElement: slideRef.current,
                       meetingNotesElement: meetingNotesRef.current ?? undefined,
                       filename,
+                      exportScale: 1.5,
                     });
                   } catch (err) {
                     if (process.env.NODE_ENV === "development") {

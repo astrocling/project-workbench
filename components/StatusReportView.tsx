@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { BRAND_COLORS } from "@/lib/brandColors";
 import { parseLinkSegments } from "@/lib/statusReportLinks";
 import {
@@ -320,9 +320,34 @@ export function StatusReportView({
   const { cad, pm, pgm, keyStaff } = getKeyRoleNames(data);
   const bioTitle = project.name.toUpperCase();
 
-  const slideScale = 1.25;
   const slideWidth = 720;
   const slideHeight = slideWidth * (9 / 16); // 16:9 aspect
+  const previewScaleMax = 1.5;
+  const previewScaleMin = 1.0;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const el = containerRef.current;
+
+    const update = () => setContainerWidth(el.getBoundingClientRect().width);
+    update();
+
+    const ro = new ResizeObserver(() => update());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Visual-only scale for the in-app preview (PDF export captures at its own scale).
+  const slideScale = useMemo(() => {
+    if (!containerWidth) return previewScaleMax;
+    // Leave a little breathing room so we don't kiss the edges.
+    const available = Math.max(0, containerWidth - 24);
+    const fit = available / slideWidth;
+    return Math.min(previewScaleMax, Math.max(previewScaleMin, fit));
+  }, [containerWidth]);
+
   const scaledHeight = slideHeight * slideScale;
 
   return (
@@ -331,8 +356,12 @@ export function StatusReportView({
       style={{ fontFamily: "var(--font-raleway), sans-serif" }}
     >
       {/* Main slide — 16:9 aspect; scaled up for readability, spacing unchanged */}
-      <div className="flex justify-center" style={{ width: "100%" }}>
-        <div style={{ width: slideWidth * slideScale, maxWidth: "100%", minHeight: scaledHeight }}>
+      <div
+        ref={containerRef}
+        className="w-full overflow-x-auto"
+      >
+        {/* Important: don't apply maxWidth here; transforms don't affect layout sizing and can cause visual overflow. */}
+        <div className="w-fit" style={{ width: slideWidth * slideScale, minHeight: scaledHeight, marginInline: "auto" }}>
           <div
             ref={slideRef}
             className="status-report-slide relative border border-gray-200 origin-top"
@@ -341,7 +370,9 @@ export function StatusReportView({
               aspectRatio: "16/9",
               minHeight: 360,
               transform: `scale(${slideScale})`,
-              transformOrigin: "top center",
+              // Important: scaling from center causes the left edge to go negative and get clipped.
+              // Scale from top-left so it expands rightward and stays fully visible in the scroll container.
+              transformOrigin: "top left",
             }}
           >
         <div className="h-full flex flex-col pt-6 px-6 pb-8 text-[9px]">

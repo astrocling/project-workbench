@@ -10,6 +10,8 @@ const SLIDE_HEIGHT_PT = 405; // 16:9
 const NOTES_PAGE_WIDTH_PT = 720;
 const MAX_NOTES_PAGE_HEIGHT_PT = 900;
 
+const DEFAULT_EXPORT_SCALE = 1.5;
+
 const CAPTURE_OPTS = {
   scale: 2,
   useCORS: true,
@@ -22,6 +24,8 @@ export type CaptureStatusReportToPdfOptions = {
   slideElement: HTMLElement;
   meetingNotesElement?: HTMLElement | null;
   filename: string;
+  /** Increase exported PDF "physical" size for easier presenting (100% zoom). */
+  exportScale?: number;
 };
 
 /**
@@ -32,6 +36,10 @@ export async function captureStatusReportToPdf(
   options: CaptureStatusReportToPdfOptions
 ): Promise<void> {
   const { slideElement, meetingNotesElement, filename } = options;
+  const exportScale =
+    typeof options.exportScale === "number" && Number.isFinite(options.exportScale) && options.exportScale > 0
+      ? options.exportScale
+      : DEFAULT_EXPORT_SCALE;
 
   // Capture the full slide container so absolutely-positioned elements
   // (like the footer) are included. We temporarily disable transforms to
@@ -45,9 +53,11 @@ export async function captureStatusReportToPdf(
   const origTransform = slideTarget.style.transform;
   const origTransformOrigin = slideTarget.style.transformOrigin;
   const origOverflow = slideTarget.style.overflow;
-  slideTarget.style.width = "720px";
-  slideTarget.style.height = "405px";
-  slideTarget.style.minHeight = "405px";
+  // Keep the DOM at its native layout size for capture so fonts/spacing match preview.
+  // We scale the exported PDF page and image placement instead.
+  slideTarget.style.width = `${SLIDE_WIDTH_PT}px`;
+  slideTarget.style.height = `${SLIDE_HEIGHT_PT}px`;
+  slideTarget.style.minHeight = `${SLIDE_HEIGHT_PT}px`;
   slideTarget.style.transform = "none";
   slideTarget.style.transformOrigin = "top left";
   slideTarget.style.overflow = "hidden";
@@ -81,27 +91,36 @@ export async function captureStatusReportToPdf(
     const pdf = new jsPDF({
       orientation: "landscape",
       unit: "pt",
-      format: [SLIDE_WIDTH_PT, SLIDE_HEIGHT_PT],
+      format: [SLIDE_WIDTH_PT * exportScale, SLIDE_HEIGHT_PT * exportScale],
     });
 
     const slideImgData = slideCanvas.toDataURL("image/png");
-    pdf.addImage(slideImgData, "PNG", 0, 0, SLIDE_WIDTH_PT, SLIDE_HEIGHT_PT);
+    pdf.addImage(
+      slideImgData,
+      "PNG",
+      0,
+      0,
+      SLIDE_WIDTH_PT * exportScale,
+      SLIDE_HEIGHT_PT * exportScale
+    );
 
     if (meetingNotesElement && meetingNotesElement.offsetParent !== null) {
       meetingNotesElement.scrollIntoView({ behavior: "instant", block: "start" });
       await new Promise((r) => requestAnimationFrame(r));
       const notesCanvas = await html2canvas(meetingNotesElement, CAPTURE_OPTS);
+      const scaledNotesWidth = NOTES_PAGE_WIDTH_PT * exportScale;
+      const scaledMaxNotesHeight = MAX_NOTES_PAGE_HEIGHT_PT * exportScale;
       const notesHeight = Math.min(
-        (notesCanvas.height / notesCanvas.width) * NOTES_PAGE_WIDTH_PT,
-        MAX_NOTES_PAGE_HEIGHT_PT
+        (notesCanvas.height / notesCanvas.width) * scaledNotesWidth,
+        scaledMaxNotesHeight
       );
-      pdf.addPage([NOTES_PAGE_WIDTH_PT, notesHeight], "portrait");
+      pdf.addPage([scaledNotesWidth, notesHeight], "portrait");
       pdf.addImage(
         notesCanvas.toDataURL("image/png"),
         "PNG",
         0,
         0,
-        NOTES_PAGE_WIDTH_PT,
+        scaledNotesWidth,
         notesHeight
       );
     }
