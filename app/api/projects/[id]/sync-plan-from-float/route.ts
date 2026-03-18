@@ -117,10 +117,10 @@ export async function POST(
     updated++;
   }
 
-  revalidateTag("portfolio-metrics");
-  revalidateTag("project-budget");
-  revalidateTag("project-revenue");
-  revalidateTag(`project-resourcing:${id}`);
+  revalidateTag("portfolio-metrics", "max");
+  revalidateTag("project-budget", "max");
+  revalidateTag("project-revenue", "max");
+  revalidateTag(`project-resourcing:${id}`, "max");
 
   return NextResponse.json({
     ok: true,
