@@ -9,12 +9,19 @@ const dateString = z.string().refine((s) => !Number.isNaN(Date.parse(s)), {
   message: "Invalid date",
 });
 
+const hexColor = z
+  .string()
+  .regex(/^#[0-9A-Fa-f]{6}$/, "Color must be a 6-digit hex (e.g. #1941FA)")
+  .optional()
+  .nullable();
+
 const patchSchema = z.object({
   rowIndex: z.number().int().min(1).max(4).optional(),
   label: z.string().min(1).optional(),
   startDate: dateString.optional(),
   endDate: dateString.optional(),
   order: z.number().int().optional(),
+  color: hexColor,
 });
 
 function toIsoDate(d: Date | null): string {
@@ -62,11 +69,13 @@ export async function PATCH(
     startDate?: Date;
     endDate?: Date;
     order?: number;
+    color?: string | null;
   } = {};
 
   if (parsed.data.rowIndex !== undefined) data.rowIndex = parsed.data.rowIndex;
   if (parsed.data.label !== undefined) data.label = parsed.data.label;
   if (parsed.data.order !== undefined) data.order = parsed.data.order;
+  if (parsed.data.color !== undefined) data.color = parsed.data.color;
 
   if (parsed.data.startDate !== undefined) {
     const start = new Date(parsed.data.startDate);
@@ -110,6 +119,7 @@ export async function PATCH(
     startDate: toIsoDate(updated.startDate),
     endDate: toIsoDate(updated.endDate),
     order: updated.order,
+    color: updated.color ?? null,
   });
 }
 

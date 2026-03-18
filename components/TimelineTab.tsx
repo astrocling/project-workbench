@@ -19,7 +19,20 @@ type TimelineBar = {
   startDate: string;
   endDate: string;
   order: number;
+  color?: string | null;
 };
+
+/** Default bar color (first in palette). Used when bar.color is null/undefined. */
+const TIMELINE_BAR_DEFAULT_COLOR = "#1941FA";
+
+export const TIMELINE_BAR_COLORS = [
+  { value: "#1941FA", label: "Blue" },
+  { value: "#15803d", label: "Green" },
+  { value: "#b45309", label: "Amber" },
+  { value: "#0f766e", label: "Teal" },
+  { value: "#475569", label: "Slate" },
+  { value: "#6d28d9", label: "Violet" },
+] as const;
 
 export const TIMELINE_MARKER_SHAPES = [
   { value: "BadgeAlert", label: "Badge alert" },
@@ -86,6 +99,7 @@ export function TimelineTab({
   const [addBarLabel, setAddBarLabel] = useState("");
   const [addBarStart, setAddBarStart] = useState("");
   const [addBarEnd, setAddBarEnd] = useState("");
+  const [addBarColor, setAddBarColor] = useState(TIMELINE_BAR_DEFAULT_COLOR);
   const [barSaving, setBarSaving] = useState(false);
   const [barError, setBarError] = useState<string | null>(null);
 
@@ -94,6 +108,7 @@ export function TimelineTab({
   const [editBarLabel, setEditBarLabel] = useState("");
   const [editBarStart, setEditBarStart] = useState("");
   const [editBarEnd, setEditBarEnd] = useState("");
+  const [editBarColor, setEditBarColor] = useState(TIMELINE_BAR_DEFAULT_COLOR);
 
   const [showAddMarker, setShowAddMarker] = useState(false);
   const [addMarkerRow, setAddMarkerRow] = useState(1);
@@ -162,20 +177,30 @@ export function TimelineTab({
           label: addBarLabel.trim(),
           startDate: addBarStart,
           endDate: addBarEnd,
+          color: addBarColor,
         }),
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: { error?: string; id?: string; rowIndex?: number; label?: string; startDate?: string; endDate?: string; order?: number; color?: string | null } = {};
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        setBarError("Invalid response from server");
+        return;
+      }
       if (!res.ok) {
         setBarError(json.error ?? "Failed to add bar");
         return;
       }
-      setData((prev) =>
-        prev ? { ...prev, bars: [...prev.bars, json].sort((a, b) => a.rowIndex - b.rowIndex || a.startDate.localeCompare(b.startDate)) } : prev
-      );
-      setAddBarLabel("");
-      setAddBarStart("");
-      setAddBarEnd("");
-      setShowAddBar(false);
+      if (json.id) {
+        setData((prev) =>
+          prev ? { ...prev, bars: [...prev.bars, json as TimelineBar].sort((a, b) => a.rowIndex - b.rowIndex || a.startDate.localeCompare(b.startDate)) } : prev
+        );
+        setAddBarLabel("");
+        setAddBarStart("");
+        setAddBarEnd("");
+        setShowAddBar(false);
+      }
     } finally {
       setBarSaving(false);
     }
@@ -195,17 +220,27 @@ export function TimelineTab({
           label: editBarLabel.trim(),
           startDate: editBarStart,
           endDate: editBarEnd,
+          color: editBarColor,
         }),
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: { error?: string; id?: string; rowIndex?: number; label?: string; startDate?: string; endDate?: string; order?: number; color?: string | null } = {};
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        setBarError("Invalid response from server");
+        return;
+      }
       if (!res.ok) {
         setBarError(json.error ?? "Failed to update bar");
         return;
       }
-      setData((prev) =>
-        prev ? { ...prev, bars: prev.bars.map((b) => (b.id === editingBarId ? json : b)) } : prev
-      );
-      setEditingBarId(null);
+      if (json.id) {
+        setData((prev) =>
+          prev ? { ...prev, bars: prev.bars.map((b) => (b.id === editingBarId ? (json as TimelineBar) : b)) } : prev
+        );
+        setEditingBarId(null);
+      }
     } finally {
       setBarSaving(false);
     }
@@ -400,11 +435,12 @@ export function TimelineTab({
                     {barsByRow[rowNum - 1].map((bar) => (
                       <div
                         key={bar.id}
-                        className="absolute top-2 bottom-2 flex items-center rounded px-2 bg-jblue-500 dark:bg-jblue-600 text-white text-body-sm font-medium truncate"
+                        className="absolute top-2 bottom-2 flex items-center rounded px-2 text-white text-body-sm font-medium truncate"
                         style={{
                           left: `${positionPercent(bar.startDate)}%`,
                           width: `${widthPercent(bar.startDate, bar.endDate)}%`,
                           minWidth: "4px",
+                          backgroundColor: bar.color ?? TIMELINE_BAR_DEFAULT_COLOR,
                         }}
                         title={`${bar.label} (${bar.startDate} – ${bar.endDate})`}
                       >
@@ -475,17 +511,44 @@ export function TimelineTab({
                       className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-surface border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100"
                     />
                   </div>
-                  <div>
-                    <label className="block text-body-sm font-medium text-surface-700 dark:text-surface-300">End date</label>
-                    <input
-                      type="date"
-                      value={addBarEnd}
-                      onChange={(e) => setAddBarEnd(e.target.value)}
-                      required
-                      min={data.project.startDate}
-                      max={data.project.endDate!}
-                      className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-surface border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100"
-                    />
+                    <div>
+                      <label className="block text-body-sm font-medium text-surface-700 dark:text-surface-300">End date</label>
+                      <input
+                        type="date"
+                        value={addBarEnd}
+                        onChange={(e) => setAddBarEnd(e.target.value)}
+                        required
+                        min={data.project.startDate}
+                        max={data.project.endDate!}
+                        className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-surface border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100"
+                      />
+                    </div>
+                </div>
+                <div>
+                  <label className="block text-body-sm font-medium text-surface-700 dark:text-surface-300">Color</label>
+                  <select
+                    value={addBarColor}
+                    onChange={(e) => setAddBarColor(e.target.value)}
+                    className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-surface border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100"
+                  >
+                    {TIMELINE_BAR_COLORS.map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="mt-1 flex gap-1 flex-wrap">
+                    {TIMELINE_BAR_COLORS.map((c) => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        onClick={() => setAddBarColor(c.value)}
+                        className="w-6 h-6 rounded border-2 border-surface-300 dark:border-dark-muted"
+                        style={{ backgroundColor: c.value }}
+                        title={c.label}
+                        aria-label={c.label}
+                      />
+                    ))}
                   </div>
                 </div>
                 {barError && <p className="text-body-sm text-red-600 dark:text-red-400">{barError}</p>}
@@ -569,6 +632,33 @@ export function TimelineTab({
                       />
                     </div>
                   </div>
+                  <div>
+                    <label className="block text-body-sm font-medium text-surface-700 dark:text-surface-300">Color</label>
+                    <select
+                      value={editBarColor}
+                      onChange={(e) => setEditBarColor(e.target.value)}
+                      className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-surface border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100"
+                    >
+                      {TIMELINE_BAR_COLORS.map((c) => (
+                        <option key={c.value} value={c.value}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="mt-1 flex gap-1 flex-wrap">
+                      {TIMELINE_BAR_COLORS.map((c) => (
+                        <button
+                          key={c.value}
+                          type="button"
+                          onClick={() => setEditBarColor(c.value)}
+                          className="w-6 h-6 rounded border-2 border-surface-300 dark:border-dark-muted"
+                          style={{ backgroundColor: c.value }}
+                          title={c.label}
+                          aria-label={c.label}
+                        />
+                      ))}
+                    </div>
+                  </div>
                   {barError && <p className="text-body-sm text-red-600 dark:text-red-400">{barError}</p>}
                   <div className="flex gap-2">
                     <button type="submit" disabled={barSaving} className="px-3 py-1.5 rounded-md text-body-sm font-medium bg-jblue-500 text-white hover:bg-jblue-600 disabled:opacity-50">
@@ -598,6 +688,7 @@ export function TimelineTab({
                           setEditBarLabel(bar.label);
                           setEditBarStart(bar.startDate);
                           setEditBarEnd(bar.endDate);
+                          setEditBarColor(bar.color ?? TIMELINE_BAR_DEFAULT_COLOR);
                           setBarError(null);
                         }}
                         className="text-jblue-600 dark:text-jblue-400 hover:underline"

@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Timeline bars — multiple colors**: Each timeline bar can have a color (preset palette: Blue, Green, Amber, Teal, Slate, Violet). The Timeline tab Add/Edit bar forms include a Color dropdown and swatch buttons. Color is stored per bar and shown in the Timeline tab, status report preview, and PDF export. Bars without a color use the default blue.
+
+### Changed
+
+- **Timeline page and status report timeline — aligned layout**: The timeline on the project Timeline tab and the timeline on status reports (preview and PDF) now use the same layout. Both use **week-proportional** month columns (via `getWeeksInMonthsForRange()` in `lib/monthUtils.ts`) so bar positions align with month boundaries. Bars use full row height with top/bottom padding (no lane stacking); overlapping bars in the same row overlap visually. On the status report, the timeline shows only the “previous months” range (e.g. 1–4 months before the report date): bars are **clipped** to that range so position and width match the shortened axis (`getVisibleBarSegments()` in `StatusReportView.tsx` and `StatusReportDocument.tsx`). Status report row height is compact (20px) to limit vertical space.
+
 ## [0.2.5] - 2026-03-18
 
 ### Added

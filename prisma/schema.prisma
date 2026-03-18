@@ -215,6 +215,7 @@ model TimelineBar {
   startDate DateTime  @db.Date
   endDate   DateTime  @db.Date
   order     Int       @default(0)
+  color     String?   // hex e.g. #1941FA; null = default blue
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

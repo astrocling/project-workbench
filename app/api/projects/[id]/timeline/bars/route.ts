@@ -9,12 +9,18 @@ const dateString = z.string().refine((s) => !Number.isNaN(Date.parse(s)), {
   message: "Invalid date",
 });
 
+const hexColor = z
+  .string()
+  .regex(/^#[0-9A-Fa-f]{6}$/, "Color must be a 6-digit hex (e.g. #1941FA)")
+  .optional();
+
 const postSchema = z.object({
   rowIndex: z.number().int().min(1).max(4),
   label: z.string().min(1),
   startDate: dateString,
   endDate: dateString,
   order: z.number().int().optional(),
+  color: hexColor,
 });
 
 function toIsoDate(d: Date | null): string {
@@ -45,6 +51,7 @@ export async function GET(
       startDate: toIsoDate(b.startDate),
       endDate: toIsoDate(b.endDate),
       order: b.order,
+      color: b.color ?? null,
     })),
   });
 }
@@ -76,7 +83,7 @@ export async function POST(
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });
   }
 
-  const { rowIndex, label, startDate, endDate, order } = parsed.data;
+  const { rowIndex, label, startDate, endDate, order, color } = parsed.data;
   const start = new Date(startDate);
   const end = new Date(endDate);
   const projectStart = new Date(project.startDate);
@@ -110,6 +117,7 @@ export async function POST(
         startDate: start,
         endDate: end,
         order: order ?? 0,
+        color: color ?? null,
       },
     });
 
@@ -120,6 +128,7 @@ export async function POST(
       startDate: toIsoDate(bar.startDate),
       endDate: toIsoDate(bar.endDate),
       order: bar.order,
+      color: bar.color ?? null,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to create timeline bar";

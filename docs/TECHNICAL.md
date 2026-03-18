@@ -39,7 +39,7 @@ The schema is defined in `prisma/schema.prisma`. Main entities:
 | **StatusReport** | Status report (reportDate, variation: Standard/Milestones/CDA, RAG fields, completed/upcoming/risks/meeting notes, snapshot JSON). |
 | **CdaMonth** | CDA monthly planned and MTD actuals by project and month (YYYY-MM). |
 | **CdaMilestone** | CDA milestone (phase, dev/UAT/deploy dates, completed). |
-| **TimelineBar** | Timeline bar (row, label, start/end date) for a project. |
+| **TimelineBar** | Timeline bar (row, label, start/end date, optional color hex) for a project. |
 | **TimelineMarker** | Timeline marker (shape, label, date) on a bar row. |
 | **FloatImportRun** | Metadata for each Float import (timestamp, unknown roles, new people, project names, JSON for backfill and client mapping). |
 
@@ -138,7 +138,7 @@ API routes live under `app/api/`. This is a high-level overview for maintainers.
 | Project | `/api/projects/[id]/rates` | Role rates for the project. |
 | Project | `/api/projects/[id]/revenue-recovery` | Revenue recovery to date. |
 | Project | `/api/projects/[id]/cda`, `/api/projects/[id]/cda-milestones` | CDA monthly data and milestones. |
-| Project | `/api/projects/[id]/timeline`, `timeline/bars`, `timeline/markers` | Timeline bars and markers. |
+| Project | `/api/projects/[id]/timeline`, `timeline/bars`, `timeline/markers` | Timeline bars and markers. Bars support an optional `color` (6-digit hex, e.g. `#1941FA`) in GET responses and in POST/PATCH bodies; null means default blue. |
 | Project | `/api/projects/[id]/status-reports`, `status-reports/[reportId]`, `status-reports/[reportId]/pdf` | Status reports CRUD and PDF export (PDF may be cached in Vercel Blob). |
 | Project | `/api/projects/[id]/float-default-roles`, `backfill-float`, `sync-actuals-from-float`, `sync-plan-from-float`, `ready-for-float` | Float-related backfill and flags. **Backfill** repopulates a project’s Float scheduled hours from stored import runs (also from Projects list via backfill icon with confirmation). **Sync actuals from Float** (`POST sync-actuals-from-float`) copies Float into Weekly Actuals for past weeks only; **Sync plan from Float** (`POST sync-plan-from-float`) copies Float into the Project Plan (PlannedHours) for past weeks only so the plan grid and revenue recovery forecast are populated. Both sync actions use FloatScheduledHours and stored import runs; available from the project Edit page with confirmation. Optional `?overwrite=true` on sync-actuals replaces existing actuals with Float values. |
 | Projects | `GET /api/projects/my-pm-slugs` | Project slugs where current user is PM (e.g. for sidebar). |
@@ -179,14 +179,16 @@ The status report preview and exported PDF are generated from the same component
 
 - **Preview scale**: The in-app preview uses a responsive visual scale (CSS transform) to render the 16:9 slide larger for readability/presenting, while still fitting common viewport widths. This is *visual-only* and does not change the underlying layout dimensions of the slide.
 - **PDF export scale**: Client-side export (`lib/statusReportPdfCapture.ts`) captures the DOM at its native layout size for pixel-perfect fidelity, then applies `exportScale` by generating a larger PDF page and placing the captured image at that larger size. This keeps the exported PDF matching the on-screen content while making the PDF easier to present at 100% zoom.
-- **Timeline bars (status report)**: The status report timeline shows only the “previous months” range (e.g. 1–4 months before the report date). Bars are **clipped** to that visible range: only the segment within `[timeline.startDate, timeline.endDate]` is drawn, and position/width are computed from that segment so the layout matches the shortened axis. Lane assignment uses these visible segments (via `assignLanes()` in `lib/timelineLanes.ts`) so bars that overlap in the visible window are stacked in separate lanes and do not overlap—matching the behavior of the main Timeline tab.
+- **Timeline layout (tab and status report)**: The project Timeline tab and the status report timeline (preview and PDF) share the same layout. Month columns are **week-proportional**: column widths and vertical boundary lines are derived from the number of weeks in each month that fall within the range. The helper `getWeeksInMonthsForRange()` in `lib/monthUtils.ts` returns `weeksInMonths` and `monthBoundaryPositions` for a given date range and is used by `TimelineTab.tsx`, `StatusReportView.tsx`, and `StatusReportDocument.tsx`. Bars use full row height with top/bottom padding (no lane stacking); overlapping bars in the same row overlap visually.
+- **Timeline bars (status report)**: The status report timeline shows only the “previous months” range (e.g. 1–4 months before the report date). Bars are **clipped** to that visible range via `getVisibleBarSegments()`: only the segment within `[timeline.startDate, timeline.endDate]` is drawn, and position/width are computed from that segment so the layout matches the shortened axis. Row height on the status report is compact (20px) to limit vertical space; the Timeline tab uses a larger row height (52px) for readability.
+- **Timeline bar colors**: Each bar can have an optional color (hex string stored in `TimelineBar.color`). The Timeline tab offers a preset palette (Blue, Green, Amber, Teal, Slate, Violet); the same color is shown in the tab, status report preview, and PDF. Bars with no color use the default blue.
 
 ---
 
 ## Deployment
 
 - **Build** — The build script runs `prisma migrate deploy` then `next build`, so `DATABASE_URL` must be set for the build environment (e.g. Vercel Production and Preview if you deploy there). Pending migrations are applied at build time; seed does not run during build.
-- **Migrations and seed** — After deploy, create the initial admin user via `npm run db:deploy` (with production `DATABASE_URL`) or the one-time seed API (`POST /api/seed` with Bearer token and `SEED_SECRET`; set `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` in production).
+- **Migrations and seed** — After deploy, create the initial admin user via `npm run db:deploy` (with production `DATABASE_URL`) or the one-time seed API (`POST /api/seed` with Bearer token and `SEED_SECRET`; set `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` in production). Migrations are applied in **folder-name order** (lexicographic); new migrations must use timestamps that sort after any migrations they depend on (e.g. the `add_timeline_bar_color` migration must run after the migration that creates the `TimelineBar` table).
 
 For full steps (Vercel env vars, rate limiting, one-time seed), see the main **README** in the repository.
 

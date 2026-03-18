@@ -37,6 +37,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /**
  * Returns weeks in each month (overlap with range) and cumulative boundary positions (0–100%).
  * Used so timeline month columns and bar positions use the same week-proportional scale.
+ * Used by: TimelineTab.tsx (project range), StatusReportView.tsx and StatusReportDocument.tsx
+ * (status report truncated range).
  */
 export function getWeeksInMonthsForRange(
   monthKeys: string[],

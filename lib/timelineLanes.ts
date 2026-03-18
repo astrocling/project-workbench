@@ -3,13 +3,10 @@
  * Bars that overlap in time get different lane indices so they can be
  * stacked vertically and avoid drawing on top of each other.
  *
- * Used by:
- * - Timeline tab: full project range; pass bars as-is.
- * - Status report (HTML + PDF): timeline shows a shortened "previous months"
- *   range. Callers must pass **visible segments only** (each bar clipped to
- *   the visible start/end). That way lanes reflect overlap in the visible
- *   window and bars do not overlap. See getVisibleBarSegments() in
- *   StatusReportView.tsx and StatusReportDocument.tsx.
+ * Currently the Timeline tab and status report timeline use full row height
+ * bars with top/bottom padding and do not use lane stacking (overlapping
+ * bars overlap visually). This module is kept for potential future use if
+ * lane stacking is needed again.
  */
 export function assignLanes<T extends { startDate: string; endDate: string }>(
   bars: T[]

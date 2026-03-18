@@ -48,6 +48,7 @@ export async function GET(
       startDate: toIsoDate(b.startDate),
       endDate: toIsoDate(b.endDate),
       order: b.order,
+      color: b.color ?? null,
     })),
     markers: markers.map((m) => ({
       id: m.id,

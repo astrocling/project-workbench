@@ -298,7 +298,7 @@ function TimelineBlock({
                     style={{
                       left: `${positionPercent(visibleStart)}%`,
                       width: `${widthPercent(visibleStart, visibleEnd)}%`,
-                      backgroundColor: TIMELINE_BAR_BG,
+                      backgroundColor: bar.color ?? TIMELINE_BAR_BG,
                     }}
                   >
                     <span className="text-[5px] text-white font-semibold truncate block min-w-0">{bar.label}</span>

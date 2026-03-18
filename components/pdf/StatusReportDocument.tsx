@@ -822,7 +822,7 @@ export type StatusReportPDFData = {
   timeline?: {
     startDate: string;
     endDate: string;
-    bars: Array<{ rowIndex: number; label: string; startDate: string; endDate: string }>;
+    bars: Array<{ rowIndex: number; label: string; startDate: string; endDate: string; color?: string | null }>;
     markers: Array<{ label: string; date: string; shape?: string; rowIndex?: number }>;
   };
 };
@@ -1013,6 +1013,7 @@ function TimelineBlock({
                     width: `${widthPercent(visibleStart, visibleEnd)}%`,
                     top: ROW_BAR_TOP,
                     bottom: ROW_BAR_BOTTOM,
+                    backgroundColor: bar.color ?? TIMELINE_BAR_BG,
                   },
                 ]}
               >

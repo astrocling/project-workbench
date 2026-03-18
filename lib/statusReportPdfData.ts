@@ -132,6 +132,29 @@ export async function buildStatusReportPdfData(
         projectStartStr < minStartStr ? minStartStr : projectStartStr;
       timeline = { ...timeline, startDate: effectiveStartStr };
     }
+    // Ensure bar colors are present (snapshots created before color existed may lack them)
+    if (timeline && (project.timelineBars ?? []).length > 0) {
+      const barKey = (b: { rowIndex: number; label: string; startDate: string; endDate: string }) =>
+        `${b.rowIndex}|${b.label}|${b.startDate}|${b.endDate}`;
+      const colorByKey = new Map(
+        project.timelineBars!.map((b) => [
+          barKey({
+            rowIndex: b.rowIndex,
+            label: b.label,
+            startDate: b.startDate.toISOString().slice(0, 10),
+            endDate: b.endDate.toISOString().slice(0, 10),
+          }),
+          b.color ?? null,
+        ])
+      );
+      timeline = {
+        ...timeline,
+        bars: timeline.bars.map((bar) => ({
+          ...bar,
+          color: bar.color ?? colorByKey.get(barKey(bar)) ?? null,
+        })),
+      };
+    }
   }
 
   if (budget === undefined || (report.variation === "CDA" && cda === undefined)) {
@@ -302,6 +325,7 @@ export async function buildStatusReportPdfData(
         label: b.label,
         startDate: b.startDate.toISOString().slice(0, 10),
         endDate: b.endDate.toISOString().slice(0, 10),
+        color: b.color ?? null,
       }));
     const markers = (project.timelineMarkers ?? [])
       .sort((a, b) => a.date.getTime() - b.date.getTime())
