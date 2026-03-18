@@ -62,6 +62,24 @@ Only users with edit permission can change data; the **Settings** tab may be rea
 
 ---
 
+## Resourcing tab
+
+The Resourcing tab shows three grids (Planned, Actual, Float) by person and by week.
+
+- **Weeks shown**: By default, the grid includes the **full project range** (project start → project end). You do not need to click “load more” controls to see additional weeks.
+- **Horizontal navigation**: When the week columns overflow, you can scroll horizontally (trackpad, scrollbar, or **Shift + mouse wheel**). The page also shows **Scroll left / Scroll right** buttons when horizontal overflow is detected.
+
+---
+
+## Status Reports tab
+
+The Status Reports tab is where you create and maintain status reports and export them as PDFs.
+
+- **Preview and PDF match**: The in-app preview and the exported PDF use the same layout and styling.
+- **Typography**: Status report fonts were updated for readability; the preview and exported PDF use the same typography.
+
+---
+
 ## Creating a new project
 
 1. From the Projects list, click **New project** (or go to `/projects/new`).

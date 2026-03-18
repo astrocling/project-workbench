@@ -152,6 +152,31 @@ All project and admin routes require an authenticated session; admin routes addi
 
 **Projects list actions:** The Projects list shows an Actions column (for users with edit or delete permission) with icon buttons: Edit (link to project edit page), Backfill (confirmation dialog then POST to `backfill-float`), and Delete (Admin only; confirmation modal with type-to-confirm before DELETE).
 
+### Resourcing API details
+
+`GET /api/projects/[id]/resourcing` returns all data required for the Resourcing tab in a single response:
+
+- Project start/end dates and resourcing thresholds
+- Visible assignments (excludes `hiddenFromGrid`)
+- Planned hours, actual hours, Float scheduled hours
+- Ready-for-Float flags
+- Grid cell comments (Planned/Actual)
+
+**Range filtering:**
+
+- Optional query params: `fromWeek=YYYY-MM-DD` and `toWeek=YYYY-MM-DD` (week start / Monday in UTC).
+- When provided, hour rows and comments are filtered to that week window.
+- **Default behavior (no params):** returns the **full project span** from project start week → project end week (or current week when end date is null).
+
+**Caching:**
+
+- The route uses `unstable_cache` with a `project-resourcing:{projectId}` tag so writes to planned/actual/assignments/comments can revalidate the cached response.
+- The cache key includes the project id and the `fromWeek/toWeek` window, so different ranges cache independently.
+
+### Status report rendering (HTML + PDF)
+
+The status report preview and exported PDF are generated from the same component (`components/StatusReportView.tsx`). Any layout or typography changes (including fonts) must be made there so HTML preview and PDF export stay identical.
+
 ---
 
 ## Deployment

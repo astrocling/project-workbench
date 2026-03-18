@@ -33,17 +33,24 @@ export async function captureStatusReportToPdf(
 ): Promise<void> {
   const { slideElement, meetingNotesElement, filename } = options;
 
-  // Capture the inner content div (no transform) to avoid html2canvas transform bugs
-  const slideTarget: HTMLElement =
-    (slideElement.firstElementChild as HTMLElement) || slideElement;
+  // Capture the full slide container so absolutely-positioned elements
+  // (like the footer) are included. We temporarily disable transforms to
+  // avoid html2canvas transform bugs.
+  const slideTarget: HTMLElement = slideElement;
 
   // Ensure explicit dimensions for capture (inner div may not have them in some layouts)
   const origWidth = slideTarget.style.width;
   const origHeight = slideTarget.style.height;
   const origMinHeight = slideTarget.style.minHeight;
+  const origTransform = slideTarget.style.transform;
+  const origTransformOrigin = slideTarget.style.transformOrigin;
+  const origOverflow = slideTarget.style.overflow;
   slideTarget.style.width = "720px";
   slideTarget.style.height = "405px";
   slideTarget.style.minHeight = "405px";
+  slideTarget.style.transform = "none";
+  slideTarget.style.transformOrigin = "top left";
+  slideTarget.style.overflow = "hidden";
 
   // Optionally hide dashed border during capture for a cleaner PDF
   const slideHadCaptureAttr = slideElement.hasAttribute("data-capturing");
@@ -56,7 +63,18 @@ export async function captureStatusReportToPdf(
       import("jspdf"),
     ]);
 
+    // Ensure webfonts are actually loaded before capture.
+    // `document.fonts.ready` alone can resolve before specific families are requested.
     await document.fonts.ready;
+    try {
+      await Promise.all([
+        document.fonts.load('400 16px "Raleway"'),
+        document.fonts.load('700 16px "Raleway"'),
+        document.fonts.load('400 italic 16px "Raleway"'),
+      ]);
+    } catch {
+      // Ignore; html2canvas will fall back to available fonts.
+    }
 
     const slideCanvas = await html2canvas(slideTarget, CAPTURE_OPTS);
 
@@ -93,6 +111,9 @@ export async function captureStatusReportToPdf(
     slideTarget.style.width = origWidth;
     slideTarget.style.height = origHeight;
     slideTarget.style.minHeight = origMinHeight;
+    slideTarget.style.transform = origTransform;
+    slideTarget.style.transformOrigin = origTransformOrigin;
+    slideTarget.style.overflow = origOverflow;
     if (!slideHadCaptureAttr) {
       slideElement.removeAttribute("data-capturing");
     }
