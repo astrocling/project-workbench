@@ -8,6 +8,7 @@ import {
   sanitizeMeetingNotesHtml,
 } from "@/lib/meetingNotesHtml";
 import type { StatusReportPDFData, RagStatus } from "@/components/pdf/StatusReportDocument";
+import { assignLanes } from "@/lib/timelineLanes";
 
 // Mirror PDF layout: 16:9 slide, same colors and structure
 const BIO_TITLE_COLOR = "#220088";
@@ -218,6 +219,26 @@ function TimelineBlock({
   const monthBoundaryPositions =
     months.length > 1 ? Array.from({ length: months.length - 1 }, (_, i) => ((i + 1) / months.length) * 100) : [];
 
+  /** Clip each bar to the visible range so position/width match the axis; assign lanes from visible segments only. */
+  function getVisibleBarSegments(rowBars: Bar[]) {
+    const clipped: { bar: Bar; visibleStart: string; visibleEnd: string }[] = [];
+    for (const bar of rowBars) {
+      const visibleStart = bar.startDate > startYmd ? bar.startDate : startYmd;
+      const visibleEnd = bar.endDate < endYmd ? bar.endDate : endYmd;
+      if (visibleStart < visibleEnd) {
+        clipped.push({ bar, visibleStart, visibleEnd });
+      }
+    }
+    const segments = clipped.map((c) => ({ startDate: c.visibleStart, endDate: c.visibleEnd }));
+    const lanes = assignLanes(segments);
+    return { clipped, lanes };
+  }
+
+  const ROW_HEIGHT_PX = 20;
+  const ROW_PADDING = 2;
+  const LANE_GAP_PX = 1;
+  const rowInnerHeight = ROW_HEIGHT_PX - ROW_PADDING * 2;
+
   return (
     <div className="mt-1 w-full border border-[#d1d5db] relative">
       {reportDatePercent != null && (
@@ -243,13 +264,22 @@ function TimelineBlock({
         {reportDatePercent != null && (
           <div
             className="absolute top-0 bottom-0 w-0.5 -ml-px"
-            style={{ left: `${reportDatePercent}%`, backgroundColor: TIMELINE_REPORT_DATE, height: 64 }}
+            style={{ left: `${reportDatePercent}%`, backgroundColor: TIMELINE_REPORT_DATE, height: 80 }}
           />
         )}
-        {[0, 1, 2, 3].map((rowIdx) => (
+        {[0, 1, 2, 3].map((rowIdx) => {
+          const rowBars = barsByRow[rowIdx] ?? [];
+          const { clipped, lanes } = getVisibleBarSegments(rowBars);
+          const numLanes = lanes.length ? Math.max(...lanes) + 1 : 1;
+          const laneHeight =
+            numLanes > 0
+              ? (rowInnerHeight - (numLanes - 1) * LANE_GAP_PX) / numLanes
+              : rowInnerHeight;
+          return (
           <div
             key={rowIdx}
-            className="flex flex-row min-h-4 border-b border-[#d1d5db] relative"
+            className="border-b border-[#d1d5db] relative"
+            style={{ minHeight: ROW_HEIGHT_PX }}
           >
             <div className="absolute inset-0 pointer-events-none">
               {monthBoundaryPositions.map((leftPct, i) => (
@@ -260,19 +290,27 @@ function TimelineBlock({
                 />
               ))}
             </div>
-            {barsByRow[rowIdx].map((bar, i) => (
-              <div
-                key={`bar-${i}`}
-                className="absolute top-0.5 bottom-0.5 rounded-sm flex items-center px-0.5 opacity-[0.82]"
-                style={{
-                  left: `${positionPercent(bar.startDate)}%`,
-                  width: `${widthPercent(bar.startDate, bar.endDate)}%`,
-                  backgroundColor: TIMELINE_BAR_BG,
-                }}
-              >
-                <span className="text-[5px] text-white font-semibold truncate">{bar.label}</span>
-              </div>
-            ))}
+            <div className="absolute inset-0">
+              {clipped.map(({ bar, visibleStart, visibleEnd }, i) => {
+                const lane = lanes[i] ?? 0;
+                const topPx = ROW_PADDING + lane * (laneHeight + LANE_GAP_PX);
+                return (
+                  <div
+                    key={`bar-${i}`}
+                    className="absolute rounded-sm flex items-center px-1 opacity-[0.82] overflow-hidden min-w-0"
+                    style={{
+                      left: `${positionPercent(visibleStart)}%`,
+                      width: `${widthPercent(visibleStart, visibleEnd)}%`,
+                      backgroundColor: TIMELINE_BAR_BG,
+                      top: `${topPx}px`,
+                      height: `${Math.max(4, laneHeight)}px`,
+                    }}
+                  >
+                    <span className="text-[5px] text-white font-semibold truncate block min-w-0">{bar.label}</span>
+                  </div>
+                );
+              })}
+            </div>
             {timeline.markers
               .filter((m) => (m.rowIndex ?? 1) === rowIdx + 1)
               .map((m, i) => (
@@ -291,7 +329,8 @@ function TimelineBlock({
                 </div>
               ))}
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

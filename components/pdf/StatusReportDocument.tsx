@@ -14,6 +14,7 @@ import {
 } from "@react-pdf/renderer";
 import { BRAND_COLORS } from "@/lib/brandColors";
 import { parseLinkSegments } from "@/lib/statusReportLinks";
+import { assignLanes } from "@/lib/timelineLanes";
 
 /**
  * Call registerStatusReportFonts(baseUrl) before rendering this document.
@@ -921,6 +922,27 @@ function TimelineBlock({
     ? Array.from({ length: months.length - 1 }, (_, i) => ((i + 1) / months.length) * 100)
     : [];
 
+  type TimelineBar = (typeof timeline.bars)[number];
+  /** Clip each bar to the visible range so position/width match the axis; assign lanes from visible segments only. */
+  function getVisibleBarSegments(rowBars: TimelineBar[]) {
+    const clipped: { bar: TimelineBar; visibleStart: string; visibleEnd: string }[] = [];
+    for (const bar of rowBars) {
+      const visibleStart = bar.startDate > startYmd ? bar.startDate : startYmd;
+      const visibleEnd = bar.endDate < endYmd ? bar.endDate : endYmd;
+      if (visibleStart < visibleEnd) {
+        clipped.push({ bar, visibleStart, visibleEnd });
+      }
+    }
+    const segments = clipped.map((c) => ({ startDate: c.visibleStart, endDate: c.visibleEnd }));
+    const lanes = assignLanes(segments);
+    return { clipped, lanes };
+  }
+
+  const ROW_HEIGHT = 20;
+  const ROW_PADDING_V = 2;
+  const LANE_GAP = 1;
+  const rowInnerHeight = ROW_HEIGHT - ROW_PADDING_V * 2;
+
   return (
     <View style={styles.timelineWrap}>
       {/* Report date label above the header row, aligned to the red line position */}
@@ -962,9 +984,20 @@ function TimelineBlock({
         )}
         <View style={styles.timelineBarRowsContent}>
         {[0, 1, 2, 3].map((rowIdx) => {
+        const rowBars = barsByRow[rowIdx] ?? [];
+        const { clipped, lanes } = getVisibleBarSegments(rowBars);
+        const numLanes = lanes.length ? Math.max(...lanes) + 1 : 1;
+        const laneHeight =
+          numLanes > 0
+            ? (rowInnerHeight - (numLanes - 1) * LANE_GAP) / numLanes
+            : rowInnerHeight;
+        const rowMinHeight = ROW_HEIGHT;
         const markersInRow = timeline.markers.filter((m) => (m.rowIndex ?? 1) === rowIdx + 1);
         return (
-          <View key={rowIdx} style={styles.timelineBarRow}>
+          <View
+            key={rowIdx}
+            style={[styles.timelineBarRow, { minHeight: rowMinHeight }]}
+          >
             {/* Vertical month lines as first child so they paint behind bars and markers */}
             <View style={styles.timelineRowMonthLinesLayer}>
               {monthBoundaryPositions.map((leftPct, i) => (
@@ -974,22 +1007,28 @@ function TimelineBlock({
                 />
               ))}
             </View>
-            {barsByRow[rowIdx].map((bar, i) => (
-              <View
-                key={`bar-${i}`}
-                style={[
-                  styles.timelineBar,
-                  {
-                    left: `${positionPercent(bar.startDate)}%`,
-                    width: `${widthPercent(bar.startDate, bar.endDate)}%`,
-                  },
-                ]}
-              >
-                <Text style={styles.timelineBarText}>
-                  {bar.label}
-                </Text>
-              </View>
-            ))}
+            {clipped.map(({ bar, visibleStart, visibleEnd }, i) => {
+              const lane = lanes[i] ?? 0;
+              const top = ROW_PADDING_V + lane * (laneHeight + LANE_GAP);
+              return (
+                <View
+                  key={`bar-${i}`}
+                  style={[
+                    styles.timelineBar,
+                    {
+                      left: `${positionPercent(visibleStart)}%`,
+                      width: `${widthPercent(visibleStart, visibleEnd)}%`,
+                      top,
+                      height: Math.max(4, laneHeight),
+                    },
+                  ]}
+                >
+                  <Text style={styles.timelineBarText}>
+                    {bar.label}
+                  </Text>
+                </View>
+              );
+            })}
             {markersInRow.map((m, i) => (
               <View
                 key={`m-${i}`}

@@ -110,6 +110,28 @@ export async function buildStatusReportPdfData(
   }
   if (snapshot?.timeline !== undefined) {
     timeline = snapshot.timeline;
+    // Always apply "months before" from snapshot so the displayed range is correct
+    const prevMonths =
+      typeof snapshot.timelinePreviousMonths === "number" &&
+      snapshot.timelinePreviousMonths >= 1 &&
+      snapshot.timelinePreviousMonths <= 4
+        ? snapshot.timelinePreviousMonths
+        : null;
+    if (prevMonths != null) {
+      const reportDate = new Date(report.reportDate);
+      const minStartDate = new Date(
+        Date.UTC(
+          reportDate.getUTCFullYear(),
+          reportDate.getUTCMonth() - prevMonths,
+          1
+        )
+      );
+      const minStartStr = minStartDate.toISOString().slice(0, 10);
+      const projectStartStr = project.startDate.toISOString().slice(0, 10);
+      const effectiveStartStr =
+        projectStartStr < minStartStr ? minStartStr : projectStartStr;
+      timeline = { ...timeline, startDate: effectiveStartStr };
+    }
   }
 
   if (budget === undefined || (report.variation === "CDA" && cda === undefined)) {
@@ -265,7 +287,10 @@ export async function buildStatusReportPdfData(
     const startStr = project.startDate.toISOString().slice(0, 10);
     const endStr = project.endDate.toISOString().slice(0, 10);
     // On status report, limit how many months before the report date are shown (1–4)
-    const previousMonths = Math.min(4, Math.max(1, options?.timelinePreviousMonths ?? 1));
+    const previousMonths = Math.min(
+      4,
+      Math.max(1, options?.timelinePreviousMonths ?? snapshot?.timelinePreviousMonths ?? 1)
+    );
     const reportDate = new Date(report.reportDate);
     const minStartDate = new Date(Date.UTC(reportDate.getUTCFullYear(), reportDate.getUTCMonth() - previousMonths, 1));
     const minStartStr = minStartDate.toISOString().slice(0, 10);

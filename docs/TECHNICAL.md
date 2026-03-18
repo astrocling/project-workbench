@@ -179,6 +179,7 @@ The status report preview and exported PDF are generated from the same component
 
 - **Preview scale**: The in-app preview uses a responsive visual scale (CSS transform) to render the 16:9 slide larger for readability/presenting, while still fitting common viewport widths. This is *visual-only* and does not change the underlying layout dimensions of the slide.
 - **PDF export scale**: Client-side export (`lib/statusReportPdfCapture.ts`) captures the DOM at its native layout size for pixel-perfect fidelity, then applies `exportScale` by generating a larger PDF page and placing the captured image at that larger size. This keeps the exported PDF matching the on-screen content while making the PDF easier to present at 100% zoom.
+- **Timeline bars (status report)**: The status report timeline shows only the “previous months” range (e.g. 1–4 months before the report date). Bars are **clipped** to that visible range: only the segment within `[timeline.startDate, timeline.endDate]` is drawn, and position/width are computed from that segment so the layout matches the shortened axis. Lane assignment uses these visible segments (via `assignLanes()` in `lib/timelineLanes.ts`) so bars that overlap in the visible window are stacked in separate lanes and do not overlap—matching the behavior of the main Timeline tab.
 
 ---
 

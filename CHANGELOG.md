@@ -13,7 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sync actuals from Float (past weeks)**: New action to copy Float scheduled hours into Weekly Actuals for completed weeks only, so revenue recovery (plan vs actual) is correct when past weeks had Float data but no manual actuals. Available on the project Edit page via “Sync actuals from Float (past weeks)” with confirmation. By default existing actuals are not overwritten; use `POST /api/projects/[id]/sync-actuals-from-float?overwrite=true` to replace them with Float values.
 - **Sync plan from Float (past weeks)**: New action to copy Float scheduled hours into the Project Plan (PlannedHours) for completed weeks only, so the plan grid and revenue recovery forecast show the same values as the Float Actuals table for past weeks. Available on the project Edit page via “Sync plan from Float (past weeks)” with confirmation.
 
-### Changed
+### Fixed
+
+- **Status report timeline — bar clipping and lanes**: The status report timeline (preview and PDF) now matches the main Timeline tab: bars are clipped to the visible “previous months” range so they do not overlap. Position and width use only the visible segment of each bar, and lanes are assigned from those visible segments so overlapping bars in the visible window are stacked in separate lanes. Implemented in `StatusReportView.tsx` and `StatusReportDocument.tsx` via `getVisibleBarSegments()` and the shared `assignLanes()` from `lib/timelineLanes.ts`.
 
 ## [0.2.4] - 2026-03-18
 
