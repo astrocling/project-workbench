@@ -40,6 +40,10 @@ export default function EditProjectPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [backfillingFloat, setBackfillingFloat] = useState(false);
+  const [syncingActualsFromFloat, setSyncingActualsFromFloat] = useState(false);
+  const [showSyncActualsConfirm, setShowSyncActualsConfirm] = useState(false);
+  const [syncingPlanFromFloat, setSyncingPlanFromFloat] = useState(false);
+  const [showSyncPlanConfirm, setShowSyncPlanConfirm] = useState(false);
   const [projectId, setProjectId] = useState("");
   const [settingsTab, setSettingsTab] = useState<"details" | "links" | "key-roles" | "resourcing" | "rates" | "assignments">("details");
   const [saving, setSaving] = useState(false);
@@ -246,6 +250,44 @@ export default function EditProjectPage() {
       router.refresh();
     } finally {
       setBackfillingFloat(false);
+    }
+  }
+
+  async function syncActualsFromFloat() {
+    if (!canEdit || syncingActualsFromFloat) return;
+    setShowSyncActualsConfirm(false);
+    setSyncingActualsFromFloat(true);
+    try {
+      const res = await fetch(`/api/projects/${slug}/sync-actuals-from-float`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error ?? data.message ?? "Sync failed");
+        return;
+      }
+      const msg = data.message ?? `Synced ${data.updated ?? 0} actual hour entries from Float for past weeks.`;
+      alert(msg);
+      router.refresh();
+    } finally {
+      setSyncingActualsFromFloat(false);
+    }
+  }
+
+  async function syncPlanFromFloat() {
+    if (!canEdit || syncingPlanFromFloat) return;
+    setShowSyncPlanConfirm(false);
+    setSyncingPlanFromFloat(true);
+    try {
+      const res = await fetch(`/api/projects/${slug}/sync-plan-from-float`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error ?? data.message ?? "Sync failed");
+        return;
+      }
+      const msg = data.message ?? `Synced ${data.updated ?? 0} project plan entries from Float for past weeks.`;
+      alert(msg);
+      router.refresh();
+    } finally {
+      setSyncingPlanFromFloat(false);
     }
   }
 
@@ -563,44 +605,130 @@ export default function EditProjectPage() {
                   Back to project
                 </Link>
                 {canEdit && (
-                  <button
-                    type="button"
-                    onClick={backfillFloat}
-                    disabled={backfillingFloat}
-                    title="Import float hour data from the last CSV upload for this project"
-                    className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-transparent hover:bg-surface-100 dark:hover:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
-                  >
-                    {backfillingFloat ? "Backfilling…" : "Backfill float data"}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowSyncActualsConfirm(true)}
+                      disabled={syncingActualsFromFloat}
+                      title="Copy Float scheduled hours into Weekly Actuals for past weeks so revenue recovery is correct"
+                      className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-transparent hover:bg-surface-100 dark:hover:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
+                    >
+                      {syncingActualsFromFloat ? "Syncing…" : "Sync actuals from Float (past weeks)"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowSyncPlanConfirm(true)}
+                      disabled={syncingPlanFromFloat}
+                      title="Copy Float scheduled hours into Project Plan for past weeks so the plan grid and revenue recovery forecast are populated"
+                      className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-transparent hover:bg-surface-100 dark:hover:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
+                    >
+                      {syncingPlanFromFloat ? "Syncing…" : "Sync plan from Float (past weeks)"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={backfillFloat}
+                      disabled={backfillingFloat}
+                      title="Import float hour data from the last CSV upload for this project"
+                      className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-transparent hover:bg-surface-100 dark:hover:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
+                    >
+                      {backfillingFloat ? "Backfilling…" : "Backfill float data"}
+                    </button>
+                  </>
                 )}
               </div>
             </section>
           </div>
         </form>
-        <div className="sticky bottom-0 left-0 right-0 z-20 flex justify-center gap-4 items-center py-3 px-4 bg-white/90 dark:bg-dark-bg/90 backdrop-blur-md border-t border-surface-200 dark:border-dark-border">
-          {saving ? (
-            <span className="text-body-sm text-surface-500 dark:text-surface-400">Saving…</span>
-          ) : saveStatus === "saved" ? (
-            <span className="text-body-sm text-green-600 dark:text-green-400 font-medium">Saved</span>
-          ) : null}
-          <Link
-            href={`/projects/${slug}`}
-            className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-transparent hover:bg-surface-100 dark:hover:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm"
+        {showSyncActualsConfirm && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sync-actuals-dialog-title"
+            aria-describedby="sync-actuals-dialog-desc"
           >
-            Back to project
-          </Link>
-          {canEdit && (
-            <button
-              type="button"
-              onClick={backfillFloat}
-              disabled={backfillingFloat}
-              title="Import float hour data from the last CSV upload for this project"
-              className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-transparent hover:bg-surface-100 dark:hover:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
-            >
-              {backfillingFloat ? "Backfilling…" : "Backfill float data"}
-            </button>
-          )}
-        </div>
+            <div
+              className="absolute inset-0 bg-black/50"
+              aria-hidden
+              onClick={() => setShowSyncActualsConfirm(false)}
+            />
+            <div className="relative w-full max-w-md rounded-lg border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface shadow-xl p-5">
+              <h3 id="sync-actuals-dialog-title" className="text-title-md font-semibold text-surface-900 dark:text-white">
+                Sync actuals from Float (past weeks)
+              </h3>
+              <p id="sync-actuals-dialog-desc" className="mt-2 text-body-sm text-surface-600 dark:text-surface-300">
+                This will copy Float scheduled hours into <strong className="text-surface-900 dark:text-white">Weekly Actuals</strong> for
+                completed weeks only. Revenue recovery (plan vs actual) will then use these values. Existing actuals are not overwritten.
+              </p>
+              <p className="mt-3 text-body-sm text-surface-500 dark:text-surface-400 italic">
+                Use this when past weeks have Float data but no manual actuals, so revenue recovery is no longer stuck at 0.
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSyncActualsConfirm(false)}
+                  disabled={syncingActualsFromFloat}
+                  className="px-3 py-1.5 rounded-md text-body-sm font-medium text-surface-700 dark:text-surface-200 bg-surface-100 dark:bg-dark-raised hover:bg-surface-200 dark:hover:bg-dark-border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={syncActualsFromFloat}
+                  disabled={syncingActualsFromFloat}
+                  className="px-3 py-1.5 rounded-md text-body-sm font-medium text-white bg-jblue-600 hover:bg-jblue-700 disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
+                >
+                  {syncingActualsFromFloat ? "Syncing…" : "Sync actuals"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {showSyncPlanConfirm && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sync-plan-dialog-title"
+            aria-describedby="sync-plan-dialog-desc"
+          >
+            <div
+              className="absolute inset-0 bg-black/50"
+              aria-hidden
+              onClick={() => setShowSyncPlanConfirm(false)}
+            />
+            <div className="relative w-full max-w-md rounded-lg border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface shadow-xl p-5">
+              <h3 id="sync-plan-dialog-title" className="text-title-md font-semibold text-surface-900 dark:text-white">
+                Sync plan from Float (past weeks)
+              </h3>
+              <p id="sync-plan-dialog-desc" className="mt-2 text-body-sm text-surface-600 dark:text-surface-300">
+                This will copy Float scheduled hours into the <strong className="text-surface-900 dark:text-white">Project Plan</strong> grid
+                for completed weeks only. The plan (forecast) for past weeks will match what’s in the Float Actuals table.
+              </p>
+              <p className="mt-3 text-body-sm text-surface-500 dark:text-surface-400 italic">
+                Use this when past weeks show hours in Float Actuals but the Project Plan is 0.
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSyncPlanConfirm(false)}
+                  disabled={syncingPlanFromFloat}
+                  className="px-3 py-1.5 rounded-md text-body-sm font-medium text-surface-700 dark:text-surface-200 bg-surface-100 dark:bg-dark-raised hover:bg-surface-200 dark:hover:bg-dark-border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={syncPlanFromFloat}
+                  disabled={syncingPlanFromFloat}
+                  className="px-3 py-1.5 rounded-md text-body-sm font-medium text-white bg-jblue-600 hover:bg-jblue-700 disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
+                >
+                  {syncingPlanFromFloat ? "Syncing…" : "Sync plan"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   );
 }
