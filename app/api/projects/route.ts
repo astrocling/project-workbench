@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_cache, revalidateTag } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
@@ -27,14 +28,29 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const projects = await prisma.project.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      projectKeyRoles: {
-        include: { person: true },
-      },
+  const getCachedProjectsList = unstable_cache(
+    async () => {
+      return prisma.project.findMany({
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          clientName: true,
+          status: true,
+          startDate: true,
+          endDate: true,
+          cdaEnabled: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
     },
-  });
+    ["projects-list"],
+    { revalidate: 60, tags: ["projects-list"] }
+  );
+
+  const projects = await getCachedProjectsList();
 
   const lastImport = await prisma.floatImportRun.findFirst({
     orderBy: { completedAt: "desc" },
@@ -99,6 +115,7 @@ export async function POST(req: NextRequest) {
       metricLink: norm(metricLink),
     },
   });
+  revalidateTag("projects-list", "max");
 
   // Backfill assignments and float hours from all Float import runs when the new
   // project name matches a project in any import (so resourcing data is available immediately).
@@ -216,5 +233,6 @@ export async function POST(req: NextRequest) {
 
   const data = created ?? project;
   const response = Object.assign({}, data, { backfillFromImport: backfillStats });
+  revalidateTag("projects-list", "max");
   return NextResponse.json(response);
 }

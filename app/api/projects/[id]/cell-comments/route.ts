@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
@@ -72,6 +73,7 @@ export async function PATCH(
         gridType,
       },
     });
+    revalidateTag(`project-resourcing:${id}`, "max");
     return NextResponse.json({ projectId: id, personId, weekStartDate: weekStart, gridType, comment: "" });
   }
 
@@ -94,6 +96,7 @@ export async function PATCH(
     update: { comment: commentTrimmed },
   });
 
+  revalidateTag(`project-resourcing:${id}`, "max");
   return NextResponse.json({
     projectId: row.projectId,
     personId: row.personId,

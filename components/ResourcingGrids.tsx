@@ -57,6 +57,7 @@ export function ResourcingGrids({
   const [loading, setLoading] = useState(true);
   const [syncingPlan, setSyncingPlan] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [weekRange, setWeekRange] = useState<{ fromWeek: string; toWeek: string } | null>(null);
   const [editingPlanned, setEditingPlanned] = useState<{ personId: string; weekKey: string; str: string } | null>(null);
   const [editingActual, setEditingActual] = useState<{ personId: string; weekKey: string; str: string } | null>(null);
   const [comments, setComments] = useState<Map<string, string>>(new Map());
@@ -77,9 +78,14 @@ export function ResourcingGrids({
   });
 
   useEffect(() => {
-    fetch(`/api/projects/${projectId}/resourcing`)
+    const qs =
+      weekRange != null
+        ? `?fromWeek=${encodeURIComponent(weekRange.fromWeek)}&toWeek=${encodeURIComponent(weekRange.toWeek)}`
+        : "";
+    fetch(`/api/projects/${projectId}/resourcing${qs}`)
       .then((r) => r.json())
       .then((data: {
+        range?: { fromWeek: string; toWeek: string };
         project?: { startDate: string; endDate: string | null; actualsLowThresholdPercent: number | null; actualsHighThresholdPercent: number | null };
         assignments?: Assignment[];
         plannedHours?: PlannedRow[];
@@ -88,6 +94,13 @@ export function ResourcingGrids({
         readyForFloat?: ReadyRow[];
         cellComments?: Array<{ personId: string; weekStartDate: string; gridType: GridCommentType; comment: string }>;
       }) => {
+        if (data.range?.fromWeek && data.range?.toWeek) {
+          setWeekRange((prev) =>
+            prev?.fromWeek === data.range!.fromWeek && prev?.toWeek === data.range!.toWeek
+              ? prev
+              : { fromWeek: data.range!.fromWeek, toWeek: data.range!.toWeek }
+          );
+        }
         if (data.project) {
           setProject({
             startDate: data.project.startDate,
@@ -109,12 +122,18 @@ export function ResourcingGrids({
         setComments(commentMap);
       })
       .finally(() => setLoading(false));
-  }, [projectId, refreshTrigger]);
+  }, [projectId, refreshTrigger, weekRange?.fromWeek, weekRange?.toWeek]);
 
   useEffect(() => {
     if (loading || !project) return;
-    const start = new Date(project.startDate);
-    const end = project.endDate ? new Date(project.endDate) : new Date();
+    const start = weekRange?.fromWeek
+      ? new Date(weekRange.fromWeek + "T00:00:00.000Z")
+      : new Date(project.startDate);
+    const end = weekRange?.toWeek
+      ? new Date(weekRange.toWeek + "T00:00:00.000Z")
+      : project.endDate
+        ? new Date(project.endDate)
+        : new Date();
     const weeksList = getAllWeeks(start, end);
     if (weeksList.length === 0) return;
     const currentWeekStart = getWeekStartDate(new Date());
@@ -128,7 +147,7 @@ export function ResourcingGrids({
     if (el && col) {
       el.scrollLeft = index * col.offsetWidth;
     }
-  }, [loading, project?.startDate, project?.endDate]);
+  }, [loading, project?.startDate, project?.endDate, weekRange?.fromWeek, weekRange?.toWeek]);
 
   useEffect(() => {
     const el = scrollContainerRef.current;
@@ -231,8 +250,14 @@ export function ResourcingGrids({
 
   if (loading || !project) return <p className="text-body-sm text-surface-700 dark:text-surface-200">Loading grids...</p>;
 
-  const start = new Date(project.startDate);
-  const end = project.endDate ? new Date(project.endDate) : new Date();
+  const start = weekRange?.fromWeek
+    ? new Date(weekRange.fromWeek + "T00:00:00.000Z")
+    : new Date(project.startDate);
+  const end = weekRange?.toWeek
+    ? new Date(weekRange.toWeek + "T00:00:00.000Z")
+    : project.endDate
+      ? new Date(project.endDate)
+      : new Date();
   const weeks = getAllWeeks(start, end);
   const asOf = getAsOfDate();
 
@@ -358,6 +383,38 @@ export function ResourcingGrids({
   const stickyOpaqueEven = "resourcing-sticky-even";
   const stickyOpaqueOdd = "resourcing-sticky-odd";
   const stickyEdge = "shadow-[2px_0_4px_-1px_rgba(0,0,0,0.08)] dark:shadow-[2px_0_4px_-1px_rgba(0,0,0,0.3)]";
+
+  const canLoadEarlier =
+    weekRange?.fromWeek != null
+      ? new Date(weekRange.fromWeek + "T00:00:00.000Z") >
+        getWeekStartDate(new Date(project.startDate))
+      : false;
+  const canLoadLater =
+    weekRange?.toWeek != null && project.endDate != null
+      ? new Date(weekRange.toWeek + "T00:00:00.000Z") <
+        getWeekStartDate(new Date(project.endDate))
+      : false;
+  const showRangeControls = weekRange != null && (canLoadEarlier || canLoadLater);
+
+  const shiftRange = (dir: "earlier" | "later") => {
+    if (!weekRange) return;
+    const from = getWeekStartDate(new Date(weekRange.fromWeek + "T00:00:00.000Z"));
+    const to = getWeekStartDate(new Date(weekRange.toWeek + "T00:00:00.000Z"));
+    const stepWeeks = 12;
+    const addWeeks = (d: Date, n: number) => {
+      const x = new Date(d);
+      x.setUTCDate(x.getUTCDate() + n * 7);
+      return x;
+    };
+    const projectStart = getWeekStartDate(new Date(project.startDate));
+    const projectEnd = project.endDate ? getWeekStartDate(new Date(project.endDate)) : to;
+    const nextFrom = dir === "earlier" ? addWeeks(from, -stepWeeks) : from;
+    const nextTo = dir === "later" ? addWeeks(to, stepWeeks) : to;
+    const clampedFrom = nextFrom < projectStart ? projectStart : nextFrom;
+    const clampedTo = nextTo > projectEnd ? projectEnd : nextTo;
+    setWeekRange({ fromWeek: formatWeekKey(clampedFrom), toWeek: formatWeekKey(clampedTo) });
+    setLoading(true);
+  };
 
   async function updatePlanned(personId: string, weekKey: string, hours: number) {
     if (!canEdit) return;
@@ -669,6 +726,32 @@ export function ResourcingGrids({
 
   return (
     <div className="space-y-6">
+      {showRangeControls && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-body-sm text-surface-600 dark:text-surface-300">
+            Showing weeks <span className="font-medium tabular-nums">{weekRange.fromWeek}</span> →{" "}
+            <span className="font-medium tabular-nums">{weekRange.toWeek}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => shiftRange("earlier")}
+              disabled={!canLoadEarlier}
+              className="inline-flex h-9 items-center justify-center rounded border border-surface-200 bg-white px-3 text-surface-700 shadow-sm transition hover:bg-surface-50 hover:text-surface-900 disabled:pointer-events-none disabled:opacity-50 dark:border-dark-border dark:bg-dark-surface dark:text-surface-200 dark:hover:bg-dark-raised dark:hover:text-white"
+            >
+              Load earlier weeks
+            </button>
+            <button
+              type="button"
+              onClick={() => shiftRange("later")}
+              disabled={!canLoadLater}
+              className="inline-flex h-9 items-center justify-center rounded border border-surface-200 bg-white px-3 text-surface-700 shadow-sm transition hover:bg-surface-50 hover:text-surface-900 disabled:pointer-events-none disabled:opacity-50 dark:border-dark-border dark:bg-dark-surface dark:text-surface-200 dark:hover:bg-dark-raised dark:hover:text-white"
+            >
+              Load later weeks
+            </button>
+          </div>
+        </div>
+      )}
       {scrollState.scrollable && (
         <div className="flex items-center gap-2" role="group" aria-label="Scroll weeks">
           <button

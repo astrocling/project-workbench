@@ -11,7 +11,7 @@ import { formatWeekKey } from "@/lib/weekUtils";
  * the grid week key; return it as YYYY-MM-DD.
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
@@ -20,8 +20,21 @@ export async function GET(
   const { id: idOrSlug } = await params;
   const id = await getProjectId(idOrSlug);
   if (!id) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const fromWeek = req.nextUrl.searchParams.get("fromWeek");
+  const toWeek = req.nextUrl.searchParams.get("toWeek");
+  const where =
+    fromWeek && toWeek
+      ? {
+          projectId: id,
+          weekStartDate: {
+            gte: new Date(fromWeek + "T00:00:00.000Z"),
+            lte: new Date(toWeek + "T00:00:00.000Z"),
+          },
+        }
+      : { projectId: id };
   const rows = await prisma.floatScheduledHours.findMany({
-    where: { projectId: id },
+    where,
+    select: { projectId: true, personId: true, weekStartDate: true, hours: true },
   });
   return NextResponse.json(
     rows.map((r) => ({

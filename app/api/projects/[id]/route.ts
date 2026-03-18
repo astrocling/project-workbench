@@ -155,6 +155,7 @@ export async function PATCH(
     },
   });
   revalidateTag("portfolio-metrics", "max");
+  revalidateTag("projects-list", "max");
   return NextResponse.json(project);
 }
 
@@ -174,5 +175,6 @@ export async function DELETE(
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
   await prisma.project.delete({ where: { id: project.id } });
   revalidateTag("portfolio-metrics", "max");
+  revalidateTag("projects-list", "max");
   return NextResponse.json({ ok: true });
 }

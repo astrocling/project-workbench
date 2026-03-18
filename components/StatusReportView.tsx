@@ -328,7 +328,7 @@ export function StatusReportView({
   return (
     <div
       className="status-report-view bg-white text-black font-sans overflow-visible"
-      style={{ fontFamily: "Raleway, sans-serif" }}
+      style={{ fontFamily: "var(--font-raleway), sans-serif" }}
     >
       {/* Main slide — 16:9 aspect; scaled up for readability, spacing unchanged */}
       <div className="flex justify-center" style={{ width: "100%" }}>

@@ -143,6 +143,7 @@ export async function POST(
     include: { person: true, role: true },
   });
   revalidateTag("portfolio-metrics", "max");
+  revalidateTag(`project-resourcing:${id}`, "max");
   return NextResponse.json(assignment);
 }
 
@@ -182,6 +183,7 @@ export async function PATCH(
     include: { person: true, role: true },
   });
   revalidateTag("portfolio-metrics", "max");
+  revalidateTag(`project-resourcing:${id}`, "max");
   return NextResponse.json(assignment);
 }
 
@@ -211,5 +213,6 @@ export async function DELETE(
     },
   });
   revalidateTag("portfolio-metrics", "max");
+  revalidateTag(`project-resourcing:${id}`, "max");
   return NextResponse.json({ ok: true });
 }

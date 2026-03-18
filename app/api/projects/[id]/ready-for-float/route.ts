@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
@@ -60,5 +61,6 @@ export async function PATCH(
     },
     update: { ready: parsed.data.ready },
   });
+  revalidateTag(`project-resourcing:${id}`, "max");
   return NextResponse.json(row);
 }

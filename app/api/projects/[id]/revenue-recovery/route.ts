@@ -34,11 +34,21 @@ const getCachedRevenueRecovery = unstable_cache(
   async (id: string): Promise<RevenueRecoveryResponse | null> => {
     const project = await prisma.project.findUnique({
       where: { id },
-      include: {
-        assignments: { include: { role: true } },
-        plannedHours: true,
-        actualHours: true,
-        projectRoleRates: true,
+      select: {
+        startDate: true,
+        endDate: true,
+        useSingleRate: true,
+        singleBillRate: true,
+        assignments: {
+          select: {
+            personId: true,
+            roleId: true,
+            billRateOverride: true,
+          },
+        },
+        plannedHours: { select: { personId: true, weekStartDate: true, hours: true } },
+        actualHours: { select: { personId: true, weekStartDate: true, hours: true } },
+        projectRoleRates: { select: { roleId: true, billRate: true } },
       },
     });
     if (!project) return null;

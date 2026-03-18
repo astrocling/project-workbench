@@ -38,12 +38,34 @@ const getCachedBudget = unstable_cache(
   async (id: string): Promise<BudgetResponse | null> => {
     const project = await prisma.project.findUnique({
       where: { id },
-      include: {
-        budgetLines: true,
-        assignments: { include: { role: true, person: true } },
-        projectRoleRates: true,
-        plannedHours: true,
-        actualHours: true,
+      select: {
+        startDate: true,
+        endDate: true,
+        useSingleRate: true,
+        singleBillRate: true,
+        budgetLines: {
+          select: {
+            id: true,
+            type: true,
+            label: true,
+            lowHours: true,
+            highHours: true,
+            lowDollars: true,
+            highDollars: true,
+          },
+        },
+        assignments: {
+          select: {
+            personId: true,
+            roleId: true,
+            billRateOverride: true,
+            role: { select: { name: true } },
+            person: { select: { name: true } },
+          },
+        },
+        projectRoleRates: { select: { roleId: true, billRate: true } },
+        plannedHours: { select: { personId: true, weekStartDate: true, hours: true } },
+        actualHours: { select: { personId: true, weekStartDate: true, hours: true } },
       },
     });
     if (!project) return null;
