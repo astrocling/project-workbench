@@ -10,8 +10,7 @@ import {
   Pin,
   type LucideIcon,
 } from "lucide-react";
-import { getMonthsInRange } from "@/lib/monthUtils";
-import { assignLanes } from "@/lib/timelineLanes";
+import { getMonthsInRange, getWeeksInMonthsForRange } from "@/lib/monthUtils";
 
 type TimelineBar = {
   id: string;
@@ -320,40 +319,12 @@ export function TimelineTab({
   }
 
   // Weeks in each month (within project range); use for column proportions and boundary positions
-  const { weeksInMonths, monthWidthsPct, monthBoundaryPositions } = (() => {
-    if (totalWeeks <= 0) {
-      const eq = 100 / months.length;
-      return {
-        weeksInMonths: months.map(() => 1),
-        monthWidthsPct: months.map(() => eq),
-        monthBoundaryPositions: months.slice(0, -1).map((_, i) => ((i + 1) * eq)),
-      };
-    }
-    const weeksInMonths = months.map(({ monthKey }) => {
-      const [y, m] = monthKey.split("-").map(Number);
-      const monthStart = new Date(Date.UTC(y, m - 1, 1)).getTime();
-      const monthEnd = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999)).getTime();
-      const overlapStart = Math.max(projectStart, monthStart);
-      const overlapEnd = Math.min(projectEnd, monthEnd);
-      const daysOverlap = Math.max(0, (overlapEnd - overlapStart) / dayMs);
-      return daysOverlap / 7;
-    });
-    const sumWeeks = weeksInMonths.reduce((a, b) => a + b, 0);
-    if (sumWeeks <= 0) {
-      const eq = 100 / months.length;
-      return {
-        weeksInMonths: months.map(() => 1),
-        monthWidthsPct: months.map(() => eq),
-        monthBoundaryPositions: months.slice(0, -1).map((_, i) => ((i + 1) * eq)),
-      };
-    }
-    const monthWidthsPct = weeksInMonths.map((w) => (w / sumWeeks) * 100);
-    const monthBoundaryPositions = monthWidthsPct.slice(0, -1).reduce<number[]>((acc, w) => {
-      acc.push((acc.length ? acc[acc.length - 1]! : 0) + w);
-      return acc;
-    }, []);
-    return { weeksInMonths, monthWidthsPct, monthBoundaryPositions };
-  })();
+  const monthKeys = months.map((m) => m.monthKey);
+  const { weeksInMonths, monthBoundaryPositions } = getWeeksInMonthsForRange(
+    monthKeys,
+    projectStart,
+    projectEnd
+  );
 
   const todayOrReportDate = reportDate ?? new Date().toISOString().slice(0, 10);
   const startYmd = data.project.startDate.slice(0, 10);
@@ -426,33 +397,20 @@ export function TimelineTab({
                   style={{ zIndex: 1 }}
                 >
                   <div className="absolute inset-0">
-                    {(() => {
-                      const rowBars = barsByRow[rowNum - 1];
-                      const lanes = assignLanes(rowBars);
-                      const numLanes = lanes.length ? Math.max(...lanes) + 1 : 1;
-                      const laneGap = 2;
-                      const laneHeight = (52 - (numLanes - 1) * laneGap) / numLanes;
-                      return rowBars.map((bar, i) => {
-                        const lane = lanes[i] ?? 0;
-                        const top = 2 + lane * (laneHeight + laneGap);
-                        return (
-                          <div
-                            key={bar.id}
-                            className="absolute flex items-center rounded px-2 bg-jblue-500 dark:bg-jblue-600 text-white text-body-sm font-medium truncate"
-                            style={{
-                              left: `${positionPercent(bar.startDate)}%`,
-                              width: `${widthPercent(bar.startDate, bar.endDate)}%`,
-                              minWidth: "4px",
-                              top: `${top}px`,
-                              height: `${laneHeight}px`,
-                            }}
-                            title={`${bar.label} (${bar.startDate} – ${bar.endDate})`}
-                          >
-                            {bar.label}
-                          </div>
-                        );
-                      });
-                    })()}
+                    {barsByRow[rowNum - 1].map((bar) => (
+                      <div
+                        key={bar.id}
+                        className="absolute top-2 bottom-2 flex items-center rounded px-2 bg-jblue-500 dark:bg-jblue-600 text-white text-body-sm font-medium truncate"
+                        style={{
+                          left: `${positionPercent(bar.startDate)}%`,
+                          width: `${widthPercent(bar.startDate, bar.endDate)}%`,
+                          minWidth: "4px",
+                        }}
+                        title={`${bar.label} (${bar.startDate} – ${bar.endDate})`}
+                      >
+                        {bar.label}
+                      </div>
+                    ))}
                     {markersInRow.map((marker) => (
                       <div
                         key={marker.id}

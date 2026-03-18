@@ -8,7 +8,7 @@ import {
   sanitizeMeetingNotesHtml,
 } from "@/lib/meetingNotesHtml";
 import type { StatusReportPDFData, RagStatus } from "@/components/pdf/StatusReportDocument";
-import { assignLanes } from "@/lib/timelineLanes";
+import { getWeeksInMonthsForRange } from "@/lib/monthUtils";
 
 // Mirror PDF layout: 16:9 slide, same colors and structure
 const BIO_TITLE_COLOR = "#220088";
@@ -216,10 +216,14 @@ function TimelineBlock({
   const endYmd = timeline.endDate.slice(0, 10);
   const reportDateInRange = reportDate && reportDate >= startYmd && reportDate <= endYmd;
   const reportDatePercent = reportDateInRange ? positionPercent(reportDate) : null;
-  const monthBoundaryPositions =
-    months.length > 1 ? Array.from({ length: months.length - 1 }, (_, i) => ((i + 1) / months.length) * 100) : [];
 
-  /** Clip each bar to the visible range so position/width match the axis; assign lanes from visible segments only. */
+  const { weeksInMonths, monthBoundaryPositions } = getWeeksInMonthsForRange(
+    months,
+    startMs,
+    endMs
+  );
+
+  /** Clip each bar to the visible range so position/width match the axis. */
   function getVisibleBarSegments(rowBars: Bar[]) {
     const clipped: { bar: Bar; visibleStart: string; visibleEnd: string }[] = [];
     for (const bar of rowBars) {
@@ -229,15 +233,10 @@ function TimelineBlock({
         clipped.push({ bar, visibleStart, visibleEnd });
       }
     }
-    const segments = clipped.map((c) => ({ startDate: c.visibleStart, endDate: c.visibleEnd }));
-    const lanes = assignLanes(segments);
-    return { clipped, lanes };
+    return clipped;
   }
 
   const ROW_HEIGHT_PX = 20;
-  const ROW_PADDING = 2;
-  const LANE_GAP_PX = 1;
-  const rowInnerHeight = ROW_HEIGHT_PX - ROW_PADDING * 2;
 
   return (
     <div className="mt-1 w-full border border-[#d1d5db] relative">
@@ -251,9 +250,15 @@ function TimelineBlock({
           </span>
         </div>
       )}
-      <div className="flex flex-row" style={{ backgroundColor: TIMELINE_MONTH_BG }}>
+      <div
+        className="grid gap-0 w-full"
+        style={{
+          backgroundColor: TIMELINE_MONTH_BG,
+          gridTemplateColumns: weeksInMonths.map((w) => `${w}fr`).join(" "),
+        }}
+      >
         {months.map((monthKey) => (
-          <div key={monthKey} className="flex-1 py-0.5 px-0.5 text-center">
+          <div key={monthKey} className="py-0.5 px-0.5 text-center">
             <span className="text-[6px] font-bold text-white uppercase">
               {getMonthFullName(monthKey).toUpperCase()}
             </span>
@@ -269,66 +274,55 @@ function TimelineBlock({
         )}
         {[0, 1, 2, 3].map((rowIdx) => {
           const rowBars = barsByRow[rowIdx] ?? [];
-          const { clipped, lanes } = getVisibleBarSegments(rowBars);
-          const numLanes = lanes.length ? Math.max(...lanes) + 1 : 1;
-          const laneHeight =
-            numLanes > 0
-              ? (rowInnerHeight - (numLanes - 1) * LANE_GAP_PX) / numLanes
-              : rowInnerHeight;
+          const clipped = getVisibleBarSegments(rowBars);
           return (
-          <div
-            key={rowIdx}
-            className="border-b border-[#d1d5db] relative"
-            style={{ minHeight: ROW_HEIGHT_PX }}
-          >
-            <div className="absolute inset-0 pointer-events-none">
-              {monthBoundaryPositions.map((leftPct, i) => (
-                <div
-                  key={i}
-                  className="absolute top-0 bottom-0 w-px -ml-px"
-                  style={{ left: `${leftPct}%`, backgroundColor: TIMELINE_MONTH_DIVIDER }}
-                />
-              ))}
-            </div>
-            <div className="absolute inset-0">
-              {clipped.map(({ bar, visibleStart, visibleEnd }, i) => {
-                const lane = lanes[i] ?? 0;
-                const topPx = ROW_PADDING + lane * (laneHeight + LANE_GAP_PX);
-                return (
+            <div
+              key={rowIdx}
+              className="border-b border-[#d1d5db] relative"
+              style={{ minHeight: ROW_HEIGHT_PX }}
+            >
+              <div className="absolute inset-0 pointer-events-none">
+                {monthBoundaryPositions.map((leftPct, i) => (
+                  <div
+                    key={i}
+                    className="absolute top-0 bottom-0 w-px -ml-px"
+                    style={{ left: `${leftPct}%`, backgroundColor: TIMELINE_MONTH_DIVIDER }}
+                  />
+                ))}
+              </div>
+              <div className="absolute inset-0">
+                {clipped.map(({ bar, visibleStart, visibleEnd }, i) => (
                   <div
                     key={`bar-${i}`}
-                    className="absolute rounded-sm flex items-center px-1 opacity-[0.82] overflow-hidden min-w-0"
+                    className="absolute top-1 bottom-1 rounded-sm flex items-center px-1 opacity-[0.82] overflow-hidden min-w-0"
                     style={{
                       left: `${positionPercent(visibleStart)}%`,
                       width: `${widthPercent(visibleStart, visibleEnd)}%`,
                       backgroundColor: TIMELINE_BAR_BG,
-                      top: `${topPx}px`,
-                      height: `${Math.max(4, laneHeight)}px`,
                     }}
                   >
                     <span className="text-[5px] text-white font-semibold truncate block min-w-0">{bar.label}</span>
                   </div>
-                );
-              })}
-            </div>
-            {timeline.markers
-              .filter((m) => (m.rowIndex ?? 1) === rowIdx + 1)
-              .map((m, i) => (
-                <div
-                  key={`m-${i}`}
-                  className="absolute flex flex-col items-center min-w-[11px]"
-                  style={{ left: `calc(${positionPercent(m.date)}% - 5.5px)` }}
-                >
+                ))}
+              </div>
+              {timeline.markers
+                .filter((m) => (m.rowIndex ?? 1) === rowIdx + 1)
+                .map((m, i) => (
                   <div
-                    className="w-[11px] h-[11px] rounded-full border-2 border-[#FF2020] flex-shrink-0"
-                    style={{ borderColor: TIMELINE_REPORT_DATE }}
-                  />
-                  <span className="text-[5px] font-medium text-gray-600 bg-gray-100 px-0.5 rounded max-w-[52px] truncate">
-                    {m.label}
-                  </span>
-                </div>
-              ))}
-          </div>
+                    key={`m-${i}`}
+                    className="absolute flex flex-col items-center min-w-[11px]"
+                    style={{ left: `calc(${positionPercent(m.date)}% - 5.5px)` }}
+                  >
+                    <div
+                      className="w-[11px] h-[11px] rounded-full border-2 border-[#FF2020] flex-shrink-0"
+                      style={{ borderColor: TIMELINE_REPORT_DATE }}
+                    />
+                    <span className="text-[5px] font-medium text-gray-600 bg-gray-100 px-0.5 rounded max-w-[52px] truncate">
+                      {m.label}
+                    </span>
+                  </div>
+                ))}
+            </div>
           );
         })}
       </div>

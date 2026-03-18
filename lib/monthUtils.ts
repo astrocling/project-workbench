@@ -31,3 +31,45 @@ export function getMonthsInRange(
 
   return result;
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Returns weeks in each month (overlap with range) and cumulative boundary positions (0–100%).
+ * Used so timeline month columns and bar positions use the same week-proportional scale.
+ */
+export function getWeeksInMonthsForRange(
+  monthKeys: string[],
+  rangeStartMs: number,
+  rangeEndMs: number
+): { weeksInMonths: number[]; monthBoundaryPositions: number[] } {
+  if (monthKeys.length === 0) {
+    return { weeksInMonths: [], monthBoundaryPositions: [] };
+  }
+  const weeksInMonths = monthKeys.map((monthKey) => {
+    const [y, m] = monthKey.split("-").map(Number);
+    const monthStart = new Date(Date.UTC(y, m - 1, 1)).getTime();
+    const monthEnd = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999)).getTime();
+    const overlapStart = Math.max(rangeStartMs, monthStart);
+    const overlapEnd = Math.min(rangeEndMs, monthEnd);
+    const daysOverlap = Math.max(0, (overlapEnd - overlapStart) / DAY_MS);
+    return daysOverlap / 7;
+  });
+  const sumWeeks = weeksInMonths.reduce((a, b) => a + b, 0);
+  if (sumWeeks <= 0) {
+    const eq = 100 / monthKeys.length;
+    return {
+      weeksInMonths: monthKeys.map(() => 1),
+      monthBoundaryPositions: monthKeys.slice(0, -1).map((_, i) => (i + 1) * eq),
+    };
+  }
+  const monthWidthsPct = weeksInMonths.map((w) => (w / sumWeeks) * 100);
+  const monthBoundaryPositions = monthWidthsPct.slice(0, -1).reduce<number[]>(
+    (acc, w) => {
+      acc.push((acc.length ? acc[acc.length - 1]! : 0) + w);
+      return acc;
+    },
+    []
+  );
+  return { weeksInMonths, monthBoundaryPositions };
+}
