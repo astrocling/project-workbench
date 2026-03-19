@@ -371,6 +371,9 @@ export function ResourcingGrids({
   const leftTotal = "19rem";
   const stickyColsWidth = "23.5rem";
   const tableMinWidth = `calc(${stickyColsWidth} + ${weeks.length} * ${colWeek})`;
+  /** Extra space so the last week column and its right border are not clipped when scrolled to the end. */
+  const gridCardEndPadding = "4px";
+  const tableWrapperMinWidth = `calc(${tableMinWidth} + ${gridCardEndPadding})`;
   const sticky = "sticky z-10";
   const stickyBgHead = "bg-surface-50 dark:bg-dark-raised";
   const stickyBgBody = "bg-white dark:bg-dark-surface";
@@ -774,8 +777,9 @@ export function ResourcingGrids({
           </button>
         </div>
       )}
-      <div ref={scrollContainerRef} className="overflow-x-auto overscroll-x-contain space-y-6">
-        <div className="rounded-lg border border-surface-200 dark:border-dark-border overflow-clip shadow-card-light dark:shadow-card-dark bg-white dark:bg-dark-surface" style={{ minWidth: tableMinWidth }}>
+      <div ref={scrollContainerRef} className="overflow-x-auto overscroll-x-contain">
+        <div className="space-y-6 inline-block align-top" style={{ paddingRight: "2rem", minWidth: tableWrapperMinWidth }}>
+        <div className="rounded-lg border border-surface-200 dark:border-dark-border overflow-clip shadow-card-light dark:shadow-card-dark bg-white dark:bg-dark-surface" style={{ minWidth: tableWrapperMinWidth, paddingRight: gridCardEndPadding }}>
           <table className="border-separate border-spacing-0 text-sm w-full" style={{ tableLayout: "fixed", minWidth: tableMinWidth }}>
             <colgroup>
               <col style={{ width: colReady }} />
@@ -877,7 +881,7 @@ export function ResourcingGrids({
           </table>
         </div>
 
-        <div className="rounded-lg border border-surface-200 dark:border-dark-border overflow-clip shadow-card-light dark:shadow-card-dark bg-white dark:bg-dark-surface" style={{ minWidth: tableMinWidth }}>
+        <div className="rounded-lg border border-surface-200 dark:border-dark-border overflow-clip shadow-card-light dark:shadow-card-dark bg-white dark:bg-dark-surface" style={{ minWidth: tableWrapperMinWidth, paddingRight: gridCardEndPadding }}>
           <table className="border-separate border-spacing-0 text-sm w-full" style={{ tableLayout: "fixed", minWidth: tableMinWidth }}>
             <colgroup>
               <col style={{ width: colReady }} />
@@ -967,7 +971,7 @@ export function ResourcingGrids({
           </table>
         </div>
 
-        <div className="rounded-lg border border-surface-200 dark:border-dark-border overflow-clip shadow-card-light dark:shadow-card-dark bg-white dark:bg-dark-surface" style={{ minWidth: tableMinWidth }}>
+        <div className="rounded-lg border border-surface-200 dark:border-dark-border overflow-clip shadow-card-light dark:shadow-card-dark bg-white dark:bg-dark-surface" style={{ minWidth: tableWrapperMinWidth, paddingRight: gridCardEndPadding }}>
           <table className="border-separate border-spacing-0 text-sm w-full" style={{ tableLayout: "fixed", minWidth: tableMinWidth }}>
             <colgroup>
               <col style={{ width: colReady }} />
@@ -1067,6 +1071,7 @@ export function ResourcingGrids({
               </tr>
             </tfoot>
           </table>
+        </div>
         </div>
       </div>
 
