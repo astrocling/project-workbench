@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-03-18
+
 ### Added
 
 - **Timeline bars — multiple colors**: Each timeline bar can have a color (preset palette: Blue, Green, Amber, Teal, Slate, Violet). The Timeline tab Add/Edit bar forms include a Color dropdown and swatch buttons. Color is stored per bar and shown in the Timeline tab, status report preview, and PDF export. Bars without a color use the default blue.
