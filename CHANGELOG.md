@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 ## [Unreleased]
+### Fixed
+- **Resourcing grids**: The final (rightmost) week column is no longer clipped when the grid is scrolled fully to the right.
 
 ## [0.2.6] - 2026-03-18
 

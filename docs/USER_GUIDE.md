@@ -68,6 +68,7 @@ The Resourcing tab shows three grids (Planned, Actual, Float) by person and by w
 
 - **Weeks shown**: By default, the grid includes the **full project range** (project start → project end). You do not need to click “load more” controls to see additional weeks.
 - **Horizontal navigation**: When the week columns overflow, you can scroll horizontally (trackpad, scrollbar, or **Shift + mouse wheel**). The page also shows **Scroll left / Scroll right** buttons when horizontal overflow is detected.
+- **Last week visibility**: When you scroll all the way to the right, the final week column remains fully visible (including its right border).
 
 ---
 
