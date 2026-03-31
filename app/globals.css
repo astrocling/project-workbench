@@ -293,6 +293,16 @@ th.resourcing-total-header {
   box-shadow: 2px 0 4px -1px rgba(0, 0, 0, 0.3) !important;
 }
 
+/* Resourcing grids: subtle column tint for the week that contains today */
+th.resourcing-current-week,
+td.resourcing-current-week {
+  box-shadow: inset 0 0 0 9999px rgba(59, 130, 246, 0.06) !important;
+}
+.dark th.resourcing-current-week,
+.dark td.resourcing-current-week {
+  box-shadow: inset 0 0 0 9999px rgba(96, 165, 250, 0.08) !important;
+}
+
 /* Hide border on status report slide when capturing for PDF */
 .status-report-slide[data-capturing] {
   border: none !important;

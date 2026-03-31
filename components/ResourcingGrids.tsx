@@ -296,6 +296,8 @@ export function ResourcingGrids({
       : new Date();
   const weeks = getAllWeeks(start, end);
   const asOf = getAsOfDate();
+  /** Subtle column highlight for the calendar week containing today (see `.resourcing-current-week` in globals.css). */
+  const currentWeekColClass = (w: Date) => (isCurrentWeek(w) ? "resourcing-current-week" : "");
 
   const getPlanned = (personId: string, weekKey: string) => {
     const row = planned.find(
@@ -655,7 +657,7 @@ export function ResourcingGrids({
       return (
         <td
           key={weekKey}
-          className={`relative z-0 p-1 border overflow-hidden min-w-0 text-center border-surface-200 dark:border-dark-border ${mismatch ? "bg-jred-100 dark:bg-jred-900/20" : ""}`}
+          className={`relative z-0 p-1 border overflow-hidden min-w-0 text-center border-surface-200 dark:border-dark-border ${mismatch ? "bg-jred-100 dark:bg-jred-900/20" : ""} ${isCurrWeek ? "resourcing-current-week" : ""}`}
         >
           <div className="group relative min-h-[1.5rem]">
             {editable && canEdit ? (
@@ -743,7 +745,7 @@ export function ResourcingGrids({
       return (
         <td
           key={weekKey}
-          className={`relative z-0 p-1 border overflow-hidden min-w-0 text-center border-surface-200 dark:border-dark-border ${missing ? "bg-amber-100 dark:bg-amber-900/20" : ""} ${varianceClass}`}
+          className={`relative z-0 p-1 border overflow-hidden min-w-0 text-center border-surface-200 dark:border-dark-border ${missing ? "bg-amber-100 dark:bg-amber-900/20" : ""} ${varianceClass} ${isCurrWeek ? "resourcing-current-week" : ""}`}
         >
           <div className="group relative min-h-[1.5rem]">
             {editable && canEdit ? (
@@ -815,7 +817,7 @@ export function ResourcingGrids({
     return (
       <td
         key={weekKey}
-        className={`relative z-0 p-1 border text-center border-surface-200 dark:border-dark-border ${mismatch ? "bg-jred-100 dark:bg-jred-900/20" : ""}`}
+        className={`relative z-0 p-1 border text-center border-surface-200 dark:border-dark-border ${mismatch ? "bg-jred-100 dark:bg-jred-900/20" : ""} ${isCurrWeek ? "resourcing-current-week" : ""}`}
         title={mismatch ? "Planned ≠ Float" : undefined}
       >
         <span className="inline-block w-full text-center tabular-nums">{value ?? 0}</span>
@@ -837,6 +839,7 @@ export function ResourcingGrids({
     onExpand: () => void
   ) => {
     const weekDate = new Date(weekKey);
+    const isCurrWeek = isCurrentWeek(weekDate);
     const val1 = getActualByMonth(personId, weekKey, monthKeys[0]!);
     const val2 = getActualByMonth(personId, weekKey, monthKeys[1]!);
     const weekTotal = (val1 ?? 0) + (val2 ?? 0);
@@ -858,7 +861,7 @@ export function ResourcingGrids({
     return (
       <td
         key={weekKey}
-        className={`relative z-0 p-1 border overflow-hidden min-w-0 text-center border-surface-200 dark:border-dark-border ${missing ? "bg-amber-100 dark:bg-amber-900/20" : ""} ${varianceClass}`}
+        className={`relative z-0 p-1 border overflow-hidden min-w-0 text-center border-surface-200 dark:border-dark-border ${missing ? "bg-amber-100 dark:bg-amber-900/20" : ""} ${varianceClass} ${isCurrWeek ? "resourcing-current-week" : ""}`}
       >
         <div className="group relative flex items-center justify-center gap-1 min-h-[1.5rem]">
           <span className="tabular-nums">{val1 != null || val2 != null ? weekTotal : "—"}</span>
@@ -959,7 +962,7 @@ export function ResourcingGrids({
     return (
       <td
         key={weekKey}
-        className={`relative z-0 p-0.5 border overflow-hidden min-w-0 text-center border-surface-200 dark:border-dark-border ${missing ? "bg-amber-100 dark:bg-amber-900/20" : ""} ${varianceClass}`}
+        className={`relative z-0 p-0.5 border overflow-hidden min-w-0 text-center border-surface-200 dark:border-dark-border ${missing ? "bg-amber-100 dark:bg-amber-900/20" : ""} ${varianceClass} ${isCurrWeek ? "resourcing-current-week" : ""}`}
       >
         <div className="group relative flex flex-col gap-0.5 min-h-[2rem]">
           {onCollapse && (
@@ -1127,8 +1130,9 @@ export function ResourcingGrids({
                   <th
                     key={formatWeekKey(w)}
                     ref={wi === 0 ? firstWeekColRef : undefined}
-                    className="p-1 border text-center text-xs whitespace-nowrap w-16"
+                    className={`p-1 border text-center text-xs whitespace-nowrap w-16 ${currentWeekColClass(w)}`}
                     title={formatWeekKey(w)}
+                    aria-current={isCurrentWeek(w) ? "date" : undefined}
                   >
                     {formatWeekShort(w)}
                   </th>
@@ -1188,7 +1192,7 @@ export function ResourcingGrids({
                 {weeks.map((w) => {
                   const k = formatWeekKey(w);
                   return (
-                    <td key={k} className={`p-2 border text-center tabular-nums ${planningFloatTotalVarianceClass(k)}`}>
+                    <td key={k} className={`p-2 border text-center tabular-nums ${planningFloatTotalVarianceClass(k)} ${currentWeekColClass(w)}`}>
                       {formatTotal(plannedWeekTotal(k))}
                     </td>
                   );
@@ -1228,8 +1232,9 @@ export function ResourcingGrids({
                 {weeks.map((w) => (
                   <th
                     key={formatWeekKey(w)}
-                    className="p-1 border text-center text-xs whitespace-nowrap w-16"
+                    className={`p-1 border text-center text-xs whitespace-nowrap w-16 ${currentWeekColClass(w)}`}
                     title={formatWeekKey(w)}
+                    aria-current={isCurrentWeek(w) ? "date" : undefined}
                   >
                     {formatWeekShort(w)}
                   </th>
@@ -1290,7 +1295,7 @@ export function ResourcingGrids({
                 {weeks.map((w) => {
                   const k = formatWeekKey(w);
                   return (
-                    <td key={k} className={`p-2 border text-center tabular-nums ${actualsTotalVarianceClass(k)}`}>
+                    <td key={k} className={`p-2 border text-center tabular-nums ${actualsTotalVarianceClass(k)} ${currentWeekColClass(w)}`}>
                       {formatTotal(actualWeekTotal(k))}
                     </td>
                   );
@@ -1344,8 +1349,9 @@ export function ResourcingGrids({
                   return (
                     <th
                       key={k}
-                      className="p-1 border text-center text-xs whitespace-nowrap w-16 border-surface-200 dark:border-dark-border"
+                      className={`p-1 border text-center text-xs whitespace-nowrap w-16 border-surface-200 dark:border-dark-border ${currentWeekColClass(w)}`}
                       title={k}
+                      aria-current={isCurrentWeek(w) ? "date" : undefined}
                     >
                       {formatWeekShort(w)}
                     </th>
@@ -1392,7 +1398,7 @@ export function ResourcingGrids({
                 {weeks.map((w) => {
                   const k = formatWeekKey(w);
                   return (
-                    <td key={k} className={`p-2 border text-center tabular-nums ${planningFloatTotalVarianceClass(k)}`}>
+                    <td key={k} className={`p-2 border text-center tabular-nums ${planningFloatTotalVarianceClass(k)} ${currentWeekColClass(w)}`}>
                       {formatTotal(floatWeekTotal(k))}
                     </td>
                   );
