@@ -31,6 +31,7 @@ The schema is defined in `prisma/schema.prisma`. Main entities:
 | **ProjectKeyRole** | Key role assignment (PM, PGM, CAD) per project and person. |
 | **PlannedHours** | Planned hours by project, person, week (Monday). |
 | **ActualHours** | Actual hours by project, person, week (Monday); null = missing. |
+| **ActualHoursMonthSplit** | When a week spans two calendar months, optional split of actual hours by `monthKey` (YYYY-MM) for CDA month reporting. |
 | **FloatScheduledHours** | Float-imported scheduled hours by project, person, week (Monday). |
 | **PTOHolidayImpact** | PTO/holiday by person and week. |
 | **BudgetLine** | Budget line (type: SOW/CO/Other, label, low/high hours and dollars; values may be negative for change orders). |
@@ -111,6 +112,8 @@ In production, `NEXTAUTH_SECRET` must be set and at least 32 characters; the app
 | `npm run build` | Production build. |
 | `npm run start` | Start production server. |
 | `npm test` | Run tests (Vitest). |
+| `npm run test:unit` | Run library unit tests only (`__tests__/lib`), no database required. |
+| `npm run migrate:split-week-actuals` | One-off backfill of `ActualHoursMonthSplit` for split-month weeks (pro-rata by UTC calendar day). Requires `npx prisma migrate deploy` first so the `ActualHoursMonthSplit` table exists. Default is dry-run; pass `--apply` to write. Optional `--project=<id>`. See `scripts/migrate-split-week-actuals.ts`. |
 | `npm run db:deploy` | Run `prisma migrate deploy` and `prisma db seed` (e.g. for production). |
 | `npx prisma migrate dev` | Apply migrations in development (interactive). |
 | `npx prisma db seed` | Run seed script (creates initial admin and roles). |

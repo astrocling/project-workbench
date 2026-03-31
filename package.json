@@ -13,7 +13,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:unit": "vitest run __tests__/lib",
+    "test:watch": "vitest",
+    "migrate:split-week-actuals": "npx tsx scripts/migrate-split-week-actuals.ts"
   },
   "dependencies": {
     "@fontsource/raleway": "^5.2.8",

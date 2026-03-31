@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
+import { NextRequest } from "next/server";
 import { POST } from "@/app/api/admin/float-import/route";
 import { prisma } from "@/lib/prisma";
 
@@ -164,7 +165,7 @@ describe("float import cleanup: remove future hours when person not in CSV", () 
 
     const formData = new FormData();
     formData.append("file", new Blob([csv], { type: "text/csv" }), "float.csv");
-    const req = new Request("http://localhost/api/admin/float-import", {
+    const req = new NextRequest("http://localhost/api/admin/float-import", {
       method: "POST",
       body: formData,
     });
