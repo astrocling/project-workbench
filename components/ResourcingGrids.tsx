@@ -311,6 +311,12 @@ export function ResourcingGrids({
     return split != null ? split.hours : null;
   };
 
+  /** Split-month week: pass to hasMissingActuals — null only when neither month has data (0 entered is valid actuals). */
+  const splitWeekActualForMissing = (val1: number | null, val2: number | null): number | null => {
+    if (val1 == null && val2 == null) return null;
+    return (val1 ?? 0) + (val2 ?? 0);
+  };
+
   const getActual = (personId: string, weekKey: string): number | null => {
     const monthKeys = getMonthKeysForWeek(new Date(weekKey));
     if (monthKeys.length === 2) {
@@ -835,7 +841,8 @@ export function ResourcingGrids({
     const val2 = getActualByMonth(personId, weekKey, monthKeys[1]!);
     const weekTotal = (val1 ?? 0) + (val2 ?? 0);
     const plannedVal = getPlanned(personId, weekKey);
-    const missing = hasMissingActuals(weekDate, plannedVal, weekTotal > 0 ? weekTotal : null, asOf);
+    const actualForMissing = splitWeekActualForMissing(val1, val2);
+    const missing = hasMissingActuals(weekDate, plannedVal, actualForMissing, asOf);
     const lowThresh = project.actualsLowThresholdPercent ?? 10;
     const highThresh = project.actualsHighThresholdPercent ?? 5;
     const varianceClass =
@@ -854,7 +861,7 @@ export function ResourcingGrids({
         className={`relative z-0 p-1 border overflow-hidden min-w-0 text-center border-surface-200 dark:border-dark-border ${missing ? "bg-amber-100 dark:bg-amber-900/20" : ""} ${varianceClass}`}
       >
         <div className="group relative flex items-center justify-center gap-1 min-h-[1.5rem]">
-          <span className="tabular-nums">{weekTotal > 0 ? weekTotal : "—"}</span>
+          <span className="tabular-nums">{val1 != null || val2 != null ? weekTotal : "—"}</span>
           <button
             type="button"
             onClick={(e) => {
@@ -909,7 +916,8 @@ export function ResourcingGrids({
     const val2 = getActualByMonth(personId, weekKey, monthKeys[1]!);
     const weekTotal = (val1 ?? 0) + (val2 ?? 0);
     const plannedVal = getPlanned(personId, weekKey);
-    const missing = hasMissingActuals(weekDate, plannedVal, weekTotal > 0 ? weekTotal : null, asOf);
+    const actualForMissing = splitWeekActualForMissing(val1, val2);
+    const missing = hasMissingActuals(weekDate, plannedVal, actualForMissing, asOf);
     const lowThresh = project.actualsLowThresholdPercent ?? 10;
     const highThresh = project.actualsHighThresholdPercent ?? 5;
     const varianceClass =
