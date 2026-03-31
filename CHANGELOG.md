@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 ## [Unreleased]
+### Added
+
+- **PM / PGM / CAD dashboards — 1-wk recovery column**: The projects table on each dashboard includes a **1-wk recovery** column showing revenue recovery % for the **most recent completed week** (the same week as the portfolio **This week** revenue recovery card). The existing **4-wk recovery** column still shows recovery over the rolling previous four completed weeks. Both columns are sortable.
+- **Split-week actual hours**: For weeks that span two calendar months (Monday–Sunday across a month boundary), actual hours can be recorded **per calendar month** so CDA monthly actuals and rollups stay correct. The Resourcing **Actual** grid shows two sub-cells (with month labels) for those weeks; hours are stored in `ActualHoursMonthSplit` and must be in quarter-hour increments. Legacy rows can be backfilled with `npm run migrate:split-week-actuals` (see Technical documentation). The CDA tab derives month-to-date actuals from these splits plus single-month weeks.
+
 ### Fixed
 - **Resourcing grids**: The final (rightmost) week column is no longer clipped when the grid is scrolled fully to the right.
 

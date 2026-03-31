@@ -31,7 +31,7 @@ The schema is defined in `prisma/schema.prisma`. Main entities:
 | **ProjectKeyRole** | Key role assignment (PM, PGM, CAD) per project and person. |
 | **PlannedHours** | Planned hours by project, person, week (Monday). |
 | **ActualHours** | Actual hours by project, person, week (Monday); null = missing. |
-| **ActualHoursMonthSplit** | When a week spans two calendar months, optional split of actual hours by `monthKey` (YYYY-MM) for CDA month reporting. |
+| **ActualHoursMonthSplit** | When a week spans two calendar months (Mon–Sun UTC), actual hours split by `monthKey` (YYYY-MM) and `(projectId, personId, weekStartDate)`. Hours are quarter-hour increments; the two parts sum to the same total as the parent week. Used for CDA MTD actuals and Resourcing UI. |
 | **FloatScheduledHours** | Float-imported scheduled hours by project, person, week (Monday). |
 | **PTOHolidayImpact** | PTO/holiday by person and week. |
 | **BudgetLine** | Budget line (type: SOW/CO/Other, label, low/high hours and dollars; values may be negative for change orders). |
@@ -45,6 +45,25 @@ The schema is defined in `prisma/schema.prisma`. Main entities:
 | **FloatImportRun** | Metadata for each Float import (timestamp, unknown roles, new people, project names, JSON for backfill and client mapping). |
 
 Weeks are always identified by **week start date** (Monday) in UTC. All hour tables use `(projectId, personId, weekStartDate)` (or equivalent for PTO) as the scope.
+
+### Split-week actual hours
+
+When `getMonthKeysForWeek(weekStartDate)` returns two month keys, that week is a **split week**. Implementation notes:
+
+- **`lib/monthUtils.ts`** — `getMonthKeysForWeek` / related helpers determine which months a week touches (UTC calendar days).
+- **`lib/splitWeekProRata.ts`** — Pro-rates a total hour value across two months by **UTC calendar-day count** within the week (largest-remainder to quarter hours). Used by `scripts/migrate-split-week-actuals.ts` to backfill `ActualHoursMonthSplit` from legacy `ActualHours` rows that only had a single total.
+- **`ActualHours`** still stores the **rolled-up total** for the week (same as before). When month splits exist for a `(personId, weekStartDate)`, the Resourcing and CDA logic prefer splits for per-month attribution and skip double-counting that week’s total in month rollups.
+- **API `PATCH /api/projects/[id]/actual-hours`** — Either `{ personId, weekStartDate, hours }` (single value, nullable to clear) **or** `{ personId, weekStartDate, parts: [{ monthKey, hours }, { monthKey, hours }] }` with two distinct `monthKey` values matching the week. **GET** returns `{ rows, monthSplits }` for the optional week range query params.
+- **`GET /api/projects/[id]/resourcing`** — Includes `monthSplits` alongside planned/actual/float so the Resourcing grid can render split cells.
+- **`GET /api/projects/[id]/cda`** — Computes per-month MTD actuals from `ActualHoursMonthSplit` plus `ActualHours` for weeks that fall entirely in one month (weeks with splits are excluded from the single-month path to avoid double count).
+
+Unit tests: `__tests__/lib/splitWeekProRata.test.ts`, `__tests__/lib/monthUtils.test.ts` (where applicable).
+
+### PM / PGM / CAD dashboards
+
+- **`lib/portfolioMetrics.ts`** — Builds per-role portfolio metrics and `projectTableRows` for the dashboard projects table. Each row includes **`recoveryThisWeekPercent`** (revenue recovery % for the most recent completed week only—aligned with `revenueRecovery.thisWeek`) and **`recovery4WeekPercent`** (rolling sum over the previous four completed weeks—aligned with the “Previous 4 weeks” portfolio card). Also: burn, buffer, actuals status, status-report RAG / stale flag.
+- **`components/DashboardProjectsTable.tsx`** — Renders the sortable table. Sort state is driven by URL query params `sort` and `dir` on `/pm-dashboard`, `/pgm-dashboard`, and `/cad-dashboard` (see `app/(app)/*-dashboard/page.tsx`).
+- **`components/DashboardClientFilter.tsx`** — Optional client filter; invalid `client` query values redirect to the unfiltered dashboard.
 
 ### Float import behavior
 
@@ -135,7 +154,7 @@ API routes live under `app/api/`. This is a high-level overview for maintainers.
 | Project | `GET/PATCH/DELETE /api/projects/[id]` | Single project CRUD. |
 | Project | `/api/projects/[id]/assignments` | Assignments for a project. |
 | Project | `/api/projects/[id]/resourcing` | Single endpoint for Resourcing tab (assignments, planned/actual/float hours, cell comments). |
-| Project | `/api/projects/[id]/planned-hours`, `actual-hours`, `float-hours` | Hour entries by project. |
+| Project | `/api/projects/[id]/planned-hours`, `actual-hours`, `float-hours` | Hour entries by project. **`actual-hours`**: `GET` returns `rows` and `monthSplits` (split-week breakdowns). `PATCH` accepts either a single `hours` value or `parts` (two `{ monthKey, hours }`) for split weeks—see *Split-week actual hours* above. |
 | Project | `/api/projects/[id]/cell-comments` | Grid cell comments (Planned/Actual) for resourcing. |
 | Project | `/api/projects/[id]/budget` | Budget rollups and status. |
 | Project | `/api/projects/[id]/rates` | Role rates for the project. |
@@ -162,6 +181,7 @@ All project and admin routes require an authenticated session; admin routes addi
 - Project start/end dates and resourcing thresholds
 - Visible assignments (excludes `hiddenFromGrid`)
 - Planned hours, actual hours, Float scheduled hours
+- **`monthSplits`** — `ActualHoursMonthSplit` rows for split weeks (same week window as other hour data)
 - Ready-for-Float flags
 - Grid cell comments (Planned/Actual)
 

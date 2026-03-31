@@ -52,7 +52,7 @@ Each project has a detail page with several tabs. The header shows the **as-of d
 |-----|---------|
 | **Overview** | Summary, key roles (PM, PGM, CAD), project notes, SOW, Estimate, Float, and Metric links, and a snapshot of budget and revenue recovery. |
 | **Resourcing** | Planned hours, actual hours, and Float scheduled hours by person and week. Use this to compare plan vs actual vs Float and spot gaps. |
-| **CDA** | (When enabled in Settings) Monthly planned and actuals for CDA reporting. |
+| **CDA** | (When enabled in Settings) Monthly planned and actuals for CDA reporting. Month-to-date actuals for each month incorporate **split-week** hours when a week crosses a month boundary (see Resourcing below). |
 | **Budget** | Budget lines (e.g. SOW, CO, Other) with low/high hours and dollars, and burn to date. |
 | **Timeline** | High-level timeline with month columns and up to four rows of bars and markers. Each bar has a label, start/end dates, row (1–4), and an optional color (Blue, Green, Amber, Teal, Slate, or Violet). The same timeline (with colors) appears in status report previews and PDFs. |
 | **Status Reports** | Summary table of estimated budget, $ spent, $ remaining, budgeted/actual/remaining hours, with copy-to-clipboard and a % budget used (high est.) circle chart. You can create, edit, view, and export status reports. |
@@ -69,6 +69,14 @@ The Resourcing tab shows three grids (Planned, Actual, Float) by person and by w
 - **Weeks shown**: By default, the grid includes the **full project range** (project start → project end). You do not need to click “load more” controls to see additional weeks.
 - **Horizontal navigation**: When the week columns overflow, you can scroll horizontally (trackpad, scrollbar, or **Shift + mouse wheel**). The page also shows **Scroll left / Scroll right** buttons when horizontal overflow is detected.
 - **Last week visibility**: When you scroll all the way to the right, the final week column remains fully visible (including its right border).
+
+### Split weeks (month boundary)
+
+Workbench weeks run **Monday–Sunday**. When a week crosses from one calendar month into the next, the **Actual** grid shows **two inputs** in that week’s cell—one for each month (small month labels indicate which is which). Enter hours in **quarter-hour increments** (e.g. 8, 8.25); the two values should add up to the total worked that week.
+
+- **Why**: Monthly CDA reporting and dashboards need hours attributed to the correct calendar month even when a single week spans two months.
+- **Planned / Float**: Those grids still show one value per week (unchanged). Only **Actual** uses the split when the week spans two months.
+- **Collapsing**: When both month parts are filled, you may see a single total for the week with an option to expand and edit the two parts again (depending on layout state).
 
 ---
 
@@ -154,9 +162,26 @@ Available from the Admin area (link in the header).
 
 ## Dashboards and Account
 
-- **PM Dashboard** (`/pm-dashboard`): Projects where you are Project Manager. Shows portfolio metrics, a table of those projects (burn, buffer, recovery, actuals status), and revenue recovery when available.
-- **PGM Dashboard** (`/pgm-dashboard`): Same for projects where you are Program Manager.
-- **CAD Dashboard** (`/cad-dashboard`): Same for projects where you are Client Account Director.
+- **PM Dashboard** (`/pm-dashboard`): Projects where you are Project Manager.
+- **PGM Dashboard** (`/pgm-dashboard`): Projects where you are Program Manager.
+- **CAD Dashboard** (`/cad-dashboard`): Projects where you are Client Account Director.
+
+Each dashboard includes **portfolio summary cards** (e.g. portfolio value, active project counts) and, when revenue recovery data exists, **portfolio revenue recovery** cards for **To date**, **This week** (most recent completed week), and **Previous 4 weeks**.
+
+The **Projects** table lists every active project in scope for that role. Columns:
+
+| Column | Meaning |
+|--------|---------|
+| **Project** | Name (link), plus a **CDA** badge when the project has the CDA tab enabled. |
+| **Client** | Client name. |
+| **Budget burn** | Burn % (color indicates health vs thresholds). |
+| **Buffer** | Buffer %; negative values may show “(Over)”. |
+| **1-wk recovery** | Revenue recovery % for the **most recent completed week** only—the same week labeled on the portfolio **This week** recovery card. |
+| **4-wk recovery** | Revenue recovery % across the **rolling previous four completed weeks** (sum of actual vs forecast dollars for those weeks). |
+| **Actuals** | Whether weekly actuals look up to date, one week behind, or more than one week behind (traffic-light indicator). |
+| **Status** | Overall RAG from the latest status report when the report is recent; a blue indicator if a report exists but is older than two weeks; gray if there is no report. |
+
+Click any column header to **sort** (toggle ascending/descending). You can filter the table by **client** using the client dropdown when your portfolio spans multiple clients.
 
 Use the sidebar to open these dashboards. The **Account** page (sidebar) lets you change your password (current password required).
 
