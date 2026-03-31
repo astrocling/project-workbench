@@ -12,7 +12,7 @@ import {
   isCurrentWeek,
   isFutureWeek,
 } from "@/lib/weekUtils";
-import { getMonthKeysForWeek } from "@/lib/monthUtils";
+import { getMonthKeysForWeek, isPastLastUtcDayOfMonthInWeek } from "@/lib/monthUtils";
 import { hasPlanningMismatch, hasMissingActuals } from "@/lib/budgetCalculations";
 import { Toggle } from "@/components/Toggle";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -914,7 +914,12 @@ export function ResourcingGrids({
     const weekDate = new Date(weekKey);
     const completed = isCompletedWeek(weekDate, asOf);
     const isCurrWeek = isCurrentWeek(weekDate);
-    const editable = completed && !isCurrWeek && canEdit;
+    /** First month: editable after that calendar month ends (UTC), if the week is not in the future. Second month: same as non-split actuals (completed week, not current). */
+    const editableFirst =
+      canEdit &&
+      !isFutureWeek(weekDate, asOf) &&
+      isPastLastUtcDayOfMonthInWeek(weekDate, monthKeys[0]!);
+    const editableSecond = canEdit && completed && !isCurrWeek;
     const val1 = getActualByMonth(personId, weekKey, monthKeys[0]!);
     const val2 = getActualByMonth(personId, weekKey, monthKeys[1]!);
     const weekTotal = (val1 ?? 0) + (val2 ?? 0);
@@ -986,7 +991,7 @@ export function ResourcingGrids({
             <span className="text-[10px] text-surface-500 dark:text-surface-400 w-3 shrink-0" title={monthKeys[0]}>
               {monthKeyToShortLabel(monthKeys[0]!)}
             </span>
-            {editable ? (
+            {editableFirst ? (
               <input
                 type="text"
                 inputMode="decimal"
@@ -1005,7 +1010,7 @@ export function ResourcingGrids({
             <span className="text-[10px] text-surface-500 dark:text-surface-400 w-3 shrink-0" title={monthKeys[1]}>
               {monthKeyToShortLabel(monthKeys[1]!)}
             </span>
-            {editable ? (
+            {editableSecond ? (
               <input
                 type="text"
                 inputMode="decimal"

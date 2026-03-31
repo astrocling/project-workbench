@@ -62,5 +62,6 @@ export async function PATCH(
     update: { ready: parsed.data.ready },
   });
   revalidateTag(`project-resourcing:${id}`, "max");
+  revalidateTag("portfolio-metrics", "max");
   return NextResponse.json(row);
 }

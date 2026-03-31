@@ -21,6 +21,7 @@ const DASHBOARD_SORT_KEYS = [
   "bufferPercent",
   "recoveryThisWeekPercent",
   "recovery4WeekPercent",
+  "requestOpen",
   "actualsStatus",
   "ragOverall",
 ] as const;
@@ -57,6 +58,7 @@ const emptyMetrics = {
     ragOverall: "Red" | "Amber" | "Green" | null;
     statusReportStale?: boolean;
     recoveryToDatePercent?: number | null;
+    requestOpen: boolean;
   }>,
 };
 

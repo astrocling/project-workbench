@@ -96,3 +96,40 @@ export function getMonthKeysForWeek(weekStartDate: Date): string[] {
   const monthKey2 = `${y2}-${String(m2 + 1).padStart(2, "0")}`;
   return [monthKey1, monthKey2];
 }
+
+function monthKeyForUtcCalendarDay(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth();
+  return `${y}-${String(m + 1).padStart(2, "0")}`;
+}
+
+/**
+ * True when the UTC calendar date of `now` is strictly after the last day in the Monday–Sunday
+ * week that falls in `monthKey`. Used so the first month in a split-week Actual cell becomes
+ * editable as soon as that calendar month has ended, even if the week is still in progress.
+ */
+export function isPastLastUtcDayOfMonthInWeek(
+  weekStartDate: Date,
+  monthKey: string,
+  now?: Date
+): boolean {
+  const monday = new Date(weekStartDate);
+  monday.setUTCHours(0, 0, 0, 0);
+  let lastDayInWeekForMonth: Date | null = null;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setUTCDate(monday.getUTCDate() + i);
+    if (monthKeyForUtcCalendarDay(d) === monthKey) {
+      lastDayInWeekForMonth = d;
+    }
+  }
+  if (lastDayInWeekForMonth == null) return false;
+  const n = now ?? new Date();
+  const nDay = Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate());
+  const lastDay = Date.UTC(
+    lastDayInWeekForMonth.getUTCFullYear(),
+    lastDayInWeekForMonth.getUTCMonth(),
+    lastDayInWeekForMonth.getUTCDate()
+  );
+  return nDay > lastDay;
+}

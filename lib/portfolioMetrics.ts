@@ -34,6 +34,8 @@ export type PmProjectTableRow = {
   /** True when the project has at least one status report but the most recent is older than 2 weeks. */
   statusReportStale?: boolean;
   recoveryToDatePercent?: number | null;
+  /** True when at least one visible assignment has Ready on in the Planned grid. */
+  requestOpen: boolean;
 };
 
 export type PortfolioRevenueRecovery = {
@@ -96,7 +98,15 @@ async function getPortfolioMetricsForRole(
         },
       },
       assignments: {
-        select: { personId: true, roleId: true, billRateOverride: true },
+        select: {
+          personId: true,
+          roleId: true,
+          billRateOverride: true,
+          hiddenFromGrid: true,
+        },
+      },
+      readyForFloatUpdates: {
+        select: { personId: true, ready: true },
       },
       plannedHours: true,
       actualHours: true,
@@ -269,6 +279,13 @@ async function getPortfolioMetricsForRole(
         : null;
     const statusReportStale = !!latestStatusReport && !reportIsRecent;
 
+    const visiblePersonIds = new Set(
+      project.assignments.filter((a) => !a.hiddenFromGrid).map((a) => a.personId)
+    );
+    const requestOpen = project.readyForFloatUpdates.some(
+      (r) => r.ready && visiblePersonIds.has(r.personId)
+    );
+
     projectTableRows.push({
       id: project.id,
       name: project.name,
@@ -283,6 +300,7 @@ async function getPortfolioMetricsForRole(
       ragOverall,
       statusReportStale,
       recoveryToDatePercent: toDate.recoveryPercent ?? null,
+      requestOpen,
     });
   }
 

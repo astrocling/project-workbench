@@ -25,6 +25,8 @@ export type DashboardProjectRow = {
   /** True when the project has a status report but the most recent is older than 2 weeks. */
   statusReportStale?: boolean;
   recoveryToDatePercent?: number | null;
+  /** At least one visible assignment has Ready on in the Planned grid. */
+  requestOpen: boolean;
 };
 
 const SORT_KEYS = [
@@ -34,6 +36,7 @@ const SORT_KEYS = [
   ["bufferPercent", "Buffer"],
   ["recoveryThisWeekPercent", "1-wk recovery"],
   ["recovery4WeekPercent", "4-wk recovery"],
+  ["requestOpen", "Request"],
   ["actualsStatus", "Actuals"],
   ["ragOverall", "Status"],
 ] as const;
@@ -83,6 +86,11 @@ function compare(
     case "recovery4WeekPercent": {
       const va = a.recovery4WeekPercent ?? -Infinity;
       const vb = b.recovery4WeekPercent ?? -Infinity;
+      return mult * (va - vb);
+    }
+    case "requestOpen": {
+      const va = a.requestOpen ? 1 : 0;
+      const vb = b.requestOpen ? 1 : 0;
       return mult * (va - vb);
     }
     case "actualsStatus": {
@@ -184,6 +192,25 @@ function RagStatusLight({
   );
 }
 
+function RequestOpenIndicator({ open }: { open: boolean }) {
+  if (open) {
+    return (
+      <span
+        title="Planned grid: Ready for Float is on for at least one person"
+        className="inline-block w-3 h-3 rounded-full bg-amber-500 dark:bg-amber-400 ring-2 ring-amber-400/50 dark:ring-amber-500/50"
+        aria-label="Open request"
+      />
+    );
+  }
+  return (
+    <span
+      title="No open Ready for Float request"
+      className="inline-block w-3 h-3 rounded-full bg-surface-300 dark:bg-dark-muted ring-2 ring-surface-200 dark:ring-dark-border"
+      aria-label="No open request"
+    />
+  );
+}
+
 type DashboardProjectsTableProps = {
   rows: DashboardProjectRow[];
   basePath: string;
@@ -232,7 +259,10 @@ export function DashboardProjectsTable({
                 key === "bufferPercent" ||
                 key === "recoveryThisWeekPercent" ||
                 key === "recovery4WeekPercent";
-              const isCenter = key === "actualsStatus" || key === "ragOverall";
+              const isCenter =
+                key === "requestOpen" ||
+                key === "actualsStatus" ||
+                key === "ragOverall";
               return (
                 <th
                   key={key}
@@ -317,6 +347,9 @@ export function DashboardProjectsTable({
                 {row.recovery4WeekPercent != null
                   ? `${row.recovery4WeekPercent.toFixed(1)}%`
                   : "—"}
+              </td>
+              <td className="px-4 py-2.5 text-center">
+                <RequestOpenIndicator open={row.requestOpen} />
               </td>
               <td className="px-4 py-2.5 text-center">
                 <ActualsStatusLight status={row.actualsStatus} />
