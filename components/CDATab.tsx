@@ -511,6 +511,12 @@ export function CDATab({
   const totalPlanned = rows.reduce((s, r) => s + r.planned, 0);
   const totalMtdActuals = rows.reduce((s, r) => s + r.mtdActuals, 0);
   const totalRemaining = roundToQuarter(totalPlanned - totalMtdActuals);
+  /** Budget tab high hours — status-report Overall Hours row uses this, not CDA plan totals. */
+  const contractHoursTotal =
+    totalBudgetHours != null && totalBudgetHours > 0 ? totalBudgetHours : totalPlanned;
+  const overallStatusHoursRemaining = roundToQuarter(
+    contractHoursTotal - totalMtdActuals
+  );
 
   /** Format currency for OVERALL table (e.g. $362,880.00 or -$191,126.25). */
   const formatCurrency = (dollars: number): string => {
@@ -536,9 +542,9 @@ export function CDATab({
       overallBudget != null
         ? formatCurrency(overallBudget.totalDollars - overallBudget.actualDollars)
         : "—";
-    const hoursPlanned = formatReportNumber(totalPlanned);
+    const hoursPlanned = formatReportNumber(contractHoursTotal);
     const hoursActuals = totalMtdActuals !== 0 ? formatReportNumber(-totalMtdActuals) : "0.00";
-    const hoursRemaining = formatReportNumber(totalRemaining);
+    const hoursRemaining = formatReportNumber(overallStatusHoursRemaining);
     return (
       `<table style="border-collapse:collapse;font-family:sans-serif;min-width:280px;">` +
       `<tbody>` +
@@ -561,9 +567,9 @@ export function CDATab({
     );
   }, [
     overallBudget,
-    totalPlanned,
+    contractHoursTotal,
     totalMtdActuals,
-    totalRemaining,
+    overallStatusHoursRemaining,
   ]);
 
   /** Build plain text for OVERALL table. */
@@ -581,9 +587,9 @@ export function CDATab({
       "Overall",
       "Total Project\tPlanned\tActuals\tRemaining",
       `Budget ($)\t${budgetPlanned}\t${budgetActuals}\t${budgetRemaining}`,
-      `Hours\t${formatReportNumber(totalPlanned)}\t${hoursActuals}\t${formatReportNumber(totalRemaining)}`,
+      `Hours\t${formatReportNumber(contractHoursTotal)}\t${hoursActuals}\t${formatReportNumber(overallStatusHoursRemaining)}`,
     ].join("\n");
-  }, [overallBudget, totalPlanned, totalMtdActuals, totalRemaining]);
+  }, [overallBudget, contractHoursTotal, totalMtdActuals, overallStatusHoursRemaining]);
 
   const [copyOverallFeedback, setCopyOverallFeedback] = useState<string | null>(null);
 
@@ -616,10 +622,10 @@ export function CDATab({
     return new Date(y, m - 1, 1).toLocaleString("en-US", { month: "long" });
   }, [currentMonthKey]);
 
-  /** Percent of total contract (planned) hours completed (actuals). */
+  /** Percent of contract budget hours completed (actuals vs budget high hours). */
   const hoursCompletePercent =
-    totalPlanned > 0
-      ? Math.min(100, Math.max(0, (totalMtdActuals / totalPlanned) * 100))
+    contractHoursTotal > 0
+      ? Math.min(100, Math.max(0, (totalMtdActuals / contractHoursTotal) * 100))
       : null;
 
   const currentMonthRow = rows.find((r) => r.monthKey === currentMonthKey);
@@ -656,9 +662,6 @@ export function CDATab({
   );
   const remainingMonthCount = remainingMonthRows.length;
   const totalContractMonths = rows.length;
-  /** Contract hours total for the average: use budget hours when available so the value doesn't change when CDA planned is edited; else fall back to CDA total planned. */
-  const contractHoursTotal =
-    totalBudgetHours != null && totalBudgetHours > 0 ? totalBudgetHours : totalPlanned;
   /** Average hours per month over the full contract (budget or planned total ÷ total contract months). */
   const avgHoursPerMonthContract =
     totalContractMonths > 0 ? contractHoursTotal / totalContractMonths : 0;
@@ -1149,9 +1152,9 @@ export function CDATab({
                         </tr>
                         <tr>
                           <td style={overallLabelStyle}>Hours</td>
-                          <td style={overallHoursCellStyle} className="tabular-nums">{formatReportNumber(totalPlanned)}</td>
+                          <td style={overallHoursCellStyle} className="tabular-nums">{formatReportNumber(contractHoursTotal)}</td>
                           <td style={overallActualsStyle} className="tabular-nums">{hoursActualsStr}</td>
-                          <td style={overallHoursCellStyle} className="tabular-nums">{formatReportNumber(totalRemaining)}</td>
+                          <td style={overallHoursCellStyle} className="tabular-nums">{formatReportNumber(overallStatusHoursRemaining)}</td>
                         </tr>
                       </tbody>
                     </table>

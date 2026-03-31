@@ -7,7 +7,12 @@ import {
   isMeetingNotesHtml,
   sanitizeMeetingNotesHtml,
 } from "@/lib/meetingNotesHtml";
-import type { StatusReportPDFData, RagStatus } from "@/components/pdf/StatusReportDocument";
+import {
+  type StatusReportPDFData,
+  type RagStatus,
+  cdaOverallHoursPlanned,
+  cdaOverallHoursRemaining,
+} from "@/components/pdf/StatusReportDocument";
 import { getWeeksInMonthsForRange } from "@/lib/monthUtils";
 
 // Mirror PDF layout: 16:9 slide, same colors and structure
@@ -597,9 +602,9 @@ export function StatusReportView({
                         </div>
                         <div className="flex flex-row text-[6px] font-semibold border-t border-gray-200">
                           <div className="flex-[1.5] py-0.5 px-0.5">Hours</div>
-                          <div className="flex-1 py-0.5 px-0.5 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(data.cda.totalPlanned)}</div>
+                          <div className="flex-1 py-0.5 px-0.5 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(cdaOverallHoursPlanned(data))}</div>
                           <div className="flex-1 py-0.5 px-0.5 text-right" style={{ color: BRAND_COLORS.onWhite }}>{formatReportNum(-data.cda.totalMtdActuals)}</div>
-                          <div className="flex-1 py-0.5 px-0.5 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(data.cda.totalRemaining)}</div>
+                          <div className="flex-1 py-0.5 px-0.5 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(cdaOverallHoursRemaining(data))}</div>
                         </div>
                       </div>
                       <BudgetBurnDonut burnPercent={contractBudgetBurnPercent} compact label="Total Budget" />

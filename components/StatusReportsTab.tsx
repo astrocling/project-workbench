@@ -1299,6 +1299,11 @@ export function StatusReportsTab({
                 const totalPlanned = cdaRows.reduce((s, r) => s + r.planned, 0);
                 const totalMtdActuals = cdaRows.reduce((s, r) => s + r.mtdActuals, 0);
                 const totalRemaining = roundToQuarter(totalPlanned - totalMtdActuals);
+                const hoursBudgetPlanned =
+                  hasData && budgetedHoursHigh > 0 ? budgetedHoursHigh : totalPlanned;
+                const hoursBudgetRemaining = roundToQuarter(
+                  hoursBudgetPlanned - totalMtdActuals
+                );
                 const cdaOverallBudget = hasData
                   ? { totalDollars: estBudgetHigh, actualDollars: spentDollars }
                   : null;
@@ -1317,7 +1322,9 @@ export function StatusReportsTab({
                 const currentMonthRow = cdaRows.find((r) => r.monthKey === currentMonthKey);
                 const currentMonthFull = getMonthFullName(currentMonthKey);
                 const hoursCompletePercent =
-                  totalPlanned > 0 ? Math.min(100, Math.max(0, (totalMtdActuals / totalPlanned) * 100)) : null;
+                  hoursBudgetPlanned > 0
+                    ? Math.min(100, Math.max(0, (totalMtdActuals / hoursBudgetPlanned) * 100))
+                    : null;
                 const currentMonthPercent =
                   currentMonthRow && currentMonthRow.planned > 0
                     ? Math.min(100, Math.max(0, (currentMonthRow.mtdActuals / currentMonthRow.planned) * 100))
@@ -1398,9 +1405,9 @@ export function StatusReportsTab({
                           </tr>
                           <tr>
                             <td style={cdaLabelStyle}>Hours</td>
-                            <td style={cdaHoursCellStyle} className="tabular-nums">{formatReportNumber(totalPlanned)}</td>
+                            <td style={cdaHoursCellStyle} className="tabular-nums">{formatReportNumber(hoursBudgetPlanned)}</td>
                             <td style={cdaCellRightStyle} className="tabular-nums">{hoursActualsStr}</td>
-                            <td style={cdaHoursCellStyle} className="tabular-nums">{formatReportNumber(totalRemaining)}</td>
+                            <td style={cdaHoursCellStyle} className="tabular-nums">{formatReportNumber(hoursBudgetRemaining)}</td>
                           </tr>
                         </tbody>
                       </table>

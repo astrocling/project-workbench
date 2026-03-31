@@ -827,6 +827,24 @@ export type StatusReportPDFData = {
   };
 };
 
+/**
+ * CDA Overall Hours row (status report): Planned = Budget tab high hours, not sum of CDA monthly plan.
+ * Remaining uses the same MTD actuals as the row (sum of CDA month actuals).
+ */
+export function cdaOverallHoursPlanned(data: StatusReportPDFData): number {
+  const cda = data.cda;
+  if (!cda) return 0;
+  const bh = data.budget?.budgetedHoursHigh;
+  if (bh != null && bh > 0) return bh;
+  return cda.totalPlanned;
+}
+
+export function cdaOverallHoursRemaining(data: StatusReportPDFData): number {
+  const cda = data.cda;
+  if (!cda) return 0;
+  return cdaOverallHoursPlanned(data) - cda.totalMtdActuals;
+}
+
 function formatNum(n: number): string {
   return n.toFixed(2).replace(/\.?0+$/, "") || "0";
 }
@@ -1470,13 +1488,13 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
                             <Text style={styles.srLabelCompact}>Hours</Text>
                           </View>
                           <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srBlueCompact, { flex: 1 }]}>
-                            <Text style={styles.srBlueCompact}>{formatReportNum(data.cda.totalPlanned)}</Text>
+                            <Text style={styles.srBlueCompact}>{formatReportNum(cdaOverallHoursPlanned(data))}</Text>
                           </View>
                           <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srWhiteCompact, { flex: 1 }]}>
                             <Text style={styles.srWhiteCompact}>{formatReportNum(-data.cda.totalMtdActuals)}</Text>
                           </View>
                           <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srBlueCompact, { flex: 1 }]}>
-                            <Text style={styles.srBlueCompact}>{formatReportNum(data.cda.totalRemaining)}</Text>
+                            <Text style={styles.srBlueCompact}>{formatReportNum(cdaOverallHoursRemaining(data))}</Text>
                           </View>
                         </View>
                       </View>
