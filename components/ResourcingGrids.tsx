@@ -12,6 +12,7 @@ import {
   isCurrentWeek,
   isFutureWeek,
 } from "@/lib/weekUtils";
+import { getMonthKeysForWeek } from "@/lib/monthUtils";
 import { hasPlanningMismatch, hasMissingActuals } from "@/lib/budgetCalculations";
 import { Toggle } from "@/components/Toggle";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -24,6 +25,7 @@ function roundToQuarter(n: number): number {
 type Assignment = { personId: string; person: { name: string }; role: { name: string } };
 type PlannedRow = { projectId: string; personId: string; weekStartDate: string; hours: number };
 type ActualRow = { projectId: string; personId: string; weekStartDate: string; hours: number | null };
+type ActualMonthSplitRow = { projectId: string; personId: string; weekStartDate: string; monthKey: string; hours: number };
 type FloatRow = { projectId: string; personId: string; weekStartDate: string; hours: number };
 type ReadyRow = { projectId: string; personId: string; ready: boolean };
 
@@ -59,7 +61,8 @@ export function ResourcingGrids({
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [weekRange, setWeekRange] = useState<{ fromWeek: string; toWeek: string } | null>(null);
   const [editingPlanned, setEditingPlanned] = useState<{ personId: string; weekKey: string; str: string } | null>(null);
-  const [editingActual, setEditingActual] = useState<{ personId: string; weekKey: string; str: string } | null>(null);
+  const [editingActual, setEditingActual] = useState<{ personId: string; weekKey: string; monthKey?: string; str: string } | null>(null);
+  const [actualMonthSplits, setActualMonthSplits] = useState<ActualMonthSplitRow[]>([]);
   const [comments, setComments] = useState<Map<string, string>>(new Map());
   const [openCommentCell, setOpenCommentCell] = useState<{
     personId: string;
@@ -68,6 +71,7 @@ export function ResourcingGrids({
   } | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
   const [commentPopoverAnchor, setCommentPopoverAnchor] = useState<{ x: number; y: number } | null>(null);
+  const [expandedSplitCells, setExpandedSplitCells] = useState<Set<string>>(new Set());
   const commentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const firstWeekColRef = useRef<HTMLTableCellElement>(null);
@@ -77,19 +81,35 @@ export function ResourcingGrids({
     canScrollRight: false,
   });
 
+  const splitCellKey = (personId: string, weekKey: string) => `${personId}|${weekKey}`;
+  const setSplitCellExpanded = (personId: string, weekKey: string, expanded: boolean) => {
+    const key = splitCellKey(personId, weekKey);
+    setExpandedSplitCells((prev) => {
+      const next = new Set(prev);
+      if (expanded) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  };
+
   useEffect(() => {
+    if (!projectId) return;
     const qs =
       weekRange != null
         ? `?fromWeek=${encodeURIComponent(weekRange.fromWeek)}&toWeek=${encodeURIComponent(weekRange.toWeek)}`
         : "";
     fetch(`/api/projects/${projectId}/resourcing${qs}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+        return r.json();
+      })
       .then((data: {
         range?: { fromWeek: string; toWeek: string };
         project?: { startDate: string; endDate: string | null; actualsLowThresholdPercent: number | null; actualsHighThresholdPercent: number | null };
         assignments?: Assignment[];
         plannedHours?: PlannedRow[];
         actualHours?: ActualRow[];
+        monthSplits?: ActualMonthSplitRow[];
         floatHours?: FloatRow[];
         readyForFloat?: ReadyRow[];
         cellComments?: Array<{ personId: string; weekStartDate: string; gridType: GridCommentType; comment: string }>;
@@ -112,6 +132,19 @@ export function ResourcingGrids({
         setAssignments(data.assignments ?? []);
         setPlanned((data.plannedHours ?? []).map((row) => ({ ...row, hours: Number(row.hours) })));
         setActual((data.actualHours ?? []).map((row) => ({ ...row, hours: row.hours != null ? Number(row.hours) : null })));
+        const splits = (data.monthSplits ?? []).map((m) => ({
+          projectId: m.projectId,
+          personId: m.personId,
+          weekStartDate:
+            typeof m.weekStartDate === "string"
+              ? m.weekStartDate.includes("T")
+                ? m.weekStartDate.slice(0, 10)
+                : m.weekStartDate
+              : (m.weekStartDate as Date).toISOString().slice(0, 10),
+          monthKey: m.monthKey,
+          hours: Number(m.hours),
+        }));
+        setActualMonthSplits(splits);
         setFloat((data.floatHours ?? []).map((row) => ({ ...row, hours: Number(row.hours) })));
         setReadyForFloat(data.readyForFloat ?? []);
         const commentMap = new Map<string, string>();
@@ -120,6 +153,9 @@ export function ResourcingGrids({
           commentMap.set(commentKey(row.personId, week, row.gridType), row.comment ?? "");
         });
         setComments(commentMap);
+      })
+      .catch((err) => {
+        console.error("ResourcingGrids fetch error:", err);
       })
       .finally(() => setLoading(false));
   }, [projectId, refreshTrigger, weekRange?.fromWeek, weekRange?.toWeek]);
@@ -267,9 +303,24 @@ export function ResourcingGrids({
     );
     return row == null ? 0 : Number(row.hours);
   };
-  const getActual = (personId: string, weekKey: string) => {
+  const getActualByMonth = (personId: string, weekKey: string, monthKey: string): number | null => {
+    const norm = (d: string) => (d.includes("T") ? d.slice(0, 10) : d);
+    const split = actualMonthSplits.find(
+      (s) => s.personId === personId && norm(s.weekStartDate) === weekKey && s.monthKey === monthKey
+    );
+    return split != null ? split.hours : null;
+  };
+
+  const getActual = (personId: string, weekKey: string): number | null => {
+    const monthKeys = getMonthKeysForWeek(new Date(weekKey));
+    if (monthKeys.length === 2) {
+      const s1 = getActualByMonth(personId, weekKey, monthKeys[0]!);
+      const s2 = getActualByMonth(personId, weekKey, monthKeys[1]!);
+      const hasAny = s1 != null || s2 != null;
+      if (hasAny) return (s1 ?? 0) + (s2 ?? 0);
+    }
     const row = actual.find(
-      (a) => a.personId === personId && a.weekStartDate.startsWith(weekKey)
+      (a) => a.personId === personId && (a.weekStartDate.startsWith(weekKey) || (a.weekStartDate.includes("T") ? a.weekStartDate.slice(0, 10) : a.weekStartDate) === weekKey)
     );
     if (row == null) return null;
     return row.hours == null ? null : Number(row.hours);
@@ -452,11 +503,50 @@ export function ResourcingGrids({
     if (res.ok) onActualsUpdated?.();
     setActual((prev) => {
       const rest = prev.filter(
-        (a) => !(a.personId === personId && a.weekStartDate.startsWith(weekKey))
+        (a) => !(a.personId === personId && (a.weekStartDate.startsWith(weekKey) || (a.weekStartDate.includes("T") ? a.weekStartDate.slice(0, 10) : a.weekStartDate) === weekKey))
       );
       return hours !== null
         ? [...rest, { projectId, personId, weekStartDate: weekKey, hours }]
         : rest;
+    });
+    setActualMonthSplits((prev) =>
+      prev.filter((s) => !(s.personId === personId && (s.weekStartDate === weekKey || (s.weekStartDate as string).slice(0, 10) === weekKey)))
+    );
+  }
+
+  async function updateActualSplit(
+    personId: string,
+    weekKey: string,
+    parts: { monthKey: string; hours: number }[]
+  ) {
+    if (!canEdit || parts.length !== 2) return;
+    const res = await fetch(`/api/projects/${projectId}/actual-hours`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        personId,
+        weekStartDate: weekKey,
+        parts: parts.map((p) => ({ monthKey: p.monthKey, hours: roundToQuarter(p.hours) })),
+      }),
+    });
+    if (!res.ok) return;
+    onActualsUpdated?.();
+    const total = parts[0].hours + parts[1].hours;
+    setActual((prev) => {
+      const rest = prev.filter(
+        (a) => !(a.personId === personId && (a.weekStartDate.startsWith(weekKey) || (a.weekStartDate.includes("T") ? a.weekStartDate.slice(0, 10) : a.weekStartDate) === weekKey))
+      );
+      return [...rest, { projectId, personId, weekStartDate: weekKey, hours: total }];
+    });
+    setActualMonthSplits((prev) => {
+      const rest = prev.filter(
+        (s) => !(s.personId === personId && ((s.weekStartDate as string).slice?.(0, 10) ?? s.weekStartDate) === weekKey)
+      );
+      return [
+        ...rest,
+        { projectId, personId, weekStartDate: weekKey, monthKey: parts[0].monthKey, hours: parts[0].hours },
+        { projectId, personId, weekStartDate: weekKey, monthKey: parts[1].monthKey, hours: parts[1].hours },
+      ];
     });
   }
 
@@ -727,6 +817,225 @@ export function ResourcingGrids({
     );
   };
 
+  /** Short month label from monthKey (e.g. "2024-12" -> "12", "2025-01" -> "1"). */
+  const monthKeyToShortLabel = (monthKey: string) => {
+    const [, m] = monthKey.split("-");
+    return m ?? monthKey;
+  };
+
+  /** Rolled-up (collapsed) actuals cell for a week that spans two months. Shows week total + expand control. */
+  const actualsRolledUpCell = (
+    personId: string,
+    weekKey: string,
+    monthKeys: [string, string],
+    onExpand: () => void
+  ) => {
+    const weekDate = new Date(weekKey);
+    const val1 = getActualByMonth(personId, weekKey, monthKeys[0]!);
+    const val2 = getActualByMonth(personId, weekKey, monthKeys[1]!);
+    const weekTotal = (val1 ?? 0) + (val2 ?? 0);
+    const plannedVal = getPlanned(personId, weekKey);
+    const missing = hasMissingActuals(weekDate, plannedVal, weekTotal > 0 ? weekTotal : null, asOf);
+    const lowThresh = project.actualsLowThresholdPercent ?? 10;
+    const highThresh = project.actualsHighThresholdPercent ?? 5;
+    const varianceClass =
+      !isFutureWeek(weekDate, asOf) && !missing
+        ? weekTotal < plannedVal && plannedVal > 0 && (plannedVal - weekTotal) / plannedVal > lowThresh / 100
+          ? "bg-jblue-100 dark:bg-jblue-500/15"
+          : weekTotal > plannedVal && (weekTotal - plannedVal) / (plannedVal || 1) > highThresh / 100
+            ? "bg-jred-100 dark:bg-jred-900/20"
+            : ""
+        : "";
+    const cellComment = getComment(personId, weekKey, "Actual");
+    const hasComment = cellComment.length > 0;
+    return (
+      <td
+        key={weekKey}
+        className={`relative z-0 p-1 border overflow-hidden min-w-0 text-center border-surface-200 dark:border-dark-border ${missing ? "bg-amber-100 dark:bg-amber-900/20" : ""} ${varianceClass}`}
+      >
+        <div className="group relative flex items-center justify-center gap-1 min-h-[1.5rem]">
+          <span className="tabular-nums">{weekTotal > 0 ? weekTotal : "—"}</span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onExpand();
+            }}
+            className="shrink-0 w-5 h-5 flex items-center justify-center rounded border border-transparent text-surface-500 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-dark-raised dark:hover:text-surface-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400"
+            aria-label="Split by month"
+            title="Split by month"
+          >
+            <span className="inline-block w-0 h-0 border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-l-[5px] border-l-current" aria-hidden />
+          </button>
+        </div>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const rect = e.currentTarget.getBoundingClientRect();
+              setCommentPopoverAnchor({ x: rect.left, y: rect.bottom });
+              setOpenCommentCell({ personId, weekKey, gridType: "Actual" });
+              setCommentDraft(cellComment);
+            }}
+            className={`absolute top-0 right-0 w-4 h-4 flex items-center justify-center rounded-sm text-surface-500 hover:bg-surface-200 dark:hover:bg-dark-raised ${!hasComment ? "opacity-0 group-hover:opacity-100" : ""}`}
+            aria-label={hasComment ? "Edit comment" : "Add comment"}
+            title={hasComment ? "Edit comment" : "Add comment"}
+          >
+            {hasComment ? (
+              <span className="inline-block w-0 h-0 border-t-[6px] border-t-surface-500 border-l-[6px] border-l-transparent" aria-hidden />
+            ) : (
+              <span className="text-[10px] font-medium leading-none">+</span>
+            )}
+          </button>
+        )}
+      </td>
+    );
+  };
+
+  const actualsSplitCell = (
+    personId: string,
+    weekKey: string,
+    monthKeys: [string, string],
+    onCollapse?: () => void
+  ) => {
+    const weekDate = new Date(weekKey);
+    const completed = isCompletedWeek(weekDate, asOf);
+    const isCurrWeek = isCurrentWeek(weekDate);
+    const editable = completed && !isCurrWeek && canEdit;
+    const val1 = getActualByMonth(personId, weekKey, monthKeys[0]!);
+    const val2 = getActualByMonth(personId, weekKey, monthKeys[1]!);
+    const weekTotal = (val1 ?? 0) + (val2 ?? 0);
+    const plannedVal = getPlanned(personId, weekKey);
+    const missing = hasMissingActuals(weekDate, plannedVal, weekTotal > 0 ? weekTotal : null, asOf);
+    const lowThresh = project.actualsLowThresholdPercent ?? 10;
+    const highThresh = project.actualsHighThresholdPercent ?? 5;
+    const varianceClass =
+      !isFutureWeek(weekDate, asOf) && !missing
+        ? weekTotal < plannedVal && plannedVal > 0 && (plannedVal - weekTotal) / plannedVal > lowThresh / 100
+          ? "bg-jblue-100 dark:bg-jblue-500/15"
+          : weekTotal > plannedVal && (weekTotal - plannedVal) / (plannedVal || 1) > highThresh / 100
+            ? "bg-jred-100 dark:bg-jred-900/20"
+            : ""
+        : "";
+    const cellComment = getComment(personId, weekKey, "Actual");
+    const hasComment = cellComment.length > 0;
+    const isEditing1 = editingActual?.personId === personId && editingActual?.weekKey === weekKey && editingActual?.monthKey === monthKeys[0];
+    const isEditing2 = editingActual?.personId === personId && editingActual?.weekKey === weekKey && editingActual?.monthKey === monthKeys[1];
+    const display1 = isEditing1 ? editingActual!.str : (val1 != null ? String(val1) : "");
+    const display2 = isEditing2 ? editingActual!.str : (val2 != null ? String(val2) : "");
+    const handleBlur1 = (e: React.FocusEvent<HTMLInputElement>) => {
+      const str = e.target.value.trim();
+      const num = str === "" ? 0 : parseFloat(str);
+      const h1 = Number.isNaN(num) ? 0 : Math.max(0, num);
+      const h2 = val2 ?? 0;
+      updateActualSplit(personId, weekKey, [
+        { monthKey: monthKeys[0]!, hours: roundToQuarter(h1) },
+        { monthKey: monthKeys[1]!, hours: roundToQuarter(h2) },
+      ]);
+      setEditingActual(null);
+    };
+    const handleBlur2 = (e: React.FocusEvent<HTMLInputElement>) => {
+      const str = e.target.value.trim();
+      const num = str === "" ? 0 : parseFloat(str);
+      const h2 = Number.isNaN(num) ? 0 : Math.max(0, num);
+      const h1 = val1 ?? 0;
+      updateActualSplit(personId, weekKey, [
+        { monthKey: monthKeys[0]!, hours: roundToQuarter(h1) },
+        { monthKey: monthKeys[1]!, hours: roundToQuarter(h2) },
+      ]);
+      setEditingActual(null);
+    };
+    return (
+      <td
+        key={weekKey}
+        className={`relative z-0 p-0.5 border overflow-hidden min-w-0 text-center border-surface-200 dark:border-dark-border ${missing ? "bg-amber-100 dark:bg-amber-900/20" : ""} ${varianceClass}`}
+      >
+        <div className="group relative flex flex-col gap-0.5 min-h-[2rem]">
+          {onCollapse && (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onCollapse();
+                }}
+                className="shrink-0 w-5 h-4 flex items-center justify-center rounded border border-transparent text-surface-500 hover:bg-surface-200 dark:hover:bg-dark-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400"
+                aria-label="Roll up"
+                title="Roll up"
+              >
+                <span className="inline-block w-0 h-0 border-t-[5px] border-t-current border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent" aria-hidden style={{ transform: "rotate(-90deg)" }} />
+              </button>
+            </div>
+          )}
+          <div className="flex items-center gap-0.5">
+            <span className="text-[10px] text-surface-500 dark:text-surface-400 w-3 shrink-0" title={monthKeys[0]}>
+              {monthKeyToShortLabel(monthKeys[0]!)}
+            </span>
+            {editable ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                value={display1}
+                onFocus={() => setEditingActual({ personId, weekKey, monthKey: monthKeys[0], str: val1 != null ? String(val1) : "" })}
+                onChange={(e) => setEditingActual((prev) => (prev?.personId === personId && prev?.weekKey === weekKey && prev?.monthKey === monthKeys[0] ? { ...prev, str: e.target.value } : { personId, weekKey, monthKey: monthKeys[0], str: e.target.value }))}
+                onBlur={handleBlur1}
+                placeholder="—"
+                className="flex-1 min-w-0 border rounded px-0.5 py-0.5 text-xs text-center box-border [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+            ) : (
+              <span className="flex-1 text-xs tabular-nums">{val1 ?? "—"}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-0.5">
+            <span className="text-[10px] text-surface-500 dark:text-surface-400 w-3 shrink-0" title={monthKeys[1]}>
+              {monthKeyToShortLabel(monthKeys[1]!)}
+            </span>
+            {editable ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                value={display2}
+                onFocus={() => setEditingActual({ personId, weekKey, monthKey: monthKeys[1], str: val2 != null ? String(val2) : "" })}
+                onChange={(e) => setEditingActual((prev) => (prev?.personId === personId && prev?.weekKey === weekKey && prev?.monthKey === monthKeys[1] ? { ...prev, str: e.target.value } : { personId, weekKey, monthKey: monthKeys[1], str: e.target.value }))}
+                onBlur={handleBlur2}
+                placeholder="—"
+                className="flex-1 min-w-0 border rounded px-0.5 py-0.5 text-xs text-center box-border [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+            ) : (
+              <span className="flex-1 text-xs tabular-nums">{val2 ?? "—"}</span>
+            )}
+          </div>
+        </div>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const rect = e.currentTarget.getBoundingClientRect();
+              setCommentPopoverAnchor({ x: rect.left, y: rect.bottom });
+              setOpenCommentCell({ personId, weekKey, gridType: "Actual" });
+              setCommentDraft(cellComment);
+            }}
+            className={`absolute top-0 right-0 w-4 h-4 flex items-center justify-center rounded-sm text-surface-500 hover:bg-surface-200 dark:hover:bg-dark-raised ${!hasComment ? "opacity-0 group-hover:opacity-100" : ""}`}
+            aria-label={hasComment ? "Edit comment" : "Add comment"}
+            title={hasComment ? "Edit comment" : "Add comment"}
+          >
+            {hasComment ? (
+              <span className="inline-block w-0 h-0 border-t-[6px] border-t-surface-500 border-l-[6px] border-l-transparent" aria-hidden />
+            ) : (
+              <span className="text-[10px] font-medium leading-none">+</span>
+            )}
+          </button>
+        )}
+      </td>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {showRangeControls && (
@@ -933,6 +1242,18 @@ export function ResourcingGrids({
                   </td>
                   {weeks.map((w, weekIdx) => {
                     const k = formatWeekKey(w);
+                    const monthKeys = getMonthKeysForWeek(w);
+                    if (monthKeys.length === 2) {
+                      const expanded = expandedSplitCells.has(splitCellKey(a.personId, k));
+                      if (expanded) {
+                        return actualsSplitCell(a.personId, k, monthKeys as [string, string], () =>
+                          setSplitCellExpanded(a.personId, k, false)
+                        );
+                      }
+                      return actualsRolledUpCell(a.personId, k, monthKeys as [string, string], () =>
+                        setSplitCellExpanded(a.personId, k, true)
+                      );
+                    }
                     return hoursInput(
                       a.personId,
                       k,

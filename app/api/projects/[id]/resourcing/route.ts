@@ -32,7 +32,7 @@ export async function GET(
     async (projectId: string, fromWeek: string, toWeek: string) => {
       const from = new Date(fromWeek + "T00:00:00.000Z");
       const to = new Date(toWeek + "T00:00:00.000Z");
-      const [project, floatRows, readyForFloatRows, commentRows] = await Promise.all([
+      const [project, floatRows, readyForFloatRows, commentRows, monthSplitRows] = await Promise.all([
         prisma.project.findUnique({
           where: { id: projectId },
           select: {
@@ -80,6 +80,16 @@ export async function GET(
           where: { projectId: projectId, weekStartDate: { gte: from, lte: to } },
           select: { projectId: true, personId: true, weekStartDate: true, gridType: true, comment: true },
         }),
+        prisma.actualHoursMonthSplit.findMany({
+          where: { projectId: projectId, weekStartDate: { gte: from, lte: to } },
+          select: {
+            projectId: true,
+            personId: true,
+            weekStartDate: true,
+            monthKey: true,
+            hours: true,
+          },
+        }),
       ]);
 
       if (!project) return null;
@@ -107,6 +117,15 @@ export async function GET(
           weekStartDate: toDateKey(r.weekStartDate),
           hours: r.hours != null ? Number(r.hours) : null,
         })),
+        monthSplits: monthSplitRows
+          .filter((r) => visiblePersonIds.has(r.personId))
+          .map((r) => ({
+            projectId: r.projectId,
+            personId: r.personId,
+            weekStartDate: toDateKey(r.weekStartDate),
+            monthKey: r.monthKey,
+            hours: Number(r.hours),
+          })),
         floatHours: floatRows
           .filter((r) => visiblePersonIds.has(r.personId))
           .map((r) => ({
