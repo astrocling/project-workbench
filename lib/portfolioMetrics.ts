@@ -25,6 +25,8 @@ export type PmProjectTableRow = {
   cdaEnabled: boolean;
   burnPercent: number | null;
   bufferPercent: number | null;
+  /** Most recent completed week (same week as portfolio "This week" card). */
+  recoveryThisWeekPercent: number | null;
   recovery4WeekPercent: number | null;
   actualsStatus: BudgetResult["actualsStatus"];
   /** Overall RAG from the most recent status report, if within 2 weeks. */
@@ -247,6 +249,7 @@ async function getPortfolioMetricsForRole(
     const sum4Actual = recentWeeks
       .slice(0, 4)
       .reduce((s, w) => s + w.actualDollars, 0);
+    const recoveryThisWeekPercent = recentWeeks[0]?.recoveryPercent ?? null;
     const recovery4WeekPercent =
       sum4Forecast > 0 ? (sum4Actual / sum4Forecast) * 100 : null;
 
@@ -274,6 +277,7 @@ async function getPortfolioMetricsForRole(
       cdaEnabled: project.cdaEnabled === true,
       burnPercent: rollups.burnPercentHighHours,
       bufferPercent,
+      recoveryThisWeekPercent,
       recovery4WeekPercent,
       actualsStatus: rollups.actualsStatus,
       ragOverall,

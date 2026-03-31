@@ -17,6 +17,7 @@ export type DashboardProjectRow = {
   cdaEnabled: boolean;
   burnPercent: number | null;
   bufferPercent: number | null;
+  recoveryThisWeekPercent: number | null;
   recovery4WeekPercent: number | null;
   actualsStatus: "up-to-date" | "1-week-behind" | "more-than-1-week-behind";
   /** Overall RAG from the most recent status report, if within 2 weeks. */
@@ -31,6 +32,7 @@ const SORT_KEYS = [
   ["clientName", "Client"],
   ["burnPercent", "Budget burn"],
   ["bufferPercent", "Buffer"],
+  ["recoveryThisWeekPercent", "1-wk recovery"],
   ["recovery4WeekPercent", "4-wk recovery"],
   ["actualsStatus", "Actuals"],
   ["ragOverall", "Status"],
@@ -71,6 +73,11 @@ function compare(
     case "bufferPercent": {
       const va = a.bufferPercent ?? -Infinity;
       const vb = b.bufferPercent ?? -Infinity;
+      return mult * (va - vb);
+    }
+    case "recoveryThisWeekPercent": {
+      const va = a.recoveryThisWeekPercent ?? -Infinity;
+      const vb = b.recoveryThisWeekPercent ?? -Infinity;
       return mult * (va - vb);
     }
     case "recovery4WeekPercent": {
@@ -220,7 +227,11 @@ export function DashboardProjectsTable({
             {SORT_KEYS.map(([key, label]) => {
               const isActive = sortKey === key;
               const nextDir = isActive && sortDir === "asc" ? "desc" : "asc";
-              const isRight = key === "burnPercent" || key === "bufferPercent" || key === "recovery4WeekPercent";
+              const isRight =
+                key === "burnPercent" ||
+                key === "bufferPercent" ||
+                key === "recoveryThisWeekPercent" ||
+                key === "recovery4WeekPercent";
               const isCenter = key === "actualsStatus" || key === "ragOverall";
               return (
                 <th
@@ -292,6 +303,13 @@ export function DashboardProjectsTable({
                 ) : (
                   "—"
                 )}
+              </td>
+              <td
+                className={`px-4 py-2.5 text-right tabular-nums font-medium ${getRecoveryColorClass(row.recoveryThisWeekPercent)}`}
+              >
+                {row.recoveryThisWeekPercent != null
+                  ? `${row.recoveryThisWeekPercent.toFixed(1)}%`
+                  : "—"}
               </td>
               <td
                 className={`px-4 py-2.5 text-right tabular-nums font-medium ${getRecoveryColorClass(row.recovery4WeekPercent)}`}
