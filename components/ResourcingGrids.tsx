@@ -914,10 +914,10 @@ export function ResourcingGrids({
     const weekDate = new Date(weekKey);
     const completed = isCompletedWeek(weekDate, asOf);
     const isCurrWeek = isCurrentWeek(weekDate);
-    /** First month: editable after that calendar month ends (UTC), if the week is not in the future. Second month: same as non-split actuals (completed week, not current). */
+    /** First month: editable after that calendar month ends (UTC), for completed weeks or the current week (isFutureWeek is true for the in-progress week because asOf is end of previous Sunday). Second month: same as non-split actuals (completed week, not current). */
     const editableFirst =
       canEdit &&
-      !isFutureWeek(weekDate, asOf) &&
+      (!isFutureWeek(weekDate, asOf) || isCurrentWeek(weekDate)) &&
       isPastLastUtcDayOfMonthInWeek(weekDate, monthKeys[0]!);
     const editableSecond = canEdit && completed && !isCurrWeek;
     const val1 = getActualByMonth(personId, weekKey, monthKeys[0]!);
