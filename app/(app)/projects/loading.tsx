@@ -7,7 +7,7 @@ export default function ProjectsLoading() {
       </div>
 
       <nav className="flex gap-1 mb-4" aria-hidden>
-        {[1, 2, 3, 4, 5].map((i) => (
+        {[1, 2, 3, 4].map((i) => (
           <div
             key={i}
             className="h-9 w-24 bg-surface-200 dark:bg-dark-raised rounded-md animate-pulse"

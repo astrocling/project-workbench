@@ -118,9 +118,25 @@ Permission helpers live in `lib/auth.ts`; NextAuth configuration (session, crede
 | **User** | View and edit projects (assignments, hours, budget, rates, key roles). Cannot access Admin. |
 | **Admin** | Everything User can do, plus: Admin area (Float Import, Roles, People, Users), delete projects. |
 
-Session permission is read from the current user’s `permissions` field (User or Admin). “My Projects” filter uses the user’s optional position role (PM, PGM, CAD) and matches projects where that person is a key role.
+Session permission is read from the current user’s `permissions` field (User or Admin). See **Projects list page** below for how “My Projects” resolves the current user’s `Person` and filters `ProjectKeyRole`.
 
 In production, `NEXTAUTH_SECRET` must be set and at least 32 characters; the app fails fast at startup if not.
+
+---
+
+## Projects list page
+
+Server-rendered route: `app/(app)/projects/page.tsx` (no separate list API—the page queries Prisma directly).
+
+| Topic | Implementation |
+|--------|------------------|
+| **My Projects** | `getDashboardContext(session)` returns `personId` (cached 60s per user in `lib/dashboardContext.ts`; same cache key as the app layout). Filter: `projectKeyRoles: { some: { personId } } }` (any PM/PGM/CAD key role). If no `Person` is linked, the filter uses an impossible id so the table is empty. |
+| **Query params** | `filter` (`my` \| `active` \| `closed` \| `all`), `sort` (`name` \| `clientName` \| `status` \| `pms` \| `pgm` \| `cad`), `dir` (`asc` \| `desc`), `page` (default `1`), `pageSize` (default `100`, max `200`). Legacy `?filter=atRisk` is normalized to `all`. |
+| **Data loading** | `findMany` uses a **narrow `select`**: project id/slug/name/clientName/status and `projectKeyRoles` with `person.name` only (not full `Project` rows). |
+| **Status filter index** | `Project` has `@@index([status])` for Active/Closed filters. |
+| **Pagination** | For sorts on **Name / Client / Status**, Prisma `skip` / `take` apply after `count`. For sorts on **PMs / PGM / CAD**, the full filtered set is loaded in memory, sorted in JS, then **sliced** to the current page (same ordering semantics as before pagination; use smaller catalogs or avoid key-role sorts if memory is a concern). |
+| **Float “last updated”** | `unstable_cache` on the latest `FloatImportRun` (60s revalidate), key `float-last-import`. |
+| **At Risk** | Removed from the UI and API; portfolio risk signals remain on PM/PGM/CAD dashboards (`lib/portfolioMetrics.ts`, dashboard pages). |
 
 ---
 
@@ -151,7 +167,6 @@ API routes live under `app/api/`. This is a high-level overview for maintainers.
 | Auth | `/api/auth/[...nextauth]` | NextAuth sign-in, sign-out, session. |
 | Seed | `/api/seed` | POST with Bearer token (SEED_SECRET) to run seed once (e.g. after deploy). |
 | Projects | `GET/POST /api/projects` | List projects (with filter), create project. |
-| Projects | `GET /api/projects/at-risk` | List projects that are at risk (over/under resourced). |
 | Project | `GET/PATCH/DELETE /api/projects/[id]` | Single project CRUD. **`PATCH`** accepts optional `cdaReportHoursOnly` (boolean): when `true`, CDA “Overall” status copy and CDA status reports omit budget-dollar columns (hours columns only). See *CDA report hours only* below. |
 | Project | `/api/projects/[id]/assignments` | Assignments for a project. |
 | Project | `/api/projects/[id]/resourcing` | Single endpoint for Resourcing tab (assignments, planned/actual/float hours, cell comments). |

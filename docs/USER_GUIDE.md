@@ -22,15 +22,20 @@ The first admin user is created when the database is seeded. Use the credentials
 
 ## Projects list
 
-The main Projects page shows all projects you can access. Use the filter tabs to narrow the list.
+The main Projects page (`/projects`) lists projects you can access. Use the filter tabs to narrow the list.
 
 | Filter | Description |
 |--------|-------------|
-| **My Projects** | Projects where you are listed as PM, PGM, or CAD (based on your user profile). |
+| **My Projects** | Projects where you are assigned a **key role** (PM, PGM, or CAD). Workbench matches your login to a **Person** record (typically by email, or by name if your user profile’s first and last name match a person). If no person is linked, this filter shows no rows. |
 | **Active Projects** | All projects with status Active. |
 | **Closed Projects** | All projects with status Closed. |
 | **All Projects** | Every project. |
-| **At Risk** | Projects that are over- or under-resourced compared to plan (based on actuals and thresholds). |
+
+**Sorting and URL:** Click a column header (Name, Client, Status, PMs, PGM, CAD) to sort; the URL updates with `sort` and `dir` (`asc` / `desc`). Each click toggles direction.
+
+**Pagination:** Long lists are split into pages (default **100** projects per page). The page shows a range (e.g. “Showing 1–100 of 250”) and **Previous** / **Next** when needed. Optional query parameters: `page` (1-based) and `pageSize` (up to 200).
+
+**Portfolio risk and recovery:** Buffer, recovery, and related portfolio views are on the **PM**, **PGM**, and **CAD** dashboards—not on the Projects list.
 
 From the table you can:
 
@@ -239,7 +244,7 @@ Each project can have people in **key roles**:
 - **PGM** — Program Manager  
 - **CAD** — Client Account Director  
 
-Your **My Projects** filter uses your user **position role** (set in Admin → Users) to show only projects where you are PM, PGM, or CAD.
+Your **My Projects** list (on `/projects`) uses the **Person** link described in *Projects list* (email or name match to your user account). It shows projects where that person has a PM, PGM, or CAD key role. It does **not** filter by the optional **position role** field on your user account alone—that field is used elsewhere (e.g. which dashboard you land on).
 
 ---
 

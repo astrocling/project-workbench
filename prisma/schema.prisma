@@ -138,6 +138,8 @@ model Project {
   statusReports        StatusReport[]
   timelineBars         TimelineBar[]
   timelineMarkers      TimelineMarker[]
+
+  @@index([status])
 }
 
 enum StatusReportVariation {

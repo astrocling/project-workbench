@@ -110,7 +110,7 @@ Creates a sample project with people, assignments, planned/actual hours, and bud
 ## Documentation
 
 - **[User Guide](docs/USER_GUIDE.md)** — How to use the app: projects, PM/PGM/CAD dashboards (including 1-wk vs 4-wk recovery columns), resourcing (including split-week actuals at month boundaries), budget, Float import, and admin (Roles, People, Users). Written in standard Markdown for easy copy into Confluence.
-- **[Technical Reference](docs/TECHNICAL.md)** — Tech stack, data model, environment variables, week/as-of semantics, split-week actual hours (`ActualHoursMonthSplit`), permissions, scripts (including `migrate:split-week-actuals`), and API overview. Also Confluence-friendly.
+- **[Technical Reference](docs/TECHNICAL.md)** — Tech stack, data model, environment variables, week/as-of semantics, split-week actual hours (`ActualHoursMonthSplit`), permissions, **Projects list page** (filters, pagination, query params, Prisma `select`), scripts (including `migrate:split-week-actuals`), and API overview. Also Confluence-friendly.
 
 ## Float CSV Import
 
