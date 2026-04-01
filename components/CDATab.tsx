@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { Toggle } from "@/components/Toggle";
 import { BRAND_COLORS } from "@/lib/brandColors";
 
 function roundToQuarter(n: number): number {
@@ -82,12 +84,21 @@ type InitialBudgetData = {
 export function CDATab({
   projectId,
   canEdit,
+  cdaReportHoursOnly: cdaReportHoursOnlyProp = false,
   initialBudgetData,
 }: {
   projectId: string;
   canEdit: boolean;
+  /** When true, status report copy and Overall preview omit budget dollars (hours only). */
+  cdaReportHoursOnly?: boolean;
   initialBudgetData?: InitialBudgetData | null;
 }) {
+  const router = useRouter();
+  const [reportHoursOnly, setReportHoursOnly] = useState(cdaReportHoursOnlyProp);
+  useEffect(() => {
+    setReportHoursOnly(cdaReportHoursOnlyProp);
+  }, [cdaReportHoursOnlyProp]);
+
   const [rows, setRows] = useState<CdaRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -541,6 +552,14 @@ export function CDATab({
     const hoursPlanned = formatReportNumber(contractHoursTotal);
     const hoursActuals = totalMtdActuals !== 0 ? formatReportNumber(-totalMtdActuals) : "0.00";
     const hoursRemaining = formatReportNumber(overallStatusHoursRemaining);
+    const budgetRow =
+      !reportHoursOnly &&
+      `<tr>` +
+        `<td style="${labelCellStyle}">Budget ($)</td>` +
+        `<td style="${budgetPlannedRemainStyle}">${budgetPlanned}</td>` +
+        `<td style="${actualsCellStyle}">${budgetActuals}</td>` +
+        `<td style="${budgetPlannedRemainStyle}">${budgetRemaining}</td>` +
+        `</tr>`;
     return (
       `<table style="border-collapse:collapse;font-family:sans-serif;min-width:280px;">` +
       `<tbody>` +
@@ -548,12 +567,7 @@ export function CDATab({
       `<tr>` +
       `<th style="${headerStyle}">Total Project</th><th style="${headerStyle}">Planned</th><th style="${headerStyle}">Actuals</th><th style="${headerStyle}">Remaining</th>` +
       `</tr>` +
-      `<tr>` +
-      `<td style="${labelCellStyle}">Budget ($)</td>` +
-      `<td style="${budgetPlannedRemainStyle}">${budgetPlanned}</td>` +
-      `<td style="${actualsCellStyle}">${budgetActuals}</td>` +
-      `<td style="${budgetPlannedRemainStyle}">${budgetRemaining}</td>` +
-      `</tr>` +
+      budgetRow +
       `<tr>` +
       `<td style="${labelCellStyle}">Hours</td>` +
       `<td style="${hoursPlannedRemainStyle}">${hoursPlanned}</td>` +
@@ -566,6 +580,7 @@ export function CDATab({
     contractHoursTotal,
     totalMtdActuals,
     overallStatusHoursRemaining,
+    reportHoursOnly,
   ]);
 
   /** Build plain text for OVERALL table. */
@@ -579,15 +594,52 @@ export function CDATab({
         ? formatCurrency(overallBudget.totalDollars - overallBudget.actualDollars)
         : "—";
     const hoursActuals = totalMtdActuals !== 0 ? formatReportNumber(-totalMtdActuals) : "0.00";
-    return [
+    const lines = [
       "Overall",
       "Total Project\tPlanned\tActuals\tRemaining",
-      `Budget ($)\t${budgetPlanned}\t${budgetActuals}\t${budgetRemaining}`,
-      `Hours\t${formatReportNumber(contractHoursTotal)}\t${hoursActuals}\t${formatReportNumber(overallStatusHoursRemaining)}`,
-    ].join("\n");
-  }, [overallBudget, contractHoursTotal, totalMtdActuals, overallStatusHoursRemaining]);
+    ];
+    if (!reportHoursOnly) {
+      lines.push(`Budget ($)\t${budgetPlanned}\t${budgetActuals}\t${budgetRemaining}`);
+    }
+    lines.push(
+      `Hours\t${formatReportNumber(contractHoursTotal)}\t${hoursActuals}\t${formatReportNumber(overallStatusHoursRemaining)}`
+    );
+    return lines.join("\n");
+  }, [
+    overallBudget,
+    contractHoursTotal,
+    totalMtdActuals,
+    overallStatusHoursRemaining,
+    reportHoursOnly,
+  ]);
 
   const [copyOverallFeedback, setCopyOverallFeedback] = useState<string | null>(null);
+  const [hoursOnlySaveError, setHoursOnlySaveError] = useState<string | null>(null);
+
+  const patchReportHoursOnly = useCallback(
+    async (next: boolean) => {
+      if (!canEdit) return;
+      setHoursOnlySaveError(null);
+      const previous = reportHoursOnly;
+      setReportHoursOnly(next);
+      try {
+        const res = await fetch(`/api/projects/${projectId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cdaReportHoursOnly: next }),
+        });
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(t || res.statusText);
+        }
+        router.refresh();
+      } catch (e) {
+        setReportHoursOnly(previous);
+        setHoursOnlySaveError(e instanceof Error ? e.message : "Save failed");
+      }
+    },
+    [canEdit, projectId, reportHoursOnly, router]
+  );
 
   const copyOverallTable = useCallback(async () => {
     if (typeof navigator?.clipboard?.write !== "function") {
@@ -974,6 +1026,7 @@ export function CDATab({
               overallBudget != null
                 ? formatCurrency(overallBudget.totalDollars - overallBudget.actualDollars)
                 : "—";
+            const showBudgetDollars = !reportHoursOnly;
             const hoursActualsStr =
               totalMtdActuals !== 0 ? formatReportNumber(-totalMtdActuals) : "0.00";
             const selectedMonthBurnPercent =
@@ -1072,9 +1125,23 @@ export function CDATab({
             };
             return (
               <div className="rounded-lg border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface p-3 shadow-card-light dark:shadow-card-dark">
-                <h3 className="text-title-sm font-semibold text-surface-900 dark:text-white mb-2">
-                  Copy for status report
-                </h3>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                  <h3 className="text-title-sm font-semibold text-surface-900 dark:text-white">
+                    Copy for status report
+                  </h3>
+                  <Toggle
+                    checked={reportHoursOnly}
+                    onChange={(v) => void patchReportHoursOnly(v)}
+                    disabled={!canEdit}
+                    label="Report hours only"
+                    aria-label="Report hours only in status copy and reports"
+                  />
+                </div>
+                {hoursOnlySaveError && (
+                  <p className="text-body-sm text-jred-600 dark:text-jred-400 mb-2" role="alert">
+                    {hoursOnlySaveError}
+                  </p>
+                )}
                 {copyFeedback && (
                   <p className="text-label-sm text-jblue-600 dark:text-jblue-400 mb-2" role="status">
                     {copyFeedback}
@@ -1103,12 +1170,14 @@ export function CDATab({
                           <th style={overallHeaderStyle}>Actuals</th>
                           <th style={overallHeaderStyle}>Remaining</th>
                         </tr>
-                        <tr>
-                          <td style={overallLabelStyle}>Budget ($)</td>
-                          <td style={overallBudgetCellStyle}>{budgetPlanned}</td>
-                          <td style={overallActualsStyle}>{budgetActuals}</td>
-                          <td style={overallBudgetCellStyle}>{budgetRemaining}</td>
-                        </tr>
+                        {showBudgetDollars && (
+                          <tr>
+                            <td style={overallLabelStyle}>Budget ($)</td>
+                            <td style={overallBudgetCellStyle}>{budgetPlanned}</td>
+                            <td style={overallActualsStyle}>{budgetActuals}</td>
+                            <td style={overallBudgetCellStyle}>{budgetRemaining}</td>
+                          </tr>
+                        )}
                         <tr>
                           <td style={overallLabelStyle}>Hours</td>
                           <td style={overallHoursCellStyle} className="tabular-nums">{formatReportNumber(contractHoursTotal)}</td>

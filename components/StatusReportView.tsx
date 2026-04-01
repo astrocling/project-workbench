@@ -12,6 +12,7 @@ import {
   type RagStatus,
   cdaOverallHoursPlanned,
   cdaOverallHoursRemaining,
+  cdaContractHoursCompletePercent,
 } from "@/components/pdf/StatusReportDocument";
 import { getWeeksInMonthsForRange } from "@/lib/monthUtils";
 
@@ -526,10 +527,13 @@ export function StatusReportView({
             {report.variation === "CDA" && data.cda && (() => {
               const reportMonthKey = data.report.reportDate.slice(0, 7);
               const currentMonthRow = data.cda.rows.find((r) => r.monthKey === reportMonthKey);
+              const hoursOnly = data.cdaReportHoursOnly === true;
               const contractBudgetBurnPercent =
                 data.cda.overallBudget && data.cda.overallBudget.totalDollars > 0
                   ? Math.min(100, Math.max(0, (data.cda.overallBudget.actualDollars / data.cda.overallBudget.totalDollars) * 100))
                   : null;
+              const contractHoursCompletePercent = cdaContractHoursCompletePercent(data);
+              const overallFirstDonutPercent = hoursOnly ? contractHoursCompletePercent : contractBudgetBurnPercent;
               const currentMonthPercent =
                 currentMonthRow && currentMonthRow.planned > 0
                   ? Math.min(100, Math.max(0, (currentMonthRow.mtdActuals / currentMonthRow.planned) * 100))
@@ -590,6 +594,7 @@ export function StatusReportView({
                           <div className="flex-1 py-0.5 px-0.5">Actuals</div>
                           <div className="flex-1 py-0.5 px-0.5">Remaining</div>
                         </div>
+                        {!hoursOnly && (
                         <div className="flex flex-row text-[6px] font-semibold border-t border-gray-200">
                           <div className="flex-[1.5] py-0.5 px-0.5">Budget ($)</div>
                           <div className="flex-1 py-0.5 px-0.5 text-right" style={{ backgroundColor: BRAND_COLORS.overallBudget, color: BRAND_COLORS.onHeader }}>
@@ -600,6 +605,7 @@ export function StatusReportView({
                             {data.cda.overallBudget ? formatDollars(data.cda.overallBudget.totalDollars - data.cda.overallBudget.actualDollars) : "—"}
                           </div>
                         </div>
+                        )}
                         <div className="flex flex-row text-[6px] font-semibold border-t border-gray-200">
                           <div className="flex-[1.5] py-0.5 px-0.5">Hours</div>
                           <div className="flex-1 py-0.5 px-0.5 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(cdaOverallHoursPlanned(data))}</div>
@@ -607,7 +613,11 @@ export function StatusReportView({
                           <div className="flex-1 py-0.5 px-0.5 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(cdaOverallHoursRemaining(data))}</div>
                         </div>
                       </div>
-                      <BudgetBurnDonut burnPercent={contractBudgetBurnPercent} compact label="Total Budget" />
+                      <BudgetBurnDonut
+                        burnPercent={overallFirstDonutPercent}
+                        compact
+                        label={hoursOnly ? "Contract Hours Complete" : "Total Budget"}
+                      />
                     </div>
                     <div className="flex flex-row items-center gap-1.5">
                       <div className="flex-1 min-w-0 border border-gray-200">

@@ -281,12 +281,15 @@ export function StatusReportsTab({
   projectSlug,
   canEdit,
   cdaEnabled = false,
+  cdaReportHoursOnly = false,
   initialBudgetData,
 }: {
   projectId: string;
   projectSlug: string;
   canEdit: boolean;
   cdaEnabled?: boolean;
+  /** When true, CDA form preview hides budget dollars in Overall table. */
+  cdaReportHoursOnly?: boolean;
   initialBudgetData?: InitialBudgetData | null;
 }) {
   const [budgetLines, setBudgetLines] = useState<BudgetLine[]>(initialBudgetData?.budgetLines ?? []);
@@ -1397,12 +1400,14 @@ export function StatusReportsTab({
                             <th style={cdaHeaderStyle}>Actuals</th>
                             <th style={cdaHeaderStyle}>Remaining</th>
                           </tr>
-                          <tr>
-                            <td style={cdaLabelStyle}>Budget ($)</td>
-                            <td style={cdaBudgetCellStyle} className="tabular-nums">{budgetPlanned}</td>
-                            <td style={cdaCellRightStyle} className="tabular-nums">{budgetActuals}</td>
-                            <td style={cdaBudgetCellStyle} className="tabular-nums">{budgetRemaining}</td>
-                          </tr>
+                          {!cdaReportHoursOnly && (
+                            <tr>
+                              <td style={cdaLabelStyle}>Budget ($)</td>
+                              <td style={cdaBudgetCellStyle} className="tabular-nums">{budgetPlanned}</td>
+                              <td style={cdaCellRightStyle} className="tabular-nums">{budgetActuals}</td>
+                              <td style={cdaBudgetCellStyle} className="tabular-nums">{budgetRemaining}</td>
+                            </tr>
+                          )}
                           <tr>
                             <td style={cdaLabelStyle}>Hours</td>
                             <td style={cdaHoursCellStyle} className="tabular-nums">{formatReportNumber(hoursBudgetPlanned)}</td>

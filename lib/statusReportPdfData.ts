@@ -32,6 +32,8 @@ export type StatusReportSnapshot = {
   timeline?: StatusReportPDFData["timeline"];
   /** Number of months before report date to show on timeline (1–4). */
   timelinePreviousMonths?: number;
+  /** Locked at report creation: hide CDA budget dollars on Overall table. */
+  cdaReportHoursOnly?: boolean;
 };
 
 function isStatusReportSnapshot(obj: unknown): obj is StatusReportSnapshot {
@@ -330,6 +332,16 @@ export async function buildStatusReportPdfData(
     timeline = { startDate: effectiveStartStr, endDate: endStr, bars, markers };
   }
 
+  let cdaReportHoursOnly = false;
+  if (snapshot != null) {
+    cdaReportHoursOnly =
+      typeof snapshot.cdaReportHoursOnly === "boolean"
+        ? snapshot.cdaReportHoursOnly
+        : false;
+  } else {
+    cdaReportHoursOnly = project.cdaReportHoursOnly ?? false;
+  }
+
   return {
     report: {
       reportDate: report.reportDate.toISOString().slice(0, 10),
@@ -364,5 +376,6 @@ export async function buildStatusReportPdfData(
     budget: report.variation === "Standard" || report.variation === "Milestones" ? budget : undefined,
     cda,
     timeline,
+    cdaReportHoursOnly,
   };
 }

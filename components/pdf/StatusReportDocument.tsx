@@ -825,6 +825,8 @@ export type StatusReportPDFData = {
     bars: Array<{ rowIndex: number; label: string; startDate: string; endDate: string; color?: string | null }>;
     markers: Array<{ label: string; date: string; shape?: string; rowIndex?: number }>;
   };
+  /** When true, CDA Overall table omits Budget ($) row; first chart uses hours completion. */
+  cdaReportHoursOnly?: boolean;
 };
 
 /**
@@ -843,6 +845,14 @@ export function cdaOverallHoursRemaining(data: StatusReportPDFData): number {
   const cda = data.cda;
   if (!cda) return 0;
   return cdaOverallHoursPlanned(data) - cda.totalMtdActuals;
+}
+
+/** Percent of contract hours complete (MTD actuals vs budget hours), 0–100; null if no baseline. */
+export function cdaContractHoursCompletePercent(data: StatusReportPDFData): number | null {
+  const planned = cdaOverallHoursPlanned(data);
+  const cda = data.cda;
+  if (!cda || planned <= 0) return null;
+  return Math.min(100, Math.max(0, (cda.totalMtdActuals / planned) * 100));
 }
 
 function formatNum(n: number): string {
@@ -1294,7 +1304,7 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
                 </View>
                 <View style={styles.bioCol}>
                   <View style={styles.bioRow}>
-                    <Text style={styles.bioLabel}>Today's Date:</Text>
+                    <Text style={styles.bioLabel}>Today&apos;s Date:</Text>
                     <Text style={styles.bioValue}>{today}</Text>
                   </View>
                   <View style={styles.bioRow}>
@@ -1368,11 +1378,14 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
           {report.variation === "CDA" && data.cda && (() => {
             const reportMonthKey = data.report.reportDate.slice(0, 7);
             const currentMonthRow = data.cda.rows.find((r) => r.monthKey === reportMonthKey);
+            const hoursOnly = data.cdaReportHoursOnly === true;
             /** Contract budget $ burned (actualDollars / totalDollars). */
             const contractBudgetBurnPercent =
               data.cda.overallBudget && data.cda.overallBudget.totalDollars > 0
                 ? Math.min(100, Math.max(0, (data.cda.overallBudget.actualDollars / data.cda.overallBudget.totalDollars) * 100))
                 : null;
+            const contractHoursCompletePercent = cdaContractHoursCompletePercent(data);
+            const overallFirstDonutPercent = hoursOnly ? contractHoursCompletePercent : contractBudgetBurnPercent;
             /** Selected month hours burned vs plan (mtdActuals / planned). */
             const currentMonthPercent =
               currentMonthRow && currentMonthRow.planned > 0
@@ -1469,6 +1482,7 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
                             <Text style={styles.srHeaderCompact}>Remaining</Text>
                           </View>
                         </View>
+                        {!hoursOnly && (
                         <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
                           <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srLabelCompact, { flex: 1.5 }]}>
                             <Text style={styles.srLabelCompact}>Budget ($)</Text>
@@ -1483,6 +1497,7 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
                             <Text style={styles.srGreenCompact}>{data.cda.overallBudget ? formatDollars(data.cda.overallBudget.totalDollars - data.cda.overallBudget.actualDollars) : "—"}</Text>
                           </View>
                         </View>
+                        )}
                         <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
                           <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srLabelCompact, { flex: 1.5 }]}>
                             <Text style={styles.srLabelCompact}>Hours</Text>
@@ -1500,7 +1515,11 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
                       </View>
                     </View>
                     <View style={styles.cdaChartCol}>
-                      <BudgetBurnChartPDF burnPercent={contractBudgetBurnPercent} compact label="Total Budget" />
+                      <BudgetBurnChartPDF
+                        burnPercent={overallFirstDonutPercent}
+                        compact
+                        label={hoursOnly ? "Contract Hours Complete" : "Total Budget"}
+                      />
                     </View>
                   </View>
                   <View style={styles.cdaTableChartRow}>

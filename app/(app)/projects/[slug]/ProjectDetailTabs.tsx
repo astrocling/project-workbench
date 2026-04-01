@@ -79,6 +79,7 @@ export function ProjectDetailTabs({
   canEdit,
   floatLastUpdated,
   cdaEnabled = false,
+  cdaReportHoursOnly = false,
   initialProject,
   initialAssignments,
   initialMissingRateRoleNames,
@@ -93,6 +94,8 @@ export function ProjectDetailTabs({
   canEdit: boolean;
   floatLastUpdated: Date | null;
   cdaEnabled?: boolean;
+  /** When true, CDA status copy and status report preview hide budget dollars (hours only). */
+  cdaReportHoursOnly?: boolean;
   initialProject?: InitialProject;
   initialAssignments?: InitialAssignment[];
   initialMissingRateRoleNames?: string[];
@@ -972,8 +975,24 @@ export function ProjectDetailTabs({
       )}
       {tab === "budget" && <BudgetTab projectId={projectId} canEdit={canEdit} initialBudgetData={initialBudgetData} />}
       {tab === "timeline" && <TimelineTab projectId={projectId} canEdit={canEdit} />}
-      {tab === "status-reports" && <StatusReportsTab projectId={projectId} projectSlug={projectSlug} canEdit={canEdit} cdaEnabled={cdaEnabled} initialBudgetData={initialBudgetData} />}
-      {tab === "cda" && cdaEnabled && <CDATab projectId={projectId} canEdit={canEdit} initialBudgetData={initialBudgetData} />}
+      {tab === "status-reports" && (
+        <StatusReportsTab
+          projectId={projectId}
+          projectSlug={projectSlug}
+          canEdit={canEdit}
+          cdaEnabled={cdaEnabled}
+          cdaReportHoursOnly={cdaReportHoursOnly}
+          initialBudgetData={initialBudgetData}
+        />
+      )}
+      {tab === "cda" && cdaEnabled && (
+        <CDATab
+          projectId={projectId}
+          canEdit={canEdit}
+          cdaReportHoursOnly={cdaReportHoursOnly}
+          initialBudgetData={initialBudgetData}
+        />
+      )}
       {tab === "settings" && canEdit && (
         <ProjectSettingsTab
           projectSlug={projectSlug}

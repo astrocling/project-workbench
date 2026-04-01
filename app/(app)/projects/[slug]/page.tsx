@@ -277,6 +277,7 @@ export default async function ProjectDetailPage({
         canEdit={!!canEdit}
         floatLastUpdated={lastImport?.completedAt ?? null}
         cdaEnabled={project.cdaEnabled ?? false}
+        cdaReportHoursOnly={project.cdaReportHoursOnly ?? false}
         initialProject={initialProject}
         initialAssignments={initialAssignments}
         initialMissingRateRoleNames={initialMissingRateRoleNames}

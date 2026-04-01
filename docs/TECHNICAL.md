@@ -25,7 +25,7 @@ The schema is defined in `prisma/schema.prisma`. Main entities:
 | **User** | App login (email, password hash, permissions: User/Admin, optional position role). |
 | **Person** | Resource (name, email, active, optional externalId). Used for assignments and Float import; may be linked to User by email/name for “My Projects”. |
 | **Role** | Role type (e.g. Project Manager, FE Developer). Used on assignments and in Float CSV. |
-| **Project** | Project (slug, name, client, start/end dates, status, optional single rate, notes, SOW/estimate/float/metric links, resourcing thresholds, cdaEnabled, optional clientSponsor/keyStaffName for status reports). |
+| **Project** | Project (slug, name, client, start/end dates, status, optional single rate, notes, SOW/estimate/float/metric links, resourcing thresholds, `cdaEnabled`, `cdaReportHoursOnly`, optional clientSponsor/keyStaffName for status reports). |
 | **ProjectAssignment** | Person assigned to a project in a role; optional bill-rate override; optional hiddenFromGrid (hide from Resourcing tab only). |
 | **ProjectRoleRate** | Per-role bill rate for a project (rate card). |
 | **ProjectKeyRole** | Key role assignment (PM, PGM, CAD) per project and person. |
@@ -152,7 +152,7 @@ API routes live under `app/api/`. This is a high-level overview for maintainers.
 | Seed | `/api/seed` | POST with Bearer token (SEED_SECRET) to run seed once (e.g. after deploy). |
 | Projects | `GET/POST /api/projects` | List projects (with filter), create project. |
 | Projects | `GET /api/projects/at-risk` | List projects that are at risk (over/under resourced). |
-| Project | `GET/PATCH/DELETE /api/projects/[id]` | Single project CRUD. |
+| Project | `GET/PATCH/DELETE /api/projects/[id]` | Single project CRUD. **`PATCH`** accepts optional `cdaReportHoursOnly` (boolean): when `true`, CDA “Overall” status copy and CDA status reports omit budget-dollar columns (hours columns only). See *CDA report hours only* below. |
 | Project | `/api/projects/[id]/assignments` | Assignments for a project. |
 | Project | `/api/projects/[id]/resourcing` | Single endpoint for Resourcing tab (assignments, planned/actual/float hours, cell comments). |
 | Project | `/api/projects/[id]/planned-hours`, `actual-hours`, `float-hours` | Hour entries by project. **`actual-hours`**: `GET` returns `rows` and `monthSplits` (split-week breakdowns). `PATCH` accepts either a single `hours` value or `parts` (two `{ monthKey, hours }`) for split weeks—see *Split-week actual hours* above. |
@@ -208,6 +208,13 @@ The status report preview and exported PDF are generated from the same component
 - **Timeline layout (tab and status report)**: The project Timeline tab and the status report timeline (preview and PDF) share the same layout. Month columns are **week-proportional**: column widths and vertical boundary lines are derived from the number of weeks in each month that fall within the range. The helper `getWeeksInMonthsForRange()` in `lib/monthUtils.ts` returns `weeksInMonths` and `monthBoundaryPositions` for a given date range and is used by `TimelineTab.tsx`, `StatusReportView.tsx`, and `StatusReportDocument.tsx`. Bars use full row height with top/bottom padding (no lane stacking); overlapping bars in the same row overlap visually.
 - **Timeline bars (status report)**: The status report timeline shows only the “previous months” range (e.g. 1–4 months before the report date). Bars are **clipped** to that visible range via `getVisibleBarSegments()`: only the segment within `[timeline.startDate, timeline.endDate]` is drawn, and position/width are computed from that segment so the layout matches the shortened axis. Row height on the status report is compact (20px) to limit vertical space; the Timeline tab uses a larger row height (52px) for readability.
 - **Timeline bar colors**: Each bar can have an optional color (hex string stored in `TimelineBar.color`). The Timeline tab offers a preset palette (Blue, Green, Amber, Teal, Slate, Violet); the same color is shown in the tab, status report preview, and PDF. Bars with no color use the default blue.
+
+### CDA report hours only (`cdaReportHoursOnly`)
+
+- **Schema**: `Project.cdaReportHoursOnly` (`Boolean`, default `false`). Migration: `prisma/migrations/*_add_cda_report_hours_only/`.
+- **Behavior**: When `true`, the CDA **Overall** row in status copy (`CDATab`), Status Reports tab CDA preview (`StatusReportsTab`), and CDA PDF (`StatusReportDocument`) **hide budget-dollar cells** (planned / actual / remaining dollars). Hours columns and monthly CDA tables are unchanged. The first “burn” donut on CDA reports uses **contract hours complete** instead of **budget burn** when this flag is on (`StatusReportView` / `StatusReportDocument` + `lib/statusReportPdfData.ts`).
+- **API**: `PATCH /api/projects/[id]` with JSON `{ "cdaReportHoursOnly": true | false }` (validated in `app/api/projects/[id]/route.ts`). The CDA tab persists the toggle via this field.
+- **Snapshots**: On status report create, `cdaReportHoursOnly` is copied into the report snapshot (`app/api/projects/[id]/status-reports/route.ts` / `lib/statusReportPdfData.ts`) so PDF/HTML for that report stay stable if the project flag changes later.
 
 ---
 

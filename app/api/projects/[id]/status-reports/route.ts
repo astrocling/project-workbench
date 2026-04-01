@@ -194,6 +194,7 @@ export async function POST(
       cda: pdfData.cda,
       timeline: pdfData.timeline,
       timelinePreviousMonths: parsed.data.timelinePreviousMonths,
+      cdaReportHoursOnly: pdfData.cdaReportHoursOnly,
     };
     await prisma.statusReport.update({
       where: { id: report.id },

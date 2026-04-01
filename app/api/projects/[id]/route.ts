@@ -39,6 +39,7 @@ const updateSchema = z.object({
   pgmPersonId: z.string().optional().nullable(),
   cadPersonId: z.string().optional().nullable(),
   cdaEnabled: z.boolean().optional(),
+  cdaReportHoursOnly: z.boolean().optional(),
   clientSponsor: z.string().nullable().optional(),
   clientSponsor2: z.string().nullable().optional(),
   otherContact: z.string().nullable().optional(),
@@ -92,6 +93,7 @@ export async function PATCH(
   if (parsed.data.singleBillRate !== undefined) data.singleBillRate = parsed.data.singleBillRate;
   if (parsed.data.useSingleRate === false) data.singleBillRate = null;
   if (parsed.data.cdaEnabled !== undefined) data.cdaEnabled = parsed.data.cdaEnabled;
+  if (parsed.data.cdaReportHoursOnly !== undefined) data.cdaReportHoursOnly = parsed.data.cdaReportHoursOnly;
   if (parsed.data.notes !== undefined) data.notes = parsed.data.notes;
   if (parsed.data.clientSponsor !== undefined) data.clientSponsor = parsed.data.clientSponsor;
   if (parsed.data.clientSponsor2 !== undefined) data.clientSponsor2 = parsed.data.clientSponsor2;

@@ -105,6 +105,8 @@ model Project {
   singleBillRate Decimal?  @db.Decimal(10, 2)
   /// Show CDA (monthly planned/actuals) tab
   cdaEnabled     Boolean   @default(false)
+  /// Status report / CDA copy: Overall table shows hours only (hide budget dollars)
+  cdaReportHoursOnly Boolean @default(false)
   /// Client sponsor (for status report biographical block)
   clientSponsor   String?
   /// Second client sponsor (for status report biographical block)
