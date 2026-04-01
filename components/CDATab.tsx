@@ -91,9 +91,8 @@ export function CDATab({
   const [rows, setRows] = useState<CdaRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [editing, setEditing] = useState<{
+  const [editingPlanned, setEditingPlanned] = useState<{
     monthKey: string;
-    field: "planned" | "mtdActuals";
     str: string;
   } | null>(null);
 
@@ -300,7 +299,6 @@ export function CDATab({
           rows: nextRows.map((r) => ({
             monthKey: r.monthKey,
             planned: roundToQuarter(r.planned),
-            mtdActuals: roundToQuarter(r.mtdActuals),
           })),
         }),
       });
@@ -314,25 +312,23 @@ export function CDATab({
     [projectId]
   );
 
-  const updateCell = useCallback(
-    (monthKey: string, field: "planned" | "mtdActuals", value: number) => {
+  const updatePlannedCell = useCallback(
+    (monthKey: string, value: number) => {
       const next = rows.map((r) =>
-        r.monthKey === monthKey ? { ...r, [field]: value } : r
+        r.monthKey === monthKey ? { ...r, planned: value } : r
       );
       setRows(next);
-      setEditing(null);
+      setEditingPlanned(null);
       if (canEdit) saveRows(next);
     },
     [rows, canEdit, saveRows]
   );
 
-  const displayValue = (
-    row: CdaRow,
-    field: "planned" | "mtdActuals"
-  ): string => {
-    const edit = editing?.monthKey === row.monthKey && editing?.field === field;
-    if (edit && editing?.str !== undefined) return editing.str;
-    return formatHours(row[field]);
+  const displayPlannedValue = (row: CdaRow): string => {
+    const edit =
+      editingPlanned?.monthKey === row.monthKey ? editingPlanned : null;
+    if (edit && edit.str !== undefined) return edit.str;
+    return formatHours(row.planned);
   };
 
   const remaining = (row: CdaRow) =>
@@ -832,23 +828,22 @@ export function CDATab({
                         inputMode="decimal"
                         min={0}
                         step={0.25}
-                        value={displayValue(row, "planned")}
+                        value={displayPlannedValue(row)}
                         onChange={(e) =>
-                          setEditing({
+                          setEditingPlanned({
                             monthKey: row.monthKey,
-                            field: "planned",
                             str: e.target.value,
                           })
                         }
                         onFocus={(e) => e.currentTarget.select()}
                         onBlur={() => {
-                          const str = displayValue(row, "planned");
+                          const str = displayPlannedValue(row);
                           const n = parseFloat(str);
                           if (!Number.isFinite(n) || n < 0) {
-                            setEditing(null);
+                            setEditingPlanned(null);
                             return;
                           }
-                          updateCell(row.monthKey, "planned", roundToQuarter(n));
+                          updatePlannedCell(row.monthKey, roundToQuarter(n));
                         }}
                         onWheel={(e) => e.currentTarget.blur()}
                         onKeyDown={(e) => {
@@ -865,51 +860,15 @@ export function CDATab({
                   </td>
                   <td
                     className={`px-2 py-2 text-right tabular-nums ${
-                      mtdEmpty && !canEdit
+                      mtdEmpty
                         ? "bg-amber-50 dark:bg-amber-900/20"
                         : ""
                     }`}
+                    title="From resourcing (actual hours and split weeks)"
                   >
-                    {canEdit ? (
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        min={0}
-                        step={0.25}
-                        value={displayValue(row, "mtdActuals")}
-                        onChange={(e) =>
-                          setEditing({
-                            monthKey: row.monthKey,
-                            field: "mtdActuals",
-                            str: e.target.value,
-                          })
-                        }
-                        onFocus={(e) => e.currentTarget.select()}
-                        onBlur={() => {
-                          const str = displayValue(row, "mtdActuals");
-                          const n = parseFloat(str);
-                          if (!Number.isFinite(n) || n < 0) {
-                            setEditing(null);
-                            return;
-                          }
-                          updateCell(
-                            row.monthKey,
-                            "mtdActuals",
-                            roundToQuarter(n)
-                          );
-                        }}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter")
-                            (e.target as HTMLInputElement).blur();
-                        }}
-                        className={inputClass(mtdEmpty)}
-                      />
-                    ) : (
-                      <span className="text-surface-700 dark:text-surface-200">
-                        {formatHours(row.mtdActuals)}
-                      </span>
-                    )}
+                    <span className="text-surface-700 dark:text-surface-200">
+                      {formatHours(row.mtdActuals)}
+                    </span>
                   </td>
                   <td
                     className={`px-2 py-2 text-right tabular-nums font-semibold ${

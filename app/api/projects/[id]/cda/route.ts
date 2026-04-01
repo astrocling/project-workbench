@@ -3,19 +3,19 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { getProjectId } from "@/lib/slug";
-import { getMonthsInRange, getMonthKeysForWeek } from "@/lib/monthUtils";
+import {
+  buildCdaRowsForProject,
+  roundToQuarter,
+} from "@/lib/cdaMtdFromResourcing";
 import { z } from "zod";
-
-function roundToQuarter(n: number): number {
-  return Math.round(n * 4) / 4;
-}
 
 const patchSchema = z.object({
   rows: z.array(
     z.object({
       monthKey: z.string(),
       planned: z.number().min(0),
-      mtdActuals: z.number().min(0),
+      /** Ignored — MTD actuals are computed from resourcing. Kept for older clients. */
+      mtdActuals: z.number().min(0).optional(),
     })
   ),
 });
@@ -37,49 +37,12 @@ export async function GET(
   });
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const end = project.endDate ?? new Date();
-  const months = getMonthsInRange(project.startDate, end);
-  const byKey = new Map(
-    project.cdaMonths.map((m) => [
-      m.monthKey,
-      { planned: Number(m.planned), mtdActuals: Number(m.mtdActuals) },
-    ])
-  );
-
-  // Compute month actuals from resourcing: ActualHoursMonthSplit by monthKey + ActualHours for single-month weeks
-  const resourcingByMonth = new Map<string, number>();
-  for (const split of project.actualHoursMonthSplits) {
-    const monthKey = split.monthKey;
-    const current = resourcingByMonth.get(monthKey) ?? 0;
-    resourcingByMonth.set(monthKey, current + Number(split.hours));
-  }
-  const weekHasSplits = new Set(
-    project.actualHoursMonthSplits.map(
-      (s) => `${s.personId}:${(s.weekStartDate as Date).toISOString().slice(0, 10)}`
-    )
-  );
-  for (const ah of project.actualHours) {
-    if (ah.hours == null) continue;
-    const weekKey = (ah.weekStartDate as Date).toISOString().slice(0, 10);
-    if (weekHasSplits.has(`${ah.personId}:${weekKey}`)) continue;
-    const monthKeys = getMonthKeysForWeek(ah.weekStartDate as Date);
-    if (monthKeys.length === 1) {
-      const monthKey = monthKeys[0]!;
-      const current = resourcingByMonth.get(monthKey) ?? 0;
-      resourcingByMonth.set(monthKey, current + Number(ah.hours));
-    }
-  }
-
-  const rows = months.map(({ monthKey, label }) => {
-    const data = byKey.get(monthKey);
-    const fromResourcing = resourcingByMonth.get(monthKey) ?? 0;
-    const mtdActuals = data != null ? Number(data.mtdActuals) : fromResourcing;
-    return {
-      monthKey,
-      monthLabel: label,
-      planned: data != null ? Number(data.planned) : 0,
-      mtdActuals,
-    };
+  const rows = buildCdaRowsForProject({
+    startDate: project.startDate,
+    endDate: project.endDate,
+    cdaMonths: project.cdaMonths,
+    actualHours: project.actualHours,
+    actualHoursMonthSplits: project.actualHoursMonthSplits,
   });
 
   return NextResponse.json({
@@ -112,7 +75,6 @@ export async function PATCH(
 
   for (const row of parsed.data.rows) {
     const planned = roundToQuarter(row.planned);
-    const mtdActuals = roundToQuarter(row.mtdActuals);
     await prisma.cdaMonth.upsert({
       where: {
         projectId_monthKey: { projectId: id, monthKey: row.monthKey },
@@ -121,36 +83,41 @@ export async function PATCH(
         projectId: id,
         monthKey: row.monthKey,
         planned,
-        mtdActuals,
+        mtdActuals: 0,
       },
-      update: { planned, mtdActuals },
+      update: { planned },
     });
   }
 
   const project = await prisma.project.findUnique({
     where: { id },
-    select: { startDate: true, endDate: true, cdaMonths: true },
+    select: {
+      startDate: true,
+      endDate: true,
+      cdaMonths: true,
+      actualHours: true,
+      actualHoursMonthSplits: true,
+    },
   });
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const end = project.endDate ?? new Date();
-  const months = getMonthsInRange(project.startDate, end);
-  const byKey = new Map(
-    project.cdaMonths.map((m) => [
-      m.monthKey,
-      { planned: Number(m.planned), mtdActuals: Number(m.mtdActuals) },
-    ])
-  );
-
-  const rows = months.map(({ monthKey, label }) => {
-    const data = byKey.get(monthKey) ?? { planned: 0, mtdActuals: 0 };
-    return {
-      monthKey,
-      monthLabel: label,
-      planned: data.planned,
-      mtdActuals: data.mtdActuals,
-    };
+  const rows = buildCdaRowsForProject({
+    startDate: project.startDate,
+    endDate: project.endDate,
+    cdaMonths: project.cdaMonths,
+    actualHours: project.actualHours,
+    actualHoursMonthSplits: project.actualHoursMonthSplits,
   });
+
+  const mtdByKey = new Map(rows.map((r) => [r.monthKey, r.mtdActuals]));
+  await Promise.all(
+    project.cdaMonths.map((m) =>
+      prisma.cdaMonth.update({
+        where: { projectId_monthKey: { projectId: id, monthKey: m.monthKey } },
+        data: { mtdActuals: mtdByKey.get(m.monthKey) ?? 0 },
+      })
+    )
+  );
 
   return NextResponse.json({
     startDate: project.startDate,

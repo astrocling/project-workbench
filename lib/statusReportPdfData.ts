@@ -1,7 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { computeBudgetRollups } from "@/lib/budgetCalculations";
-import { getMonthsInRange, getMonthKeysForWeek } from "@/lib/monthUtils";
+import { buildCdaRowsForProject } from "@/lib/cdaMtdFromResourcing";
 import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument";
 
 const CACHE_KEY = "status-report-pdf-data";
@@ -256,39 +256,12 @@ export async function buildStatusReportPdfData(
     }
 
     if (report.variation === "CDA" && cda === undefined) {
-      const months = getMonthsInRange(project.startDate, end);
-      const byKey = new Map(
-        (project.cdaMonths ?? []).map((m) => [
-          m.monthKey,
-          { planned: Number(m.planned), mtdActuals: Number(m.mtdActuals) },
-        ])
-      );
-      const resourcingByMonth = new Map<string, number>();
-      const splits = project.actualHoursMonthSplits ?? [];
-      for (const s of splits) {
-        const monthKey = s.monthKey;
-        resourcingByMonth.set(monthKey, (resourcingByMonth.get(monthKey) ?? 0) + Number(s.hours));
-      }
-      const weekHasSplits = new Set(splits.map((s) => `${s.personId}:${(s.weekStartDate as Date).toISOString().slice(0, 10)}`));
-      for (const ah of project.actualHours ?? []) {
-        if (ah.hours == null) continue;
-        const weekKey = (ah.weekStartDate as Date).toISOString().slice(0, 10);
-        if (weekHasSplits.has(`${ah.personId}:${weekKey}`)) continue;
-        const monthKeys = getMonthKeysForWeek(ah.weekStartDate as Date);
-        if (monthKeys.length === 1) {
-          const monthKey = monthKeys[0]!;
-          resourcingByMonth.set(monthKey, (resourcingByMonth.get(monthKey) ?? 0) + Number(ah.hours));
-        }
-      }
-      const rows = months.map(({ monthKey, label }) => {
-        const data = byKey.get(monthKey);
-        const fromResourcing = resourcingByMonth.get(monthKey) ?? 0;
-        return {
-          monthKey,
-          monthLabel: label,
-          planned: data != null ? Number(data.planned) : 0,
-          mtdActuals: data != null ? Number(data.mtdActuals) : fromResourcing,
-        };
+      const rows = buildCdaRowsForProject({
+        startDate: project.startDate,
+        endDate: project.endDate,
+        cdaMonths: project.cdaMonths ?? [],
+        actualHours: project.actualHours ?? [],
+        actualHoursMonthSplits: project.actualHoursMonthSplits ?? [],
       });
       const totalPlanned = rows.reduce((s, r) => s + r.planned, 0);
       const totalMtdActuals = rows.reduce((s, r) => s + r.mtdActuals, 0);
