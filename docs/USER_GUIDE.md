@@ -92,6 +92,15 @@ Workbench weeks run **Monday–Sunday**. When a week crosses from one calendar m
 
 The **CDA** tab appears when **Enable CDA tab** is turned on in **Settings** for the project. It is used for monthly planned vs actual hours, milestones, and material you paste into status reports.
 
+### Projected hours (Budget sub-tab)
+
+On the **Budget** sub-tab, the card next to the monthly table shows two **forward-looking** figures (they use the same **budget high hours** as the Overall row when the Budget tab has hours; otherwise the sum of CDA planned hours). They differ from the **Overall** table’s **Remaining** hours, which is “as of today” using all month-to-date actuals including the current month.
+
+| Label | Meaning |
+|--------|---------|
+| **Projected surplus at contract end** | Compares the contract hours budget to a **projected total burn** through the last CDA month: **past months** use recorded MTD actuals; the **current month** uses **planned** hours (so mid-month partial actuals do not skew the forecast); **future months** use each month’s **planned** hours. A positive value means you are projected to finish under budget; a negative value means a projected deficit. |
+| **Avg hours per future month (after current plan)** | Takes hours left after **prior months’ actuals** (`budget − burned so far`), subtracts the **current month’s planned** hours as “reserved,” then divides by the number of **strictly future** contract months. If you are already in the last month of the contract, this shows “—” (nothing to spread across future months). |
+
 ### Report hours only
 
 On the CDA tab, under **Copy for status report**, there is a toggle **Report hours only** (editors only).

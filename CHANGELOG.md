@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 ## [Unreleased]
+### Added
+
+- **Documentation — CDA projected hours**: User Guide and Technical Reference describe **Projected surplus at contract end** and **Avg hours per future month (after current plan)** on the CDA Budget sub-tab; formulas and implementation live in `lib/cdaCalculations.ts` (`computeCdaProjections`).
+
 ### Removed
 
 - **Projects — At Risk filter**: The "At Risk" tab on `/projects` and `GET /api/projects/at-risk` were removed. Portfolio risk and recovery signals remain on the PM, PGM, and CAD dashboards.

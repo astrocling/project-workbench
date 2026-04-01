@@ -224,6 +224,16 @@ The status report preview and exported PDF are generated from the same component
 - **Timeline bars (status report)**: The status report timeline shows only the “previous months” range (e.g. 1–4 months before the report date). Bars are **clipped** to that visible range via `getVisibleBarSegments()`: only the segment within `[timeline.startDate, timeline.endDate]` is drawn, and position/width are computed from that segment so the layout matches the shortened axis. Row height on the status report is compact (20px) to limit vertical space; the Timeline tab uses a larger row height (52px) for readability.
 - **Timeline bar colors**: Each bar can have an optional color (hex string stored in `TimelineBar.color`). The Timeline tab offers a preset palette (Blue, Green, Amber, Teal, Slate, Violet); the same color is shown in the tab, status report preview, and PDF. Bars with no color use the default blue.
 
+### CDA projections (`lib/cdaCalculations.ts`)
+
+The CDA **Budget** sub-tab card (`CDATab`) calls `computeCdaProjections({ contractHoursHigh, rows, currentMonthKey })`.
+
+- **contractHoursHigh** (**H**): Same source as Overall hours “Planned” in the UI — sum of budget line **high** hours when present; else sum of CDA planned months.
+- **Surplus at contract end**: `expectedSurplusEnd = roundToQuarter(H - projectedTotalBurn)` where `projectedTotalBurn` sums MTD actuals for `monthKey < currentMonthKey`, **planned** for the current month, and **planned** for all later months. Current-month MTD is **not** used in the projection.
+- **Avg hours per future month**: `poolForFutureMonths = (H - burnedPrior) - plannedCurrent`, divided by `futureMonthCount` (rows with `monthKey > currentMonthKey`), `roundToQuarter`; `null` if `futureMonthCount === 0`.
+- **Tests**: `__tests__/lib/cdaCalculations.test.ts`.
+- The Overall table **Remaining** column remains `H - sum(all monthly MTD actuals)` (includes partial current month) and is separate from these projections.
+
 ### CDA report hours only (`cdaReportHoursOnly`)
 
 - **Schema**: `Project.cdaReportHoursOnly` (`Boolean`, default `false`). Migration: `prisma/migrations/*_add_cda_report_hours_only/`.
