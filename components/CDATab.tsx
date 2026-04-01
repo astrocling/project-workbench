@@ -4,10 +4,10 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Toggle } from "@/components/Toggle";
 import { BRAND_COLORS } from "@/lib/brandColors";
-
-function roundToQuarter(n: number): number {
-  return Math.round(n * 4) / 4;
-}
+import {
+  computeCdaProjections,
+  roundToQuarter,
+} from "@/lib/cdaCalculations";
 
 function formatHours(hours: number): string {
   const r = roundToQuarter(hours);
@@ -689,38 +689,20 @@ export function CDATab({
   /** True if this month is in the past (has ended). */
   const isPreviousMonth = (monthKey: string) => monthKey < currentMonthKey;
 
-  /** Completed months: all months before the current (e.g. through end of February when in March). */
-  const completedMonthRows = useMemo(
-    () => rows.filter((r) => r.monthKey < currentMonthKey),
-    [rows, currentMonthKey]
-  );
-  /** Surplus or deficit as of end of last month: sum of (planned - mtdActuals) for completed months only. */
-  const surplusThroughLastMonth = useMemo(
+  /** Budget-grounded projections: prior actuals + planned current/future; avg per strictly future months. */
+  const {
+    expectedSurplusEnd,
+    hoursPerFutureMonth,
+    futureMonthCount,
+  } = useMemo(
     () =>
-      roundToQuarter(
-        completedMonthRows.reduce((s, r) => s + (r.planned - r.mtdActuals), 0)
-      ),
-    [completedMonthRows]
+      computeCdaProjections({
+        contractHoursHigh: contractHoursTotal,
+        rows,
+        currentMonthKey,
+      }),
+    [contractHoursTotal, rows, currentMonthKey]
   );
-
-  /** Remaining months: current month plus future months (>= current). */
-  const remainingMonthRows = useMemo(
-    () => rows.filter((r) => r.monthKey >= currentMonthKey),
-    [rows, currentMonthKey]
-  );
-  const remainingMonthCount = remainingMonthRows.length;
-  const totalContractMonths = rows.length;
-  /** Average hours per month over the full contract (budget or planned total ÷ total contract months). */
-  const avgHoursPerMonthContract =
-    totalContractMonths > 0 ? contractHoursTotal / totalContractMonths : 0;
-  /** Surplus or deficit spread per remaining month (surplus/deficit through last month ÷ remaining months). */
-  const surplusDeficitPerRemainingMonth =
-    remainingMonthCount > 0 ? surplusThroughLastMonth / remainingMonthCount : 0;
-  /** Hours per month remaining: contract avg per month + (surplus or deficit ÷ remaining months). */
-  const avgRemainingPerFutureMonth =
-    remainingMonthCount > 0
-      ? roundToQuarter(avgHoursPerMonthContract + surplusDeficitPerRemainingMonth)
-      : null;
 
   if (loading) {
     return (
@@ -976,35 +958,35 @@ export function CDATab({
             </div>
             <div className="border-t border-surface-200 dark:border-dark-border pt-3">
               <p className="text-label-sm uppercase text-surface-400 dark:text-surface-500 tracking-wider">
-                Surplus / deficit (through last month)
+                Projected surplus at contract end
               </p>
               <p
                 className={`text-title-md font-semibold tabular-nums mt-0.5 ${
-                  surplusThroughLastMonth < 0
+                  expectedSurplusEnd < 0
                     ? "text-jred-600 dark:text-jred-400"
                     : "text-surface-900 dark:text-white"
                 }`}
               >
-                {surplusThroughLastMonth > 0
-                  ? `${formatHours(surplusThroughLastMonth)} hrs surplus`
-                  : surplusThroughLastMonth < 0
-                    ? `(${formatHours(-surplusThroughLastMonth)}) hrs deficit`
+                {expectedSurplusEnd > 0
+                  ? `${formatHours(expectedSurplusEnd)} hrs surplus`
+                  : expectedSurplusEnd < 0
+                    ? `(${formatHours(-expectedSurplusEnd)}) hrs deficit`
                     : "0 hrs"}
               </p>
             </div>
             <div className="border-t border-surface-200 dark:border-dark-border pt-3">
               <p className="text-label-sm uppercase text-surface-400 dark:text-surface-500 tracking-wider">
-                Hours per month remaining
+                Avg hours per future month (after current plan)
               </p>
               <p
                 className={`text-title-md font-semibold tabular-nums mt-0.5 ${
-                  avgRemainingPerFutureMonth != null && avgRemainingPerFutureMonth < 0
+                  hoursPerFutureMonth != null && hoursPerFutureMonth < 0
                     ? "text-jred-600 dark:text-jred-400"
                     : "text-surface-900 dark:text-white"
                 }`}
               >
-                {avgRemainingPerFutureMonth != null
-                  ? `${avgRemainingPerFutureMonth < 0 ? "(" : ""}${formatHours(Math.abs(avgRemainingPerFutureMonth))}${avgRemainingPerFutureMonth < 0 ? ")" : ""} hrs${remainingMonthCount > 0 ? ` (${remainingMonthCount} months)` : ""}`
+                {hoursPerFutureMonth != null
+                  ? `${hoursPerFutureMonth < 0 ? "(" : ""}${formatHours(Math.abs(hoursPerFutureMonth))}${hoursPerFutureMonth < 0 ? ")" : ""} hrs${futureMonthCount > 0 ? ` (${futureMonthCount} future months)` : ""}`
                   : "—"}
               </p>
             </div>
