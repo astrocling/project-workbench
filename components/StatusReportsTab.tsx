@@ -1007,7 +1007,7 @@ export function StatusReportsTab({
             </h3>
             <p className="text-body-sm text-surface-500 dark:text-surface-400">
               Biographical data (Account Director, PM, PGM, Key Staff, Period) comes from project settings.{" "}
-              <Link href={`/projects/${projectSlug}/edit`} className="text-jblue-600 dark:text-jblue-400 hover:underline">
+              <Link href={`/projects/${projectSlug}?tab=settings`} className="text-jblue-600 dark:text-jblue-400 hover:underline">
                 Edit project details
               </Link>
             </p>

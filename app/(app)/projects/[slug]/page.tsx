@@ -7,10 +7,21 @@ import { redirect, notFound } from "next/navigation";
 import { getAsOfDate, getAllWeeks } from "@/lib/weekUtils";
 import { getBudgetStatusForDisplay } from "@/lib/budgetCalculations";
 import { getCachedProjectBySlugOrId } from "@/lib/projectCache";
+import { getEligibleKeyRoles } from "@/lib/eligibleKeyRoles";
 import { ProjectDetailTabs } from "./ProjectDetailTabs";
 import type { Metadata } from "next";
+import type { EditProjectInitial } from "@/app/(app)/projects/[slug]/edit/EditProjectDataContext";
 
 const CUID_REGEX = /^c[a-z0-9]{24}$/i;
+
+function dateToIso(d: Date | string): string {
+  return typeof d === "string" ? new Date(d).toISOString() : d.toISOString();
+}
+
+function dateToIsoNullable(d: Date | string | null | undefined): string | null {
+  if (d == null) return null;
+  return typeof d === "string" ? new Date(d).toISOString() : d.toISOString();
+}
 
 export async function generateMetadata({
   params,
@@ -34,7 +45,19 @@ export default async function ProjectDetailPage({
   if (!session) redirect("/login");
 
   const { slug: slugParam } = await params;
-  const { tab = "overview" } = await searchParams;
+  const sp = await searchParams;
+  const rawTab = sp.tab ?? "overview";
+  const VALID_TABS = [
+    "overview",
+    "resourcing",
+    "cda",
+    "budget",
+    "timeline",
+    "status-reports",
+    "settings",
+  ] as const;
+  let tab = VALID_TABS.includes(rawTab as (typeof VALID_TABS)[number]) ? rawTab : "overview";
+  if (rawTab === "edit") tab = "settings";
 
   const project = await getCachedProjectBySlugOrId(slugParam);
   if (!project) notFound();
@@ -51,6 +74,9 @@ export default async function ProjectDetailPage({
 
   const permissionLevel = getSessionPermissionLevel(session.user);
   const canEdit = canEditProject(permissionLevel);
+  if (tab === "settings" && !canEdit) {
+    redirect(`/projects/${project.slug}`);
+  }
 
   const asOf = getAsOfDate();
   const hasUpcomingHours = (personId: string): boolean => {
@@ -199,6 +225,32 @@ export default async function ProjectDetailPage({
     peopleSummary,
   };
 
+  const initialSettingsProject: EditProjectInitial = {
+    id: project.id,
+    name: project.name,
+    clientName: project.clientName,
+    startDate: dateToIso(project.startDate),
+    endDate: dateToIsoNullable(project.endDate),
+    status: project.status,
+    cdaEnabled: project.cdaEnabled ?? false,
+    actualsLowThresholdPercent: project.actualsLowThresholdPercent ?? null,
+    actualsHighThresholdPercent: project.actualsHighThresholdPercent ?? null,
+    clientSponsor: project.clientSponsor ?? null,
+    clientSponsor2: project.clientSponsor2 ?? null,
+    otherContact: project.otherContact ?? null,
+    keyStaffName: project.keyStaffName ?? null,
+    sowLink: project.sowLink ?? null,
+    estimateLink: project.estimateLink ?? null,
+    floatLink: project.floatLink ?? null,
+    metricLink: project.metricLink ?? null,
+    projectKeyRoles: project.projectKeyRoles.map((kr) => ({
+      type: kr.type,
+      personId: kr.personId,
+      person: { id: kr.person.id, name: kr.person.name },
+    })),
+  };
+  const initialSettingsEligiblePeople = await getEligibleKeyRoles();
+
   return (
     <div>
       <div className="mb-6">
@@ -230,6 +282,8 @@ export default async function ProjectDetailPage({
         initialMissingRateRoleNames={initialMissingRateRoleNames}
         initialBudgetStatus={initialBudgetStatus}
         initialBudgetData={initialBudgetData}
+        initialSettingsProject={initialSettingsProject}
+        initialSettingsEligiblePeople={initialSettingsEligiblePeople}
       />
     </div>
   );

@@ -9,6 +9,7 @@ import {
   BudgetBurnDonut,
   RevenueRecoveryPieChart,
 } from "@/components/RevenueRecoveryShared";
+import type { EditProjectInitial } from "@/app/(app)/projects/[slug]/edit/EditProjectDataContext";
 
 const ResourcingGrids = dynamic(() => import("@/components/ResourcingGrids").then((m) => ({ default: m.ResourcingGrids })), {
   loading: () => <div className="min-h-[200px] flex items-center justify-center text-surface-500 dark:text-surface-400">Loading…</div>,
@@ -25,6 +26,9 @@ const StatusReportsTab = dynamic(() => import("@/components/StatusReportsTab").t
 const CDATab = dynamic(() => import("@/components/CDATab").then((m) => ({ default: m.CDATab })), {
   loading: () => <div className="min-h-[200px] flex items-center justify-center text-surface-500 dark:text-surface-400">Loading…</div>,
 });
+const ProjectSettingsTab = dynamic(() => import("@/components/ProjectSettingsTab").then((m) => ({ default: m.ProjectSettingsTab })), {
+  loading: () => <div className="min-h-[200px] flex items-center justify-center text-surface-500 dark:text-surface-400">Loading…</div>,
+});
 const TABS = [
   { id: "overview", label: "Overview" },
   { id: "resourcing", label: "Resourcing" },
@@ -32,7 +36,7 @@ const TABS = [
   { id: "budget", label: "Budget" },
   { id: "timeline", label: "Timeline" },
   { id: "status-reports", label: "Status Reports" },
-  { id: "edit", label: "Settings", hrefOnly: true },
+  { id: "settings", label: "Settings" },
 ] as const;
 
 const OVERVIEW_RAG_CONFIG: Record<string, { label: string; className: string }> = {
@@ -80,6 +84,8 @@ export function ProjectDetailTabs({
   initialMissingRateRoleNames,
   initialBudgetStatus,
   initialBudgetData,
+  initialSettingsProject,
+  initialSettingsEligiblePeople,
 }: {
   projectId: string;
   projectSlug: string;
@@ -101,6 +107,8 @@ export function ProjectDetailTabs({
     lastWeekWithActuals: string | null;
     peopleSummary: Array<{ personName: string; roleName: string; rate: number; projectedHours: number; projectedRevenue: number; actualHours: number; actualRevenue: number }>;
   };
+  initialSettingsProject: EditProjectInitial | null;
+  initialSettingsEligiblePeople: { id: string; name: string }[] | null;
 }) {
   const pathname = usePathname();
   const base = pathname;
@@ -160,7 +168,7 @@ export function ProjectDetailTabs({
   const overviewPrefetched = useRef(false);
 
   const [missingRateRoleNames, setMissingRateRoleNames] = useState<string[] | null>(null);
-  const RATES_ALERT_TABS = ["overview", "resourcing", "budget", "status-reports", "cda"] as const;
+  const RATES_ALERT_TABS = ["overview", "resourcing", "budget", "status-reports", "cda", "settings"] as const;
 
   useEffect(() => {
     if (!RATES_ALERT_TABS.includes(tab as (typeof RATES_ALERT_TABS)[number])) {
@@ -375,9 +383,9 @@ export function ProjectDetailTabs({
     <div>
       <div className="sticky top-14 z-20 -mx-8 -mt-6 px-8 pt-6 pb-4 mb-6 bg-surface-50 dark:bg-dark-bg border-b border-surface-200 dark:border-dark-border">
         <nav className="flex gap-2 mb-3">
-          {TABS.filter((t) => (t.id !== "edit" || canEdit) && (t.id !== "cda" || cdaEnabled)).map((t) => {
-            const href = "hrefOnly" in t && t.hrefOnly ? `/projects/${projectSlug}/edit` : `${base}?tab=${t.id}`;
-            const isActive = "hrefOnly" in t && t.hrefOnly ? false : tab === t.id;
+          {TABS.filter((t) => (t.id !== "settings" || canEdit) && (t.id !== "cda" || cdaEnabled)).map((t) => {
+            const href = `${base}?tab=${t.id}`;
+            const isActive = tab === t.id;
             const isOverview = t.id === "overview";
             return (
               <Link
@@ -395,9 +403,9 @@ export function ProjectDetailTabs({
             );
           })}
         </nav>
+        {tab !== "status-reports" && tab !== "settings" && (
         <div className="text-body-sm text-surface-700 dark:text-surface-200 space-y-1">
-          {tab !== "status-reports" && (
-            <p className="flex items-center gap-3 flex-wrap">
+          <p className="flex items-center gap-3 flex-wrap">
               <span>Float last updated: {floatLastUpdated ? new Date(floatLastUpdated).toLocaleString() : "Never"}</span>
               {freshnessWarning && (
                 <span
@@ -411,7 +419,6 @@ export function ProjectDetailTabs({
                 </span>
               )}
             </p>
-          )}
           <p className="flex items-center gap-3 flex-wrap">
             <span>
               Actuals through week of{" "}
@@ -430,6 +437,7 @@ export function ProjectDetailTabs({
             )}
           </p>
         </div>
+        )}
       </div>
 
       {RATES_ALERT_TABS.includes(tab as (typeof RATES_ALERT_TABS)[number]) &&
@@ -446,7 +454,7 @@ export function ProjectDetailTabs({
               The following roles are assigned on this project but have no rate
               set: <strong>{missingRateRoleNames.join(", ")}</strong>.{" "}
               <Link
-                href={`/projects/${projectSlug}/edit`}
+                href={`${base}?tab=settings`}
                 className="text-amber-700 dark:text-amber-300 font-semibold underline hover:no-underline"
               >
                 Add rates in Project Settings
@@ -479,7 +487,7 @@ export function ProjectDetailTabs({
                   </strong>
                   .{" "}
                   <Link
-                    href={`/projects/${projectSlug}/edit`}
+                    href={`${base}?tab=settings`}
                     className="text-amber-700 dark:text-amber-300 font-semibold underline hover:no-underline"
                   >
                     Manage in Settings → Assignments
@@ -966,6 +974,14 @@ export function ProjectDetailTabs({
       {tab === "timeline" && <TimelineTab projectId={projectId} canEdit={canEdit} />}
       {tab === "status-reports" && <StatusReportsTab projectId={projectId} projectSlug={projectSlug} canEdit={canEdit} cdaEnabled={cdaEnabled} initialBudgetData={initialBudgetData} />}
       {tab === "cda" && cdaEnabled && <CDATab projectId={projectId} canEdit={canEdit} initialBudgetData={initialBudgetData} />}
+      {tab === "settings" && canEdit && (
+        <ProjectSettingsTab
+          projectSlug={projectSlug}
+          canEdit={canEdit}
+          initialProject={initialSettingsProject}
+          initialEligiblePeople={initialSettingsEligiblePeople}
+        />
+      )}
     </div>
   );
 }

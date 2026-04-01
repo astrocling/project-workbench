@@ -102,7 +102,7 @@ export function ProjectRowActions({
       {canEdit && (
         <>
           <Link
-            href={`/projects/${slug}/edit`}
+            href={`/projects/${slug}?tab=settings`}
             className={iconClass}
             aria-label={`Edit ${projectName}`}
           >
