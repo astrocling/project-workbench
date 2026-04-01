@@ -7,28 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 ## [Unreleased]
+
+## [0.2.7] - 2026-04-01
+
 ### Added
 
 - **Documentation — CDA projected hours**: User Guide and Technical Reference describe **Projected surplus at contract end** and **Avg hours per future month (after current plan)** on the CDA Budget sub-tab; formulas and implementation live in `lib/cdaCalculations.ts` (`computeCdaProjections`).
+- **Documentation — Projects list**: User Guide and Technical Reference describe `/projects` (filters, sorting, pagination, My Projects and Person linking, portfolio metrics on dashboards). Technical Reference adds a **Projects list page** section with implementation details (`getDashboardContext`, query params, Prisma `select`, pagination behavior for key-role sorts). README links to this in the Technical Reference blurb.
+- **CDA — Report hours only**: Documented in the User Guide and Technical Reference. Project setting `cdaReportHoursOnly` hides budget-dollar columns on the CDA Overall row in status copy, CDA status report preview/PDF, and locks the choice in each report snapshot at creation time.
+- **PM / PGM / CAD dashboards — Request column**: The projects table includes a **Request** column (sortable) that shows when at least one **visible** project assignment has **Ready** turned on in the Resourcing tab **Planned** grid (stored in `ReadyForFloatUpdate`). Amber dot = open request; muted dot = none. Toggling Ready revalidates portfolio dashboard cache so the indicator updates promptly.
+- **PM / PGM / CAD dashboards — 1-wk recovery column**: The projects table on each dashboard includes a **1-wk recovery** column showing revenue recovery % for the **most recent completed week** (the same week as the portfolio **This week** revenue recovery card). The existing **4-wk recovery** column still shows recovery over the rolling previous four completed weeks. Both columns are sortable.
+- **Split-week actual hours**: For weeks that span two calendar months (Monday–Sunday across a month boundary), actual hours can be recorded **per calendar month** so CDA monthly actuals and rollups stay correct. The Resourcing **Actual** grid shows two sub-cells (with month labels) for those weeks; hours are stored in `ActualHoursMonthSplit` and must be in quarter-hour increments. Legacy rows can be backfilled with `npm run migrate:split-week-actuals` (see Technical documentation). The CDA tab derives month-to-date actuals from these splits plus single-month weeks.
 
 ### Removed
 
 - **Projects — At Risk filter**: The "At Risk" tab on `/projects` and `GET /api/projects/at-risk` were removed. Portfolio risk and recovery signals remain on the PM, PGM, and CAD dashboards.
 
-### Added
-
-- **Documentation — Projects list**: User Guide and Technical Reference describe `/projects` (filters, sorting, pagination, My Projects and Person linking, portfolio metrics on dashboards). Technical Reference adds a **Projects list page** section with implementation details (`getDashboardContext`, query params, Prisma `select`, pagination behavior for key-role sorts). README links to this in the Technical Reference blurb.
-
-- **CDA — Report hours only**: Documented in the User Guide and Technical Reference. Project setting `cdaReportHoursOnly` hides budget-dollar columns on the CDA Overall row in status copy, CDA status report preview/PDF, and locks the choice in each report snapshot at creation time.
-
-- **PM / PGM / CAD dashboards — Request column**: The projects table includes a **Request** column (sortable) that shows when at least one **visible** project assignment has **Ready** turned on in the Resourcing tab **Planned** grid (stored in `ReadyForFloatUpdate`). Amber dot = open request; muted dot = none. Toggling Ready revalidates portfolio dashboard cache so the indicator updates promptly.
-- **PM / PGM / CAD dashboards — 1-wk recovery column**: The projects table on each dashboard includes a **1-wk recovery** column showing revenue recovery % for the **most recent completed week** (the same week as the portfolio **This week** revenue recovery card). The existing **4-wk recovery** column still shows recovery over the rolling previous four completed weeks. Both columns are sortable.
-- **Split-week actual hours**: For weeks that span two calendar months (Monday–Sunday across a month boundary), actual hours can be recorded **per calendar month** so CDA monthly actuals and rollups stay correct. The Resourcing **Actual** grid shows two sub-cells (with month labels) for those weeks; hours are stored in `ActualHoursMonthSplit` and must be in quarter-hour increments. Legacy rows can be backfilled with `npm run migrate:split-week-actuals` (see Technical documentation). The CDA tab derives month-to-date actuals from these splits plus single-month weeks.
-
 ### Changed
+
 - **Resourcing — split-week Actuals**: For weeks that span two months, the **first** month’s half becomes editable once that calendar month has ended (UTC), so you can enter December’s share during an in-progress December–January week. The **second** month’s half still unlocks only after the week is completed (same as other Actual cells).
 
 ### Fixed
+
 - **Resourcing grids**: The final (rightmost) week column is no longer clipped when the grid is scrolled fully to the right.
 
 ## [0.2.6] - 2026-03-18
