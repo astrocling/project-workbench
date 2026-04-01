@@ -52,8 +52,8 @@ export async function POST(
         error: "No float data found",
         detail:
           allRuns.length > 0
-            ? `No float data for "${project.name}" in any import. Check that the project name matches (including spaces). Re-import the Float CSV if needed.`
-            : "No Float import has been run yet. Upload a Float CSV in Admin first, then try again.",
+            ? `No float data for "${project.name}" in any sync. Check that the project name matches (including spaces). Run Float sync again if needed.`
+            : "No Float sync has been run yet. Run Float sync in Admin first, then try again.",
         projectName: project.name,
         availableInImport: availableInImport.length > 0 ? availableInImport : undefined,
       },

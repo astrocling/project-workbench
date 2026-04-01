@@ -355,9 +355,37 @@ export default async function ProjectsPage({
           </tbody>
         </table>
         {projects.length === 0 && (
-          <p className="p-8 text-center text-surface-700 dark:text-surface-300">
-            {filter === "all" ? "No projects yet." : "No projects match this filter."}
-          </p>
+          <div className="p-8 text-center text-surface-700 dark:text-surface-300 space-y-2">
+            {filter === "all" ? (
+              <p>No projects yet.</p>
+            ) : filter === "my" ? (
+              <>
+                <p>
+                  No projects here yet. <strong>My Projects</strong> only lists projects where you have a{" "}
+                  <strong>PM</strong>, <strong>PGM</strong>, or <strong>CAD</strong> key role (set on each
+                  project&apos;s settings). Float sync updates assignments and hours, not those roles.
+                </p>
+                <p>
+                  <Link
+                    href="/projects?filter=active"
+                    className="text-jblue-500 dark:text-jblue-400 font-medium hover:underline"
+                  >
+                    View active projects
+                  </Link>{" "}
+                  or{" "}
+                  <Link
+                    href="/projects?filter=all"
+                    className="text-jblue-500 dark:text-jblue-400 font-medium hover:underline"
+                  >
+                    all projects
+                  </Link>
+                  .
+                </p>
+              </>
+            ) : (
+              <p>No projects match this filter.</p>
+            )}
+          </div>
         )}
       </div>
     </>

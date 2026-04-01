@@ -588,7 +588,7 @@ export function ProjectSettingsTab({
                       type="button"
                       onClick={backfillFloat}
                       disabled={backfillingFloat}
-                      title="Import float hour data from the last CSV upload for this project"
+                      title="Import float hour data from the last Float sync for this project"
                       className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-transparent hover:bg-surface-100 dark:hover:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
                     >
                       {backfillingFloat ? "Backfilling…" : "Backfill float data"}

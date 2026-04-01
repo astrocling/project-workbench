@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Float — API sync replaces CSV upload**: Scheduled hours are loaded from the Float API (**Admin → Float sync**, `GET`/`POST` `/api/admin/float-sync`). CSV upload and `papaparse` were removed. Documentation (README, User Guide, Technical Reference) and integration tests were updated; `__tests__/api/admin/float-sync.test.ts` mocks Float HTTP and runs `executeFloatApiSync` against the database, while `float-import-cleanup.test.ts` still validates `applyFloatImportDatabaseEffects` behavior.
+
 ## [0.3.0] - 2026-04-01
 
 ### Added

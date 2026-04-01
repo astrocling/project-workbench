@@ -24,7 +24,7 @@ The schema is defined in `prisma/schema.prisma`. Main entities:
 |--------|---------|
 | **User** | App login (email, password hash, permissions: User/Admin, optional position role). |
 | **Person** | Resource (name, email, active, optional externalId). Used for assignments and Float import; may be linked to User by email/name for “My Projects”. |
-| **Role** | Role type (e.g. Project Manager, FE Developer). Used on assignments and in Float CSV. |
+| **Role** | Role type (e.g. Project Manager, FE Developer). Used on assignments and matched to Float role names on sync. |
 | **Project** | Project (slug, name, client, start/end dates, status, optional single rate, notes, SOW/estimate/float/metric links, resourcing thresholds, `cdaEnabled`, `cdaReportHoursOnly`, optional clientSponsor/keyStaffName for status reports). |
 | **ProjectAssignment** | Person assigned to a project in a role; optional bill-rate override; optional hiddenFromGrid (hide from Resourcing tab only). |
 | **ProjectRoleRate** | Per-role bill rate for a project (rate card). |
@@ -66,15 +66,26 @@ Unit tests: `__tests__/lib/splitWeekProRata.test.ts`, `__tests__/lib/monthUtils.
 - **`PATCH /api/projects/[id]/ready-for-float`** — Updates `ReadyForFloatUpdate`; revalidates `project-resourcing:{id}` and **`portfolio-metrics`** so dashboard `requestOpen` stays in sync.
 - **`components/DashboardClientFilter.tsx`** — Optional client filter; invalid `client` query values redirect to the unfiltered dashboard.
 
-### Float import behavior
+### Float sync behavior
 
-Implemented in `app/api/admin/float-import/route.ts`:
+Scheduled hours are loaded from the **Float API** (not file upload). Orchestration: `lib/float/syncFloatImport.ts` (`executeFloatApiSync`) → `applyFloatImportDatabaseEffects` in `lib/floatImportApply.ts`. Admin route: `GET`/`POST` `app/api/admin/float-sync/route.ts` (UI: **Admin → Float sync**, `/admin/float-sync`; `/admin/float-import` redirects there).
 
-- **Writes:** Only **current and future** weeks are written to `FloatScheduledHours` (weeks with `weekStartDate > asOf`). Past weeks are never overwritten, so historical float data (e.g. for revenue recovery) is preserved when the Float export covers a limited date range (e.g. one year forward).
-- **Cleanup:** After upserting from the CSV, the import deletes **future** `FloatScheduledHours` for any `(projectId, personId)` that appears in the DB for a project in the import but is **not** in the current CSV (person removed from the project in Float). Past weeks for that person are never deleted. Project assignments are not modified.
-- **New projects:** When a project is created or backfill-float is run, data comes from stored `FloatImportRun.projectFloatHours` (and `getProjectDataFromAllImports` for project create), which can include all weeks from prior imports; the cleanup step runs only during the float import, not on create or backfill.
+- **Auth / config:** `POST` requires Admin session. `FLOAT_API_TOKEN` must be set; optional `FLOAT_API_USER_AGENT_EMAIL` is sent in `User-Agent` per Float’s integration guidelines. If the token is missing, the API returns **503** with a clear message.
+- **Writes:** Only **current and future** weeks are written to `FloatScheduledHours` (weeks with `weekStartDate > asOf`). Past weeks are never overwritten, so historical float data (e.g. for revenue recovery) is preserved when the synced window is limited (default is roughly ±12 months from today; optional JSON body `startDate` / `endDate` overrides).
+- **Cleanup:** After upserting from the current sync snapshot, the import deletes **future** `FloatScheduledHours` for any `(projectId, personId)` that appears in the DB for a project in the import but is **not** in the merged snapshot (person removed from the project in Float). Past weeks for that person are never deleted. Project assignments are not removed automatically.
+- **Matching:** Projects are matched by `Project.floatExternalId` (Float `project_id`) when set, else by normalized project name. People are synced from Float `/v3/people` into `Person` (including `externalId`). Roles come from Float task/person role fields and must exist in Workbench; unknown role names are recorded on the run and shown in the admin UI.
+- **New projects:** When a project is created or `backfill-float` is run, data comes from stored `FloatImportRun.projectFloatHours` (and `getProjectDataFromAllImports` for project create where applicable). Cleanup runs on each **sync**, not on create or backfill.
 
-An integration test in `__tests__/api/admin/float-import-cleanup.test.ts` asserts that a person omitted from the CSV has their future float hours removed and past weeks retained.
+**Tests:** `__tests__/api/admin/float-import-cleanup.test.ts` covers `applyFloatImportDatabaseEffects` (future cleanup, past weeks preserved). `__tests__/api/admin/float-sync.test.ts` mocks Float HTTP and runs `executeFloatApiSync` end-to-end against the DB.
+
+#### Manual QA checklist (Float sync)
+
+Short spot-checks after deploying or changing Float integration:
+
+1. **Resourcing grid** — Sync from Float, then open a project that exists in Float. Confirm **Float** columns show expected hours for a future week you can verify in Float.
+2. **Backfill** — From the Projects list (backfill action) or project flow, run **backfill Float** for a project. Confirm scheduled hours update from stored import runs without error.
+3. **Sync plan from Float** — On the project Edit page, run **Sync plan from Float (past weeks)**. Confirm **Planned** hours align with Float for completed weeks in the resourcing range.
+4. **Project create + Float match** — Create a project whose **name** matches a Float project (or run sync after create so `floatExternalId` is set). Run **Float sync**; confirm assignments and Float hours attach to that project.
 
 ---
 
@@ -91,8 +102,10 @@ An integration test in `__tests__/api/admin/float-import-cleanup.test.ts` assert
 | **UPSTASH_REDIS_REST_URL** | Optional | Upstash Redis REST URL for rate limiting. |
 | **UPSTASH_REDIS_REST_TOKEN** | Optional | Upstash Redis REST token. |
 | **BLOB_READ_WRITE_TOKEN** | Optional | Vercel Blob token for caching status report PDFs; if unset, PDFs are generated on demand without cache. |
+| **FLOAT_API_TOKEN** | For Float sync | Bearer token for Float API v3 (`/v3/people`, `/v3/projects`, `/v3/tasks`, etc.). Required for `POST /api/admin/float-sync` to run; omit only if you never use sync. |
+| **FLOAT_API_USER_AGENT_EMAIL** | Optional | Contact email embedded in `User-Agent` for Float API requests (recommended). |
 
-When Upstash is set, rate limits apply: login (per IP), seed (per IP), float-import (per user). Without them, rate limiting is skipped (e.g. local dev).
+When Upstash is set, rate limits apply: login (per IP), seed (per IP), float sync (`floatImportRatelimit`, same Redis prefix as legacy “float-import”; 20 per 15 min per user). Without them, rate limiting is skipped (e.g. local dev).
 
 ---
 
@@ -116,7 +129,7 @@ Permission helpers live in `lib/auth.ts`; NextAuth configuration (session, crede
 | Permission | Capabilities |
 |------------|--------------|
 | **User** | View and edit projects (assignments, hours, budget, rates, key roles). Cannot access Admin. |
-| **Admin** | Everything User can do, plus: Admin area (Float Import, Roles, People, Users), delete projects. |
+| **Admin** | Everything User can do, plus: Admin area (Float sync, Roles, People, Users), delete projects. |
 
 Session permission is read from the current user’s `permissions` field (User or Admin). See **Projects list page** below for how “My Projects” resolves the current user’s `Person` and filters `ProjectKeyRole`.
 
@@ -183,7 +196,7 @@ API routes live under `app/api/`. This is a high-level overview for maintainers.
 | People | `GET /api/people`, `/api/people/eligible-key-roles` | List people, people eligible for key roles. |
 | Roles | `GET /api/roles` | List roles. |
 | Account | `POST /api/account/change-password` | Change password for current user (current password required). |
-| Admin | `GET/POST /api/admin/float-import` | Float CSV import (Admin only). |
+| Admin | `GET/POST /api/admin/float-sync` | Float API sync: `GET` returns latest `FloatImportRun`; `POST` pulls tasks and reference data from Float and applies the same DB effects as `applyFloatImportDatabaseEffects` (Admin only). |
 | Admin | `/api/admin/roles`, `/api/admin/people`, `/api/admin/users` | CRUD for roles, people, app users (Admin only). |
 
 All project and admin routes require an authenticated session; admin routes additionally require Admin permission.
@@ -252,4 +265,4 @@ For full steps (Vercel env vars, rate limiting, one-time seed), see the main **R
 
 ---
 
-*For end-user workflows and Float CSV format, see the User Guide.*
+*For end-user workflows and Float sync, see the User Guide.*

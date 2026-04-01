@@ -64,7 +64,7 @@ In Vercel, set these environment variables for your project (Project → Setting
 
 Redeploy after adding or changing environment variables.
 
-**Rate limiting (optional but recommended in production):** Login, seed, and float-import are rate-limited when [Upstash Redis](https://upstash.com) is configured. Set **`UPSTASH_REDIS_REST_URL`** and **`UPSTASH_REDIS_REST_TOKEN`** in Vercel (from your [Upstash Console](https://console.upstash.com/redis)). Limits: login 10 attempts per 15 min per IP; seed 5 per hour per IP; float-import 20 per 15 min per user. Without these env vars, rate limiting is skipped (e.g. local dev).
+**Rate limiting (optional but recommended in production):** Login, seed, and admin Float sync are rate-limited when [Upstash Redis](https://upstash.com) is configured. Set **`UPSTASH_REDIS_REST_URL`** and **`UPSTASH_REDIS_REST_TOKEN`** in Vercel (from your [Upstash Console](https://console.upstash.com/redis)). Limits: login 10 attempts per 15 min per IP; seed 5 per hour per IP; Float sync 20 per 15 min per user. Without these env vars, rate limiting is skipped (e.g. local dev).
 
 **Database migrations and seed on Vercel**
 
@@ -111,14 +111,9 @@ Creates a sample project with people, assignments, planned/actual hours, and bud
 
 - **Release notes** — [CHANGELOG.md](CHANGELOG.md). The app version in `package.json` is shown in the footer (`lib/version.ts`).
 
-- **[User Guide](docs/USER_GUIDE.md)** — How to use the app: projects, PM/PGM/CAD dashboards (including 1-wk vs 4-wk recovery columns), resourcing (including split-week actuals at month boundaries), budget, Float import, and admin (Roles, People, Users). Written in standard Markdown for easy copy into Confluence.
+- **[User Guide](docs/USER_GUIDE.md)** — How to use the app: projects, PM/PGM/CAD dashboards (including 1-wk vs 4-wk recovery columns), resourcing (including split-week actuals at month boundaries), budget, Float sync, and admin (Roles, People, Users). Written in standard Markdown for easy copy into Confluence.
 - **[Technical Reference](docs/TECHNICAL.md)** — Tech stack, data model, environment variables, week/as-of semantics, split-week actual hours (`ActualHoursMonthSplit`), permissions, **Projects list page** (filters, pagination, query params, Prisma `select`), scripts (including `migrate:split-week-actuals`), and API overview. Also Confluence-friendly.
 
-## Float CSV Import
+## Float sync (Admin)
 
-Admin → Float Import. Expected CSV format:
-
-- Columns for person name, role, project
-- Weekly columns with ISO-style date headers (e.g. `2025-02-17`)
-- Project names must match existing projects
-- Unknown roles are recorded and can be added via Admin → Roles
+Admins pull scheduled hours from the **Float API** at **Admin → Float sync** (`/admin/float-sync`). Set **`FLOAT_API_TOKEN`** (and optionally **`FLOAT_API_USER_AGENT_EMAIL`**) in the environment. The app matches Float projects to Workbench projects by Float project id (`floatExternalId`) or by name, syncs people from Float, and applies the same scheduled-hours rules as documented in [docs/TECHNICAL.md](docs/TECHNICAL.md) (future weeks only, cleanup for people removed in Float, etc.).

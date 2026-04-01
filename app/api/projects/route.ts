@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
     }
     if (assignmentsList.length > 0 && backfillStats.floatHoursCreated === 0) {
       backfillStats.floatHoursNote =
-        "Assignments came from the last import, but no float hours were stored for that run. Re-upload the Float CSV in Admin so the next import stores float hours; then use Backfill on this project’s Edit page.";
+        "Assignments came from the last sync, but no float hours were stored for that run. Run Float sync in Admin so the next sync stores float hours; then use Backfill on this project’s Edit page.";
     }
 
     const knownRoles = await prisma.role.findMany();
@@ -209,7 +209,7 @@ export async function POST(req: NextRequest) {
 
     if (backfillStats.assignmentsCreated > 0 && backfillStats.floatHoursCreated === 0) {
       backfillStats.floatHoursNote =
-        "Assignments came from the last import, but no float hours were stored for that run. Re-upload the Float CSV in Admin so the next import stores float hours; then use Backfill on this project's Edit page.";
+        "Assignments came from the last sync, but no float hours were stored for that run. Run Float sync in Admin so the next sync stores float hours; then use Backfill on this project's Edit page.";
     }
   }
 

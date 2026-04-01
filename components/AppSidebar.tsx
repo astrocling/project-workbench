@@ -174,7 +174,7 @@ export function AppSidebar({
         </Link>
         {isAdmin && (
           <Link
-            href="/admin/float-import"
+            href="/admin/float-sync"
             className="flex items-center gap-2 rounded-md px-3 py-2 text-body-sm text-jblue-500 hover:bg-surface-200 dark:text-jblue-400 dark:hover:bg-dark-muted"
           >
             Admin

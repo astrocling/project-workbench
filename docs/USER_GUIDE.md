@@ -142,49 +142,39 @@ The Status Reports tab is where you create and maintain status reports and expor
    - Optional: single bill rate, notes, SOW link, estimate link, Float link, Metric link, and resourcing thresholds.
 3. Submit to create the project. You can then add assignments, key roles, budget lines, and rates from the project detail page.
 
-If you use **Float Import** first, you can create projects from the import data; project names in the CSV must match the names you give here (or you can create projects and later run a backfill to apply Float data).
+If you use **Float sync** first, project names in Workbench should match Float (or you can create projects and run a **backfill** after sync to apply stored Float data).
 
 ---
 
-## Float Import (Admin only)
+## Float sync (Admin only)
 
-Admins can import scheduled hours from Float by uploading a CSV export.
+Admins pull scheduled hours from the **Float API** (no file upload). The app reads Float people, projects, clients, roles, and tasks for a date window and updates Workbench to match.
 
 ### Where to go
 
-**Admin → Float Import** (link in the header when you are an Admin).
+**Admin → Float sync** (`/admin/float-sync`; older bookmarks to Float Import redirect here).
 
-### CSV format
+### Configuration
 
-The import expects a CSV that looks like a Float export:
+- **`FLOAT_API_TOKEN`** — Required on the server for sync to run. Get a token from Float (Account → Integrations / API).
+- **`FLOAT_API_USER_AGENT_EMAIL`** (optional) — Contact email included in the API `User-Agent` string, as Float recommends.
 
-- **Header row:** The importer looks for a row that contains “name” (or similar) and “project” or “client”. Float often has a few metadata lines above the header; the importer skips to the first line that looks like a header.
-- **Columns:**
-  - **Person name** — Column header can be “Person”, “Name”, “Resource”, or “Employee” (or the first column if none match).
-  - **Role** — Column header “Role” (or the second column).
-  - **Project** — Column header “Project” (or a column containing “project” that isn’t “Client”).
-  - **Client** (optional) — “Client”, “Client name”, “Account”, or “Customer”. Used when creating projects from Float data.
-  - **Weekly hours** — One column per week, with the week’s **Monday date** as the header in **ISO format** (e.g. `2025-02-17`).
+If the token is missing, the sync action shows an error (API returns **503**).
 
-### Example column headers
+### Matching rules
 
-| Person | Role | Project | Client | 2025-02-17 | 2025-02-24 |
-|--------|------|---------|--------|------------|------------|
-| Jane Doe | Project Manager | Alpha Project | Acme | 40 | 40 |
+- **Projects** — Matched by Float project id once stored on the project (`floatExternalId`), or by project **name** (normalized). Use the same names in Workbench as in Float, or run sync after creating a project so the link is stored.
+- **People** — Pulled from Float; Workbench creates or updates `Person` rows (including Float id on the person).
+- **Roles** — Role names on Float tasks must exist in Workbench (**Admin → Roles**). Unknown names are listed on the sync page so you can add roles and sync again.
 
-- **Project names** in the CSV must match existing projects in Workbench if you want hours to land on those projects. Otherwise, add the projects first (or create them from the import), then run the import again or use backfill if your deployment supports it.
-- **Roles** must exist in Workbench (Admin → Roles). If the CSV contains roles that don’t exist yet, the import records them as “unknown”; add those roles in Admin → Roles and re-import if needed.
+### What sync does
 
-### What the import does
-
-- **Assignments and hours:** For each person and project in the CSV, the import updates project assignments (and creates people/roles if needed) and writes Float scheduled hours for the weeks that appear as columns in the file.
-- **Past weeks:** Only **current and future** weeks are updated from the file. Past weeks are **never** overwritten or deleted, so revenue recovery and historical Float actuals stay intact even when your Float export only covers a limited range (e.g. today through one year out).
-- **Person removed from a project in Float:** If someone no longer appears on a project in the export (e.g. they were removed in Float), their **future** Float scheduled hours for that project are cleared in Workbench. Their **past** weeks and their **assignment** on the project are left as-is—they will still appear on the Resourcing tab until you remove them in **Settings → Assignments** if you want. Keeping them can serve as a check that they had prior hours.
+- **Assignments and hours:** Updates project assignments and writes **Float scheduled hours** for current and future weeks in the synced window. Past weeks are **not** overwritten.
+- **Removed in Float:** If someone no longer appears on a project in Float for the synced snapshot, their **future** Float scheduled hours for that project are cleared in Workbench. Past weeks and the **assignment** row are left until you change them under **Settings → Assignments**.
 
 ### Limits
 
-- **File size:** Maximum 10 MB per file.
-- **Rate limiting:** In production, if Redis is configured, the import is rate-limited (e.g. 20 requests per 15 minutes per user).
+- **Rate limiting:** In production, if Redis is configured, sync is rate-limited (e.g. 20 requests per 15 minutes per user).
 
 ---
 
@@ -194,8 +184,8 @@ Available from the Admin area (link in the header).
 
 | Page | Purpose |
 |------|---------|
-| **Roles** | Create and manage roles (e.g. Project Manager, FE Developer). Role names must match the ones used in project assignments and in Float CSV exports. |
-| **People** | Manage people (name, email, active). These are the resources that appear on project assignments and in Float import. |
+| **Roles** | Create and manage roles (e.g. Project Manager, FE Developer). Role names must match the ones used on assignments and in Float. |
+| **People** | Manage people (name, email, active). These are the resources that appear on project assignments and Float sync. |
 | **Users** | Manage app logins (email and password) and permissions. Set **User** or **Admin**, and optionally set a **position role** (Project Manager, Program Manager, Client Account Director) so “My Projects” shows the right list. |
 
 ---
@@ -241,7 +231,7 @@ Use the sidebar to open these dashboards. The **Account** page (sidebar) lets yo
 |------|---------|
 | **Planned** | Internal estimate of hours (entered in Workbench). |
 | **Actual** | Hours from timesheets or actuals (entered in Workbench). |
-| **Float** | Scheduled hours imported from Float via the CSV import. |
+| **Float** | Scheduled hours imported from Float via **Float sync** (API). |
 
 The Resourcing tab shows all three so you can compare plan, actual, and Float schedule.
 
@@ -262,9 +252,9 @@ Your **My Projects** list (on `/projects`) uses the **Person** link described in
 | Issue | What to try |
 |-------|-------------|
 | **Invalid email or password** | Ensure the database has been seeded and your user exists. Ask an admin to run the seed or add your account in Admin → Users. |
-| **Project names must match** (Float import) | Create projects in Workbench with the exact names used in the Float CSV, or adjust the CSV to match existing project names. Add missing roles in Admin → Roles and re-import if needed. |
-| **File too large** (Float import) | Maximum upload size is 10 MB. Split the export or reduce the date range. |
-| **Too many import requests** | Wait and try again later; the import is rate-limited when Redis is configured. |
+| **Project names must match** (Float) | Create projects in Workbench with names that match Float, or run sync so `floatExternalId` is set. Add missing roles in Admin → Roles and sync again if needed. |
+| **Float API not configured** | Set `FLOAT_API_TOKEN` in the server environment. |
+| **Too many sync requests** | Wait and try again later; sync is rate-limited when Redis is configured. |
 | **Page looks broken** (overlapping layout, wrong styles, sidebar over content) | Try a **hard refresh** (e.g. Mac: `Cmd+Shift+R`). If it persists, a **browser extension** may be injecting styles or scripts — see *Browser extensions* below. |
 
 ### Browser extensions
