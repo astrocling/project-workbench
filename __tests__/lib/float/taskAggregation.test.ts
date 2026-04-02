@@ -192,4 +192,48 @@ describe("aggregateTasksToWeeklyHours", () => {
     const weekdays = aggregateTasksToWeeklyHours(tasks, { weekdaysOnly: true });
     expect(weekdays.get(weeklyHoursCompositeKey(1, 99, wk))).toBe(10);
   });
+
+  it("excludedUtcDatesByFloatPeopleId: skips only matching person-days (regional / time off)", () => {
+    const tasks: FloatTaskJson[] = [
+      {
+        project_id: 1,
+        people_id: 1,
+        start_date: "2024-03-04",
+        end_date: "2024-03-08",
+        hours: 2,
+      },
+      {
+        project_id: 1,
+        people_id: 2,
+        start_date: "2024-03-04",
+        end_date: "2024-03-08",
+        hours: 2,
+      },
+    ];
+    const wk = formatWeekKey(getWeekStartDate(new Date(Date.UTC(2024, 2, 4))));
+    const excluded = new Map<number, Set<string>>();
+    excluded.set(1, new Set(["2024-03-05"]));
+    const map = aggregateTasksToWeeklyHours(tasks, {
+      weekdaysOnly: true,
+      excludedUtcDatesByFloatPeopleId: excluded,
+    });
+    expect(map.get(weeklyHoursCompositeKey(1, 1, wk))).toBe(2 * 4);
+    expect(map.get(weeklyHoursCompositeKey(1, 2, wk))).toBe(2 * 5);
+  });
+
+  it("excludedUtcDatesByFloatPeopleId: absent map matches old behavior", () => {
+    const tasks: FloatTaskJson[] = [
+      {
+        project_id: 1,
+        people_id: 1,
+        start_date: "2024-03-04",
+        end_date: "2024-03-08",
+        hours: 2,
+      },
+    ];
+    const wk = formatWeekKey(getWeekStartDate(new Date(Date.UTC(2024, 2, 4))));
+    expect(
+      aggregateTasksToWeeklyHours(tasks, { weekdaysOnly: true }).get(weeklyHoursCompositeKey(1, 1, wk))
+    ).toBe(10);
+  });
 });

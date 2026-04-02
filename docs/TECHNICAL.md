@@ -23,7 +23,7 @@ The schema is defined in `prisma/schema.prisma`. Main entities:
 | Entity | Purpose |
 |--------|---------|
 | **User** | App login (email, password hash, permissions: User/Admin, optional position role). |
-| **Person** | Resource (name, email, active, optional externalId). Used for assignments and Float import; may be linked to User by email/name for “My Projects”. |
+| **Person** | Resource (name, email, active, optional externalId, optional `floatRegionId` from Float `/v3/people`). Used for assignments and Float import; may be linked to User by email/name for “My Projects”. |
 | **Role** | Role type (e.g. Project Manager, FE Developer). Used on assignments and matched to Float role names on sync. |
 | **Project** | Project (slug, name, client, start/end dates, status, optional single rate, notes, SOW/estimate/float/metric links, resourcing thresholds, `cdaEnabled`, `cdaReportHoursOnly`, optional clientSponsor/keyStaffName for status reports). |
 | **ProjectAssignment** | Person assigned to a project in a role; optional bill-rate override; optional hiddenFromGrid (hide from Resourcing tab only). |
@@ -68,7 +68,7 @@ Unit tests: `__tests__/lib/splitWeekProRata.test.ts`, `__tests__/lib/monthUtils.
 
 ### Float sync behavior
 
-Scheduled hours are loaded from the **Float API** (not file upload). Orchestration: `lib/float/syncFloatImport.ts` (`executeFloatApiSync`) → `applyFloatImportDatabaseEffects` in `lib/floatImportApply.ts`. Admin route: `GET`/`POST` `app/api/admin/float-sync/route.ts` (UI: **Admin → Float sync**, `/admin/float-sync`; `/admin/float-import` redirects there).
+Scheduled hours are loaded from the **Float API** (not file upload). Orchestration: `lib/float/syncFloatImport.ts` (`executeFloatApiSync`) → `applyFloatImportDatabaseEffects` in `lib/floatImportApply.ts`. The sync also calls `/v3/timeoffs`, `/v3/public-holidays`, and `/v3/holidays` (team holidays; filtered client-side to the sync window) for the same date window as tasks; `lib/float/excludedDays.ts` merges **time off** (per person) and **regional** public/team holidays into `excludedUtcDatesByFloatPeopleId`, and `lib/float/taskAggregation.ts` (`aggregateTasksToWeeklyHours`) subtracts those UTC weekdays before writing `FloatScheduledHours`. Admin route: `GET`/`POST` `app/api/admin/float-sync/route.ts` (UI: **Admin → Float sync**, `/admin/float-sync`; `/admin/float-import` redirects there). **Admin → Holidays** uses `GET /api/admin/float-holidays` (read-only JSON tables).
 
 - **Auth / config:** `POST` requires Admin session. `FLOAT_API_TOKEN` must be set; optional `FLOAT_API_USER_AGENT_EMAIL` is sent in `User-Agent` per Float’s integration guidelines. If the token is missing, the API returns **503** with a clear message.
 - **Writes:** Only **non-completed** weeks (`!isCompletedWeek` in `lib/weekUtils.ts`, i.e. **current week and future**) are upserted into `FloatScheduledHours`. Past weeks are never overwritten, so historical float data (e.g. for revenue recovery) is preserved when the synced window is limited (default is roughly ±12 months from today; optional JSON body `startDate` / `endDate` overrides). **`PlannedHours` and `ActualHours` are never written by this path.**
@@ -103,7 +103,7 @@ Short spot-checks after deploying or changing Float integration:
 | **UPSTASH_REDIS_REST_URL** | Optional | Upstash Redis REST URL for rate limiting. |
 | **UPSTASH_REDIS_REST_TOKEN** | Optional | Upstash Redis REST token. |
 | **BLOB_READ_WRITE_TOKEN** | Optional | Vercel Blob token for caching status report PDFs; if unset, PDFs are generated on demand without cache. |
-| **FLOAT_API_TOKEN** | For Float sync | Bearer token for Float API v3 (`/v3/people`, `/v3/projects`, `/v3/tasks`, etc.). Required for `POST /api/admin/float-sync` to run; omit only if you never use sync. |
+| **FLOAT_API_TOKEN** | For Float sync | Bearer token for Float API v3 (`/v3/people`, `/v3/projects`, `/v3/tasks`, `/v3/timeoffs`, `/v3/public-holidays`, `/v3/holidays` (team holidays), etc.). Required for `POST /api/admin/float-sync` and `GET /api/admin/float-holidays` to run; omit only if you never use sync. |
 | **FLOAT_API_USER_AGENT_EMAIL** | Optional | Contact email embedded in `User-Agent` for Float API requests (recommended). |
 
 When Upstash is set, rate limits apply: login (per IP), seed (per IP), float sync (`floatImportRatelimit`, same Redis prefix as legacy “float-import”; 20 per 15 min per user). Without them, rate limiting is skipped (e.g. local dev).
@@ -130,7 +130,7 @@ Permission helpers live in `lib/auth.ts`; NextAuth configuration (session, crede
 | Permission | Capabilities |
 |------------|--------------|
 | **User** | View and edit projects (assignments, hours, budget, rates, key roles). Cannot access Admin. |
-| **Admin** | Everything User can do, plus: Admin area (Float sync, Roles, People, Users), delete projects. |
+| **Admin** | Everything User can do, plus: Admin area (Float sync, Holidays, Roles, People, Users), delete projects. |
 
 Session permission is read from the current user’s `permissions` field (User or Admin). See **Projects list page** below for how “My Projects” resolves the current user’s `Person` and filters `ProjectKeyRole`.
 
@@ -197,7 +197,8 @@ API routes live under `app/api/`. This is a high-level overview for maintainers.
 | People | `GET /api/people`, `/api/people/eligible-key-roles` | List people, people eligible for key roles. |
 | Roles | `GET /api/roles` | List roles. |
 | Account | `POST /api/account/change-password` | Change password for current user (current password required). |
-| Admin | `GET/POST /api/admin/float-sync` | Float API sync: `GET` returns latest `FloatImportRun`; `POST` pulls tasks and reference data from Float and applies the same DB effects as `applyFloatImportDatabaseEffects` (Admin only). |
+| Admin | `GET/POST /api/admin/float-sync` | Float API sync: `GET` returns latest `FloatImportRun`; `POST` pulls tasks, time off, holidays, and reference data from Float and applies the same DB effects as `applyFloatImportDatabaseEffects` (Admin only). |
+| Admin | `GET /api/admin/float-holidays` | Lists Float public and team holidays for the query window (default like sync); Admin only; requires `FLOAT_API_TOKEN`. |
 | Admin | `/api/admin/roles`, `/api/admin/people`, `/api/admin/users` | CRUD for roles, people, app users (Admin only). |
 
 All project and admin routes require an authenticated session; admin routes additionally require Admin permission.

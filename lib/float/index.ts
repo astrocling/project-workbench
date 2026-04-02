@@ -21,6 +21,7 @@ export {
   weeklyHoursMapToRows,
 } from "@/lib/float/taskAggregation";
 export type {
+  AggregateTasksToWeeklyHoursOptions,
   AggregateTasksWindow,
   FloatTaskJson,
   WeeklyHoursRow,
@@ -38,3 +39,11 @@ export type {
   FloatProjectJson,
   FloatRoleJson,
 } from "@/lib/float/syncFloatImport";
+export {
+  buildExcludedUtcDatesByFloatPeopleId,
+  expandInclusiveUtcRangeToYmds,
+  filterHolidayRowsOverlappingYmdWindow,
+  holidayRangeYmdFromRow,
+  regionIdFromHolidayRow,
+} from "@/lib/float/excludedDays";
+export type { BuildExcludedDaysParams, FloatTimeOffJson } from "@/lib/float/excludedDays";

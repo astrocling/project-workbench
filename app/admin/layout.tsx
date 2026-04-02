@@ -28,6 +28,12 @@ export default function AdminLayout({
             Float sync
           </Link>
           <Link
+            href="/admin/holidays"
+            className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
+          >
+            Holidays
+          </Link>
+          <Link
             href="/admin/roles"
             className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
           >

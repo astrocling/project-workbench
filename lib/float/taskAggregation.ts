@@ -10,6 +10,8 @@
  * - We intersect task days with an optional **aggregation window** and sum into Monday-based weeks.
  * - Optional **weekdays only** (UTC Mon–Fri): when enabled, Saturday/Sunday calendar days do not
  *   contribute to weekly totals — aligns planned grid (business days) with Float rollups.
+ * - Optional **per-person excluded UTC days** (e.g. Float time off + regional holidays): those
+ *   calendar days do not contribute for that Float `people_id`, after weekday/window checks.
  * - When **multiple tasks** cover the same UTC calendar day for the same project and person, we take
  *   the **maximum** `hours` that day (not the sum). Float’s schedule shows one stacked bar per day;
  *   summing would double-count overlapping rows returned by the API.
@@ -59,6 +61,11 @@ export type AggregateTasksToWeeklyHoursOptions = {
    * Float `start_date`/`end_date` are still interpreted as UTC calendar days; weekend days are skipped.
    */
   weekdaysOnly?: boolean;
+  /**
+   * Per Float `people_id`, UTC `YYYY-MM-DD` days to skip (time off + regional holidays).
+   * Checked after {@link weekdaysOnly} and window clipping.
+   */
+  excludedUtcDatesByFloatPeopleId?: Map<number, Set<string>>;
 };
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -171,6 +178,7 @@ export function aggregateTasksToWeeklyHours(
   options?: AggregateTasksToWeeklyHoursOptions
 ): Map<string, number> {
   const weekdaysOnly = options?.weekdaysOnly === true;
+  const excludedByPerson = options?.excludedUtcDatesByFloatPeopleId;
   const window = options?.window;
   const winStart = window ? utcDateOnly(window.start) : null;
   const winEnd = window ? utcDateOnly(window.end) : null;
@@ -221,7 +229,11 @@ export function aggregateTasksToWeeklyHours(
           continue;
         }
       }
+      const ymd = utcDateOnly(day).toISOString().slice(0, 10);
       for (const pid of peopleIds) {
+        if (excludedByPerson?.get(pid)?.has(ymd)) {
+          continue;
+        }
         const dk = dailyHoursCompositeKey(projectId, pid, day);
         const prev = hoursPerUtcDay.get(dk) ?? 0;
         hoursPerUtcDay.set(dk, Math.max(prev, hoursPerDay));

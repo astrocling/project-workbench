@@ -43,6 +43,9 @@ function createMockFloatFetch(payload: {
   clients: unknown[];
   roles: unknown[];
   tasks: unknown[];
+  timeOffs?: unknown[];
+  publicHolidays?: unknown[];
+  teamHolidays?: unknown[];
 }): typeof fetch {
   return async (input) => {
     const url = typeof input === "string" ? new URL(input) : new URL((input as Request).url);
@@ -53,12 +56,15 @@ function createMockFloatFetch(payload: {
     else if (path.endsWith("/clients")) body = payload.clients;
     else if (path.endsWith("/roles")) body = payload.roles;
     else if (path.endsWith("/tasks")) body = payload.tasks;
+    else if (path.endsWith("/timeoffs")) body = payload.timeOffs ?? [];
+    else if (path.endsWith("/public-holidays")) body = payload.publicHolidays ?? [];
+    else if (path === "/v3/holidays") body = payload.teamHolidays ?? [];
     else {
       return new Response(`unexpected path: ${path}`, { status: 404 });
     }
     expect(url.searchParams.get("page")).toBeTruthy();
     expect(url.searchParams.get(FLOAT_PER_PAGE_PARAM)).toBeTruthy();
-    if (path.endsWith("/tasks")) {
+    if (path.endsWith("/tasks") || path.endsWith("/timeoffs") || path.endsWith("/public-holidays")) {
       expect(url.searchParams.get("start_date")).toBe(SYNC_START);
       expect(url.searchParams.get("end_date")).toBe(SYNC_END);
     }

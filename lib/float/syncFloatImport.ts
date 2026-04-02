@@ -10,6 +10,11 @@ import {
   weeklyHoursMapToRows,
   type FloatTaskJson,
 } from "@/lib/float/taskAggregation";
+import {
+  buildExcludedUtcDatesByFloatPeopleId,
+  filterHolidayRowsOverlappingYmdWindow,
+  type FloatTimeOffJson,
+} from "@/lib/float/excludedDays";
 import type { FloatClient } from "@/lib/float/client";
 import { applyFloatImportDatabaseEffects, type MergedFloatEntry } from "@/lib/floatImportApply";
 import { normalizeProjectNameForLookup } from "@/lib/floatImportUtils";
@@ -20,6 +25,8 @@ export type FloatPersonJson = {
   people_id: number | string;
   name: string;
   role_id?: number | string | null;
+  /** Float region; public/team holidays apply only when this matches the holiday's region. */
+  region_id?: number | string | null;
 };
 
 export type FloatProjectJson = {
@@ -146,6 +153,7 @@ export async function syncPeopleFromFloatList(
   for (const fp of floatPeople) {
     const ext = String(fp.people_id);
     const name = (fp.name ?? "").trim() || `Float person ${ext}`;
+    const floatRegionId = num(fp.region_id);
 
     let person = byExternal.get(ext);
     if (!person) {
@@ -153,9 +161,9 @@ export async function syncPeopleFromFloatList(
       if (person && person.externalId !== ext) {
         await prisma.person.update({
           where: { id: person.id },
-          data: { externalId: ext },
+          data: { externalId: ext, floatRegionId },
         });
-        person = { ...person, externalId: ext };
+        person = { ...person, externalId: ext, floatRegionId };
         const idx = allDb.indexOf(person);
         if (idx >= 0) allDb[idx] = person;
         byExternal.set(ext, person);
@@ -163,19 +171,28 @@ export async function syncPeopleFromFloatList(
     }
     if (!person) {
       person = await prisma.person.create({
-        data: { name, externalId: ext },
+        data: { name, externalId: ext, floatRegionId },
       });
       allDb.push(person);
       byExternal.set(ext, person);
       if (!newPersonNames.includes(name)) newPersonNames.push(name);
-    } else if (person.name !== name) {
+    } else if (
+      person != null &&
+      (person.name !== name || person.floatRegionId !== floatRegionId)
+    ) {
+      const row = person;
       await prisma.person.update({
-        where: { id: person.id },
-        data: { name },
+        where: { id: row.id },
+        data: { name, floatRegionId },
       });
-      person = { ...person, name };
+      person = { ...row, name, floatRegionId };
+      const idx = allDb.findIndex((p) => p.id === row.id);
+      if (idx >= 0) allDb[idx] = person;
     }
 
+    if (!person) {
+      throw new Error("syncPeopleFromFloatList: failed to resolve Person for Float people_id");
+    }
     personByName.set(person.name.toLowerCase(), person.id);
   }
 }
@@ -209,18 +226,40 @@ export async function executeFloatApiSync(
   const windowStart = new Date(`${startDate}T00:00:00.000Z`);
   const windowEnd = new Date(`${endDate}T23:59:59.999Z`);
 
-  const [knownRoles, floatPeople, floatProjects, floatClients, floatRolesList, tasks] =
-    await Promise.all([
-      prisma.role.findMany(),
-      client.listAllPages<FloatPersonJson>("/v3/people"),
-      client.listAllPages<FloatProjectJson>("/v3/projects"),
-      client.listAllPages<FloatClientJson>("/v3/clients"),
-      client.listAllPages<FloatRoleJson>("/v3/roles"),
-      client.listAllPages<FloatTaskWithRoleJson>("/v3/tasks", {
-        start_date: startDate,
-        end_date: endDate,
-      }),
-    ]);
+  const [
+    knownRoles,
+    floatPeople,
+    floatProjects,
+    floatClients,
+    floatRolesList,
+    tasks,
+    timeOffs,
+    publicHolidays,
+    teamHolidays,
+  ] = await Promise.all([
+    prisma.role.findMany(),
+    client.listAllPages<FloatPersonJson>("/v3/people"),
+    client.listAllPages<FloatProjectJson>("/v3/projects"),
+    client.listAllPages<FloatClientJson>("/v3/clients"),
+    client.listAllPages<FloatRoleJson>("/v3/roles"),
+    client.listAllPages<FloatTaskWithRoleJson>("/v3/tasks", {
+      start_date: startDate,
+      end_date: endDate,
+    }),
+    client.listAllPages<FloatTimeOffJson>("/v3/timeoffs", {
+      start_date: startDate,
+      end_date: endDate,
+    }),
+    client.listAllPages<Record<string, unknown>>("/v3/public-holidays", {
+      start_date: startDate,
+      end_date: endDate,
+    }),
+    client
+      .listAllPages<Record<string, unknown>>("/v3/holidays")
+      .then((rows) =>
+        filterHolidayRowsOverlappingYmdWindow(rows, startDate, endDate)
+      ),
+  ]);
 
   const tasksForSync = dedupeFloatTasksForAggregation(tasks);
 
@@ -283,9 +322,17 @@ export async function executeFloatApiSync(
 
   const pairRoles = buildFloatPairRoles(tasksForSync, peopleByFloatId, roleIdToName);
 
+  const excludedUtcDatesByFloatPeopleId = buildExcludedUtcDatesByFloatPeopleId({
+    floatPeople: floatPeople as Array<Record<string, unknown>>,
+    timeOffs,
+    publicHolidays,
+    teamHolidays,
+  });
+
   const weeklyMap = aggregateTasksToWeeklyHours(tasksForSync, {
     window: { start: windowStart, end: windowEnd },
     weekdaysOnly: true,
+    excludedUtcDatesByFloatPeopleId,
   });
   const hourRows = weeklyHoursMapToRows(weeklyMap);
 

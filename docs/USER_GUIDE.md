@@ -148,7 +148,7 @@ If you use **Float sync** first, project names in Workbench should match Float (
 
 ## Float sync (Admin only)
 
-Admins pull scheduled hours from the **Float API** (no file upload). The app reads Float people, projects, clients, roles, and tasks for a date window and updates Workbench to match.
+Admins pull scheduled hours from the **Float API** (no file upload). The app reads Float people, projects, clients, roles, tasks, **time off**, **public holidays**, and **team holidays** for the same date window and updates Workbench to match. Scheduled hours use **UTC weekdays** in that window, minus **per-person** non-working days: Float **time off** (always), plus **public** and **team** holidays **only when** the person’s **Float region** matches the holiday’s region (see Admin People **Region** below). People **without** a Float region still get **time-off** exclusions but **not** regional holiday exclusions—set regions in Float if holiday weeks should line up.
 
 ### Where to go
 
@@ -164,8 +164,13 @@ If the token is missing, the sync action shows an error (API returns **503**).
 ### Matching rules
 
 - **Projects** — Matched by Float project id once stored on the project (`floatExternalId`), or by project **name** (normalized). Use the same names in Workbench as in Float, or run sync after creating a project so the link is stored.
-- **People** — Pulled from Float; Workbench creates or updates `Person` rows (including Float id on the person).
+- **People** — Pulled from Float; Workbench creates or updates `Person` rows (including Float id and **Float region id** when Float provides it).
 - **Roles** — Role names on Float tasks must exist in Workbench (**Admin → Roles**). Unknown names are listed on the sync page so you can add roles and sync again.
+
+### Holidays and sync failures
+
+- **Admin → Holidays** (`/admin/holidays`) lists raw **public** and **team** holiday rows from Float (same default date window as sync). Use **Reload** to refetch; nothing is stored in Workbench for this page in v1.
+- If Float **time off** or **holiday** API calls fail during sync, the sync **errors** (so totals are not silently wrong). Fix token/network issues and run sync again.
 
 ### What sync does
 
@@ -195,7 +200,8 @@ Available from the Admin area (link in the header).
 | Page | Purpose |
 |------|---------|
 | **Roles** | Create and manage roles (e.g. Project Manager, FE Developer). Role names must match the ones used on assignments and in Float. |
-| **People** | Manage people (name, email, active). These are the resources that appear on project assignments and Float sync. |
+| **People** | Manage people (name, email, active). These are the resources that appear on project assignments and Float sync. The **Region** column shows each person’s **Float region id** (from the last sync) or **—** if unknown—used for regional public/team holiday handling in Float scheduled hours. |
+| **Holidays** | Read-only view of Float **public** and **team** holidays (API JSON) for troubleshooting schedules and regions. |
 | **Users** | Manage app logins (email and password) and permissions. Set **User** or **Admin**, and optionally set a **position role** (Project Manager, Program Manager, Client Account Director) so “My Projects” shows the right list. |
 
 ---

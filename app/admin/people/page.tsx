@@ -2,7 +2,13 @@
 
 import { useState, useEffect } from "react";
 
-type Person = { id: string; name: string; email: string | null; active: boolean };
+type Person = {
+  id: string;
+  name: string;
+  email: string | null;
+  active: boolean;
+  floatRegionId: number | null;
+};
 
 export default function AdminPeoplePage() {
   const [people, setPeople] = useState<Person[]>([]);
@@ -115,6 +121,7 @@ export default function AdminPeoplePage() {
             <thead>
               <tr className="bg-surface-50 dark:bg-dark-raised border-b border-surface-200 dark:border-dark-border">
                 <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Name</th>
+                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Region</th>
                 <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Email</th>
                 <th className="px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Actions</th>
               </tr>
@@ -126,6 +133,9 @@ export default function AdminPeoplePage() {
                   className={`border-b border-surface-100 dark:border-dark-border/60 last:border-0 hover:bg-jblue-500/[0.03] dark:hover:bg-jblue-500/[0.06] transition-colors duration-100 ${!p.active ? "opacity-60" : ""}`}
                 >
                   <td className="px-4 py-3 text-surface-700 dark:text-surface-200">{p.name}</td>
+                  <td className="px-4 py-3 text-surface-600 dark:text-surface-300 font-mono text-body-xs">
+                    {p.floatRegionId != null ? p.floatRegionId : "—"}
+                  </td>
                   <td className="px-4 py-3 text-surface-600 dark:text-surface-300">{p.email ?? "—"}</td>
                   <td className="px-4 py-3">
                     {p.active ? (

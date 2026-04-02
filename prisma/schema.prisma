@@ -64,6 +64,8 @@ model Person {
   name       String
   email      String?
   externalId String?  @unique // Float ID
+  /// Float `/v3/people` `region_id` (public/team holiday matching); null if unset in Float
+  floatRegionId Int?
   active     Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
