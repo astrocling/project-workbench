@@ -29,6 +29,7 @@ export type {
 export {
   defaultFloatSyncDateRange,
   executeFloatApiSync,
+  floatAccessLabelFromAccount,
   syncPeopleFromFloatList,
 } from "@/lib/float/syncFloatImport";
 export {

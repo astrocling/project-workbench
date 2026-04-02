@@ -68,6 +68,16 @@ model Person {
   floatRegionId   Int?
   /// Human-readable region label from Float sync (people and/or holiday payloads); null if unknown
   floatRegionName String?
+  /// Float `/v3/people` `job_title`
+  floatJobTitle          String?
+  /// Float `department.name` (denormalized from `/v3/people`)
+  floatDepartmentName    String?
+  /// Float `tags` (string array JSON)
+  floatTags              Json?
+  /// Float person `active` (scheduling); distinct from Workbench `active`
+  floatSchedulingActive  Boolean?
+  /// Short label from Float `expand=account` (e.g. access / login snapshot)
+  floatAccessLabel       String?
   active     Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

@@ -53,7 +53,10 @@ function createMockFloatFetch(payload: {
     const url = typeof input === "string" ? new URL(input) : new URL((input as Request).url);
     const path = url.pathname.replace(/\/$/, "") || "/";
     let body: unknown[] = [];
-    if (path.endsWith("/people")) body = payload.people;
+    if (path.endsWith("/people")) {
+      expect(url.searchParams.get("expand")).toBe("account");
+      body = payload.people;
+    }
     else if (path.endsWith("/projects")) body = payload.projects;
     else if (path.endsWith("/clients")) body = payload.clients;
     else if (path.endsWith("/roles")) body = payload.roles;
@@ -113,6 +116,12 @@ describe("Float API sync (mocked HTTP)", () => {
         {
           people_id: FLOAT_PERSON_ID,
           name: "API Sync Person",
+          email: "api-sync-person@example.com",
+          job_title: "Senior Developer",
+          tags: ["react", "node"],
+          active: 1,
+          department: { department_id: 100, name: "Engineering" },
+          account: { access_level: "Member", account_id: 5001 },
           role_id: FLOAT_ROLE_ID,
           region_id: 42,
           region_name: "Test Region",
@@ -120,6 +129,12 @@ describe("Float API sync (mocked HTTP)", () => {
         {
           people_id: FLOAT_PERSON_ID_2,
           name: "API Sync Person Two",
+          email: "person-two@example.com",
+          job_title: "Designer",
+          tags: [],
+          active: 0,
+          department: null,
+          account: {},
           role_id: FLOAT_ROLE_ID,
           region_id: 42,
         },
@@ -195,6 +210,27 @@ describe("Float API sync (mocked HTTP)", () => {
     expect(p2).toBeDefined();
     expect(p2!.floatRegionId).toBe(42);
     expect(p2!.floatRegionName).toBe("Test Region");
+  });
+
+  it("stores Float job title, tags, department, scheduling active, email, and access label from /v3/people", async () => {
+    expect(personIdAfterSync).toBeDefined();
+    const p1 = await prisma.person.findUniqueOrThrow({ where: { id: personIdAfterSync! } });
+    expect(p1.email).toBe("api-sync-person@example.com");
+    expect(p1.floatJobTitle).toBe("Senior Developer");
+    expect(p1.floatDepartmentName).toBe("Engineering");
+    expect(p1.floatSchedulingActive).toBe(true);
+    expect(p1.floatAccessLabel).toBe("Member");
+    expect(p1.floatTags).toEqual(["react", "node"]);
+
+    const p2 = await prisma.person.findFirstOrThrow({
+      where: { externalId: String(FLOAT_PERSON_ID_2) },
+    });
+    expect(p2.email).toBe("person-two@example.com");
+    expect(p2.floatJobTitle).toBe("Designer");
+    expect(p2.floatDepartmentName).toBeNull();
+    expect(p2.floatSchedulingActive).toBe(false);
+    expect(p2.floatAccessLabel).toBe("No login");
+    expect(p2.floatTags).toBeNull();
   });
 
   it("writes FloatScheduledHours and links project floatExternalId from mocked Float responses", async () => {

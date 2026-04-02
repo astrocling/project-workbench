@@ -4,6 +4,7 @@
 
 import type { PrismaClient } from "@prisma/client";
 import type { Project } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import {
   aggregateTasksToWeeklyHours,
   dedupeFloatTasksForAggregation,
@@ -29,6 +30,15 @@ import { getAsOfDate } from "@/lib/weekUtils";
 export type FloatPersonJson = {
   people_id: number | string;
   name: string;
+  email?: string | null;
+  job_title?: string | null;
+  /** Float `tags` (array of strings, normalized lowercase by Float). */
+  tags?: unknown;
+  /** Float scheduling active flag (`1`/`0` or boolean in responses). */
+  active?: number | string | boolean | null;
+  department?: { department_id?: number | string; name?: string | null } | null;
+  /** Present when listing with `expand=account`. */
+  account?: unknown;
   role_id?: number | string | null;
   /** Float region; public/team holidays apply only when this matches the holiday's region. */
   region_id?: number | string | null;
@@ -80,6 +90,147 @@ function num(v: number | string | null | undefined): number | null {
   if (v == null) return null;
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+/** Derive a short label for admin UI from Float `expand=account` payload (shape varies). */
+export function floatAccessLabelFromAccount(account: unknown): string | null {
+  if (account == null) return null;
+  if (typeof account !== "object") return null;
+  const a = account as Record<string, unknown>;
+  if (Object.keys(a).length === 0) return "No login";
+  for (const key of [
+    "access_level",
+    "access_type",
+    "permission_level",
+    "permission",
+    "role_name",
+    "name",
+    "label",
+  ]) {
+    const v = a[key];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  const email = a.email;
+  if (typeof email === "string" && email.trim()) return email.trim();
+  if (a.account_id != null || a.id != null) return "Linked";
+  return "Has account";
+}
+
+function floatSchedulingActiveFromApi(v: unknown): boolean | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v !== 0;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (s === "1" || s === "true") return true;
+    if (s === "0" || s === "false") return false;
+  }
+  return null;
+}
+
+function normalizeTagsForPerson(tags: unknown): string[] | null {
+  if (!Array.isArray(tags)) return null;
+  const strings = tags
+    .filter((t): t is string => typeof t === "string")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  return strings.length ? strings : null;
+}
+
+function tagsEqual(db: Prisma.JsonValue | null, incoming: string[] | null): boolean {
+  return JSON.stringify(db ?? null) === JSON.stringify(incoming ?? null);
+}
+
+function floatTagsForWrite(tags: string[] | null): Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue {
+  if (tags === null) return Prisma.DbNull;
+  return tags;
+}
+
+function emailFromFp(fp: FloatPersonJson): string | null {
+  const e = fp.email;
+  if (typeof e !== "string") return null;
+  const t = e.trim();
+  return t.length ? t : null;
+}
+
+function jobTitleFromFp(fp: FloatPersonJson): string | null {
+  const j = fp.job_title;
+  if (typeof j !== "string") return null;
+  const t = j.trim();
+  return t.length ? t : null;
+}
+
+function departmentNameFromFp(fp: FloatPersonJson): string | null {
+  const d = fp.department;
+  if (!d || typeof d !== "object") return null;
+  const name = (d as { name?: unknown }).name;
+  return typeof name === "string" && name.trim() ? name.trim() : null;
+}
+
+type FloatPersonSyncData = {
+  name: string;
+  email: string | null;
+  floatRegionId: number | null;
+  floatRegionName: string | null;
+  floatJobTitle: string | null;
+  floatDepartmentName: string | null;
+  floatTags: string[] | null;
+  floatSchedulingActive: boolean | null;
+  floatAccessLabel: string | null;
+};
+
+function buildFloatPersonSyncData(
+  fp: FloatPersonJson,
+  regionNameByFloatId: Map<number, string>
+): FloatPersonSyncData {
+  const row = fp as Record<string, unknown>;
+  const floatRegionId = regionIdFromPersonRow(row);
+  const floatRegionName =
+    floatRegionId == null
+      ? null
+      : (floatRegionLabelFromPersonRow(row) ??
+        regionNameByFloatId.get(floatRegionId) ??
+        null);
+  const ext = String(fp.people_id);
+  const name = (fp.name ?? "").trim() || `Float person ${ext}`;
+  return {
+    name,
+    email: emailFromFp(fp),
+    floatRegionId,
+    floatRegionName,
+    floatJobTitle: jobTitleFromFp(fp),
+    floatDepartmentName: departmentNameFromFp(fp),
+    floatTags: normalizeTagsForPerson(fp.tags),
+    floatSchedulingActive: floatSchedulingActiveFromApi(fp.active),
+    floatAccessLabel: floatAccessLabelFromAccount(fp.account),
+  };
+}
+
+function floatPersonSyncMatchesDb(
+  p: {
+    name: string;
+    email: string | null;
+    floatRegionId: number | null;
+    floatRegionName: string | null;
+    floatJobTitle: string | null;
+    floatDepartmentName: string | null;
+    floatTags: Prisma.JsonValue | null;
+    floatSchedulingActive: boolean | null;
+    floatAccessLabel: string | null;
+  },
+  s: FloatPersonSyncData
+): boolean {
+  return (
+    p.name === s.name &&
+    p.email === s.email &&
+    p.floatRegionId === s.floatRegionId &&
+    p.floatRegionName === s.floatRegionName &&
+    p.floatJobTitle === s.floatJobTitle &&
+    p.floatDepartmentName === s.floatDepartmentName &&
+    p.floatSchedulingActive === s.floatSchedulingActive &&
+    p.floatAccessLabel === s.floatAccessLabel &&
+    tagsEqual(p.floatTags, s.floatTags)
+  );
 }
 
 function roleNameForTask(
@@ -143,7 +294,7 @@ function resolveDbProject(
 }
 
 /**
- * Sync Float `/v3/people` into Person rows (names + externalId). Updates `personByName` (lowercase → id).
+ * Sync Float `/v3/people` into Person rows (names + externalId + Float metadata). Updates `personByName` (lowercase → id).
  */
 export async function syncPeopleFromFloatList(
   prisma: PrismaClient,
@@ -160,15 +311,8 @@ export async function syncPeopleFromFloatList(
 
   for (const fp of floatPeople) {
     const ext = String(fp.people_id);
-    const name = (fp.name ?? "").trim() || `Float person ${ext}`;
-    const row = fp as Record<string, unknown>;
-    const floatRegionId = regionIdFromPersonRow(row);
-    const floatRegionName =
-      floatRegionId == null
-        ? null
-        : (floatRegionLabelFromPersonRow(row) ??
-          regionNameByFloatId.get(floatRegionId) ??
-          null);
+    const sync = buildFloatPersonSyncData(fp, regionNameByFloatId);
+    const { name, email, floatRegionId, floatRegionName } = sync;
 
     let person = byExternal.get(ext);
     if (!person) {
@@ -176,33 +320,82 @@ export async function syncPeopleFromFloatList(
       if (person && person.externalId !== ext) {
         await prisma.person.update({
           where: { id: person.id },
-          data: { externalId: ext, floatRegionId, floatRegionName },
+          data: {
+            externalId: ext,
+            email,
+            floatRegionId,
+            floatRegionName,
+            floatJobTitle: sync.floatJobTitle,
+            floatDepartmentName: sync.floatDepartmentName,
+            floatTags: floatTagsForWrite(sync.floatTags),
+            floatSchedulingActive: sync.floatSchedulingActive,
+            floatAccessLabel: sync.floatAccessLabel,
+          },
         });
-        person = { ...person, externalId: ext, floatRegionId, floatRegionName };
-        const idx = allDb.indexOf(person);
-        if (idx >= 0) allDb[idx] = person;
+        const merged = {
+          ...person,
+          externalId: ext,
+          email: sync.email,
+          floatRegionId: sync.floatRegionId,
+          floatRegionName: sync.floatRegionName,
+          floatJobTitle: sync.floatJobTitle,
+          floatDepartmentName: sync.floatDepartmentName,
+          floatTags: sync.floatTags as Prisma.JsonValue | null,
+          floatSchedulingActive: sync.floatSchedulingActive,
+          floatAccessLabel: sync.floatAccessLabel,
+        };
+        const idx = allDb.findIndex((p) => p.id === person!.id);
+        if (idx >= 0) allDb[idx] = merged;
+        person = merged;
         byExternal.set(ext, person);
       }
     }
     if (!person) {
       person = await prisma.person.create({
-        data: { name, externalId: ext, floatRegionId, floatRegionName },
+        data: {
+          name,
+          externalId: ext,
+          email,
+          floatRegionId,
+          floatRegionName,
+          floatJobTitle: sync.floatJobTitle,
+          floatDepartmentName: sync.floatDepartmentName,
+          floatTags: floatTagsForWrite(sync.floatTags),
+          floatSchedulingActive: sync.floatSchedulingActive,
+          floatAccessLabel: sync.floatAccessLabel,
+        },
       });
       allDb.push(person);
       byExternal.set(ext, person);
       if (!newPersonNames.includes(name)) newPersonNames.push(name);
-    } else if (
-      person != null &&
-      (person.name !== name ||
-        person.floatRegionId !== floatRegionId ||
-        person.floatRegionName !== floatRegionName)
-    ) {
+    } else if (person != null && !floatPersonSyncMatchesDb(person, sync)) {
       const rowPerson = person;
       await prisma.person.update({
         where: { id: rowPerson.id },
-        data: { name, floatRegionId, floatRegionName },
+        data: {
+          name,
+          email,
+          floatRegionId,
+          floatRegionName,
+          floatJobTitle: sync.floatJobTitle,
+          floatDepartmentName: sync.floatDepartmentName,
+          floatTags: floatTagsForWrite(sync.floatTags),
+          floatSchedulingActive: sync.floatSchedulingActive,
+          floatAccessLabel: sync.floatAccessLabel,
+        },
       });
-      person = { ...rowPerson, name, floatRegionId, floatRegionName };
+      person = {
+        ...rowPerson,
+        name,
+        email,
+        floatRegionId,
+        floatRegionName,
+        floatJobTitle: sync.floatJobTitle,
+        floatDepartmentName: sync.floatDepartmentName,
+        floatTags: sync.floatTags as Prisma.JsonValue | null,
+        floatSchedulingActive: sync.floatSchedulingActive,
+        floatAccessLabel: sync.floatAccessLabel,
+      };
       const idx = allDb.findIndex((p) => p.id === rowPerson.id);
       if (idx >= 0) allDb[idx] = person;
     }
@@ -255,7 +448,7 @@ export async function executeFloatApiSync(
     teamHolidays,
   ] = await Promise.all([
     prisma.role.findMany(),
-    client.listAllPages<FloatPersonJson>("/v3/people"),
+    client.listAllPages<FloatPersonJson>("/v3/people", { expand: "account" }),
     client.listAllPages<FloatProjectJson>("/v3/projects"),
     client.listAllPages<FloatClientJson>("/v3/clients"),
     client.listAllPages<FloatRoleJson>("/v3/roles"),
