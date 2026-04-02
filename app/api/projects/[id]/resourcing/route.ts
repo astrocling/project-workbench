@@ -32,69 +32,124 @@ export async function GET(
     async (projectId: string, fromWeek: string, toWeek: string) => {
       const from = new Date(fromWeek + "T00:00:00.000Z");
       const to = new Date(toWeek + "T00:00:00.000Z");
-      const [project, floatRows, readyForFloatRows, commentRows, monthSplitRows] = await Promise.all([
-        prisma.project.findUnique({
-          where: { id: projectId },
-          select: {
-            startDate: true,
-            endDate: true,
-            actualsLowThresholdPercent: true,
-            actualsHighThresholdPercent: true,
-            assignments: {
-              where: { hiddenFromGrid: false },
-              select: {
-                personId: true,
-                person: { select: { name: true } },
-                role: { select: { name: true } },
-              },
-            },
-            plannedHours: {
-              where: { weekStartDate: { gte: from, lte: to } },
-              select: {
-                projectId: true,
-                personId: true,
-                weekStartDate: true,
-                hours: true,
-              },
-            },
-            actualHours: {
-              where: { weekStartDate: { gte: from, lte: to } },
-              select: {
-                projectId: true,
-                personId: true,
-                weekStartDate: true,
-                hours: true,
-              },
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: {
+          startDate: true,
+          endDate: true,
+          actualsLowThresholdPercent: true,
+          actualsHighThresholdPercent: true,
+          assignments: {
+            where: { hiddenFromGrid: false },
+            select: {
+              personId: true,
+              person: { select: { name: true } },
+              role: { select: { name: true } },
             },
           },
-        }),
-        prisma.floatScheduledHours.findMany({
-          where: { projectId: projectId, weekStartDate: { gte: from, lte: to } },
-          select: { projectId: true, personId: true, weekStartDate: true, hours: true },
-        }),
-        prisma.readyForFloatUpdate.findMany({
-          where: { projectId: projectId },
-          select: { projectId: true, personId: true, ready: true },
-        }),
-        prisma.gridCellComment.findMany({
-          where: { projectId: projectId, weekStartDate: { gte: from, lte: to } },
-          select: { projectId: true, personId: true, weekStartDate: true, gridType: true, comment: true },
-        }),
-        prisma.actualHoursMonthSplit.findMany({
-          where: { projectId: projectId, weekStartDate: { gte: from, lte: to } },
-          select: {
-            projectId: true,
-            personId: true,
-            weekStartDate: true,
-            monthKey: true,
-            hours: true,
+          plannedHours: {
+            where: { weekStartDate: { gte: from, lte: to } },
+            select: {
+              projectId: true,
+              personId: true,
+              weekStartDate: true,
+              hours: true,
+            },
           },
-        }),
-      ]);
+          actualHours: {
+            where: { weekStartDate: { gte: from, lte: to } },
+            select: {
+              projectId: true,
+              personId: true,
+              weekStartDate: true,
+              hours: true,
+            },
+          },
+        },
+      });
 
       if (!project) return null;
 
       const visiblePersonIds = new Set(project.assignments.map((a) => a.personId));
+      const visiblePersonIdList = Array.from(visiblePersonIds);
+
+      const [floatRows, readyForFloatRows, commentRows, monthSplitRows, ptoHolidayRows] =
+        await Promise.all([
+          prisma.floatScheduledHours.findMany({
+            where: { projectId: projectId, weekStartDate: { gte: from, lte: to } },
+            select: { projectId: true, personId: true, weekStartDate: true, hours: true },
+          }),
+          prisma.readyForFloatUpdate.findMany({
+            where: { projectId: projectId },
+            select: { projectId: true, personId: true, ready: true },
+          }),
+          prisma.gridCellComment.findMany({
+            where: { projectId: projectId, weekStartDate: { gte: from, lte: to } },
+            select: {
+              projectId: true,
+              personId: true,
+              weekStartDate: true,
+              gridType: true,
+              comment: true,
+            },
+          }),
+          prisma.actualHoursMonthSplit.findMany({
+            where: { projectId: projectId, weekStartDate: { gte: from, lte: to } },
+            select: {
+              projectId: true,
+              personId: true,
+              weekStartDate: true,
+              monthKey: true,
+              hours: true,
+            },
+          }),
+          visiblePersonIdList.length === 0
+            ? Promise.resolve([])
+            : prisma.pTOHolidayImpact.findMany({
+                where: {
+                  personId: { in: visiblePersonIdList },
+                  weekStartDate: { gte: from, lte: to },
+                },
+                select: {
+                  personId: true,
+                  weekStartDate: true,
+                  type: true,
+                  hours: true,
+                  label: true,
+                },
+              }),
+        ]);
+
+      const ptoHolidayByWeek: Record<
+        string,
+        Array<{
+          personId: string;
+          type: "PTO" | "HOLIDAY";
+          hours: number | null;
+          label: string | null;
+          isPartial: boolean;
+        }>
+      > = {};
+
+      for (const r of ptoHolidayRows) {
+        if (!visiblePersonIds.has(r.personId)) continue;
+        const weekKey = formatWeekKey(r.weekStartDate);
+        const apiType = r.type === "PTO" ? "PTO" : "HOLIDAY";
+        const h = r.hours;
+        const hoursVal = h != null && Number.isFinite(h) ? h : null;
+        const isPartial =
+          apiType === "PTO" &&
+          hoursVal != null &&
+          hoursVal < 8;
+        if (!ptoHolidayByWeek[weekKey]) ptoHolidayByWeek[weekKey] = [];
+        ptoHolidayByWeek[weekKey]!.push({
+          personId: r.personId,
+          type: apiType,
+          hours: hoursVal,
+          label: r.label ?? null,
+          isPartial,
+        });
+      }
 
       return {
         range: { fromWeek, toWeek },
@@ -144,6 +199,7 @@ export async function GET(
             gridType: r.gridType,
             comment: r.comment,
           })),
+        ptoHolidayByWeek,
       };
     },
     ["project-resourcing"],

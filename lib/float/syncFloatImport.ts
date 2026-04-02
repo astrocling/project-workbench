@@ -683,5 +683,12 @@ export async function executeFloatApiSync(
     })),
     personByName,
     roleById,
+    ptoHolidaySync: {
+      startYmd: startDate,
+      endYmd: endDate,
+      timeOffs,
+      publicHolidays: publicHolidays as Array<Record<string, unknown>>,
+      teamHolidays: teamHolidays as Array<Record<string, unknown>>,
+    },
   });
 }

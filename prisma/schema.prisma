@@ -365,15 +365,31 @@ model FloatScheduledHours {
   @@id([projectId, personId, weekStartDate])
 }
 
+/// Day-level PTO and public-holiday impacts synced from Float (no live API needed for grid/calendar).
 model PTOHolidayImpact {
   personId      String
-  weekStartDate DateTime   @db.Date
+  /// Specific affected calendar day.
+  date          DateTime      @db.Date
+  /// Monday of the ISO week containing `date` (denormalized for weekly grid queries).
+  weekStartDate DateTime      @db.Date
   type          PTOHolidayType
-  createdAt     DateTime   @default(now())
+  /// PTO hours for this day; null for holidays (person is out).
+  hours         Float?
+  /// Holiday name or PTO type label from Float when available.
+  label         String?
+  /// Region id for HOLIDAY rows (matches Person.floatRegionId); null for PTO.
+  floatRegionId Int?
+  /// Float time-off id or holiday id as string; aids upsert/dedup during sync.
+  floatSourceId String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
 
-  @@id([personId, weekStartDate])
+  @@id([personId, date, type])
+  @@index([personId, weekStartDate])
+  @@index([weekStartDate])
+  @@index([floatSourceId])
 }
 
 model BudgetLine {

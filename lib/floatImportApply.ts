@@ -5,6 +5,10 @@
 
 import { Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
+import {
+  applyPtoHolidaySyncWriters,
+  type PtoHolidaySyncPayload,
+} from "@/lib/float/ptoholidaySyncWriters";
 import { normalizeProjectNameForLookup } from "@/lib/floatImportUtils";
 import { isCompletedWeek } from "@/lib/weekUtils";
 
@@ -66,6 +70,8 @@ export async function applyFloatImportDatabaseEffects(
     projectsForResolution?: Array<{ id: string; name: string; floatExternalId: string | null }>;
     personByName: Map<string, string>;
     roleById: Map<string, string>;
+    /** When set (Float API sync), persists PTO and regional holidays into `PTOHolidayImpact`. */
+    ptoHolidaySync?: PtoHolidaySyncPayload;
   }
 ): Promise<{
   run: { id: string; completedAt: Date };
@@ -84,6 +90,7 @@ export async function applyFloatImportDatabaseEffects(
     projectsForResolution,
     personByName,
     roleById,
+    ptoHolidaySync,
   } = params;
 
   const projectNamesSet = new Set(projectNames);
@@ -230,6 +237,10 @@ export async function applyFloatImportDatabaseEffects(
         });
       }
     }
+  }
+
+  if (ptoHolidaySync) {
+    await applyPtoHolidaySyncWriters(prisma, ptoHolidaySync);
   }
 
   const projectFloatHours = JSON.parse(
