@@ -12,9 +12,19 @@ function roundToQuarter(n: number): number {
 }
 
 /**
- * Sync PlannedHours (project plan) from Float for completed (past) weeks only.
- * Uses FloatScheduledHours and stored Float import runs so past weeks get plan data
- * from the Float Actuals grid. Revenue recovery forecast then uses these values.
+ * Sync PlannedHours (project plan) from Float scheduled hours in the DB.
+ *
+ * - **All weeks** that exist in `FloatScheduledHours` for assigned people are copied
+ *   into `PlannedHours` (current, future, and past). That fixes cases like Planned still
+ *   at an old value (e.g. 10.5) while the Float column already shows the latest sync (e.g. 7.5).
+ * - **Gap fill for completed weeks only:** For past weeks with no Float row in the DB,
+ *   stored Float import JSON (`getProjectDataFromAllImports`) is used so revenue recovery
+ *   still gets historical hours from exports.
+ *
+ * **Important:** Past `FloatScheduledHours` rows are **not** updated by Admin Float API sync
+ * (only current/future are overwritten). If the Float **product** shows different hours than
+ * Workbench’s Float column for a **completed** week, the DB is stale until a **Backfill**
+ * or a deliberate data fix; this route cannot invent Float values that were never stored.
  */
 export async function POST(
   _req: NextRequest,
@@ -58,12 +68,13 @@ export async function POST(
 
   const assignedPersonIds = new Set(project.assignments.map((a) => a.personId));
 
-  const pastHoursByPersonWeek = new Map<string, number>();
+  /** All person|week keys from FloatScheduledHours (assigned) — every week, not only past. */
+  const planHoursByPersonWeek = new Map<string, number>();
 
   for (const r of floatRows) {
-    if (!assignedPersonIds.has(r.personId) || !isCompletedWeek(r.weekStartDate, asOf)) continue;
+    if (!assignedPersonIds.has(r.personId)) continue;
     const weekKey = r.weekStartDate.toISOString().slice(0, 10);
-    pastHoursByPersonWeek.set(`${r.personId}|${weekKey}`, roundToQuarter(Number(r.hours)));
+    planHoursByPersonWeek.set(`${r.personId}|${weekKey}`, roundToQuarter(Number(r.hours)));
   }
 
   const { floatList } = getProjectDataFromAllImports(allRuns, project.name);
@@ -78,19 +89,19 @@ export async function POST(
       if (!isCompletedWeek(weekStartDate, asOf)) continue;
       const weekKey = weekStart.slice(0, 10);
       const key = `${person.id}|${weekKey}`;
-      if (!pastHoursByPersonWeek.has(key)) {
-        pastHoursByPersonWeek.set(key, roundToQuarter(hours));
+      if (!planHoursByPersonWeek.has(key)) {
+        planHoursByPersonWeek.set(key, roundToQuarter(hours));
       }
     }
   }
 
-  const entries = Array.from(pastHoursByPersonWeek.entries());
+  const entries = Array.from(planHoursByPersonWeek.entries());
   if (entries.length === 0) {
     return NextResponse.json({
       ok: true,
       updated: 0,
       message:
-        "No Float data for past weeks on this project (check Float import runs and project name match). Nothing to sync.",
+        "No Float scheduled hours for this project (run Admin Float sync or Backfill, and check assignments). Nothing to sync.",
     });
   }
 
@@ -127,7 +138,7 @@ export async function POST(
     updated,
     message:
       updated === 0
-        ? "No past weeks updated."
-        : `Synced ${updated} project plan ${updated === 1 ? "entry" : "entries"} from Float for past weeks.`,
+        ? "No plan entries updated."
+        : `Synced ${updated} project plan ${updated === 1 ? "entry" : "entries"} from Float scheduled hours.`,
   });
 }

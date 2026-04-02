@@ -169,8 +169,18 @@ If the token is missing, the sync action shows an error (API returns **503**).
 
 ### What sync does
 
-- **Assignments and hours:** Updates project assignments and writes **Float scheduled hours** for current and future weeks in the synced window. Past weeks are **not** overwritten.
+- **Assignments and hours:** Updates project assignments and writes **Float scheduled hours** (the **Float** grid on Resourcing) for **every non-completed week** in the synced window — i.e. the **current week and all future weeks** through the API date range. Past weeks are **not** overwritten.
 - **Removed in Float:** If someone no longer appears on a project in Float for the synced snapshot, their **future** Float scheduled hours for that project are cleared in Workbench. Past weeks and the **assignment** row are left until you change them under **Settings → Assignments**.
+
+### What sync does **not** change
+
+- **Planned** hours — Float sync never writes to the **Planned** grid (`PlannedHours`). Use **Settings → Sync plan from Float** on the project to copy stored Float scheduled hours into Planned for every week that has Float data (past, current, future), or edit Planned in the Resourcing grid for **current and future** weeks only (past Planned is read-only in the grid).
+- **Actual** hours — not touched by Float sync.
+
+### When Planned and Float still disagree
+
+- **You didn’t copy Float → Planned:** The **Float** column updates from Admin Float sync; **Planned** does not, until you sync the plan (Settings) or edit Planned / use **Sync plan from Float** on the Resourcing tab (future/current weeks).
+- **Past week in Float product ≠ Workbench Float column:** Admin Float sync **does not overwrite past** `FloatScheduledHours` rows. Workbench can keep an older snapshot; Planned (after **Sync plan from Float**) will match that snapshot, not necessarily today’s historical view in Float. **Backfill** reapplies stored import JSON and can refresh hours for past weeks when the import data is newer.
 
 ### Limits
 

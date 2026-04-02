@@ -266,7 +266,7 @@ export function ProjectSettingsTab({
         alert(data.error ?? data.message ?? "Sync failed");
         return;
       }
-      const msg = data.message ?? `Synced ${data.updated ?? 0} project plan entries from Float for past weeks.`;
+      const msg = data.message ?? `Synced ${data.updated ?? 0} project plan entries from Float scheduled hours.`;
       alert(msg);
       router.refresh();
     } finally {
@@ -579,10 +579,10 @@ export function ProjectSettingsTab({
                       type="button"
                       onClick={() => setShowSyncPlanConfirm(true)}
                       disabled={syncingPlanFromFloat}
-                      title="Copy Float scheduled hours into Project Plan for past weeks so the plan grid and revenue recovery forecast are populated"
+                      title="Copy Float scheduled hours from the database into the Project Plan grid for all weeks that have Float data (past, current, and future)"
                       className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-transparent hover:bg-surface-100 dark:hover:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
                     >
-                      {syncingPlanFromFloat ? "Syncing…" : "Sync plan from Float (past weeks)"}
+                      {syncingPlanFromFloat ? "Syncing…" : "Sync plan from Float"}
                     </button>
                     <button
                       type="button"
@@ -614,14 +614,16 @@ export function ProjectSettingsTab({
             />
             <div className="relative w-full max-w-md rounded-lg border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface shadow-xl p-5">
               <h3 id="sync-plan-dialog-title" className="text-title-md font-semibold text-surface-900 dark:text-white">
-                Sync plan from Float (past weeks)
+                Sync plan from Float
               </h3>
               <p id="sync-plan-dialog-desc" className="mt-2 text-body-sm text-surface-600 dark:text-surface-300">
-                This will copy Float scheduled hours into the <strong className="text-surface-900 dark:text-white">Project Plan</strong> grid
-                for completed weeks only. The plan (forecast) for past weeks will match what’s in the Float Actuals table.
+                This copies <strong className="text-surface-900 dark:text-white">Float scheduled hours</strong> (what’s stored in Workbench from
+                Float sync) into the <strong className="text-surface-900 dark:text-white">Project Plan</strong> grid for every week that has
+                Float data — past, current, and future — so Planned matches the Float column.
               </p>
               <p className="mt-3 text-body-sm text-surface-500 dark:text-surface-400 italic">
-                Use this when past weeks show hours in Float Actuals but the Project Plan is 0.
+                If Workbench’s Float column still doesn’t match the Float product for an old week, past Float rows may not be updated by API
+                sync; use Backfill from stored imports or align data in Float and re-sync future weeks.
               </p>
               <div className="mt-5 flex justify-end gap-2">
                 <button

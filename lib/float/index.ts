@@ -15,6 +15,8 @@ export type {
 } from "@/lib/float/types";
 export {
   aggregateTasksToWeeklyHours,
+  dedupeFloatTasksForAggregation,
+  isUtcWeekday,
   weeklyHoursCompositeKey,
   weeklyHoursMapToRows,
 } from "@/lib/float/taskAggregation";

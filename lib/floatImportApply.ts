@@ -5,6 +5,7 @@
 
 import { Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
+import { normalizeProjectNameForLookup } from "@/lib/floatImportUtils";
 import { isCompletedWeek } from "@/lib/weekUtils";
 
 /** Chunk size for bulk FloatScheduledHours upserts to avoid huge queries. */
@@ -15,7 +16,35 @@ export type MergedFloatEntry = {
   personName: string;
   roleName: string;
   weekMap: Map<string, number>;
+  /**
+   * Float API `project_id` for this row. When set with `projectsForResolution`, hours only
+   * attach to a Workbench project whose `floatExternalId` matches, or whose name matches and
+   * `floatExternalId` is null / not conflicting — so two Float projects with the same name
+   * do not sum onto one DB row incorrectly.
+   */
+  floatProjectId?: number;
 };
+
+/** Resolve Workbench project id for a merged Float entry (API sync sets `floatProjectId`). */
+export function resolveProjectIdForMergedFloatEntry(
+  entry: MergedFloatEntry,
+  projectsByName: Map<string, string>,
+  projectsForResolution?: Array<{ id: string; name: string; floatExternalId: string | null }>
+): string | undefined {
+  if (projectsForResolution?.length && entry.floatProjectId != null) {
+    const fid = String(entry.floatProjectId);
+    const byExt = projectsForResolution.find((p) => p.floatExternalId === fid);
+    if (byExt) return byExt.id;
+    const norm = normalizeProjectNameForLookup(entry.projectName);
+    for (const p of projectsForResolution) {
+      if (normalizeProjectNameForLookup(p.name) !== norm) continue;
+      if (p.floatExternalId != null && p.floatExternalId !== fid) continue;
+      return p.id;
+    }
+    return undefined;
+  }
+  return projectsByName.get(entry.projectName.toLowerCase());
+}
 
 /**
  * Upsert assignments, future-only FloatScheduledHours, future cleanup, and FloatImportRun.
@@ -33,6 +62,8 @@ export async function applyFloatImportDatabaseEffects(
     unknownRoles: string[];
     newPersonNames: string[];
     projectsByName: Map<string, string>;
+    /** When provided (API sync), ties hours to the correct project when names collide in Float. */
+    projectsForResolution?: Array<{ id: string; name: string; floatExternalId: string | null }>;
     personByName: Map<string, string>;
     roleById: Map<string, string>;
   }
@@ -50,6 +81,7 @@ export async function applyFloatImportDatabaseEffects(
     unknownRoles,
     newPersonNames,
     projectsByName,
+    projectsForResolution,
     personByName,
     roleById,
   } = params;
@@ -62,7 +94,11 @@ export async function applyFloatImportDatabaseEffects(
   >();
 
   for (const entry of mergedFloatByProjectPerson.values()) {
-    const projectId = projectsByName.get(entry.projectName.toLowerCase());
+    const projectId = resolveProjectIdForMergedFloatEntry(
+      entry,
+      projectsByName,
+      projectsForResolution
+    );
     if (!projectId) continue;
     const personId = personByName.get(entry.personName.toLowerCase());
     if (!personId) continue;
@@ -109,27 +145,33 @@ export async function applyFloatImportDatabaseEffects(
     });
   }
 
-  const floatHoursRows: {
-    projectId: string;
-    personId: string;
-    weekStartDate: Date;
-    hours: number;
-  }[] = [];
+  const floatHoursAgg = new Map<
+    string,
+    { projectId: string; personId: string; weekStartDate: Date; hours: number }
+  >();
 
   for (const entry of mergedFloatByProjectPerson.values()) {
-    const projectId = projectsByName.get(entry.projectName.toLowerCase());
+    const projectId = resolveProjectIdForMergedFloatEntry(
+      entry,
+      projectsByName,
+      projectsForResolution
+    );
     if (!projectId) continue;
     const personId = personByName.get(entry.personName.toLowerCase());
     if (!personId) continue;
     for (const [weekStart, hours] of entry.weekMap) {
-      floatHoursRows.push({
-        projectId,
-        personId,
-        weekStartDate: new Date(`${weekStart}T00:00:00.000Z`),
-        hours,
-      });
+      const weekStartDate = new Date(`${weekStart}T00:00:00.000Z`);
+      const aggKey = `${projectId}|${personId}|${weekStart}`;
+      const prev = floatHoursAgg.get(aggKey);
+      if (prev) {
+        prev.hours += hours;
+      } else {
+        floatHoursAgg.set(aggKey, { projectId, personId, weekStartDate, hours });
+      }
     }
   }
+
+  const floatHoursRows = Array.from(floatHoursAgg.values());
 
   const floatHoursRowsToWrite = floatHoursRows.filter(
     (r) => !isCompletedWeek(r.weekStartDate, asOf)
@@ -152,7 +194,11 @@ export async function applyFloatImportDatabaseEffects(
 
   const inImportSet = new Set<string>();
   for (const entry of mergedFloatByProjectPerson.values()) {
-    const projectId = projectsByName.get(entry.projectName.toLowerCase());
+    const projectId = resolveProjectIdForMergedFloatEntry(
+      entry,
+      projectsByName,
+      projectsForResolution
+    );
     const personId = personByName.get(entry.personName.toLowerCase());
     if (projectId && personId) inImportSet.add(`${projectId}|${personId}`);
   }

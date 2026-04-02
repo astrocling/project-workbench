@@ -6,6 +6,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { Project } from "@prisma/client";
 import {
   aggregateTasksToWeeklyHours,
+  dedupeFloatTasksForAggregation,
   weeklyHoursMapToRows,
   type FloatTaskJson,
 } from "@/lib/float/taskAggregation";
@@ -221,6 +222,8 @@ export async function executeFloatApiSync(
       }),
     ]);
 
+  const tasksForSync = dedupeFloatTasksForAggregation(tasks);
+
   const roleNames = new Set(knownRoles.map((r) => r.name));
   const roleById = new Map(
     knownRoles.map((r) => [r.name.toLowerCase(), r.id] as const)
@@ -278,10 +281,11 @@ export async function executeFloatApiSync(
     projects.map((p) => [p.name.toLowerCase(), p.id] as const)
   );
 
-  const pairRoles = buildFloatPairRoles(tasks, peopleByFloatId, roleIdToName);
+  const pairRoles = buildFloatPairRoles(tasksForSync, peopleByFloatId, roleIdToName);
 
-  const weeklyMap = aggregateTasksToWeeklyHours(tasks, {
+  const weeklyMap = aggregateTasksToWeeklyHours(tasksForSync, {
     window: { start: windowStart, end: windowEnd },
+    weekdaysOnly: true,
   });
   const hourRows = weeklyHoursMapToRows(weeklyMap);
 
@@ -301,7 +305,8 @@ export async function executeFloatApiSync(
       unknownRoles.push(roleName);
     }
 
-    const mergeKey = `${projectName}|${personName}`.toLowerCase();
+    /** One entry per Float (project_id, people_id), not per display name — duplicate project names in Float would otherwise sum hours into one inflated total. */
+    const mergeKey = `${row.floatProjectId}|${row.floatPeopleId}`;
     let entry = mergedFloatByProjectPerson.get(mergeKey);
     if (!entry) {
       entry = {
@@ -309,6 +314,7 @@ export async function executeFloatApiSync(
         personName,
         roleName,
         weekMap: new Map<string, number>(),
+        floatProjectId: row.floatProjectId,
       };
       mergedFloatByProjectPerson.set(mergeKey, entry);
     } else {
@@ -379,6 +385,11 @@ export async function executeFloatApiSync(
     unknownRoles,
     newPersonNames,
     projectsByName: projectsByNameReloaded,
+    projectsForResolution: projects.map((p) => ({
+      id: p.id,
+      name: p.name,
+      floatExternalId: p.floatExternalId,
+    })),
     personByName,
     roleById,
   });

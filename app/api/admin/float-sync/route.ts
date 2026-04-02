@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
@@ -63,6 +64,12 @@ export async function POST(req: NextRequest) {
       endDate: body.endDate,
       uploadedByUserId,
     });
+
+    /** `GET /api/projects/[id]/resourcing` caches with `unstable_cache`; sync writes FloatScheduledHours but must invalidate or the grid stays stale until TTL. */
+    const allProjectIds = await prisma.project.findMany({ select: { id: true } });
+    for (const { id: projectId } of allProjectIds) {
+      revalidateTag(`project-resourcing:${projectId}`, "max");
+    }
 
     return NextResponse.json({
       ok: true,
