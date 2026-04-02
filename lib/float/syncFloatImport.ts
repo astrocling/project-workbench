@@ -146,6 +146,21 @@ function floatTagsForWrite(tags: string[] | null): Prisma.NullableJsonNullValueI
   return tags;
 }
 
+/** When Float omits scheduling `active`, do not overwrite Workbench `Person.active`. */
+function workbenchActiveDataFromFloatScheduling(
+  floatSchedulingActive: boolean | null
+): { active: boolean } | Record<string, never> {
+  if (floatSchedulingActive === null) return {};
+  return { active: floatSchedulingActive };
+}
+
+function personActiveAfterFloatSync(
+  rowActive: boolean,
+  floatSchedulingActive: boolean | null
+): boolean {
+  return floatSchedulingActive !== null ? floatSchedulingActive : rowActive;
+}
+
 function emailFromFp(fp: FloatPersonJson): string | null {
   const e = fp.email;
   if (typeof e !== "string") return null;
@@ -208,6 +223,7 @@ function buildFloatPersonSyncData(
 
 function floatPersonSyncMatchesDb(
   p: {
+    active: boolean;
     name: string;
     email: string | null;
     floatRegionId: number | null;
@@ -220,7 +236,7 @@ function floatPersonSyncMatchesDb(
   },
   s: FloatPersonSyncData
 ): boolean {
-  return (
+  const fieldsMatch =
     p.name === s.name &&
     p.email === s.email &&
     p.floatRegionId === s.floatRegionId &&
@@ -229,8 +245,10 @@ function floatPersonSyncMatchesDb(
     p.floatDepartmentName === s.floatDepartmentName &&
     p.floatSchedulingActive === s.floatSchedulingActive &&
     p.floatAccessLabel === s.floatAccessLabel &&
-    tagsEqual(p.floatTags, s.floatTags)
-  );
+    tagsEqual(p.floatTags, s.floatTags);
+  if (!fieldsMatch) return false;
+  if (s.floatSchedulingActive === null) return true;
+  return p.active === s.floatSchedulingActive;
 }
 
 function roleNameForTask(
@@ -330,6 +348,7 @@ export async function syncPeopleFromFloatList(
             floatTags: floatTagsForWrite(sync.floatTags),
             floatSchedulingActive: sync.floatSchedulingActive,
             floatAccessLabel: sync.floatAccessLabel,
+            ...workbenchActiveDataFromFloatScheduling(sync.floatSchedulingActive),
           },
         });
         const merged = {
@@ -343,6 +362,7 @@ export async function syncPeopleFromFloatList(
           floatTags: sync.floatTags as Prisma.JsonValue | null,
           floatSchedulingActive: sync.floatSchedulingActive,
           floatAccessLabel: sync.floatAccessLabel,
+          active: personActiveAfterFloatSync(person.active, sync.floatSchedulingActive),
         };
         const idx = allDb.findIndex((p) => p.id === person!.id);
         if (idx >= 0) allDb[idx] = merged;
@@ -363,6 +383,7 @@ export async function syncPeopleFromFloatList(
           floatTags: floatTagsForWrite(sync.floatTags),
           floatSchedulingActive: sync.floatSchedulingActive,
           floatAccessLabel: sync.floatAccessLabel,
+          ...workbenchActiveDataFromFloatScheduling(sync.floatSchedulingActive),
         },
       });
       allDb.push(person);
@@ -382,6 +403,7 @@ export async function syncPeopleFromFloatList(
           floatTags: floatTagsForWrite(sync.floatTags),
           floatSchedulingActive: sync.floatSchedulingActive,
           floatAccessLabel: sync.floatAccessLabel,
+          ...workbenchActiveDataFromFloatScheduling(sync.floatSchedulingActive),
         },
       });
       person = {
@@ -395,6 +417,7 @@ export async function syncPeopleFromFloatList(
         floatTags: sync.floatTags as Prisma.JsonValue | null,
         floatSchedulingActive: sync.floatSchedulingActive,
         floatAccessLabel: sync.floatAccessLabel,
+        active: personActiveAfterFloatSync(rowPerson.active, sync.floatSchedulingActive),
       };
       const idx = allDb.findIndex((p) => p.id === rowPerson.id);
       if (idx >= 0) allDb[idx] = person;

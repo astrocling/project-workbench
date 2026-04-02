@@ -231,6 +231,8 @@ describe("Float API sync (mocked HTTP)", () => {
     expect(p2.floatSchedulingActive).toBe(false);
     expect(p2.floatAccessLabel).toBe("No login");
     expect(p2.floatTags).toBeNull();
+    expect(p1.active).toBe(true);
+    expect(p2.active).toBe(false);
   });
 
   it("writes FloatScheduledHours and links project floatExternalId from mocked Float responses", async () => {
