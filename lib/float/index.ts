@@ -49,6 +49,7 @@ export type {
   FloatRoleJson,
 } from "@/lib/float/syncFloatImport";
 export {
+  allUtcYmdsFromHolidayRow,
   buildExcludedUtcDatesByFloatPeopleId,
   expandInclusiveUtcRangeToYmds,
   filterHolidayRowsOverlappingYmdWindow,

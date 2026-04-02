@@ -157,6 +157,20 @@ function discreteUtcYmdsFromHolidayDatesField(row: Record<string, unknown>): str
   return out.length > 0 ? out : null;
 }
 
+/**
+ * All UTC calendar days for a holiday row (for admin display): either the `dates` array or an
+ * inclusive range from {@link holidayRangeYmdFromRow}, sorted ascending, deduped.
+ */
+export function allUtcYmdsFromHolidayRow(row: Record<string, unknown>): string[] {
+  const discrete = discreteUtcYmdsFromHolidayDatesField(row);
+  if (discrete != null) {
+    return [...new Set(discrete)].sort();
+  }
+  const range = holidayRangeYmdFromRow(row);
+  if (!range) return [];
+  return expandInclusiveUtcRangeToYmds(range.start, range.end);
+}
+
 /** True if a public/team holiday row overlaps [startYmd, endYmd] (inclusive UTC dates). */
 export function holidayRowOverlapsYmdWindow(
   row: Record<string, unknown>,

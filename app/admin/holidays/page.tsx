@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { allUtcYmdsFromHolidayRow, regionIdFromHolidayRow } from "@/lib/float/excludedDays";
+import { floatRegionLabelFromHolidayRow } from "@/lib/float/regionLabel";
 
 type HolidayPayload = {
   startDate: string;
@@ -9,21 +11,64 @@ type HolidayPayload = {
   teamHolidays: Record<string, unknown>[];
 };
 
-/** Stable column order: region identifiers together, then other keys alphabetically. */
-function collectKeys(rows: Record<string, unknown>[]): string[] {
-  const s = new Set<string>();
-  for (const row of rows) {
-    for (const k of Object.keys(row)) s.add(k);
+/** YYYY-MM-DD → MM-DD-YYYY */
+function ymdToMmDdYyyy(ymd: string): string {
+  const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return ymd;
+  return `${m[2]}-${m[3]}-${m[1]}`;
+}
+
+function formatHolidayDatesCell(row: Record<string, unknown>): string {
+  const ymds = allUtcYmdsFromHolidayRow(row);
+  if (ymds.length === 0) return "—";
+  return ymds.map(ymdToMmDdYyyy).join(", ");
+}
+
+const HOLIDAY_ID_KEYS = ["id", "holiday_id", "holidayId", "public_holiday_id", "publicHolidayId"] as const;
+
+function holidayRecordId(row: Record<string, unknown>): string {
+  for (const k of HOLIDAY_ID_KEYS) {
+    const v = row[k];
+    if (v != null && v !== "") return String(v);
   }
-  const preferred = ["region_id", "workbench_region_label", "region_name", "region_label", "regionName"];
-  const keys = Array.from(s);
-  const front = preferred.filter((k) => s.has(k));
-  const rest = keys.filter((k) => !preferred.includes(k)).sort();
-  return [...front, ...rest];
+  return "—";
+}
+
+function holidayName(row: Record<string, unknown>): string {
+  const n = row.name ?? row.title;
+  if (typeof n === "string" && n.trim()) return n.trim();
+  return "—";
+}
+
+function holidayRegionDisplay(row: Record<string, unknown>): string {
+  const wb = row.workbench_region_label;
+  if (typeof wb === "string" && wb.trim()) return wb.trim();
+  const label = floatRegionLabelFromHolidayRow(row);
+  if (label) return label;
+  const rid = regionIdFromHolidayRow(row);
+  return rid != null ? String(rid) : "—";
+}
+
+/** Earliest UTC YYYY-MM-DD for sorting (list from {@link allUtcYmdsFromHolidayRow} is already sorted). */
+function earliestYmdForSort(row: Record<string, unknown>): string | null {
+  const ymds = allUtcYmdsFromHolidayRow(row);
+  return ymds.length > 0 ? ymds[0]! : null;
+}
+
+function sortHolidayRowsByDate(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+  return [...rows].sort((a, b) => {
+    const ya = earliestYmdForSort(a);
+    const yb = earliestYmdForSort(b);
+    if (ya == null && yb == null) return holidayName(a).localeCompare(holidayName(b));
+    if (ya == null) return 1;
+    if (yb == null) return -1;
+    const c = ya.localeCompare(yb);
+    return c !== 0 ? c : holidayName(a).localeCompare(holidayName(b));
+  });
 }
 
 function HolidayTable({ title, rows }: { title: string; rows: Record<string, unknown>[] }) {
-  const keys = useMemo(() => collectKeys(rows), [rows]);
+  const sortedRows = useMemo(() => sortHolidayRowsByDate(rows), [rows]);
 
   if (rows.length === 0) {
     return (
@@ -41,27 +86,38 @@ function HolidayTable({ title, rows }: { title: string; rows: Record<string, unk
         <table className="w-full text-body-sm border-collapse min-w-[640px]">
           <thead>
             <tr className="bg-surface-50 dark:bg-dark-raised border-b border-surface-200 dark:border-dark-border">
-              {keys.map((k) => (
-                <th
-                  key={k}
-                  className="text-left px-3 py-2 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold whitespace-nowrap"
-                >
-                  {k}
-                </th>
-              ))}
+              <th className="text-left px-3 py-2 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
+                Date
+              </th>
+              <th className="text-left px-3 py-2 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
+                Name
+              </th>
+              <th className="text-left px-3 py-2 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold whitespace-nowrap">
+                ID
+              </th>
+              <th className="text-left px-3 py-2 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
+                Region
+              </th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, i) => (
+            {sortedRows.map((row, i) => (
               <tr
-                key={i}
+                key={`${holidayRecordId(row)}-${i}`}
                 className="border-b border-surface-100 dark:border-dark-border/60 last:border-0 hover:bg-jblue-500/[0.03] dark:hover:bg-jblue-500/[0.06]"
               >
-                {keys.map((k) => (
-                  <td key={k} className="px-3 py-2 text-surface-700 dark:text-surface-200 align-top whitespace-nowrap max-w-[320px] truncate" title={JSON.stringify(row[k])}>
-                    {formatCell(row[k])}
-                  </td>
-                ))}
+                <td className="px-3 py-2 text-surface-700 dark:text-surface-200 align-top max-w-md whitespace-normal">
+                  {formatHolidayDatesCell(row)}
+                </td>
+                <td className="px-3 py-2 text-surface-700 dark:text-surface-200 align-top whitespace-nowrap max-w-[280px] truncate" title={holidayName(row)}>
+                  {holidayName(row)}
+                </td>
+                <td className="px-3 py-2 text-surface-700 dark:text-surface-200 align-top whitespace-nowrap font-mono text-body-xs">
+                  {holidayRecordId(row)}
+                </td>
+                <td className="px-3 py-2 text-surface-700 dark:text-surface-200 align-top whitespace-nowrap max-w-[240px] truncate" title={holidayRegionDisplay(row)}>
+                  {holidayRegionDisplay(row)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -69,12 +125,6 @@ function HolidayTable({ title, rows }: { title: string; rows: Record<string, unk
       </div>
     </div>
   );
-}
-
-function formatCell(v: unknown): string {
-  if (v == null) return "—";
-  if (typeof v === "object") return JSON.stringify(v);
-  return String(v);
 }
 
 export default function AdminHolidaysPage() {

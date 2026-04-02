@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  allUtcYmdsFromHolidayRow,
   buildExcludedUtcDatesByFloatPeopleId,
   expandInclusiveUtcRangeToYmds,
   filterHolidayRowsOverlappingYmdWindow,
@@ -202,5 +203,23 @@ describe("holidayRangeYmdFromRow", () => {
       start: "2024-07-04",
       end: "2024-07-04",
     });
+  });
+});
+
+describe("allUtcYmdsFromHolidayRow", () => {
+  it("expands inclusive range from start/end", () => {
+    expect(allUtcYmdsFromHolidayRow({ start_date: "2024-01-01", end_date: "2024-01-03" })).toEqual([
+      "2024-01-01",
+      "2024-01-02",
+      "2024-01-03",
+    ]);
+  });
+
+  it("uses dates array when present (deduped, sorted)", () => {
+    expect(
+      allUtcYmdsFromHolidayRow({
+        dates: ["2024-01-03", "2024-01-02", "2024-01-02"],
+      })
+    ).toEqual(["2024-01-02", "2024-01-03"]);
   });
 });
