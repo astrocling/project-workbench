@@ -9,12 +9,17 @@ type HolidayPayload = {
   teamHolidays: Record<string, unknown>[];
 };
 
+/** Stable column order: region identifiers together, then other keys alphabetically. */
 function collectKeys(rows: Record<string, unknown>[]): string[] {
   const s = new Set<string>();
   for (const row of rows) {
     for (const k of Object.keys(row)) s.add(k);
   }
-  return Array.from(s).sort();
+  const preferred = ["region_id", "workbench_region_label", "region_name", "region_label", "regionName"];
+  const keys = Array.from(s);
+  const front = preferred.filter((k) => s.has(k));
+  const rest = keys.filter((k) => !preferred.includes(k)).sort();
+  return [...front, ...rest];
 }
 
 function HolidayTable({ title, rows }: { title: string; rows: Record<string, unknown>[] }) {

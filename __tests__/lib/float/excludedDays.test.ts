@@ -4,6 +4,8 @@ import {
   expandInclusiveUtcRangeToYmds,
   filterHolidayRowsOverlappingYmdWindow,
   holidayRangeYmdFromRow,
+  regionIdFromHolidayRow,
+  regionIdFromPersonRow,
 } from "@/lib/float/excludedDays";
 
 describe("buildExcludedUtcDatesByFloatPeopleId", () => {
@@ -19,6 +21,16 @@ describe("buildExcludedUtcDatesByFloatPeopleId", () => {
     expect(map.get(10)?.has("2024-06-03")).toBe(true);
     expect(map.get(10)?.has("2024-06-04")).toBe(true);
     expect(map.get(99)?.size ?? 0).toBe(0);
+  });
+
+  it("adds time off for a single day when only start_date is present", () => {
+    const map = buildExcludedUtcDatesByFloatPeopleId({
+      floatPeople: [{ people_id: 10, region_id: 1 }],
+      timeOffs: [{ people_id: 10, start_date: "2024-06-03" }],
+      publicHolidays: [],
+      teamHolidays: [],
+    });
+    expect(map.get(10)?.has("2024-06-03")).toBe(true);
   });
 
   it("applies public/team holidays only when person region matches holiday region", () => {
@@ -49,6 +61,99 @@ describe("buildExcludedUtcDatesByFloatPeopleId", () => {
     });
     expect(map.get(1)?.size ?? 0).toBe(0);
   });
+
+  it("applies public holiday when only start_date is set (no end_date)", () => {
+    const map = buildExcludedUtcDatesByFloatPeopleId({
+      floatPeople: [{ people_id: 1, region_id: 5 }],
+      timeOffs: [],
+      publicHolidays: [{ region_id: 5, start_date: "2024-01-02", name: "PH" }],
+      teamHolidays: [],
+    });
+    expect(map.get(1)?.has("2024-01-02")).toBe(true);
+  });
+
+  it("applies public holiday when Float uses top-level dates array (v3 public-holidays shape)", () => {
+    const map = buildExcludedUtcDatesByFloatPeopleId({
+      floatPeople: [{ people_id: 1, region_id: 5 }],
+      timeOffs: [],
+      publicHolidays: [
+        {
+          region_id: 5,
+          name: "PH",
+          dates: ["2024-01-02", "2024-01-03"],
+        },
+      ],
+      teamHolidays: [],
+    });
+    expect(map.get(1)?.has("2024-01-02")).toBe(true);
+    expect(map.get(1)?.has("2024-01-03")).toBe(true);
+  });
+
+  it("matches holiday region when person only has nested region.id (no top-level region_id)", () => {
+    const map = buildExcludedUtcDatesByFloatPeopleId({
+      floatPeople: [{ people_id: 1, region: { id: 5, name: "AU" } }],
+      timeOffs: [],
+      publicHolidays: [
+        { region_id: 5, start_date: "2024-01-02", end_date: "2024-01-02", name: "PH" },
+      ],
+      teamHolidays: [],
+    });
+    expect(map.get(1)?.has("2024-01-02")).toBe(true);
+  });
+
+  it("matches public holiday when holiday uses nested region.id (no top-level region_id)", () => {
+    const map = buildExcludedUtcDatesByFloatPeopleId({
+      floatPeople: [{ people_id: 1, region: { id: 5, name: "AU" } }],
+      timeOffs: [],
+      publicHolidays: [
+        {
+          region: { id: 5, name: "AU" },
+          start_date: "2024-01-02",
+          end_date: "2024-01-02",
+          name: "PH",
+        },
+      ],
+      teamHolidays: [],
+    });
+    expect(map.get(1)?.has("2024-01-02")).toBe(true);
+  });
+
+  it("matches team holiday when holiday uses nested region.id", () => {
+    const map = buildExcludedUtcDatesByFloatPeopleId({
+      floatPeople: [{ people_id: 1, region_id: 5 }],
+      timeOffs: [],
+      publicHolidays: [],
+      teamHolidays: [
+        {
+          region: { id: 5, name: "AU" },
+          start_date: "2024-01-03",
+          end_date: "2024-01-03",
+          name: "TH",
+        },
+      ],
+    });
+    expect(map.get(1)?.has("2024-01-03")).toBe(true);
+  });
+});
+
+describe("regionIdFromPersonRow", () => {
+  it("reads top-level region_id", () => {
+    expect(regionIdFromPersonRow({ region_id: 7 })).toBe(7);
+  });
+
+  it("reads nested region.id when top-level is absent", () => {
+    expect(regionIdFromPersonRow({ region: { id: 9, name: "NZ" } })).toBe(9);
+  });
+});
+
+describe("regionIdFromHolidayRow", () => {
+  it("reads top-level region_id", () => {
+    expect(regionIdFromHolidayRow({ region_id: 7 })).toBe(7);
+  });
+
+  it("reads nested region.id when top-level is absent", () => {
+    expect(regionIdFromHolidayRow({ region: { id: 9, name: "NZ" } })).toBe(9);
+  });
 });
 
 describe("expandInclusiveUtcRangeToYmds", () => {
@@ -78,6 +183,22 @@ describe("holidayRangeYmdFromRow", () => {
       end: "2024-01-02",
     });
     expect(holidayRangeYmdFromRow({ date: "2024-07-04" })).toEqual({
+      start: "2024-07-04",
+      end: "2024-07-04",
+    });
+  });
+
+  it("treats start_date without end_date as a single day (Float public-holidays shape)", () => {
+    expect(holidayRangeYmdFromRow({ start_date: "2024-07-04", region_id: 1 })).toEqual({
+      start: "2024-07-04",
+      end: "2024-07-04",
+    });
+  });
+
+  it("parses ISO datetime start_date to UTC YYYY-MM-DD", () => {
+    expect(
+      holidayRangeYmdFromRow({ start_date: "2024-07-04T14:00:00.000Z", region_id: 1 })
+    ).toEqual({
       start: "2024-07-04",
       end: "2024-07-04",
     });

@@ -3,6 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { floatClientFromEnv } from "@/lib/float/client";
 import { FloatApiError } from "@/lib/float/types";
+import {
+  buildFloatRegionNameMap,
+  enrichHolidayRowsWithWorkbenchRegionLabel,
+} from "@/lib/float/regionLabel";
 import { filterHolidayRowsOverlappingYmdWindow } from "@/lib/float/excludedDays";
 import { defaultFloatSyncDateRange } from "@/lib/float/syncFloatImport";
 
@@ -30,17 +34,31 @@ export async function GET(req: NextRequest) {
   const endDate = searchParams.get("end")?.trim() || range.end;
 
   try {
-    const [publicHolidays, teamHolidaysRaw] = await Promise.all([
+    const [publicHolidaysRaw, teamHolidaysRaw, peopleRows] = await Promise.all([
       client.listAllPages<Record<string, unknown>>("/v3/public-holidays", {
         start_date: startDate,
         end_date: endDate,
       }),
       client.listAllPages<Record<string, unknown>>("/v3/holidays"),
+      client.listAllPages<Record<string, unknown>>("/v3/people"),
     ]);
-    const teamHolidays = filterHolidayRowsOverlappingYmdWindow(
+    const teamHolidaysFiltered = filterHolidayRowsOverlappingYmdWindow(
       teamHolidaysRaw,
       startDate,
       endDate
+    );
+    const regionNameById = buildFloatRegionNameMap(
+      publicHolidaysRaw,
+      teamHolidaysRaw,
+      peopleRows
+    );
+    const publicHolidays = enrichHolidayRowsWithWorkbenchRegionLabel(
+      publicHolidaysRaw,
+      regionNameById
+    );
+    const teamHolidays = enrichHolidayRowsWithWorkbenchRegionLabel(
+      teamHolidaysFiltered,
+      regionNameById
     );
     return NextResponse.json({
       startDate,

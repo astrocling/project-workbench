@@ -8,6 +8,7 @@ type Person = {
   email: string | null;
   active: boolean;
   floatRegionId: number | null;
+  floatRegionName: string | null;
 };
 
 export default function AdminPeoplePage() {
@@ -72,6 +73,12 @@ export default function AdminPeoplePage() {
     ? people
     : people.filter((p) => p.active);
 
+  function regionDisplay(p: Person): string {
+    if (p.floatRegionName?.trim()) return p.floatRegionName.trim();
+    if (p.floatRegionId != null) return `Region (${p.floatRegionId})`;
+    return "—";
+  }
+
   if (loading) return <p className="p-6 text-body-sm text-surface-700 dark:text-surface-200">Loading...</p>;
 
   return (
@@ -133,8 +140,8 @@ export default function AdminPeoplePage() {
                   className={`border-b border-surface-100 dark:border-dark-border/60 last:border-0 hover:bg-jblue-500/[0.03] dark:hover:bg-jblue-500/[0.06] transition-colors duration-100 ${!p.active ? "opacity-60" : ""}`}
                 >
                   <td className="px-4 py-3 text-surface-700 dark:text-surface-200">{p.name}</td>
-                  <td className="px-4 py-3 text-surface-600 dark:text-surface-300 font-mono text-body-xs">
-                    {p.floatRegionId != null ? p.floatRegionId : "—"}
+                  <td className="px-4 py-3 text-surface-600 dark:text-surface-300 text-body-sm">
+                    {regionDisplay(p)}
                   </td>
                   <td className="px-4 py-3 text-surface-600 dark:text-surface-300">{p.email ?? "—"}</td>
                   <td className="px-4 py-3">

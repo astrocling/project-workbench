@@ -164,7 +164,7 @@ If the token is missing, the sync action shows an error (API returns **503**).
 ### Matching rules
 
 - **Projects** — Matched by Float project id once stored on the project (`floatExternalId`), or by project **name** (normalized). Use the same names in Workbench as in Float, or run sync after creating a project so the link is stored.
-- **People** — Pulled from Float; Workbench creates or updates `Person` rows (including Float id and **Float region id** when Float provides it).
+- **People** — Pulled from Float; Workbench creates or updates `Person` rows (including Float id and **Float region** id + display name when Float or holiday payloads provide them).
 - **Roles** — Role names on Float tasks must exist in Workbench (**Admin → Roles**). Unknown names are listed on the sync page so you can add roles and sync again.
 
 ### Holidays and sync failures
@@ -200,7 +200,7 @@ Available from the Admin area (link in the header).
 | Page | Purpose |
 |------|---------|
 | **Roles** | Create and manage roles (e.g. Project Manager, FE Developer). Role names must match the ones used on assignments and in Float. |
-| **People** | Manage people (name, email, active). These are the resources that appear on project assignments and Float sync. The **Region** column shows each person’s **Float region id** (from the last sync) or **—** if unknown—used for regional public/team holiday handling in Float scheduled hours. |
+| **People** | Manage people (name, email, active). These are the resources that appear on project assignments and Float sync. The **Region** column shows each person’s **Float region** by name when the last sync could resolve one (from people and/or holiday API data); otherwise **Region (id)** if only the numeric id is known, or **—** if unset—used for regional public/team holiday handling in Float scheduled hours. |
 | **Holidays** | Read-only view of Float **public** and **team** holidays (API JSON) for troubleshooting schedules and regions. |
 | **Users** | Manage app logins (email and password) and permissions. Set **User** or **Admin**, and optionally set a **position role** (Project Manager, Program Manager, Client Account Director) so “My Projects” shows the right list. |
 

@@ -13,9 +13,14 @@ import {
 import {
   buildExcludedUtcDatesByFloatPeopleId,
   filterHolidayRowsOverlappingYmdWindow,
+  regionIdFromPersonRow,
   type FloatTimeOffJson,
 } from "@/lib/float/excludedDays";
 import type { FloatClient } from "@/lib/float/client";
+import {
+  buildFloatRegionNameMap,
+  floatRegionLabelFromPersonRow,
+} from "@/lib/float/regionLabel";
 import { applyFloatImportDatabaseEffects, type MergedFloatEntry } from "@/lib/floatImportApply";
 import { normalizeProjectNameForLookup } from "@/lib/floatImportUtils";
 import { getAsOfDate } from "@/lib/weekUtils";
@@ -27,6 +32,8 @@ export type FloatPersonJson = {
   role_id?: number | string | null;
   /** Float region; public/team holidays apply only when this matches the holiday's region. */
   region_id?: number | string | null;
+  /** Optional display fields (API shape may vary). */
+  region_name?: string | null;
 };
 
 export type FloatProjectJson = {
@@ -142,7 +149,8 @@ export async function syncPeopleFromFloatList(
   prisma: PrismaClient,
   floatPeople: FloatPersonJson[],
   personByName: Map<string, string>,
-  newPersonNames: string[]
+  newPersonNames: string[],
+  regionNameByFloatId: Map<number, string>
 ): Promise<void> {
   const allDb = await prisma.person.findMany();
   const byExternal = new Map<string, (typeof allDb)[0]>();
@@ -153,7 +161,14 @@ export async function syncPeopleFromFloatList(
   for (const fp of floatPeople) {
     const ext = String(fp.people_id);
     const name = (fp.name ?? "").trim() || `Float person ${ext}`;
-    const floatRegionId = num(fp.region_id);
+    const row = fp as Record<string, unknown>;
+    const floatRegionId = regionIdFromPersonRow(row);
+    const floatRegionName =
+      floatRegionId == null
+        ? null
+        : (floatRegionLabelFromPersonRow(row) ??
+          regionNameByFloatId.get(floatRegionId) ??
+          null);
 
     let person = byExternal.get(ext);
     if (!person) {
@@ -161,9 +176,9 @@ export async function syncPeopleFromFloatList(
       if (person && person.externalId !== ext) {
         await prisma.person.update({
           where: { id: person.id },
-          data: { externalId: ext, floatRegionId },
+          data: { externalId: ext, floatRegionId, floatRegionName },
         });
-        person = { ...person, externalId: ext, floatRegionId };
+        person = { ...person, externalId: ext, floatRegionId, floatRegionName };
         const idx = allDb.indexOf(person);
         if (idx >= 0) allDb[idx] = person;
         byExternal.set(ext, person);
@@ -171,22 +186,24 @@ export async function syncPeopleFromFloatList(
     }
     if (!person) {
       person = await prisma.person.create({
-        data: { name, externalId: ext, floatRegionId },
+        data: { name, externalId: ext, floatRegionId, floatRegionName },
       });
       allDb.push(person);
       byExternal.set(ext, person);
       if (!newPersonNames.includes(name)) newPersonNames.push(name);
     } else if (
       person != null &&
-      (person.name !== name || person.floatRegionId !== floatRegionId)
+      (person.name !== name ||
+        person.floatRegionId !== floatRegionId ||
+        person.floatRegionName !== floatRegionName)
     ) {
-      const row = person;
+      const rowPerson = person;
       await prisma.person.update({
-        where: { id: row.id },
-        data: { name, floatRegionId },
+        where: { id: rowPerson.id },
+        data: { name, floatRegionId, floatRegionName },
       });
-      person = { ...row, name, floatRegionId };
-      const idx = allDb.findIndex((p) => p.id === row.id);
+      person = { ...rowPerson, name, floatRegionId, floatRegionName };
+      const idx = allDb.findIndex((p) => p.id === rowPerson.id);
       if (idx >= 0) allDb[idx] = person;
     }
 
@@ -296,9 +313,20 @@ export async function executeFloatApiSync(
     if (id != null) peopleByFloatId.set(id, fp);
   }
 
+  const regionNameByFloatId = buildFloatRegionNameMap(
+    publicHolidays,
+    teamHolidays,
+    floatPeople as Array<Record<string, unknown>>
+  );
   const personByName = new Map<string, string>();
   const newPersonNames: string[] = [];
-  await syncPeopleFromFloatList(prisma, floatPeople, personByName, newPersonNames);
+  await syncPeopleFromFloatList(
+    prisma,
+    floatPeople,
+    personByName,
+    newPersonNames,
+    regionNameByFloatId
+  );
 
   let projects = await prisma.project.findMany();
   const projectsByNameLower = new Map(

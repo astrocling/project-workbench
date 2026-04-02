@@ -54,35 +54,161 @@ export function expandInclusiveUtcRangeToYmds(startYmd: string, endYmd: string):
   return out;
 }
 
-function getRowString(row: Record<string, unknown>, ...keys: string[]): string | null {
-  for (const k of keys) {
-    const v = row[k];
-    if (v == null) continue;
-    const s = String(v).trim();
-    if (s) return s;
+/**
+ * Normalize Float date fields (YYYY-MM-DD, ISO datetime, Unix ms/seconds, {@link Date}) to UTC YYYY-MM-DD.
+ */
+function coerceValueToUtcYmd(v: unknown): string | null {
+  if (v == null) return null;
+  if (typeof v === "number" && Number.isFinite(v)) {
+    const ms = v > 1e12 ? v : v * 1000;
+    const d = new Date(ms);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+  }
+  if (v instanceof Date) {
+    return Number.isNaN(v.getTime()) ? null : v.toISOString().slice(0, 10);
+  }
+  if (typeof v === "string") {
+    const t = v.trim();
+    if (!t) return null;
+    const m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    const d = new Date(t);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
   }
   return null;
 }
 
-/** Best-effort holiday date range from Float public/team holiday objects. */
+function firstYmdFromRow(row: Record<string, unknown>, keys: string[]): string | null {
+  for (const k of keys) {
+    if (!(k in row)) continue;
+    const y = coerceValueToUtcYmd(row[k]);
+    if (y) return y;
+  }
+  return null;
+}
+
+/** Prefer specific keys before generic `date` (see {@link holidayRangeYmdFromRow}). */
+const FLOAT_RANGE_START_KEYS = [
+  "start_date",
+  "startDate",
+  "starts_at",
+  "startsAt",
+  "start",
+  "from_date",
+  "fromDate",
+  "from",
+  "date_start",
+  "dateStart",
+  "observed_date",
+  "observedDate",
+  "on_date",
+  "onDate",
+  "date",
+  "holiday_date",
+  "holidayDate",
+];
+const FLOAT_RANGE_END_KEYS = [
+  "end_date",
+  "endDate",
+  "ends_at",
+  "endsAt",
+  "end",
+  "to_date",
+  "toDate",
+  "to",
+  "date_end",
+  "dateEnd",
+];
+
+/** Best-effort holiday / time-off date range from Float API rows (public-holidays, holidays, timeoffs). */
 export function holidayRangeYmdFromRow(row: Record<string, unknown>): {
   start: string;
   end: string;
 } | null {
-  const start = getRowString(row, "start_date", "startDate");
-  const end = getRowString(row, "end_date", "endDate");
+  const start = firstYmdFromRow(row, FLOAT_RANGE_START_KEYS);
+  const end = firstYmdFromRow(row, FLOAT_RANGE_END_KEYS);
   if (start && end) return { start, end };
-  const single = getRowString(row, "date", "holiday_date", "holidayDate");
-  if (single) return { start: single, end: single };
+  if (start && !end) return { start, end: start };
+  if (!start && end) return { start: end, end };
+  return null;
+}
+
+function utcYmdFromDatesArrayElement(el: unknown): string | null {
+  const direct = coerceValueToUtcYmd(el);
+  if (direct) return direct;
+  if (el && typeof el === "object" && !Array.isArray(el)) {
+    return firstYmdFromRow(el as Record<string, unknown>, FLOAT_RANGE_START_KEYS);
+  }
+  return null;
+}
+
+/**
+ * Float `/v3/public-holidays` rows often use a top-level `dates` array (not `start_date` / `end_date`).
+ * Elements may be ISO strings or nested objects with date fields.
+ */
+function discreteUtcYmdsFromHolidayDatesField(row: Record<string, unknown>): string[] | null {
+  const d = row.dates;
+  if (!Array.isArray(d) || d.length === 0) return null;
+  const out: string[] = [];
+  for (const el of d) {
+    const y = utcYmdFromDatesArrayElement(el);
+    if (y) out.push(y);
+  }
+  return out.length > 0 ? out : null;
+}
+
+/** True if a public/team holiday row overlaps [startYmd, endYmd] (inclusive UTC dates). */
+export function holidayRowOverlapsYmdWindow(
+  row: Record<string, unknown>,
+  startYmd: string,
+  endYmd: string
+): boolean {
+  const discrete = discreteUtcYmdsFromHolidayDatesField(row);
+  if (discrete != null) {
+    return discrete.some((ymd) => ymd >= startYmd && ymd <= endYmd);
+  }
+  const range = holidayRangeYmdFromRow(row);
+  if (!range) return false;
+  return range.start <= endYmd && range.end >= startYmd;
+}
+
+/**
+ * Region id from Float API rows where shape varies by endpoint (`/v3/people`, `/v3/public-holidays`,
+ * `/v3/holidays`): top-level `region_id` / `regionId`, or `region` as number, string, or nested
+ * `{ id | region_id, name, ... }`.
+ */
+function regionIdFromFloatRegionFields(row: Record<string, unknown>): number | null {
+  const top =
+    num(row.region_id as number | string | undefined) ??
+    num(row.regionId as number | string | undefined);
+  if (top != null) return top;
+  const r = row.region;
+  if (typeof r === "number") return num(r);
+  if (typeof r === "string") {
+    const n = num(r);
+    if (n != null) return n;
+  }
+  if (r && typeof r === "object" && !Array.isArray(r)) {
+    const o = r as Record<string, unknown>;
+    return (
+      num(o.region_id as number | string | undefined) ??
+      num(o.regionId as number | string | undefined) ??
+      num(o.id as number | string | undefined)
+    );
+  }
   return null;
 }
 
 export function regionIdFromHolidayRow(row: Record<string, unknown>): number | null {
-  return (
-    num(row.region_id as number | string | undefined) ??
-    num(row.regionId as number | string | undefined) ??
-    num(row.region as number | string | undefined)
-  );
+  return regionIdFromFloatRegionFields(row);
+}
+
+/**
+ * Float `/v3/people` region id: often `region_id`, but some responses only nest under `region`
+ * (`{ id | region_id, name, ... }`) or use a numeric `region` field.
+ */
+export function regionIdFromPersonRow(row: Record<string, unknown>): number | null {
+  return regionIdFromFloatRegionFields(row);
 }
 
 /**
@@ -94,11 +220,7 @@ export function filterHolidayRowsOverlappingYmdWindow(
   startYmd: string,
   endYmd: string
 ): Array<Record<string, unknown>> {
-  return rows.filter((row) => {
-    const range = holidayRangeYmdFromRow(row);
-    if (!range) return false;
-    return range.start <= endYmd && range.end >= startYmd;
-  });
+  return rows.filter((row) => holidayRowOverlapsYmdWindow(row, startYmd, endYmd));
 }
 
 export type FloatTimeOffJson = {
@@ -142,16 +264,15 @@ export function buildExcludedUtcDatesByFloatPeopleId(
   for (const p of params.floatPeople) {
     const pid = num(p.people_id as number | string | undefined);
     if (pid == null) continue;
-    peopleRegion.set(pid, num(p.region_id as number | string | undefined));
+    peopleRegion.set(pid, regionIdFromPersonRow(p));
   }
 
   for (const t of params.timeOffs) {
     const pid = num(t.people_id);
     if (pid == null) continue;
-    const sd = t.start_date?.trim();
-    const ed = t.end_date?.trim();
-    if (!sd || !ed) continue;
-    const days = expandInclusiveUtcRangeToYmds(sd, ed);
+    const range = holidayRangeYmdFromRow(t as Record<string, unknown>);
+    if (!range) continue;
+    const days = expandInclusiveUtcRangeToYmds(range.start, range.end);
     const set = ensureSet(map, pid);
     for (const ymd of days) set.add(ymd);
   }
@@ -160,9 +281,15 @@ export function buildExcludedUtcDatesByFloatPeopleId(
     for (const row of rows) {
       const region = regionIdFromHolidayRow(row);
       if (region == null) continue;
-      const range = holidayRangeYmdFromRow(row);
-      if (!range) continue;
-      const days = expandInclusiveUtcRangeToYmds(range.start, range.end);
+      const fromDates = discreteUtcYmdsFromHolidayDatesField(row);
+      let days: string[];
+      if (fromDates != null) {
+        days = fromDates;
+      } else {
+        const range = holidayRangeYmdFromRow(row);
+        if (!range) continue;
+        days = expandInclusiveUtcRangeToYmds(range.start, range.end);
+      }
       if (days.length === 0) continue;
       for (const [pid, pr] of peopleRegion) {
         if (pr === region) {

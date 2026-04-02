@@ -18,6 +18,8 @@ const TEST_PROJECT_NAME = "Float Sync API Test Project";
 const TEST_ROLE_NAME = "Float Sync API Developer";
 const FLOAT_PROJECT_ID = 888001;
 const FLOAT_PERSON_ID = 99901;
+/** Same Float region as {@link FLOAT_PERSON_ID}; row omits region_name to test merged people map. */
+const FLOAT_PERSON_ID_2 = 99902;
 const FLOAT_CLIENT_ID = 1;
 const FLOAT_ROLE_ID = 42;
 
@@ -112,6 +114,14 @@ describe("Float API sync (mocked HTTP)", () => {
           people_id: FLOAT_PERSON_ID,
           name: "API Sync Person",
           role_id: FLOAT_ROLE_ID,
+          region_id: 42,
+          region_name: "Test Region",
+        },
+        {
+          people_id: FLOAT_PERSON_ID_2,
+          name: "API Sync Person Two",
+          role_id: FLOAT_ROLE_ID,
+          region_id: 42,
         },
       ],
       projects: [
@@ -163,12 +173,28 @@ describe("Float API sync (mocked HTTP)", () => {
       await prisma.projectAssignment.deleteMany({ where: { projectId } });
       await prisma.project.deleteMany({ where: { id: projectId } });
     }
-    if (personIdAfterSync) {
-      await prisma.person.deleteMany({ where: { id: personIdAfterSync } });
-    }
+    await prisma.person.deleteMany({
+      where: { externalId: { in: [String(FLOAT_PERSON_ID), String(FLOAT_PERSON_ID_2)] } },
+    });
     if (roleId) {
       await prisma.role.deleteMany({ where: { id: roleId } });
     }
+  });
+
+  it("stores Float region id and display name from /v3/people", async () => {
+    expect(personIdAfterSync).toBeDefined();
+    const person = await prisma.person.findUniqueOrThrow({ where: { id: personIdAfterSync! } });
+    expect(person.floatRegionId).toBe(42);
+    expect(person.floatRegionName).toBe("Test Region");
+  });
+
+  it("fills floatRegionName for a person without region fields when another person shares the region_id", async () => {
+    const p2 = await prisma.person.findFirst({
+      where: { externalId: String(FLOAT_PERSON_ID_2) },
+    });
+    expect(p2).toBeDefined();
+    expect(p2!.floatRegionId).toBe(42);
+    expect(p2!.floatRegionName).toBe("Test Region");
   });
 
   it("writes FloatScheduledHours and links project floatExternalId from mocked Float responses", async () => {
@@ -193,5 +219,129 @@ describe("Float API sync (mocked HTTP)", () => {
     });
     expect(assignment).toBeTruthy();
     expect(assignment!.roleId).toBe(roleId);
+  });
+});
+
+/** Mon–Fri week in SYNC window; Wednesday is a regional public holiday (nested `region` on holiday row). */
+const NESTED_PH_WEEK_MON = "2030-06-03";
+const NESTED_PH_WEEK_FRI = "2030-06-07";
+const NESTED_PH_HOLIDAY_WED = "2030-06-05";
+
+describe("Float API sync — regional holiday with nested region on public-holiday row", () => {
+  const TEST_SLUG_NESTED = "float-sync-nested-ph-region";
+  const TEST_PROJECT_NAME_NESTED = "Float Sync Nested PH Region Project";
+  const FLOAT_PROJECT_ID_NESTED = 888002;
+  const FLOAT_PERSON_ID_NESTED = 99903;
+
+  let projectIdNested: string | undefined;
+  let importRunIdNested: string | undefined;
+  let personIdNested: string | undefined;
+
+  beforeAll(async () => {
+    if (!process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL is required for this integration test. Load .env or set it.");
+    }
+
+    await prisma.role.upsert({
+      where: { name: TEST_ROLE_NAME },
+      create: { name: TEST_ROLE_NAME },
+      update: {},
+    });
+
+    const project = await prisma.project.upsert({
+      where: { slug: TEST_SLUG_NESTED },
+      create: {
+        slug: TEST_SLUG_NESTED,
+        name: TEST_PROJECT_NAME_NESTED,
+        clientName: "Test Client",
+        startDate: new Date("2030-01-01"),
+        endDate: new Date("2030-12-31"),
+      },
+      update: { name: TEST_PROJECT_NAME_NESTED },
+    });
+    projectIdNested = project.id;
+
+    const fetchImpl = createMockFloatFetch({
+      people: [
+        {
+          people_id: FLOAT_PERSON_ID_NESTED,
+          name: "Nested PH Region Person",
+          role_id: FLOAT_ROLE_ID,
+          region_id: 42,
+          region_name: "Test Region",
+        },
+      ],
+      projects: [
+        {
+          project_id: FLOAT_PROJECT_ID_NESTED,
+          name: TEST_PROJECT_NAME_NESTED,
+          client_id: FLOAT_CLIENT_ID,
+        },
+      ],
+      clients: [{ client_id: FLOAT_CLIENT_ID, name: "Acme Corp" }],
+      roles: [{ role_id: FLOAT_ROLE_ID, name: TEST_ROLE_NAME }],
+      tasks: [
+        {
+          project_id: FLOAT_PROJECT_ID_NESTED,
+          people_id: FLOAT_PERSON_ID_NESTED,
+          start_date: NESTED_PH_WEEK_MON,
+          end_date: NESTED_PH_WEEK_FRI,
+          hours: 1,
+          role_id: FLOAT_ROLE_ID,
+        },
+      ],
+      publicHolidays: [
+        {
+          name: "Nested Region Holiday",
+          start_date: NESTED_PH_HOLIDAY_WED,
+          end_date: NESTED_PH_HOLIDAY_WED,
+          region: { id: 42, name: "Test Region" },
+        },
+      ],
+    });
+
+    const client = new FloatClient({
+      token: "test-token-mock-nested-ph",
+      baseUrl: "https://api.test",
+      fetchImpl,
+    });
+
+    const { run } = await executeFloatApiSync(prisma, client, {
+      startDate: SYNC_START,
+      endDate: SYNC_END,
+      uploadedByUserId: null,
+    });
+    importRunIdNested = run.id;
+
+    const person = await prisma.person.findFirst({
+      where: { externalId: String(FLOAT_PERSON_ID_NESTED) },
+    });
+    personIdNested = person?.id;
+  });
+
+  afterAll(async () => {
+    if (importRunIdNested) {
+      await prisma.floatImportRun.deleteMany({ where: { id: importRunIdNested } });
+    }
+    if (projectIdNested) {
+      await prisma.floatScheduledHours.deleteMany({ where: { projectId: projectIdNested } });
+      await prisma.projectAssignment.deleteMany({ where: { projectId: projectIdNested } });
+      await prisma.project.deleteMany({ where: { id: projectIdNested } });
+    }
+    await prisma.person.deleteMany({
+      where: { externalId: String(FLOAT_PERSON_ID_NESTED) },
+    });
+  });
+
+  it("writes FloatScheduledHours excluding nested-region public holiday weekday (4h not 5h)", async () => {
+    expect(projectIdNested).toBeDefined();
+    expect(personIdNested).toBeDefined();
+
+    const rows = await prisma.floatScheduledHours.findMany({
+      where: { projectId: projectIdNested!, personId: personIdNested! },
+    });
+    expect(rows).toHaveLength(1);
+    expect(Number(rows[0]!.hours)).toBe(4);
+    expect(rows[0]!.weekStartDate.toISOString().startsWith("2030-06-03")).toBe(true);
   });
 });

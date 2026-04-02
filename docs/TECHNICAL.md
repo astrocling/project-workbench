@@ -23,7 +23,7 @@ The schema is defined in `prisma/schema.prisma`. Main entities:
 | Entity | Purpose |
 |--------|---------|
 | **User** | App login (email, password hash, permissions: User/Admin, optional position role). |
-| **Person** | Resource (name, email, active, optional externalId, optional `floatRegionId` from Float `/v3/people`). Used for assignments and Float import; may be linked to User by email/name for “My Projects”. |
+| **Person** | Resource (name, email, active, optional externalId, optional `floatRegionId` / `floatRegionName` from Float sync). Used for assignments and Float import; may be linked to User by email/name for “My Projects”. |
 | **Role** | Role type (e.g. Project Manager, FE Developer). Used on assignments and matched to Float role names on sync. |
 | **Project** | Project (slug, name, client, start/end dates, status, optional single rate, notes, SOW/estimate/float/metric links, resourcing thresholds, `cdaEnabled`, `cdaReportHoursOnly`, optional clientSponsor/keyStaffName for status reports). |
 | **ProjectAssignment** | Person assigned to a project in a role; optional bill-rate override; optional hiddenFromGrid (hide from Resourcing tab only). |

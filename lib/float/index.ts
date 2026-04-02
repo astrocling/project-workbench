@@ -31,6 +31,15 @@ export {
   executeFloatApiSync,
   syncPeopleFromFloatList,
 } from "@/lib/float/syncFloatImport";
+export {
+  buildFloatRegionNameMap,
+  enrichHolidayRowsWithWorkbenchRegionLabel,
+  floatRegionLabelFromHolidayRow,
+  floatRegionLabelFromPersonRow,
+  floatRegionNamesFromHolidayRows,
+  floatRegionNamesFromPeopleRows,
+  mergeFloatRegionNameMaps,
+} from "@/lib/float/regionLabel";
 export type {
   ExecuteFloatApiSyncParams,
   ExecuteFloatApiSyncResult,
@@ -45,5 +54,6 @@ export {
   filterHolidayRowsOverlappingYmdWindow,
   holidayRangeYmdFromRow,
   regionIdFromHolidayRow,
+  regionIdFromPersonRow,
 } from "@/lib/float/excludedDays";
 export type { BuildExcludedDaysParams, FloatTimeOffJson } from "@/lib/float/excludedDays";
