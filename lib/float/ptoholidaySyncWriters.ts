@@ -45,10 +45,34 @@ export function expandUtcWeekdaysInclusive(startYmd: string, endYmd: string): st
   return all.filter(isUtcWeekdayYmd);
 }
 
+/**
+ * Float OpenAPI `Timeoff.status` (paths/timeoffs.yaml): integer `1` = Tentative, `2` = Confirmed.
+ * Some integrations may still send string labels; we treat Confirmed as the scheduled/approved state.
+ */
 function timeoffRowApproved(row: Record<string, unknown>): boolean {
   const s = row.status ?? row.time_off_status ?? row.approval_status;
-  if (typeof s === "string") return s.trim().toLowerCase() === "approved";
+  if (typeof s === "number" && Number.isFinite(s)) return s === 2;
+  if (typeof s === "string") {
+    const t = s.trim().toLowerCase();
+    if (t === "2") return true;
+    return t === "approved" || t === "confirmed";
+  }
   return false;
+}
+
+/** Float `/v3/timeoffs` uses `people_ids` (array); single `people_id` kept for older/alternate payloads. */
+function floatPeopleIdsFromTimeoffRow(row: Record<string, unknown>): number[] {
+  const raw = row.people_ids;
+  if (Array.isArray(raw)) {
+    const out: number[] = [];
+    for (const el of raw) {
+      const n = num(el);
+      if (n != null) out.push(n);
+    }
+    if (out.length > 0) return out;
+  }
+  const single = num(row.people_id);
+  return single != null ? [single] : [];
 }
 
 function timeoffIdString(row: Record<string, unknown>): string | null {
@@ -61,11 +85,12 @@ function timeoffIdString(row: Record<string, unknown>): string | null {
 }
 
 function hoursPerDayFromTimeoff(row: Record<string, unknown>): number | null {
+  // OpenAPI: `hours` = hours per day (optional when full_day).
   return (
+    num(row.hours) ??
     num(row.hours_per_day) ??
     num(row.hoursPerDay) ??
-    num(row.daily_hours) ??
-    num(row.hours)
+    num(row.daily_hours)
   );
 }
 
@@ -100,6 +125,35 @@ function mergeKeyPto(personId: string, ymd: string): string {
 }
 
 /**
+ * Debug helper: field names Float returns for `/v3/timeoffs` entries (see OpenAPI `Timeoff` in
+ * `paths/timeoffs.yaml`). Log or inspect one row after `executeFloatApiSync` fetches timeoffs.
+ */
+export function floatTimeoffEntryDiagnosticsSample(
+  entry: unknown
+): {
+  keys: string[];
+  timeoff_id: unknown;
+  people_ids: unknown;
+  people_id: unknown;
+  status: unknown;
+  start_date: unknown;
+  end_date: unknown;
+  hours: unknown;
+} {
+  const row = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
+  return {
+    keys: Object.keys(row),
+    timeoff_id: row.timeoff_id,
+    people_ids: row.people_ids,
+    people_id: row.people_id,
+    status: row.status,
+    start_date: row.start_date,
+    end_date: row.end_date,
+    hours: row.hours,
+  };
+}
+
+/**
  * Writer A — approved time-offs → one aggregated row per person per weekday (summed hours).
  */
 export function buildPtoRowsFromFloatTimeoffs(
@@ -118,30 +172,31 @@ export function buildPtoRowsFromFloatTimeoffs(
     const tid = timeoffIdString(row);
     if (!tid) continue;
     approvedFloatSourceIds.add(tid);
-    const fid = num(row.people_id);
-    if (fid == null) continue;
-    const personId = personIdByFloatPeopleId.get(String(fid));
-    if (!personId) continue;
+    const floatPeopleIds = floatPeopleIdsFromTimeoffRow(row);
+    if (floatPeopleIds.length === 0) continue;
 
     const range = holidayRangeYmdFromRow(row);
     if (!range) continue;
     const hpd = hoursPerDayFromTimeoff(row);
     const label = leaveTypeLabelFromTimeoff(row);
     const days = expandUtcWeekdaysInclusive(range.start, range.end);
-    for (const ymd of days) {
-      const key = mergeKeyPto(personId, ymd);
-      const prev = agg.get(key);
-      const addH = hpd ?? 0;
-      if (prev) {
-        prev.hours += addH;
-        if (label && !prev.labels.includes(label)) prev.labels.push(label);
-        // Keep first Float id for the row (still in approvedFloatSourceIds)
-      } else {
-        agg.set(key, {
-          hours: addH,
-          labels: label ? [label] : [],
-          floatSourceId: tid ?? "",
-        });
+    for (const fid of floatPeopleIds) {
+      const personId = personIdByFloatPeopleId.get(String(fid));
+      if (!personId) continue;
+      for (const ymd of days) {
+        const key = mergeKeyPto(personId, ymd);
+        const prev = agg.get(key);
+        const addH = hpd ?? 0;
+        if (prev) {
+          prev.hours += addH;
+          if (label && !prev.labels.includes(label)) prev.labels.push(label);
+        } else {
+          agg.set(key, {
+            hours: addH,
+            labels: label ? [label] : [],
+            floatSourceId: tid ?? "",
+          });
+        }
       }
     }
   }
