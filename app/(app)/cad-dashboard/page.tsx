@@ -6,6 +6,7 @@ import {
   getCachedPortfolioMetricsForCad,
   formatPortfolioDollars,
 } from "@/lib/portfolioMetrics";
+import { getDashboardPtoWidgetProjects } from "@/lib/pgmPtoWidgetData";
 import { getDashboardContext } from "@/lib/dashboardContext";
 import {
   RecoveryCardContent,
@@ -13,6 +14,7 @@ import {
 } from "@/components/RevenueRecoveryShared";
 import { DashboardClientFilter } from "@/components/DashboardClientFilter";
 import { DashboardProjectsTable } from "@/components/DashboardProjectsTable";
+import PgmPtoWidget from "@/components/PgmPtoWidget";
 
 const DASHBOARD_SORT_KEYS = [
   "name",
@@ -93,6 +95,17 @@ export default async function CADDashboardPage({
       : metricsNoFilter;
   const selectedClient = validClient ?? null;
 
+  const today = new Date();
+  const ptoWidgetProjects =
+    currentPersonId != null
+      ? await getDashboardPtoWidgetProjects(
+          currentPersonId,
+          selectedClient,
+          today,
+          "CAD"
+        ).catch(() => [])
+      : [];
+
   return (
     <div>
       <h2 className="text-display-lg font-bold text-surface-900 dark:text-white mb-2">
@@ -165,7 +178,7 @@ export default async function CADDashboardPage({
         />
       </section>
 
-      {portfolioMetrics.revenueRecovery != null && (
+      {portfolioMetrics.revenueRecovery != null ? (
         <section aria-label="Portfolio revenue recovery" className="mt-8">
           {portfolioMetrics.staleActuals && (
             <p className="text-body-sm text-surface-600 dark:text-surface-400 mb-3 flex flex-wrap items-center gap-2">
@@ -204,6 +217,17 @@ export default async function CADDashboardPage({
                 Previous 4 weeks
               </p>
               <RecoveryCardContent data={portfolioMetrics.revenueRecovery.prevFourWeeks} />
+            </div>
+            <div className="col-span-1 sm:col-span-2 lg:col-span-3">
+              <PgmPtoWidget projects={ptoWidgetProjects} today={today} />
+            </div>
+          </div>
+        </section>
+      ) : (
+        <section aria-label="Upcoming PTO and holidays" className="mt-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="col-span-1 sm:col-span-2 lg:col-span-3">
+              <PgmPtoWidget projects={ptoWidgetProjects} today={today} />
             </div>
           </div>
         </section>

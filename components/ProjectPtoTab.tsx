@@ -3,10 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Toggle } from "@/components/Toggle";
+import { HALF_DAY_HOURS, getDayPills, getInitials } from "@/lib/ptoDisplayUtils";
 import { formatWeekKey, getWeekStartDate } from "@/lib/weekUtils";
-
-/** Half-day PTO matches GET /api/projects/[id]/resourcing (hours < 8). */
-const HALF_DAY_HOURS = 8;
 
 /** Matches app/api/projects/[id]/resourcing/route.ts after day-level payload. */
 type PtoHolidayEntry = {
@@ -164,37 +162,6 @@ function getTimeOffListPills(days: PersonWeekTimeOffDay[]): TimeOffListPill[] {
   }
   rows.sort((a, b) => a.dow - b.dow);
   return rows.map((r) => r.pill);
-}
-
-// Given an array of day entries for a person in a week, returns
-// a sorted array of { dayLabel: 'Mon'|'Tue'|..., isHalf: boolean }
-// isHalf = true when hours < 8 (or confirmed threshold from Step 0)
-function getDayPills(
-  days: { date: string; hours: number | null }[]
-): { dayLabel: string; isHalf: boolean }[] {
-  const labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const weekdayOnly = days
-    .map((d) => {
-      const dt = new Date(d.date + "T12:00:00.000Z");
-      const dow = dt.getUTCDay();
-      if (dow === 0 || dow === 6) return null;
-      return {
-        dow,
-        dayLabel: labels[dow]!,
-        isHalf: d.hours != null && d.hours < HALF_DAY_HOURS,
-      };
-    })
-    .filter((x): x is NonNullable<typeof x> => x != null);
-  weekdayOnly.sort((a, b) => a.dow - b.dow);
-  return weekdayOnly.map(({ dayLabel, isHalf }) => ({ dayLabel, isHalf }));
-}
-
-// Returns initials from a full name e.g. "Andrei Perciun" → "AP"
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
-  return (parts[0]!.charAt(0) + parts[parts.length - 1]!.charAt(0)).toUpperCase();
 }
 
 // Returns all week keys (Mon dates as strings) within the project date range,
