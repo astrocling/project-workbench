@@ -126,6 +126,8 @@ export async function GET(
         Array<{
           personId: string;
           type: "PTO" | "HOLIDAY";
+          /** UTC calendar day YYYY-MM-DD (day-level PTO/holiday). */
+          date: string;
           hours: number | null;
           label: string | null;
           isPartial: boolean;
@@ -148,6 +150,7 @@ export async function GET(
         ptoHolidayByWeek[weekKey]!.push({
           personId: r.personId,
           type: apiType,
+          date: toDateKey(r.date),
           hours: hoursVal,
           label: r.label ?? null,
           isPartial,

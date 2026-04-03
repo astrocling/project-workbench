@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionPermissionLevel, canEditProject } from "@/lib/auth";
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
-import { getAsOfDate, getAllWeeks } from "@/lib/weekUtils";
+import { getAsOfDate, getAllWeeks, getWeekStartDate } from "@/lib/weekUtils";
 import { getBudgetStatusForDisplay } from "@/lib/budgetCalculations";
 import { getCachedProjectBySlugOrId } from "@/lib/projectCache";
 import { getEligibleKeyRoles } from "@/lib/eligibleKeyRoles";
@@ -50,6 +50,7 @@ export default async function ProjectDetailPage({
   const VALID_TABS = [
     "overview",
     "resourcing",
+    "pto",
     "cda",
     "budget",
     "timeline",
@@ -285,6 +286,12 @@ export default async function ProjectDetailPage({
         initialBudgetData={initialBudgetData}
         initialSettingsProject={initialSettingsProject}
         initialSettingsEligiblePeople={initialSettingsEligiblePeople}
+        projectStartDateIso={dateToIso(project.startDate)}
+        projectEndDateIso={
+          project.endDate != null
+            ? dateToIso(project.endDate)
+            : getWeekStartDate(new Date()).toISOString()
+        }
       />
     </div>
   );

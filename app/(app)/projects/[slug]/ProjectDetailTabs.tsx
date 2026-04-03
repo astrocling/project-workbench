@@ -29,9 +29,13 @@ const CDATab = dynamic(() => import("@/components/CDATab").then((m) => ({ defaul
 const ProjectSettingsTab = dynamic(() => import("@/components/ProjectSettingsTab").then((m) => ({ default: m.ProjectSettingsTab })), {
   loading: () => <div className="min-h-[200px] flex items-center justify-center text-surface-500 dark:text-surface-400">Loading…</div>,
 });
+const ProjectPtoTab = dynamic(() => import("@/components/ProjectPtoTab"), {
+  loading: () => <div className="min-h-[200px] flex items-center justify-center text-surface-500 dark:text-surface-400">Loading…</div>,
+});
 const TABS = [
   { id: "overview", label: "Overview" },
   { id: "resourcing", label: "Resourcing" },
+  { id: "pto", label: "PTO" },
   { id: "cda", label: "CDA" },
   { id: "budget", label: "Budget" },
   { id: "timeline", label: "Timeline" },
@@ -87,6 +91,8 @@ export function ProjectDetailTabs({
   initialBudgetData,
   initialSettingsProject,
   initialSettingsEligiblePeople,
+  projectStartDateIso,
+  projectEndDateIso,
 }: {
   projectId: string;
   projectSlug: string;
@@ -112,6 +118,8 @@ export function ProjectDetailTabs({
   };
   initialSettingsProject: EditProjectInitial | null;
   initialSettingsEligiblePeople: { id: string; name: string }[] | null;
+  projectStartDateIso: string;
+  projectEndDateIso: string;
 }) {
   const pathname = usePathname();
   const base = pathname;
@@ -171,7 +179,7 @@ export function ProjectDetailTabs({
   const overviewPrefetched = useRef(false);
 
   const [missingRateRoleNames, setMissingRateRoleNames] = useState<string[] | null>(null);
-  const RATES_ALERT_TABS = ["overview", "resourcing", "budget", "status-reports", "cda", "settings"] as const;
+  const RATES_ALERT_TABS = ["overview", "resourcing", "pto", "budget", "status-reports", "cda", "settings"] as const;
 
   useEffect(() => {
     if (!RATES_ALERT_TABS.includes(tab as (typeof RATES_ALERT_TABS)[number])) {
@@ -406,7 +414,7 @@ export function ProjectDetailTabs({
             );
           })}
         </nav>
-        {tab !== "status-reports" && tab !== "settings" && (
+        {tab !== "status-reports" && tab !== "settings" && tab !== "pto" && (
         <div className="text-body-sm text-surface-700 dark:text-surface-200 space-y-1">
           <p className="flex items-center gap-3 flex-wrap">
               <span>Float last updated: {floatLastUpdated ? new Date(floatLastUpdated).toLocaleString() : "Never"}</span>
@@ -971,6 +979,20 @@ export function ProjectDetailTabs({
           canEdit={canEdit}
           floatLastUpdated={floatLastUpdated}
           onActualsUpdated={refetchBudgetStatus}
+        />
+      )}
+      {tab === "pto" && (
+        <ProjectPtoTab
+          projectId={projectId}
+          members={
+            initialAssignments?.filter((a) => !a.hiddenFromGrid).map((a) => ({
+              personId: a.personId,
+              name: a.person.name,
+              role: a.role.name,
+            })) ?? []
+          }
+          projectStartDateIso={projectStartDateIso}
+          projectEndDateIso={projectEndDateIso}
         />
       )}
       {tab === "budget" && <BudgetTab projectId={projectId} canEdit={canEdit} initialBudgetData={initialBudgetData} />}
