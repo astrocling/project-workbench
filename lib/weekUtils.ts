@@ -209,3 +209,9 @@ export function formatWeekShort(date: Date): string {
   const day = d.getUTCDate();
   return `${month}/${day.toString().padStart(2, "0")}`;
 }
+
+/** True if the UTC calendar day is Monday–Friday (working days for resourcing grids). */
+export function isUtcWeekdayDate(date: Date): boolean {
+  const w = date.getUTCDay();
+  return w !== 0 && w !== 6;
+}

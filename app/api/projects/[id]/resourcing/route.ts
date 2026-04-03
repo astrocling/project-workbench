@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { getProjectId } from "@/lib/slug";
-import { formatWeekKey, getWeekStartDate } from "@/lib/weekUtils";
+import { formatWeekKey, getWeekStartDate, isUtcWeekdayDate } from "@/lib/weekUtils";
 
 /**
  * Single GET that returns all data needed for the Resourcing tab:
@@ -112,6 +112,7 @@ export async function GET(
                 },
                 select: {
                   personId: true,
+                  date: true,
                   weekStartDate: true,
                   type: true,
                   hours: true,
@@ -133,8 +134,10 @@ export async function GET(
 
       for (const r of ptoHolidayRows) {
         if (!visiblePersonIds.has(r.personId)) continue;
-        const weekKey = formatWeekKey(r.weekStartDate);
         const apiType = r.type === "PTO" ? "PTO" : "HOLIDAY";
+        // Holidays on Sat/Sun do not affect M–F resourcing; omit from the grid payload.
+        if (apiType === "HOLIDAY" && !isUtcWeekdayDate(new Date(r.date))) continue;
+        const weekKey = formatWeekKey(r.weekStartDate);
         const h = r.hours;
         const hoursVal = h != null && Number.isFinite(h) ? h : null;
         const isPartial =

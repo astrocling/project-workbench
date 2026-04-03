@@ -29,6 +29,75 @@ type ActualMonthSplitRow = { projectId: string; personId: string; weekStartDate:
 type FloatRow = { projectId: string; personId: string; weekStartDate: string; hours: number };
 type ReadyRow = { projectId: string; personId: string; ready: boolean };
 
+/** Matches app/api/projects/[id]/resourcing/route.ts ptoHolidayByWeek entries */
+type PtoHolidayEntry = {
+  personId: string;
+  type: "PTO" | "HOLIDAY";
+  hours: number | null;
+  label: string | null;
+  isPartial: boolean;
+};
+type PtoHolidayByWeek = Record<string, PtoHolidayEntry[]>;
+
+/** Distinct holiday labels for a week across all people (banner row / column dot). */
+function getHolidaysForWeek(
+  ptoHolidayByWeek: PtoHolidayByWeek,
+  weekKey: string
+): { label: string }[] {
+  const list = ptoHolidayByWeek[weekKey] ?? [];
+  const seen = new Set<string>();
+  const out: { label: string }[] = [];
+  for (const e of list) {
+    if (e.type !== "HOLIDAY") continue;
+    const label = e.label != null && e.label.trim() !== "" ? e.label.trim() : "Holiday";
+    if (seen.has(label)) continue;
+    seen.add(label);
+    out.push({ label });
+  }
+  return out;
+}
+
+/** Distinct holiday labels for one person in a week (cell border + cell tooltip). */
+function getHolidaysForPersonWeek(
+  ptoHolidayByWeek: PtoHolidayByWeek,
+  weekKey: string,
+  personId: string
+): { label: string }[] {
+  const list = ptoHolidayByWeek[weekKey] ?? [];
+  const seen = new Set<string>();
+  const out: { label: string }[] = [];
+  for (const e of list) {
+    if (e.type !== "HOLIDAY" || e.personId !== personId) continue;
+    const label = e.label != null && e.label.trim() !== "" ? e.label.trim() : "Holiday";
+    if (seen.has(label)) continue;
+    seen.add(label);
+    out.push({ label });
+  }
+  return out;
+}
+
+function getPtoForWeek(
+  ptoHolidayByWeek: PtoHolidayByWeek,
+  weekKey: string,
+  personId?: string
+): PtoHolidayEntry[] {
+  const list = ptoHolidayByWeek[weekKey] ?? [];
+  const pto = list.filter((e) => e.type === "PTO");
+  if (personId === undefined) return pto;
+  return pto.filter((e) => e.personId === personId);
+}
+
+function firstNameFromDisplayName(name: string): string {
+  const t = name.trim();
+  if (!t) return "Person";
+  return t.split(/\s+/)[0] ?? t;
+}
+
+function formatWeekOfTitle(weekKey: string): string {
+  const d = new Date(weekKey + "T00:00:00.000Z");
+  return `Week of ${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+}
+
 type GridCommentType = "Planned" | "Actual";
 function commentKey(personId: string, weekKey: string, gridType: GridCommentType): string {
   return `${personId}|${weekKey}|${gridType}`;
@@ -63,6 +132,7 @@ export function ResourcingGrids({
   const [editingPlanned, setEditingPlanned] = useState<{ personId: string; weekKey: string; str: string } | null>(null);
   const [editingActual, setEditingActual] = useState<{ personId: string; weekKey: string; monthKey?: string; str: string } | null>(null);
   const [actualMonthSplits, setActualMonthSplits] = useState<ActualMonthSplitRow[]>([]);
+  const [ptoHolidayByWeek, setPtoHolidayByWeek] = useState<PtoHolidayByWeek>({});
   const [comments, setComments] = useState<Map<string, string>>(new Map());
   const [openCommentCell, setOpenCommentCell] = useState<{
     personId: string;
@@ -113,6 +183,7 @@ export function ResourcingGrids({
         floatHours?: FloatRow[];
         readyForFloat?: ReadyRow[];
         cellComments?: Array<{ personId: string; weekStartDate: string; gridType: GridCommentType; comment: string }>;
+        ptoHolidayByWeek?: PtoHolidayByWeek;
       }) => {
         if (data.range?.fromWeek && data.range?.toWeek) {
           setWeekRange((prev) =>
@@ -153,6 +224,7 @@ export function ResourcingGrids({
           commentMap.set(commentKey(row.personId, week, row.gridType), row.comment ?? "");
         });
         setComments(commentMap);
+        setPtoHolidayByWeek(data.ptoHolidayByWeek ?? {});
       })
       .catch((err) => {
         console.error("ResourcingGrids fetch error:", err);
@@ -654,39 +726,95 @@ export function ResourcingGrids({
       const displayStr = isEditing ? editingPlanned!.str : String(value ?? 0);
       const cellComment = getComment(personId, weekKey, "Planned");
       const hasComment = cellComment.length > 0;
+      const personHolidays = getHolidaysForPersonWeek(ptoHolidayByWeek, weekKey, personId);
+      const ptoEntries = getPtoForWeek(ptoHolidayByWeek, weekKey, personId);
+      const personNameForPto =
+        assignments.find((x) => x.personId === personId)?.person.name ?? "Unknown";
+      const hasPersonHoliday = personHolidays.length > 0;
+      const hasPersonPto = ptoEntries.length > 0;
+      const shellBorder =
+        hasPersonPto && hasPersonHoliday
+          ? "border-[1.5px] border-dashed border-jred-300 dark:border-jred-500 border-t-2 border-t-solid border-t-jblue-500 dark:border-t-jblue-400"
+          : hasPersonPto
+            ? "border-[1.5px] border-dashed border-jred-300 dark:border-jred-500"
+            : hasPersonHoliday
+              ? "border border-surface-200 dark:border-dark-border border-t-2 border-t-jblue-500 dark:border-t-jblue-400"
+              : "border border-surface-200 dark:border-dark-border";
+      const showIndicatorTooltip = hasPersonHoliday || hasPersonPto;
       return (
         <td
           key={weekKey}
           className={`relative z-0 p-1 border overflow-hidden min-w-0 text-center border-surface-200 dark:border-dark-border ${mismatch ? "bg-jred-100 dark:bg-jred-900/20" : ""} ${isCurrWeek ? "resourcing-current-week" : ""}`}
         >
           <div className="group relative min-h-[1.5rem]">
-            {editable && canEdit ? (
-              <input
-                type="text"
-                inputMode="decimal"
-                value={displayStr}
-                onFocus={() => setEditingPlanned({ personId, weekKey, str: String(value ?? 0) })}
-                onChange={(e) => setEditingPlanned((prev) => (prev?.personId === personId && prev?.weekKey === weekKey ? { ...prev, str: e.target.value } : prev))}
-                onBlur={(e) => {
-                  const str = e.target.value.trim();
-                  const num = str === "" ? 0 : parseFloat(str);
-                  const clamped = Number.isNaN(num) ? 0 : Math.max(0, num);
-                  updatePlanned(personId, weekKey, roundToQuarter(clamped));
-                  setEditingPlanned(null);
-                }}
-                onKeyDown={gridType != null && rowIndex != null && colIndex != null ? (e) => handleGridArrowKey(e, rowIndex, colIndex, gridType) : undefined}
-                {...(gridType != null && rowIndex != null && colIndex != null
-                  ? {
-                      "data-resourcing-grid": gridType,
-                      "data-resourcing-row": rowIndex,
-                      "data-resourcing-col": colIndex,
-                    }
-                  : {})}
-                className="w-full min-w-0 max-w-full border rounded px-1 py-0.5 text-sm text-center box-border [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              />
-            ) : (
-              <span className="inline-block w-full text-center tabular-nums">{value ?? 0}</span>
-            )}
+            <div className={showIndicatorTooltip ? "group/input-tip relative" : "relative"}>
+              {editable && canEdit ? (
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={displayStr}
+                  onFocus={() => setEditingPlanned({ personId, weekKey, str: String(value ?? 0) })}
+                  onChange={(e) => setEditingPlanned((prev) => (prev?.personId === personId && prev?.weekKey === weekKey ? { ...prev, str: e.target.value } : prev))}
+                  onBlur={(e) => {
+                    const str = e.target.value.trim();
+                    const num = str === "" ? 0 : parseFloat(str);
+                    const clamped = Number.isNaN(num) ? 0 : Math.max(0, num);
+                    updatePlanned(personId, weekKey, roundToQuarter(clamped));
+                    setEditingPlanned(null);
+                  }}
+                  onKeyDown={gridType != null && rowIndex != null && colIndex != null ? (e) => handleGridArrowKey(e, rowIndex, colIndex, gridType) : undefined}
+                  {...(gridType != null && rowIndex != null && colIndex != null
+                    ? {
+                        "data-resourcing-grid": gridType,
+                        "data-resourcing-row": rowIndex,
+                        "data-resourcing-col": colIndex,
+                      }
+                    : {})}
+                  className={`w-full min-w-0 max-w-full rounded px-1 py-0.5 text-sm text-center box-border [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${shellBorder}`}
+                />
+              ) : (
+                <span
+                  className={`inline-block w-full text-center tabular-nums rounded px-1 py-0.5 ${shellBorder}`}
+                >
+                  {value ?? 0}
+                </span>
+              )}
+              {showIndicatorTooltip ? (
+                <div
+                  className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 hidden w-max max-w-[16rem] -translate-x-1/2 rounded border border-surface-200 bg-white px-2 py-1.5 text-left text-xs text-surface-800 shadow-md group-hover/input-tip:block dark:border-dark-border dark:bg-dark-surface dark:text-surface-200"
+                  role="tooltip"
+                >
+                  <div className="mb-1 font-medium text-surface-900 dark:text-white">
+                    {formatWeekOfTitle(weekKey)}
+                  </div>
+                  {hasPersonHoliday ? (
+                    <ul className="space-y-0.5">
+                      {personHolidays.map((h) => (
+                        <li key={h.label} className="flex items-start gap-1.5">
+                          <span
+                            className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-jblue-500 dark:bg-jblue-400"
+                            aria-hidden
+                          />
+                          <span>{h.label}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {hasPersonHoliday && hasPersonPto ? (
+                    <div className="my-1 border-t border-surface-200 dark:border-dark-border" />
+                  ) : null}
+                  {hasPersonPto ? (
+                    <div className="flex items-start gap-1.5">
+                      <span
+                        className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-jred-400 dark:bg-jred-500"
+                        aria-hidden
+                      />
+                      <span>{`${firstNameFromDisplayName(personNameForPto)} on PTO`}</span>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
             {canEdit && (
               <button
                 type="button"
@@ -1125,6 +1253,119 @@ export function ResourcingGrids({
                   <h3 className="text-display-md font-bold text-surface-900 dark:text-white">1. Project Planning Grid</h3>
                 </th>
                 <th colSpan={weeks.length} className="p-0 border-0 bg-transparent" aria-hidden />
+              </tr>
+              <tr className={stickyBgHead}>
+                <th
+                  colSpan={4}
+                  className={`p-1 border text-left text-xs text-surface-600 dark:text-surface-400 ${sticky} ${stickyOpaqueHead} ${stickyEdge} border-surface-200 dark:border-dark-border`}
+                  style={{ left: 0, width: stickyColsWidth, minWidth: stickyColsWidth }}
+                >
+                  Holiday
+                </th>
+                {weeks.map((w) => {
+                  const wk = formatWeekKey(w);
+                  const holidays = getHolidaysForWeek(ptoHolidayByWeek, wk);
+                  return (
+                    <th
+                      key={`hol-${wk}`}
+                      className={`p-1 border text-center align-middle w-16 border-surface-200 dark:border-dark-border ${currentWeekColClass(w)}`}
+                    >
+                      {holidays.length > 0 ? (
+                        <div className="group/hol-tip relative flex min-h-[1.25rem] items-center justify-center py-0.5">
+                          <div className="relative inline-flex">
+                            <span className="inline-flex h-4 shrink-0 items-center justify-center rounded-full bg-jblue-500 px-2 text-[8px] font-bold uppercase leading-none tracking-wide text-white dark:bg-jblue-400">
+                              HOL
+                            </span>
+                            <div
+                              className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 hidden w-max max-w-[14rem] -translate-x-1/2 rounded border border-surface-200 bg-white px-2 py-1.5 text-left text-xs text-surface-800 shadow-md group-hover/hol-tip:block dark:border-dark-border dark:bg-dark-surface dark:text-surface-200"
+                              role="tooltip"
+                            >
+                              <ul className="space-y-1">
+                                {holidays.map((h) => (
+                                  <li key={h.label} className="flex items-center gap-1.5">
+                                    <span
+                                      className="h-1.5 w-1.5 shrink-0 rounded-full bg-jblue-500 dark:bg-jblue-400"
+                                      aria-hidden
+                                    />
+                                    {h.label}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+                    </th>
+                  );
+                })}
+              </tr>
+              <tr className={stickyBgHead}>
+                <th
+                  colSpan={4}
+                  className={`p-1 border text-left text-xs text-surface-600 dark:text-surface-400 ${sticky} ${stickyOpaqueHead} ${stickyEdge} border-surface-200 dark:border-dark-border`}
+                  style={{ left: 0, width: stickyColsWidth, minWidth: stickyColsWidth }}
+                >
+                  PTO
+                </th>
+                {weeks.map((w) => {
+                  const wk = formatWeekKey(w);
+                  const ptoEntries = getPtoForWeek(ptoHolidayByWeek, wk);
+                  const byPerson = new Map<string, PtoHolidayEntry[]>();
+                  for (const e of ptoEntries) {
+                    const arr = byPerson.get(e.personId) ?? [];
+                    arr.push(e);
+                    byPerson.set(e.personId, arr);
+                  }
+                  const peopleWithPto = [...byPerson.entries()]
+                    .map(([pid, ents]) => {
+                      const name =
+                        sortedAssignments.find((x) => x.personId === pid)?.person.name ?? pid;
+                      return { personId: pid, name, entries: ents };
+                    })
+                    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+                  const hasPto = peopleWithPto.length > 0;
+                  return (
+                    <th
+                      key={`pto-${wk}`}
+                      className={`p-1 border text-center align-middle text-xs whitespace-nowrap w-16 border-surface-200 dark:border-dark-border ${currentWeekColClass(w)}`}
+                    >
+                      {hasPto ? (
+                        <div className="group/pto-tip relative flex min-h-[1.25rem] items-center justify-center py-0.5">
+                          <div className="relative inline-flex">
+                            <span className="inline-flex h-4 shrink-0 items-center justify-center rounded-full border border-jred-300 bg-jred-50 px-2 text-[8px] font-bold uppercase leading-none tracking-wide text-jred-900 dark:border-jred-600 dark:bg-jred-900/30 dark:text-jred-100">
+                              PTO
+                            </span>
+                            <div
+                              className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 hidden w-max max-w-[14rem] -translate-x-1/2 rounded border border-surface-200 bg-white px-2 py-1.5 text-left text-xs text-surface-800 shadow-md group-hover/pto-tip:block dark:border-dark-border dark:bg-dark-surface dark:text-surface-200"
+                              role="tooltip"
+                            >
+                              <ul className="space-y-1">
+                                {peopleWithPto.map((p) => {
+                                  const dayCount = p.entries.length;
+                                  const hoursPartial = p.entries
+                                    .filter((e) => e.isPartial)
+                                    .reduce((s, e) => s + (e.hours ?? 0), 0);
+                                  const line = p.entries.some((e) => e.isPartial)
+                                    ? `${p.name}: partial PTO (${hoursPartial}h this week)`
+                                    : `${p.name}: ${dayCount} day(s) PTO`;
+                                  return (
+                                    <li key={p.personId} className="flex items-start gap-1.5">
+                                      <span
+                                        className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-jred-400 dark:bg-jred-500"
+                                        aria-hidden
+                                      />
+                                      <span>{line}</span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+                    </th>
+                  );
+                })}
               </tr>
               <tr className={stickyBgHead}>
                 <th className={`p-2 border text-center ${sticky} ${stickyOpaqueHead}`} style={{ left: 0 }}>Ready</th>
