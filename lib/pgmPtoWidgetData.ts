@@ -9,6 +9,8 @@ export type PtoHolidayEntry = {
   hours: number | null;
   label: string | null;
   isPartial: boolean;
+  /** Region for HOLIDAY rows (matches `Person.floatRegionId`); null for PTO. */
+  floatRegionId: number | null;
 };
 
 export type PtoHolidayByWeek = Record<string, PtoHolidayEntry[]>;
@@ -19,7 +21,12 @@ export type DashboardPtoKeyRole = "PM" | "PGM" | "CAD";
 export type DashboardPtoProjectPayload = {
   projectId: string;
   projectName: string;
-  members: { personId: string; name: string; role: string }[];
+  members: {
+    personId: string;
+    name: string;
+    role: string;
+    floatRegionId: number | null;
+  }[];
   ptoHolidayByWeek: PtoHolidayByWeek;
 };
 
@@ -64,7 +71,7 @@ export async function getDashboardPtoWidgetProjects(
         where: { hiddenFromGrid: false },
         select: {
           personId: true,
-          person: { select: { name: true } },
+          person: { select: { name: true, floatRegionId: true } },
           role: { select: { name: true } },
         },
       },
@@ -94,6 +101,7 @@ export async function getDashboardPtoWidgetProjects(
             type: true,
             hours: true,
             label: true,
+            floatRegionId: true,
           },
         });
 
@@ -121,6 +129,7 @@ export async function getDashboardPtoWidgetProjects(
         hours: hoursVal,
         label: r.label ?? null,
         isPartial,
+        floatRegionId: apiType === "HOLIDAY" ? r.floatRegionId ?? null : null,
       });
     }
 
@@ -131,6 +140,7 @@ export async function getDashboardPtoWidgetProjects(
         personId: a.personId,
         name: a.person.name,
         role: a.role.name,
+        floatRegionId: a.person.floatRegionId ?? null,
       })),
       ptoHolidayByWeek,
     };
@@ -144,4 +154,95 @@ export async function getPgmPtoWidgetProjects(
   today: Date
 ): Promise<DashboardPtoProjectPayload[]> {
   return getDashboardPtoWidgetProjects(personId, clientFilter, today, "PGM");
+}
+
+/**
+ * PTO/holiday payload for a single project (visible grid assignees, rolling two weeks).
+ * Used on the project overview tab — not scoped to the viewer’s portfolio key role.
+ */
+export async function getProjectPtoAbsencePayload(
+  projectId: string,
+  today: Date
+): Promise<DashboardPtoProjectPayload | null> {
+  const weekStart = getWeekStartDate(new Date(today));
+  const nextWeekStart = new Date(weekStart);
+  nextWeekStart.setUTCDate(nextWeekStart.getUTCDate() + 7);
+  const fromWeekKey = formatWeekKey(weekStart);
+  const toWeekKey = formatWeekKey(nextWeekStart);
+  const from = new Date(fromWeekKey + "T00:00:00.000Z");
+  const to = new Date(toWeekKey + "T00:00:00.000Z");
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: {
+      id: true,
+      name: true,
+      assignments: {
+        where: { hiddenFromGrid: false },
+        select: {
+          personId: true,
+          person: { select: { name: true, floatRegionId: true } },
+          role: { select: { name: true } },
+        },
+      },
+    },
+  });
+
+  if (!project) return null;
+
+  const visible = new Set(project.assignments.map((a) => a.personId));
+  const idList = Array.from(visible);
+
+  const ptoRows =
+    idList.length === 0
+      ? []
+      : await prisma.pTOHolidayImpact.findMany({
+          where: {
+            personId: { in: idList },
+            weekStartDate: { gte: from, lte: to },
+          },
+          select: {
+            personId: true,
+            date: true,
+            weekStartDate: true,
+            type: true,
+            hours: true,
+            label: true,
+            floatRegionId: true,
+          },
+        });
+
+  const ptoHolidayByWeek: PtoHolidayByWeek = {};
+
+  for (const r of ptoRows) {
+    if (!visible.has(r.personId)) continue;
+    const apiType = r.type === "PTO" ? "PTO" : "HOLIDAY";
+    if (apiType === "HOLIDAY" && !isUtcWeekdayDate(new Date(r.date))) continue;
+    const weekKey = formatWeekKey(r.weekStartDate);
+    const h = r.hours;
+    const hoursVal = h != null && Number.isFinite(Number(h)) ? Number(h) : null;
+    const isPartial = apiType === "PTO" && hoursVal != null && hoursVal < 8;
+    if (!ptoHolidayByWeek[weekKey]) ptoHolidayByWeek[weekKey] = [];
+    ptoHolidayByWeek[weekKey]!.push({
+      personId: r.personId,
+      type: apiType,
+      date: toDateKey(r.date),
+      hours: hoursVal,
+      label: r.label ?? null,
+      isPartial,
+      floatRegionId: apiType === "HOLIDAY" ? r.floatRegionId ?? null : null,
+    });
+  }
+
+  return {
+    projectId: project.id,
+    projectName: project.name,
+    members: project.assignments.map((a) => ({
+      personId: a.personId,
+      name: a.person.name,
+      role: a.role.name,
+      floatRegionId: a.person.floatRegionId ?? null,
+    })),
+    ptoHolidayByWeek,
+  };
 }

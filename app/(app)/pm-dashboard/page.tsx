@@ -15,6 +15,7 @@ import {
 import { DashboardClientFilter } from "@/components/DashboardClientFilter";
 import { DashboardProjectsTable } from "@/components/DashboardProjectsTable";
 import PgmPtoWidget from "@/components/PgmPtoWidget";
+import AbsencePills from "@/components/AbsencePills";
 
 const DASHBOARD_SORT_KEYS = [
   "name",
@@ -165,9 +166,14 @@ export default async function PMDashboardPage({
       </section>
 
       <section aria-label="Your projects" className="mt-8">
-        <h3 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100 border-b border-surface-200 dark:border-dark-border pb-2 mb-4">
-          Projects
-        </h3>
+        <div className="w-full border-b border-surface-200 dark:border-dark-border pb-2 mb-4">
+          <div className="flex flex-wrap items-baseline gap-2">
+            <h3 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100">
+              Projects
+            </h3>
+            <AbsencePills projects={ptoWidgetProjects} today={today} />
+          </div>
+        </div>
         <DashboardProjectsTable
           rows={portfolioMetrics.projectTableRows ?? []}
           basePath="/pm-dashboard"

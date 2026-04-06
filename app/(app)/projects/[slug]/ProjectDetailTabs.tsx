@@ -10,6 +10,8 @@ import {
   RevenueRecoveryPieChart,
 } from "@/components/RevenueRecoveryShared";
 import type { EditProjectInitial } from "@/app/(app)/projects/[slug]/edit/EditProjectDataContext";
+import type { DashboardPtoProjectPayload } from "@/lib/pgmPtoWidgetData";
+import AbsencePills from "@/components/AbsencePills";
 
 const ResourcingGrids = dynamic(() => import("@/components/ResourcingGrids").then((m) => ({ default: m.ResourcingGrids })), {
   loading: () => <div className="min-h-[200px] flex items-center justify-center text-surface-500 dark:text-surface-400">Loading…</div>,
@@ -93,6 +95,8 @@ export function ProjectDetailTabs({
   initialSettingsEligiblePeople,
   projectStartDateIso,
   projectEndDateIso,
+  overviewAbsenceProject,
+  overviewAbsenceTodayIso,
 }: {
   projectId: string;
   projectSlug: string;
@@ -120,6 +124,9 @@ export function ProjectDetailTabs({
   initialSettingsEligiblePeople: { id: string; name: string }[] | null;
   projectStartDateIso: string;
   projectEndDateIso: string;
+  /** Server-loaded PTO/holiday payload for the overview absence pills (rolling two weeks). */
+  overviewAbsenceProject?: DashboardPtoProjectPayload;
+  overviewAbsenceTodayIso?: string;
 }) {
   const pathname = usePathname();
   const base = pathname;
@@ -552,6 +559,12 @@ export function ProjectDetailTabs({
       )}
       {tab === "overview" && !overviewLoading && (
         <div className="space-y-6">
+          {overviewAbsenceProject && overviewAbsenceTodayIso ? (
+            <AbsencePills
+              projects={[overviewAbsenceProject]}
+              today={new Date(overviewAbsenceTodayIso)}
+            />
+          ) : null}
           <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark px-4 py-3">
             <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider mb-2">
               Key roles

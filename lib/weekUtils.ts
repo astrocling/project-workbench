@@ -199,6 +199,19 @@ export function formatWeekKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/** Monday `YYYY-MM-DD` week key for the week containing `date`. */
+export function getWeekStartKey(date: Date): string {
+  return formatWeekKey(getWeekStartDate(date));
+}
+
+/** Current week Monday and the following week Monday (`YYYY-MM-DD` keys). */
+export function getRollingTwoWeeks(today: Date): [string, string] {
+  const k1 = getWeekStartKey(today);
+  const w2 = new Date(k1 + "T00:00:00.000Z");
+  w2.setUTCDate(w2.getUTCDate() + 7);
+  return [k1, formatWeekKey(w2)];
+}
+
 /**
  * Format week start date as M/DD for compact column headers (e.g. 2/17, 12/01).
  * Uses UTC to match week boundaries.

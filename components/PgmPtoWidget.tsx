@@ -1,6 +1,6 @@
 import type { DashboardPtoProjectPayload } from "@/lib/pgmPtoWidgetData";
 import { HALF_DAY_HOURS, getInitials } from "@/lib/ptoDisplayUtils";
-import { formatWeekKey, getWeekStartDate } from "@/lib/weekUtils";
+import { getRollingTwoWeeks } from "@/lib/weekUtils";
 
 export interface PgmPtoWidgetProps {
   projects: DashboardPtoProjectPayload[];
@@ -8,19 +8,6 @@ export interface PgmPtoWidgetProps {
 }
 
 const DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
-
-/** Monday YYYY-MM-DD for the week containing `date`. */
-function getWeekStart(date: Date): string {
-  return formatWeekKey(getWeekStartDate(date));
-}
-
-/** Current week Monday and following week Monday. */
-function getRollingTwoWeeks(today: Date): [string, string] {
-  const k1 = getWeekStart(today);
-  const w2 = new Date(k1 + "T00:00:00.000Z");
-  w2.setUTCDate(w2.getUTCDate() + 7);
-  return [k1, formatWeekKey(w2)];
-}
 
 export type CombinedPill =
   | { kind: "pto"; dayLabel: string; isHalf: boolean }

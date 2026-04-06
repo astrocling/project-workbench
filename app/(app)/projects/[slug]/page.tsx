@@ -8,6 +8,7 @@ import { getAsOfDate, getAllWeeks, getWeekStartDate } from "@/lib/weekUtils";
 import { getBudgetStatusForDisplay } from "@/lib/budgetCalculations";
 import { getCachedProjectBySlugOrId } from "@/lib/projectCache";
 import { getEligibleKeyRoles } from "@/lib/eligibleKeyRoles";
+import { getProjectPtoAbsencePayload } from "@/lib/pgmPtoWidgetData";
 import { ProjectDetailTabs } from "./ProjectDetailTabs";
 import type { Metadata } from "next";
 import type { EditProjectInitial } from "@/app/(app)/projects/[slug]/edit/EditProjectDataContext";
@@ -252,6 +253,12 @@ export default async function ProjectDetailPage({
   };
   const initialSettingsEligiblePeople = await getEligibleKeyRoles();
 
+  const todayForAbsence = new Date();
+  const overviewAbsencePayload = await getProjectPtoAbsencePayload(
+    project.id,
+    todayForAbsence
+  );
+
   return (
     <div>
       <div className="mb-6">
@@ -292,6 +299,8 @@ export default async function ProjectDetailPage({
             ? dateToIso(project.endDate)
             : getWeekStartDate(new Date()).toISOString()
         }
+        overviewAbsenceProject={overviewAbsencePayload ?? undefined}
+        overviewAbsenceTodayIso={todayForAbsence.toISOString()}
       />
     </div>
   );
