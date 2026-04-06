@@ -21,6 +21,7 @@ const navItems = [
   { href: "/pm-dashboard", label: "PM Dashboard", active: true },
   { href: "/pgm-dashboard", label: "PGM Dashboard", active: true },
   { href: "/cad-dashboard", label: "CAD Dashboard", active: true },
+  { href: "/pto-holidays", label: "PTO & Holidays", active: true },
   { href: "/projects", label: "Projects", active: true },
 ] as const;
 
