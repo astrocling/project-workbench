@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DashboardPtoProjectPayload } from "@/lib/pgmPtoWidgetData";
 import { HALF_DAY_HOURS, getInitials } from "@/lib/ptoDisplayUtils";
 import {
@@ -10,6 +10,7 @@ import {
   isUtcWeekdayDate,
 } from "@/lib/weekUtils";
 import { getWeekEntries, type WeekEntryRow } from "@/components/PgmPtoWidget";
+import { PersonTextFilterCombobox } from "@/components/PersonCombobox";
 import type { CompanyPerson, CompanyPtoApiResponse } from "@/lib/companyPtoTypes";
 import type { PtoHolidayByWeek } from "@/lib/pgmPtoWidgetData";
 
@@ -400,8 +401,6 @@ export default function CompanyPtoPage() {
     monthIndex: number;
   } | null>(null);
 
-  const personSearchListId = useId();
-
   const today = useMemo(() => new Date(), []);
 
   const monthAnchors = useMemo(() => nextTwelveMonthAnchors(today), [today]);
@@ -521,23 +520,20 @@ export default function CompanyPtoPage() {
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-label-sm text-surface-600 dark:text-surface-400 min-w-[12rem] flex-1">
+        <label className="flex flex-col gap-1 text-label-sm text-surface-600 dark:text-surface-400 min-w-[12rem] flex-1 max-w-md">
           Search
-          <input
-            type="text"
-            list={personSearchListId}
+          <PersonTextFilterCombobox
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={setSearch}
+            options={peopleForSearchSuggestions.map((p) => ({
+              id: p.personId,
+              name: p.name,
+            }))}
             placeholder="Search person..."
             disabled={loading}
-            autoComplete="off"
-            className="rounded-md border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-raised px-3 py-2 text-body-sm text-surface-900 dark:text-white w-full max-w-md disabled:opacity-60"
+            aria-label="Filter by person name"
+            className="relative w-full"
           />
-          <datalist id={personSearchListId}>
-            {peopleForSearchSuggestions.map((p) => (
-              <option key={p.personId} value={p.name} />
-            ))}
-          </datalist>
         </label>
         {view === "timeline" && selectedMonth != null ? (
           <label className="flex flex-col gap-1 text-label-sm text-surface-600 dark:text-surface-400">

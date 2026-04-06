@@ -5,6 +5,10 @@ import { useState, useRef, useEffect, useMemo, useId } from "react";
 const inputClasses =
   "block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400";
 
+/** Matches filter strips that use `border-surface-200` on selects (e.g. company PTO filters). */
+const inlineFilterInputClasses =
+  "block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-200 dark:border-dark-border text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400";
+
 type Person = { id: string; name: string };
 
 function filterPeople(people: Person[], query: string): Person[] {
@@ -132,6 +136,141 @@ export function PersonCombobox({
                 key={person.id}
                 role="option"
                 aria-selected={value === person.id}
+                className={`px-3 py-2 cursor-pointer ${
+                  i === highlightIndex
+                    ? "bg-jblue-50 dark:bg-jblue-900/30 text-jblue-800 dark:text-jblue-200"
+                    : "text-surface-800 dark:text-surface-100 hover:bg-surface-100 dark:hover:bg-dark-raised"
+                }`}
+                onMouseEnter={() => setHighlightIndex(i)}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  select(person);
+                }}
+              >
+                {person.name}
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Controlled text field with the same dropdown styling as {@link PersonCombobox},
+ * for filtering lists by name substring (not selecting by stable id).
+ */
+export function PersonTextFilterCombobox({
+  value,
+  onChange,
+  options,
+  placeholder = "Type to search...",
+  disabled = false,
+  className,
+  "aria-label": ariaLabel,
+}: {
+  value: string;
+  onChange: (text: string) => void;
+  options: Person[];
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+  "aria-label"?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
+
+  const filtered = useMemo(() => filterPeople(options, value), [options, value]);
+
+  useEffect(() => {
+    setHighlightIndex(0);
+  }, [value]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  function select(person: Person) {
+    onChange(person.name);
+    setIsOpen(false);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (disabled) return;
+    if (!isOpen) {
+      if (e.key === "ArrowDown" || e.key === "Enter") {
+        setIsOpen(true);
+        e.preventDefault();
+      }
+      return;
+    }
+    if (e.key === "Escape") {
+      setIsOpen(false);
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      setHighlightIndex((i) => (i < filtered.length - 1 ? i + 1 : i));
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      setHighlightIndex((i) => (i > 0 ? i - 1 : 0));
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Enter") {
+      const person = filtered[highlightIndex];
+      if (person) {
+        select(person);
+        e.preventDefault();
+      }
+    }
+  }
+
+  return (
+    <div ref={containerRef} className={className ?? "relative"}>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setIsOpen(true);
+        }}
+        onFocus={() => !disabled && setIsOpen(true)}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        disabled={disabled}
+        aria-label={ariaLabel}
+        aria-expanded={isOpen}
+        aria-autocomplete="list"
+        aria-controls={listId}
+        className={`${inlineFilterInputClasses} w-full disabled:opacity-60 disabled:cursor-not-allowed`}
+        autoComplete="off"
+      />
+      {isOpen && !disabled && (
+        <ul
+          id={listId}
+          role="listbox"
+          className="absolute z-50 mt-1 w-full max-h-48 overflow-auto rounded-md border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface shadow-lg py-1 text-body-sm"
+        >
+          {filtered.length === 0 ? (
+            <li className="px-3 py-2 text-surface-500 dark:text-surface-400">No matches</li>
+          ) : (
+            filtered.map((person, i) => (
+              <li
+                key={person.id}
+                role="option"
+                aria-selected={false}
                 className={`px-3 py-2 cursor-pointer ${
                   i === highlightIndex
                     ? "bg-jblue-50 dark:bg-jblue-900/30 text-jblue-800 dark:text-jblue-200"
