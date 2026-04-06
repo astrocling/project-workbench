@@ -36,13 +36,17 @@ const updateSplitSchema = z.object({
   weekStartDate: z.string(),
   parts: z
     .array(updateSplitPartSchema)
-    .length(2)
+    .min(1)
+    .max(2)
     .refine(
       (parts) => {
-        const keys = new Set(parts.map((p) => p.monthKey));
-        return keys.size === 2;
+        if (parts.length === 2) {
+          const keys = new Set(parts.map((p) => p.monthKey));
+          return keys.size === 2;
+        }
+        return true;
       },
-      { message: "parts must have two distinct monthKeys" }
+      { message: "two parts must have distinct monthKeys" }
     ),
 });
 
@@ -135,64 +139,114 @@ export async function PATCH(
         );
       }
     }
-    const totalHours = parts[0].hours + parts[1].hours;
     const hasMonthSplit = "actualHoursMonthSplit" in prisma && prisma.actualHoursMonthSplit != null;
     if (hasMonthSplit) {
-      await prisma.$transaction([
-        prisma.actualHoursMonthSplit.upsert({
-          where: {
-            projectId_personId_weekStartDate_monthKey: {
+      if (parts.length === 2) {
+        const totalHours = parts[0].hours + parts[1].hours;
+        await prisma.$transaction([
+          prisma.actualHoursMonthSplit.upsert({
+            where: {
+              projectId_personId_weekStartDate_monthKey: {
+                projectId: id,
+                personId,
+                weekStartDate: weekStart,
+                monthKey: parts[0].monthKey,
+              },
+            },
+            create: {
               projectId: id,
               personId,
               weekStartDate: weekStart,
               monthKey: parts[0].monthKey,
+              hours: parts[0].hours,
             },
-          },
-          create: {
-            projectId: id,
-            personId,
-            weekStartDate: weekStart,
-            monthKey: parts[0].monthKey,
-            hours: parts[0].hours,
-          },
-          update: { hours: parts[0].hours },
-        }),
-        prisma.actualHoursMonthSplit.upsert({
-          where: {
-            projectId_personId_weekStartDate_monthKey: {
+            update: { hours: parts[0].hours },
+          }),
+          prisma.actualHoursMonthSplit.upsert({
+            where: {
+              projectId_personId_weekStartDate_monthKey: {
+                projectId: id,
+                personId,
+                weekStartDate: weekStart,
+                monthKey: parts[1].monthKey,
+              },
+            },
+            create: {
               projectId: id,
               personId,
               weekStartDate: weekStart,
               monthKey: parts[1].monthKey,
+              hours: parts[1].hours,
             },
-          },
-          create: {
-            projectId: id,
-            personId,
-            weekStartDate: weekStart,
-            monthKey: parts[1].monthKey,
-            hours: parts[1].hours,
-          },
-          update: { hours: parts[1].hours },
-        }),
-        prisma.actualHours.upsert({
-          where: {
-            projectId_personId_weekStartDate: {
+            update: { hours: parts[1].hours },
+          }),
+          prisma.actualHours.upsert({
+            where: {
+              projectId_personId_weekStartDate: {
+                projectId: id,
+                personId,
+                weekStartDate: weekStart,
+              },
+            },
+            create: {
+              projectId: id,
+              personId,
+              weekStartDate: weekStart,
+              hours: totalHours,
+            },
+            update: { hours: totalHours },
+          }),
+        ]);
+      } else {
+        await prisma.$transaction(async (tx) => {
+          const p = parts[0]!;
+          await tx.actualHoursMonthSplit.upsert({
+            where: {
+              projectId_personId_weekStartDate_monthKey: {
+                projectId: id,
+                personId,
+                weekStartDate: weekStart,
+                monthKey: p.monthKey,
+              },
+            },
+            create: {
+              projectId: id,
+              personId,
+              weekStartDate: weekStart,
+              monthKey: p.monthKey,
+              hours: p.hours,
+            },
+            update: { hours: p.hours },
+          });
+          const splits = await tx.actualHoursMonthSplit.findMany({
+            where: {
               projectId: id,
               personId,
               weekStartDate: weekStart,
             },
-          },
-          create: {
-            projectId: id,
-            personId,
-            weekStartDate: weekStart,
-            hours: totalHours,
-          },
-          update: { hours: totalHours },
-        }),
-      ]);
+          });
+          const totalHours = splits.reduce((sum, row) => sum + Number(row.hours), 0);
+          await tx.actualHours.upsert({
+            where: {
+              projectId_personId_weekStartDate: {
+                projectId: id,
+                personId,
+                weekStartDate: weekStart,
+              },
+            },
+            create: {
+              projectId: id,
+              personId,
+              weekStartDate: weekStart,
+              hours: totalHours,
+            },
+            update: { hours: totalHours },
+          });
+        });
+      }
     } else {
+      const totalHours =
+        parts.length === 2 ? parts[0].hours + parts[1].hours : parts[0]!.hours;
       await prisma.actualHours.upsert({
         where: {
           projectId_personId_weekStartDate: {
@@ -217,6 +271,10 @@ export async function PATCH(
         weekStartDate: weekStart,
       },
     });
+    revalidateTag("portfolio-metrics", "max");
+    revalidateTag("project-budget", "max");
+    revalidateTag("project-revenue", "max");
+    revalidateTag(`project-resourcing:${id}`, "max");
     return NextResponse.json(updated);
   }
 

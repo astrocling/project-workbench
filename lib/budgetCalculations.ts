@@ -4,11 +4,13 @@
  * Completed weeks: weekStartDate <= asOfDate. Never include current week in to-date.
  */
 
+import { isPastLastUtcDayOfMonthInWeek } from "./monthUtils";
 import {
   getAsOfDate,
   getCompletedWeeks,
   getFutureWeeks,
   getWeekStartDate,
+  isCompletedWeek,
   isCurrentWeek,
 } from "./weekUtils";
 
@@ -266,6 +268,48 @@ export function hasMissingActuals(
   weekStart.setHours(0, 0, 0, 0);
   if (weekStart > asOfDate) return false; // future: no actuals expected
   return plannedHours > 0 && actualHours === null;
+}
+
+/** When set, stale uses presence of ActualHoursMonthSplit rows instead of only null checks (avoids treating coerced 0 as “filled”). */
+export type HasMissingActualsSplitWeekRowFlags = {
+  hasRowFirst: boolean;
+  hasRowSecond: boolean;
+};
+
+/**
+ * Split-week actuals: stale if any month-half that is already "due" is still unfilled.
+ * Matches Resourcing Actual grid unlock rules (first month after its UTC month ends; second after week completes).
+ * Pass `rowFlags` from the client when split rows are loaded so a month with no row counts as unfilled even if the UI used to coerce the other month to 0.
+ */
+export function hasMissingActualsSplitWeek(
+  weekStartDate: Date,
+  plannedHours: number,
+  valFirstMonth: number | null,
+  valSecondMonth: number | null,
+  monthKeyFirst: string,
+  monthKeySecond: string,
+  asOf?: Date,
+  now?: Date,
+  rowFlags?: HasMissingActualsSplitWeekRowFlags
+): boolean {
+  const asOfDate = asOf ?? getAsOfDate();
+  const nowDate = now ?? new Date();
+  if (isCurrentWeek(weekStartDate, nowDate)) return false;
+  const weekStart = new Date(weekStartDate);
+  weekStart.setHours(0, 0, 0, 0);
+  if (weekStart > asOfDate) return false;
+  if (plannedHours <= 0) return false;
+
+  const firstMissing = rowFlags ? !rowFlags.hasRowFirst : valFirstMonth === null;
+  const secondMissing = rowFlags ? !rowFlags.hasRowSecond : valSecondMonth === null;
+
+  const firstHalfDue =
+    isPastLastUtcDayOfMonthInWeek(weekStartDate, monthKeyFirst, nowDate) && firstMissing;
+  const secondHalfEditable =
+    isCompletedWeek(weekStartDate, asOfDate) && !isCurrentWeek(weekStartDate, nowDate);
+  const secondHalfDue = secondHalfEditable && secondMissing;
+
+  return firstHalfDue || secondHalfDue;
 }
 
 /**

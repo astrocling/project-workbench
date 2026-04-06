@@ -13,7 +13,11 @@ import {
   isFutureWeek,
 } from "@/lib/weekUtils";
 import { getMonthKeysForWeek, isPastLastUtcDayOfMonthInWeek } from "@/lib/monthUtils";
-import { hasPlanningMismatch, hasMissingActuals } from "@/lib/budgetCalculations";
+import {
+  hasPlanningMismatch,
+  hasMissingActuals,
+  hasMissingActualsSplitWeek,
+} from "@/lib/budgetCalculations";
 import { Toggle } from "@/components/Toggle";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -385,10 +389,12 @@ export function ResourcingGrids({
     return split != null ? split.hours : null;
   };
 
-  /** Split-month week: pass to hasMissingActuals — null only when neither month has data (0 entered is valid actuals). */
-  const splitWeekActualForMissing = (val1: number | null, val2: number | null): number | null => {
-    if (val1 == null && val2 == null) return null;
-    return (val1 ?? 0) + (val2 ?? 0);
+  /** True if an ActualHoursMonthSplit row exists for this person/week/month (used for stale; avoids treating coerced 0 as entered). */
+  const hasMonthSplitRow = (personId: string, weekKey: string, monthKey: string) => {
+    const norm = (d: string) => (d.includes("T") ? d.slice(0, 10) : d);
+    return actualMonthSplits.some(
+      (s) => s.personId === personId && norm(s.weekStartDate) === weekKey && s.monthKey === monthKey
+    );
   };
 
   const getActual = (personId: string, weekKey: string): number | null => {
@@ -599,7 +605,7 @@ export function ResourcingGrids({
     weekKey: string,
     parts: { monthKey: string; hours: number }[]
   ) {
-    if (!canEdit || parts.length !== 2) return;
+    if (!canEdit || parts.length < 1 || parts.length > 2) return;
     const res = await fetch(`/api/projects/${projectId}/actual-hours`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -611,22 +617,47 @@ export function ResourcingGrids({
     });
     if (!res.ok) return;
     onActualsUpdated?.();
-    const total = parts[0].hours + parts[1].hours;
+    const data = (await res.json()) as { hours?: unknown } | null;
+    const totalFromApi =
+      data != null && data.hours != null && !Number.isNaN(Number(data.hours))
+        ? Number(data.hours)
+        : parts.reduce((s, p) => s + p.hours, 0);
     setActual((prev) => {
       const rest = prev.filter(
         (a) => !(a.personId === personId && (a.weekStartDate.startsWith(weekKey) || (a.weekStartDate.includes("T") ? a.weekStartDate.slice(0, 10) : a.weekStartDate) === weekKey))
       );
-      return [...rest, { projectId, personId, weekStartDate: weekKey, hours: total }];
+      return [...rest, { projectId, personId, weekStartDate: weekKey, hours: totalFromApi }];
     });
+    const normWeek = (d: string) => (d.includes("T") ? d.slice(0, 10) : d);
     setActualMonthSplits((prev) => {
-      const rest = prev.filter(
-        (s) => !(s.personId === personId && ((s.weekStartDate as string).slice?.(0, 10) ?? s.weekStartDate) === weekKey)
+      const prevForWeek = prev.filter(
+        (s) => s.personId === personId && normWeek(String(s.weekStartDate)) === weekKey
       );
-      return [
+      const rest = prev.filter(
+        (s) => !(s.personId === personId && normWeek(String(s.weekStartDate)) === weekKey)
+      );
+      if (parts.length === 2) {
+        return [
+          ...rest,
+          { projectId, personId, weekStartDate: weekKey, monthKey: parts[0].monthKey, hours: parts[0].hours },
+          { projectId, personId, weekStartDate: weekKey, monthKey: parts[1].monthKey, hours: parts[1].hours },
+        ];
+      }
+      const other = prevForWeek.find((s) => s.monthKey !== parts[0]!.monthKey);
+      const next: ActualMonthSplitRow[] = [
         ...rest,
-        { projectId, personId, weekStartDate: weekKey, monthKey: parts[0].monthKey, hours: parts[0].hours },
-        { projectId, personId, weekStartDate: weekKey, monthKey: parts[1].monthKey, hours: parts[1].hours },
+        {
+          projectId,
+          personId,
+          weekStartDate: weekKey,
+          monthKey: parts[0]!.monthKey,
+          hours: parts[0]!.hours,
+        },
       ];
+      if (other) {
+        next.push(other);
+      }
+      return next;
     });
   }
 
@@ -972,8 +1003,20 @@ export function ResourcingGrids({
     const val2 = getActualByMonth(personId, weekKey, monthKeys[1]!);
     const weekTotal = (val1 ?? 0) + (val2 ?? 0);
     const plannedVal = getPlanned(personId, weekKey);
-    const actualForMissing = splitWeekActualForMissing(val1, val2);
-    const missing = hasMissingActuals(weekDate, plannedVal, actualForMissing, asOf);
+    const missing = hasMissingActualsSplitWeek(
+      weekDate,
+      plannedVal,
+      val1,
+      val2,
+      monthKeys[0]!,
+      monthKeys[1]!,
+      asOf,
+      undefined,
+      {
+        hasRowFirst: hasMonthSplitRow(personId, weekKey, monthKeys[0]!),
+        hasRowSecond: hasMonthSplitRow(personId, weekKey, monthKeys[1]!),
+      }
+    );
     const lowThresh = project.actualsLowThresholdPercent ?? 10;
     const highThresh = project.actualsHighThresholdPercent ?? 5;
     const varianceClass =
@@ -1052,8 +1095,20 @@ export function ResourcingGrids({
     const val2 = getActualByMonth(personId, weekKey, monthKeys[1]!);
     const weekTotal = (val1 ?? 0) + (val2 ?? 0);
     const plannedVal = getPlanned(personId, weekKey);
-    const actualForMissing = splitWeekActualForMissing(val1, val2);
-    const missing = hasMissingActuals(weekDate, plannedVal, actualForMissing, asOf);
+    const missing = hasMissingActualsSplitWeek(
+      weekDate,
+      plannedVal,
+      val1,
+      val2,
+      monthKeys[0]!,
+      monthKeys[1]!,
+      asOf,
+      undefined,
+      {
+        hasRowFirst: hasMonthSplitRow(personId, weekKey, monthKeys[0]!),
+        hasRowSecond: hasMonthSplitRow(personId, weekKey, monthKeys[1]!),
+      }
+    );
     const lowThresh = project.actualsLowThresholdPercent ?? 10;
     const highThresh = project.actualsHighThresholdPercent ?? 5;
     const varianceClass =
@@ -1074,22 +1129,30 @@ export function ResourcingGrids({
       const str = e.target.value.trim();
       const num = str === "" ? 0 : parseFloat(str);
       const h1 = Number.isNaN(num) ? 0 : Math.max(0, num);
-      const h2 = val2 ?? 0;
-      updateActualSplit(personId, weekKey, [
-        { monthKey: monthKeys[0]!, hours: roundToQuarter(h1) },
-        { monthKey: monthKeys[1]!, hours: roundToQuarter(h2) },
-      ]);
+      const q1 = roundToQuarter(h1);
+      if (val2 == null) {
+        void updateActualSplit(personId, weekKey, [{ monthKey: monthKeys[0]!, hours: q1 }]);
+      } else {
+        void updateActualSplit(personId, weekKey, [
+          { monthKey: monthKeys[0]!, hours: q1 },
+          { monthKey: monthKeys[1]!, hours: roundToQuarter(val2) },
+        ]);
+      }
       setEditingActual(null);
     };
     const handleBlur2 = (e: React.FocusEvent<HTMLInputElement>) => {
       const str = e.target.value.trim();
       const num = str === "" ? 0 : parseFloat(str);
       const h2 = Number.isNaN(num) ? 0 : Math.max(0, num);
-      const h1 = val1 ?? 0;
-      updateActualSplit(personId, weekKey, [
-        { monthKey: monthKeys[0]!, hours: roundToQuarter(h1) },
-        { monthKey: monthKeys[1]!, hours: roundToQuarter(h2) },
-      ]);
+      const q2 = roundToQuarter(h2);
+      if (val1 == null) {
+        void updateActualSplit(personId, weekKey, [{ monthKey: monthKeys[1]!, hours: q2 }]);
+      } else {
+        void updateActualSplit(personId, weekKey, [
+          { monthKey: monthKeys[0]!, hours: roundToQuarter(val1) },
+          { monthKey: monthKeys[1]!, hours: q2 },
+        ]);
+      }
       setEditingActual(null);
     };
     return (

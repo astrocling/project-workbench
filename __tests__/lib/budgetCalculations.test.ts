@@ -4,6 +4,7 @@ import {
   weeklyUtilization,
   hasPlanningMismatch,
   hasMissingActuals,
+  hasMissingActualsSplitWeek,
 } from "@/lib/budgetCalculations";
 
 describe("computeBudgetRollups", () => {
@@ -228,5 +229,137 @@ describe("hasMissingActuals", () => {
   it("returns false when planned=0", () => {
     const completedWeek = new Date("2025-02-10");
     expect(hasMissingActuals(completedWeek, 0, null, asOf, now)).toBe(false);
+  });
+});
+
+/** Mon 2026-03-30 – Sun 2026-04-05 (keys 2026-03 / 2026-04) */
+const SPLIT_WEEK_2026 = new Date("2026-03-30T00:00:00.000Z");
+
+describe("hasMissingActualsSplitWeek", () => {
+  const asOfCompleted = new Date("2026-04-12T23:59:59.000Z");
+  const nowAfterWeek = new Date("2026-04-14T12:00:00.000Z");
+
+  it("returns true when first month filled but second month null after week completes", () => {
+    expect(
+      hasMissingActualsSplitWeek(
+        SPLIT_WEEK_2026,
+        40,
+        20,
+        null,
+        "2026-03",
+        "2026-04",
+        asOfCompleted,
+        nowAfterWeek
+      )
+    ).toBe(true);
+  });
+
+  it("returns false when both month halves have values", () => {
+    expect(
+      hasMissingActualsSplitWeek(
+        SPLIT_WEEK_2026,
+        40,
+        20,
+        20,
+        "2026-03",
+        "2026-04",
+        asOfCompleted,
+        nowAfterWeek
+      )
+    ).toBe(false);
+  });
+
+  it("returns true when both halves null and week is completed", () => {
+    expect(
+      hasMissingActualsSplitWeek(
+        SPLIT_WEEK_2026,
+        40,
+        null,
+        null,
+        "2026-03",
+        "2026-04",
+        asOfCompleted,
+        nowAfterWeek
+      )
+    ).toBe(true);
+  });
+
+  it("returns false during the current in-progress week even when halves are null", () => {
+    const nowInSplitWeek = new Date("2026-04-02T12:00:00.000Z");
+    expect(
+      hasMissingActualsSplitWeek(
+        SPLIT_WEEK_2026,
+        40,
+        null,
+        null,
+        "2026-03",
+        "2026-04",
+        asOfCompleted,
+        nowInSplitWeek
+      )
+    ).toBe(false);
+  });
+
+  it("returns false for a future week", () => {
+    const asOfBeforeWeek = new Date("2026-03-22T23:59:59.000Z");
+    expect(
+      hasMissingActualsSplitWeek(
+        SPLIT_WEEK_2026,
+        40,
+        null,
+        null,
+        "2026-03",
+        "2026-04",
+        asOfBeforeWeek,
+        nowAfterWeek
+      )
+    ).toBe(false);
+  });
+
+  it("returns false when planned hours are zero", () => {
+    expect(
+      hasMissingActualsSplitWeek(
+        SPLIT_WEEK_2026,
+        0,
+        null,
+        null,
+        "2026-03",
+        "2026-04",
+        asOfCompleted,
+        nowAfterWeek
+      )
+    ).toBe(false);
+  });
+
+  it("uses rowFlags: second half stale when no row for month 2 even if val2 is 0 (legacy coerce)", () => {
+    expect(
+      hasMissingActualsSplitWeek(
+        SPLIT_WEEK_2026,
+        40,
+        20,
+        0,
+        "2026-03",
+        "2026-04",
+        asOfCompleted,
+        nowAfterWeek,
+        { hasRowFirst: true, hasRowSecond: false }
+      )
+    ).toBe(true);
+  });
+
+  it("uses rowFlags: not stale when both month rows exist including 0 in second month", () => {
+    expect(
+      hasMissingActualsSplitWeek(
+        SPLIT_WEEK_2026,
+        40,
+        20,
+        0,
+        "2026-03",
+        "2026-04",
+        asOfCompleted,
+        nowAfterWeek,
+        { hasRowFirst: true, hasRowSecond: true }
+      )
+    ).toBe(false);
   });
 });
