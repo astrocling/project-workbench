@@ -24,6 +24,7 @@
     "@prisma/client": "^7.4.1",
     "@react-pdf/renderer": "^4.3.2",
     "@tanstack/react-table": "^8.21.3",
+    "@trigger.dev/sdk": "^4.4.3",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.36.2",
     "@vercel/analytics": "^1.6.1",
