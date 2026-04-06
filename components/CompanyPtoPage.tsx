@@ -185,6 +185,52 @@ function uniquePeopleWithAbsenceInMonth(
   return ids;
 }
 
+/** Unique people with any PTO day in the calendar month (filtered by allowedIds). */
+function uniquePeopleWithPtoInMonth(
+  pto: PtoHolidayByWeek,
+  year: number,
+  monthIndex: number,
+  allowedIds: Set<string>
+): Set<string> {
+  const ids = new Set<string>();
+  for (const list of Object.values(pto)) {
+    for (const e of list) {
+      if (e.type !== "PTO") continue;
+      if (!allowedIds.has(e.personId)) continue;
+      if (!dateInCalendarMonth(e.date, year, monthIndex)) continue;
+      ids.add(e.personId);
+    }
+  }
+  return ids;
+}
+
+/**
+ * Unique people with a regional holiday in the calendar month; holiday row's
+ * `floatRegionId` must match the person's `floatRegionId` (including both null).
+ */
+function uniquePeopleWithHolidayInMonth(
+  pto: PtoHolidayByWeek,
+  year: number,
+  monthIndex: number,
+  allowedIds: Set<string>,
+  personFloatRegionById: Map<string, number | null>
+): Set<string> {
+  const ids = new Set<string>();
+  for (const list of Object.values(pto)) {
+    for (const e of list) {
+      if (e.type !== "HOLIDAY") continue;
+      if (!allowedIds.has(e.personId)) continue;
+      if (!dateInCalendarMonth(e.date, year, monthIndex)) continue;
+      if (!isUtcWeekdayDate(new Date(e.date + "T12:00:00.000Z"))) continue;
+      const pr = personFloatRegionById.get(e.personId) ?? null;
+      const hr = e.floatRegionId ?? null;
+      if (pr !== hr) continue;
+      ids.add(e.personId);
+    }
+  }
+  return ids;
+}
+
 function weeklyOutCountsForMonth(
   pto: PtoHolidayByWeek,
   weekKeys: string[],
@@ -449,6 +495,14 @@ export default function CompanyPtoPage() {
     [filteredPeople]
   );
 
+  const personFloatRegionById = useMemo(() => {
+    const m = new Map<string, number | null>();
+    for (const p of filteredPeople) {
+      m.set(p.personId, p.floatRegionId ?? null);
+    }
+    return m;
+  }, [filteredPeople]);
+
   const filteredPto = useMemo(
     () => filterPtoByPeople(allPto, filteredIds),
     [allPto, filteredIds]
@@ -577,6 +631,22 @@ export default function CompanyPtoPage() {
               filteredIds
             );
             const n = outIds.size;
+            const ptoIds = uniquePeopleWithPtoInMonth(
+              filteredPto,
+              year,
+              monthIndex,
+              filteredIds
+            );
+            const holidayIds = uniquePeopleWithHolidayInMonth(
+              filteredPto,
+              year,
+              monthIndex,
+              filteredIds,
+              personFloatRegionById
+            );
+            const ptoCount = ptoIds.size;
+            const holidayCount = holidayIds.size;
+            const countsBothZero = ptoCount === 0 && holidayCount === 0;
             const weeklyCounts = weeklyOutCountsForMonth(
               filteredPto,
               weekKeys,
@@ -594,6 +664,10 @@ export default function CompanyPtoPage() {
             });
             const show = previewIds.slice(0, 6);
             const overflow = previewIds.length - show.length;
+            const monthNameOnly = new Date(Date.UTC(year, monthIndex, 1)).toLocaleDateString(
+              "en-US",
+              { month: "long", timeZone: "UTC" }
+            );
 
             return (
               <button
@@ -619,24 +693,25 @@ export default function CompanyPtoPage() {
                   >
                     {monthLabel(year, monthIndex)}
                   </span>
-                  <span
-                    className={`text-[11px] shrink-0 ${
-                      n === 0
-                        ? "text-surface-500 dark:text-surface-500"
-                        : "text-surface-500 dark:text-surface-400"
-                    }`}
-                  >
-                    {n} out
-                  </span>
+                  {countsBothZero ? (
+                    <span className="text-[11px] shrink-0 text-surface-500 dark:text-surface-500">
+                      No absences
+                    </span>
+                  ) : (
+                    <div className="flex flex-col items-end gap-0.5 text-[11px] shrink-0 text-surface-500 dark:text-surface-400">
+                      <span>{ptoCount} on PTO</span>
+                      <span>{holidayCount} holidays</span>
+                    </div>
+                  )}
                 </div>
                 <MonthSparkline countsFour={sparkFour} peakWeekCount={peakWeekCount} />
-                <div className="mt-3 flex flex-wrap items-center gap-1 min-h-[28px]">
+                <div className="mt-3 min-h-[28px]">
                   {n === 0 ? (
                     <span className="text-[12px] text-surface-500 dark:text-surface-500">
                       No absences
                     </span>
                   ) : (
-                    <>
+                    <div className="group/month-avatar-tip relative flex flex-wrap items-center gap-1">
                       {show.map((pid) => {
                         const person = allPeople.find((p) => p.personId === pid);
                         const kind = personPreviewKindForMonth(
@@ -654,7 +729,6 @@ export default function CompanyPtoPage() {
                                 ? "bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-100 border-amber-300 dark:border-amber-600"
                                 : "bg-jblue-50 dark:bg-jblue-950/50 text-jblue-900 dark:text-jblue-100 border-jblue-200 dark:border-jblue-700"
                             }`}
-                            title={person?.name}
                           >
                             {person ? getInitials(person.name) : "?"}
                           </div>
@@ -665,7 +739,87 @@ export default function CompanyPtoPage() {
                           +{overflow}
                         </div>
                       ) : null}
-                    </>
+                      <div
+                        className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 hidden w-max max-w-[min(18rem,calc(100vw-2rem))] -translate-x-1/2 rounded border border-surface-200 bg-white px-2.5 py-2 text-left shadow-md group-hover/month-avatar-tip:block dark:border-dark-border dark:bg-dark-surface"
+                        role="tooltip"
+                      >
+                        <div className="text-xs font-medium text-surface-900 dark:text-white">
+                          {n} {n === 1 ? "person" : "people"} out in {monthNameOnly}
+                        </div>
+                        {ptoIds.size > 0 || holidayIds.size > 0 ? (
+                          <>
+                            <div
+                              className="my-2 border-t border-surface-200 dark:border-dark-border"
+                              aria-hidden
+                            />
+                            {ptoIds.size > 0 ? (
+                              <div className="mb-2 last:mb-0">
+                                <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-surface-500 dark:text-surface-400">
+                                  <span
+                                    className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500 dark:bg-amber-500/90"
+                                    aria-hidden
+                                  />
+                                  On PTO
+                                </div>
+                                <ul className="space-y-0.5">
+                                  {[...ptoIds]
+                                    .map((id) => ({
+                                      id,
+                                      name:
+                                        allPeople.find((p) => p.personId === id)?.name ?? id,
+                                    }))
+                                    .sort((a, b) =>
+                                      a.name.localeCompare(b.name, undefined, {
+                                        sensitivity: "base",
+                                      })
+                                    )
+                                    .map(({ id, name }) => (
+                                      <li
+                                        key={`pto-${id}`}
+                                        className="text-[12px] text-surface-900 dark:text-white"
+                                      >
+                                        {name}
+                                      </li>
+                                    ))}
+                                </ul>
+                              </div>
+                            ) : null}
+                            {holidayIds.size > 0 ? (
+                              <div>
+                                <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-surface-500 dark:text-surface-400">
+                                  <span
+                                    className="h-1.5 w-1.5 shrink-0 rounded-full bg-jblue-500 dark:bg-jblue-400"
+                                    aria-hidden
+                                  />
+                                  Holidays
+                                </div>
+                                <ul className="space-y-0.5">
+                                  {[...holidayIds]
+                                    .map((id) => ({
+                                      id,
+                                      name:
+                                        allPeople.find((p) => p.personId === id)?.name ?? id,
+                                    }))
+                                    .sort((a, b) =>
+                                      a.name.localeCompare(b.name, undefined, {
+                                        sensitivity: "base",
+                                      })
+                                    )
+                                    .map(({ id, name }) => (
+                                      <li
+                                        key={`hol-${id}`}
+                                        className="text-[12px] text-surface-900 dark:text-white"
+                                      >
+                                        {name}
+                                      </li>
+                                    ))}
+                                </ul>
+                              </div>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
                   )}
                 </div>
               </button>
