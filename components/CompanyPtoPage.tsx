@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { DashboardPtoProjectPayload } from "@/lib/pgmPtoWidgetData";
 import { HALF_DAY_HOURS, getInitials } from "@/lib/ptoDisplayUtils";
 import {
@@ -400,6 +400,8 @@ export default function CompanyPtoPage() {
     monthIndex: number;
   } | null>(null);
 
+  const personSearchListId = useId();
+
   const today = useMemo(() => new Date(), []);
 
   const monthAnchors = useMemo(() => nextTwelveMonthAnchors(today), [today]);
@@ -417,6 +419,18 @@ export default function CompanyPtoPage() {
     for (const p of allPeople) roles.add(p.role);
     return [...roles].sort((a, b) => a.localeCompare(b));
   }, [allPeople]);
+
+  /** People matching region/role (for search datalist autocomplete). */
+  const peopleForSearchSuggestions = useMemo(() => {
+    return allPeople.filter((p) => {
+      if (region !== "all") {
+        const rn = p.floatRegionName ?? "";
+        if (rn !== region) return false;
+      }
+      if (role !== "all" && p.role !== role) return false;
+      return true;
+    });
+  }, [allPeople, region, role]);
 
   const filteredPeople = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -510,13 +524,20 @@ export default function CompanyPtoPage() {
         <label className="flex flex-col gap-1 text-label-sm text-surface-600 dark:text-surface-400 min-w-[12rem] flex-1">
           Search
           <input
-            type="search"
+            type="text"
+            list={personSearchListId}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search person..."
             disabled={loading}
+            autoComplete="off"
             className="rounded-md border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-raised px-3 py-2 text-body-sm text-surface-900 dark:text-white w-full max-w-md disabled:opacity-60"
           />
+          <datalist id={personSearchListId}>
+            {peopleForSearchSuggestions.map((p) => (
+              <option key={p.personId} value={p.name} />
+            ))}
+          </datalist>
         </label>
         {view === "timeline" && selectedMonth != null ? (
           <label className="flex flex-col gap-1 text-label-sm text-surface-600 dark:text-surface-400">
