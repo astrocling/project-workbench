@@ -86,6 +86,7 @@ Workbench weeks run **Monday–Sunday**. When a week crosses from one calendar m
 - **Why**: Monthly CDA reporting and dashboards need hours attributed to the correct calendar month even when a single week spans two months.
 - **Planned / Float**: Those grids still show one value per week (unchanged). Only **Actual** uses the split when the week spans two months.
 - **When you can edit**: Uses **UTC** calendar dates. The **first** month in the split becomes editable once that calendar month has ended (for example, after 31 December you can enter December’s share of a December–January week, even while that week is still in progress). The **second** month follows the same rule as other Actual cells: you can enter it after the week is **completed** (not the current week). Expand the cell (split icon) to see both inputs.
+- **Clearing a month-half**: If you **clear** one of the inputs (leave it empty and move focus away), that month’s entry is **removed**—it is not saved as **0** hours. Use **0** only when you intentionally mean zero hours for that month. The week’s rolled-up total updates from whatever month parts remain.
 - **Collapsing**: When both month parts are filled, you may see a single total for the week with an option to expand and edit the two parts again (depending on layout state).
 
 ---

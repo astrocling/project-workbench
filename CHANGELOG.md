@@ -16,10 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Float — API sync replaces CSV upload**: Scheduled hours are loaded from the Float API (**Admin → Float sync**, `GET`/`POST` `/api/admin/float-sync`). CSV upload and `papaparse` were removed. Documentation (README, User Guide, Technical Reference) and integration tests were updated; `__tests__/api/admin/float-sync.test.ts` mocks Float HTTP and runs `executeFloatApiSync` against the database, while `float-import-cleanup.test.ts` still validates `applyFloatImportDatabaseEffects` behavior.
+- **App shell — sidebar**: Authenticated app routes use **`AppShell`** (`components/AppShell.tsx`) for the shared sidebar + main header layout (refactored from `app/(app)/layout.tsx`). The **top of the sidebar** greets the signed-in user with **Hi &lt;First name&gt;** (derived from session **name**, or from the **email** local-part before `@`), instead of the static title “Project Workbench”. **Sidebar nav icons (Lucide)**: **PGM Dashboard** — `Network`; **CAD Dashboard** — `Users`; **PTO & Holidays** — `CalendarOff` (`components/AppSidebar.tsx`).
 
 ### Fixed
 
 - **Split-week actuals — Resourcing vs rolled-up totals** — `hasMissingActualsSplitWeek` (`lib/budgetCalculations.ts`) aligns amber “missing” styling on split **Actual** cells with per-month unlock rules; **`PATCH /api/projects/[id]/actual-hours`** keeps **`ActualHours`** totals aligned with **`ActualHoursMonthSplit`** when split parts are saved. Reduces false “missing” highlights when only one month-half of a split week is due.
+- **Split-month Resourcing Actual cells — clear vs zero**: Clearing a month-half field (empty input on blur) **deletes** that **`ActualHoursMonthSplit`** row by sending `hours: null` in the `parts` payload, instead of saving **0** hours—so “no entry” stays distinct from “worked zero hours”. **`PATCH /api/projects/[id]/actual-hours`** recomputes the weekly **`ActualHours`** total from remaining split rows (or clears it when no splits remain). **`ResourcingGrids.tsx`** maps empty blur to `null` and merges local split state accordingly.
 
 ## [0.3.0] - 2026-04-01
 
