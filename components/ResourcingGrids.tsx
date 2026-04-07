@@ -603,7 +603,7 @@ export function ResourcingGrids({
   async function updateActualSplit(
     personId: string,
     weekKey: string,
-    parts: { monthKey: string; hours: number }[]
+    parts: { monthKey: string; hours: number | null }[]
   ) {
     if (!canEdit || parts.length < 1 || parts.length > 2) return;
     const res = await fetch(`/api/projects/${projectId}/actual-hours`, {
@@ -612,20 +612,31 @@ export function ResourcingGrids({
       body: JSON.stringify({
         personId,
         weekStartDate: weekKey,
-        parts: parts.map((p) => ({ monthKey: p.monthKey, hours: roundToQuarter(p.hours) })),
+        parts: parts.map((p) => ({
+          monthKey: p.monthKey,
+          hours: p.hours === null ? null : roundToQuarter(p.hours),
+        })),
       }),
     });
     if (!res.ok) return;
     onActualsUpdated?.();
     const data = (await res.json()) as { hours?: unknown } | null;
-    const totalFromApi =
-      data != null && data.hours != null && !Number.isNaN(Number(data.hours))
-        ? Number(data.hours)
-        : parts.reduce((s, p) => s + p.hours, 0);
+    const numericParts = parts.filter((p): p is { monthKey: string; hours: number } => p.hours !== null);
+    const totalFromFallback =
+      numericParts.length === 0 ? null : numericParts.reduce((s, p) => s + p.hours, 0);
+    let totalFromApi: number | null;
+    if (data != null && "hours" in data && data.hours === null) {
+      totalFromApi = null;
+    } else if (data != null && data.hours != null && !Number.isNaN(Number(data.hours))) {
+      totalFromApi = Number(data.hours);
+    } else {
+      totalFromApi = totalFromFallback;
+    }
     setActual((prev) => {
       const rest = prev.filter(
         (a) => !(a.personId === personId && (a.weekStartDate.startsWith(weekKey) || (a.weekStartDate.includes("T") ? a.weekStartDate.slice(0, 10) : a.weekStartDate) === weekKey))
       );
+      if (totalFromApi === null) return rest;
       return [...rest, { projectId, personId, weekStartDate: weekKey, hours: totalFromApi }];
     });
     const normWeek = (d: string) => (d.includes("T") ? d.slice(0, 10) : d);
@@ -636,28 +647,21 @@ export function ResourcingGrids({
       const rest = prev.filter(
         (s) => !(s.personId === personId && normWeek(String(s.weekStartDate)) === weekKey)
       );
-      if (parts.length === 2) {
-        return [
-          ...rest,
-          { projectId, personId, weekStartDate: weekKey, monthKey: parts[0].monthKey, hours: parts[0].hours },
-          { projectId, personId, weekStartDate: weekKey, monthKey: parts[1].monthKey, hours: parts[1].hours },
-        ];
+      const byMonth = new Map(prevForWeek.map((s) => [s.monthKey, s] as const));
+      for (const p of parts) {
+        if (p.hours === null) {
+          byMonth.delete(p.monthKey);
+        } else {
+          byMonth.set(p.monthKey, {
+            projectId,
+            personId,
+            weekStartDate: weekKey,
+            monthKey: p.monthKey,
+            hours: roundToQuarter(p.hours),
+          });
+        }
       }
-      const other = prevForWeek.find((s) => s.monthKey !== parts[0]!.monthKey);
-      const next: ActualMonthSplitRow[] = [
-        ...rest,
-        {
-          projectId,
-          personId,
-          weekStartDate: weekKey,
-          monthKey: parts[0]!.monthKey,
-          hours: parts[0]!.hours,
-        },
-      ];
-      if (other) {
-        next.push(other);
-      }
-      return next;
+      return [...rest, ...Array.from(byMonth.values())];
     });
   }
 
@@ -1127,9 +1131,14 @@ export function ResourcingGrids({
     const display2 = isEditing2 ? editingActual!.str : (val2 != null ? String(val2) : "");
     const handleBlur1 = (e: React.FocusEvent<HTMLInputElement>) => {
       const str = e.target.value.trim();
-      const num = str === "" ? 0 : parseFloat(str);
-      const h1 = Number.isNaN(num) ? 0 : Math.max(0, num);
-      const q1 = roundToQuarter(h1);
+      const q1: number | null =
+        str === ""
+          ? null
+          : (() => {
+              const num = parseFloat(str);
+              const h1 = Number.isNaN(num) ? 0 : Math.max(0, num);
+              return roundToQuarter(h1);
+            })();
       if (val2 == null) {
         void updateActualSplit(personId, weekKey, [{ monthKey: monthKeys[0]!, hours: q1 }]);
       } else {
@@ -1142,9 +1151,14 @@ export function ResourcingGrids({
     };
     const handleBlur2 = (e: React.FocusEvent<HTMLInputElement>) => {
       const str = e.target.value.trim();
-      const num = str === "" ? 0 : parseFloat(str);
-      const h2 = Number.isNaN(num) ? 0 : Math.max(0, num);
-      const q2 = roundToQuarter(h2);
+      const q2: number | null =
+        str === ""
+          ? null
+          : (() => {
+              const num = parseFloat(str);
+              const h2 = Number.isNaN(num) ? 0 : Math.max(0, num);
+              return roundToQuarter(h2);
+            })();
       if (val1 == null) {
         void updateActualSplit(personId, weekKey, [{ monthKey: monthKeys[1]!, hours: q2 }]);
       } else {

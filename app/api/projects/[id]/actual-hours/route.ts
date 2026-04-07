@@ -26,9 +26,13 @@ const updateSchema = z.object({
 
 const updateSplitPartSchema = z.object({
   monthKey: z.string(),
-  hours: z.number().min(0).refine(isQuarterIncrement, {
-    message: "Hours must be in 0.25 increments",
-  }),
+  /** null = clear this month (delete split row; distinct from 0 hours). */
+  hours: z.union([
+    z.number().min(0).refine(isQuarterIncrement, {
+      message: "Hours must be in 0.25 increments",
+    }),
+    z.null(),
+  ]),
 });
 
 const updateSplitSchema = z.object({
@@ -141,112 +145,76 @@ export async function PATCH(
     }
     const hasMonthSplit = "actualHoursMonthSplit" in prisma && prisma.actualHoursMonthSplit != null;
     if (hasMonthSplit) {
-      if (parts.length === 2) {
-        const totalHours = parts[0].hours + parts[1].hours;
-        await prisma.$transaction([
-          prisma.actualHoursMonthSplit.upsert({
-            where: {
-              projectId_personId_weekStartDate_monthKey: {
-                projectId: id,
-                personId,
-                weekStartDate: weekStart,
-                monthKey: parts[0].monthKey,
-              },
-            },
-            create: {
-              projectId: id,
-              personId,
-              weekStartDate: weekStart,
-              monthKey: parts[0].monthKey,
-              hours: parts[0].hours,
-            },
-            update: { hours: parts[0].hours },
-          }),
-          prisma.actualHoursMonthSplit.upsert({
-            where: {
-              projectId_personId_weekStartDate_monthKey: {
-                projectId: id,
-                personId,
-                weekStartDate: weekStart,
-                monthKey: parts[1].monthKey,
-              },
-            },
-            create: {
-              projectId: id,
-              personId,
-              weekStartDate: weekStart,
-              monthKey: parts[1].monthKey,
-              hours: parts[1].hours,
-            },
-            update: { hours: parts[1].hours },
-          }),
-          prisma.actualHours.upsert({
-            where: {
-              projectId_personId_weekStartDate: {
-                projectId: id,
-                personId,
-                weekStartDate: weekStart,
-              },
-            },
-            create: {
-              projectId: id,
-              personId,
-              weekStartDate: weekStart,
-              hours: totalHours,
-            },
-            update: { hours: totalHours },
-          }),
-        ]);
-      } else {
-        await prisma.$transaction(async (tx) => {
-          const p = parts[0]!;
-          await tx.actualHoursMonthSplit.upsert({
-            where: {
-              projectId_personId_weekStartDate_monthKey: {
+      await prisma.$transaction(async (tx) => {
+        for (const p of parts) {
+          if (p.hours === null) {
+            await tx.actualHoursMonthSplit.deleteMany({
+              where: {
                 projectId: id,
                 personId,
                 weekStartDate: weekStart,
                 monthKey: p.monthKey,
               },
-            },
-            create: {
-              projectId: id,
-              personId,
-              weekStartDate: weekStart,
-              monthKey: p.monthKey,
-              hours: p.hours,
-            },
-            update: { hours: p.hours },
-          });
-          const splits = await tx.actualHoursMonthSplit.findMany({
-            where: {
-              projectId: id,
-              personId,
-              weekStartDate: weekStart,
-            },
-          });
-          const totalHours = splits.reduce((sum, row) => sum + Number(row.hours), 0);
-          await tx.actualHours.upsert({
-            where: {
-              projectId_personId_weekStartDate: {
+            });
+          } else {
+            await tx.actualHoursMonthSplit.upsert({
+              where: {
+                projectId_personId_weekStartDate_monthKey: {
+                  projectId: id,
+                  personId,
+                  weekStartDate: weekStart,
+                  monthKey: p.monthKey,
+                },
+              },
+              create: {
                 projectId: id,
                 personId,
                 weekStartDate: weekStart,
+                monthKey: p.monthKey,
+                hours: p.hours,
               },
-            },
-            create: {
+              update: { hours: p.hours },
+            });
+          }
+        }
+        const splits = await tx.actualHoursMonthSplit.findMany({
+          where: {
+            projectId: id,
+            personId,
+            weekStartDate: weekStart,
+          },
+        });
+        const totalHours =
+          splits.length === 0
+            ? null
+            : splits.reduce((sum, row) => sum + Number(row.hours), 0);
+        await tx.actualHours.upsert({
+          where: {
+            projectId_personId_weekStartDate: {
               projectId: id,
               personId,
               weekStartDate: weekStart,
-              hours: totalHours,
             },
-            update: { hours: totalHours },
-          });
+          },
+          create: {
+            projectId: id,
+            personId,
+            weekStartDate: weekStart,
+            hours: totalHours,
+          },
+          update: { hours: totalHours },
         });
-      }
+      });
     } else {
+      const numericParts = parts.filter(
+        (p): p is { monthKey: string; hours: number } => p.hours !== null
+      );
       const totalHours =
-        parts.length === 2 ? parts[0].hours + parts[1].hours : parts[0]!.hours;
+        numericParts.length === 0
+          ? null
+          : numericParts.length === 2
+            ? numericParts[0]!.hours + numericParts[1]!.hours
+            : numericParts[0]!.hours;
       await prisma.actualHours.upsert({
         where: {
           projectId_personId_weekStartDate: {
