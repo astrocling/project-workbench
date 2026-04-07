@@ -5,7 +5,7 @@
  * - `User-Agent`: app name + contact (use `FLOAT_API_USER_AGENT_EMAIL` for the email part)
  * - List endpoints: `page` (1-based), `per-page` (max 200); see {@link listAllPages}
  *
- * Env vars: see `lib/float/types.ts` and `.env.example`.
+ * Env vars: see `lib/float/types.ts` and your `.env`.
  */
 
 import { APP_VERSION } from "@/lib/version";

@@ -19,9 +19,10 @@ Internal web application to replace an Excel Project Management Workbook for tra
 
 2. **Configure environment**
 
-   Copy `.env.example` to `.env` and set:
+   Create or edit **`.env`** in the project root and set:
 
    - `DATABASE_URL` – PostgreSQL connection string (e.g. `postgresql://user:pass@localhost:5432/project_workbench`)
+   - `DIRECT_URL` – Optional; non-pooled URL for Prisma migrations on hosts like Neon (see `docs/TECHNICAL.md`)
    - `NEXTAUTH_URL` – App URL (e.g. `http://localhost:3000`)
    - `NEXTAUTH_SECRET` – Generate with `openssl rand -base64 32`
    - `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` – For initial admin user
@@ -110,6 +111,10 @@ Creates a sample project with people, assignments, planned/actual hours, and bud
 ## Documentation
 
 - **Release notes** — [CHANGELOG.md](CHANGELOG.md). The app version in `package.json` is shown in the footer (`lib/version.ts`).
+
+### Versioning
+
+This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html). **1.0.0** is the first major release: the app is intended for production use, and **documented** configuration (environment variables), HTTP APIs, and user-visible behavior should be considered stable. Breaking changes to those surfaces are expected to coincide with a new **major** version. Experimental or explicitly labeled features may evolve without a major bump; see [docs/TECHNICAL.md](docs/TECHNICAL.md).
 
 - **[User Guide](docs/USER_GUIDE.md)** — How to use the app: projects, PM/PGM/CAD dashboards (including 1-wk vs 4-wk recovery columns and upcoming PTO/holidays), resourcing (split-week actuals, Float PTO/holiday hints), project **PTO** tab and company **PTO & Holidays** page, budget, Float sync, and admin (Roles, People, Users). Written in standard Markdown for easy copy into Confluence.
 - **[Technical Reference](docs/TECHNICAL.md)** — Tech stack, data model, environment variables, week/as-of semantics, split-week actual hours (`ActualHoursMonthSplit`), PTO/holiday persistence and UI, optional **Trigger.dev** scheduled Float sync, permissions, **Projects list page** (filters, pagination, query params, Prisma `select`), scripts (including `migrate:split-week-actuals`), and API overview. Also Confluence-friendly.

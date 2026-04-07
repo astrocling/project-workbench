@@ -4,6 +4,14 @@ This document summarizes the technical stack, data model, environment, and APIs 
 
 ---
 
+## Versioning
+
+- **App version** is defined in `package.json` and exposed in the UI via `lib/version.ts` (footer). The Float HTTP client may send it in a `User-Agent`-style header when configured.
+- **SemVer:** Releases follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). **1.0.0** is the first stable major release: treat **documented** env vars, API routes, and Prisma-backed data shapes as the compatibility baseline. Breaking changes to those should be released under a new **major** version and called out in [CHANGELOG.md](../CHANGELOG.md).
+- **Database:** Apply migrations in order (`prisma migrate`); do not assume forward compatibility across major app versions without checking release notes.
+
+---
+
 ## Tech stack
 
 | Layer | Technology |
@@ -99,7 +107,8 @@ Optional **background** runs use the same core pipeline as `POST /api/admin/floa
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| **DATABASE_URL** | Yes | PostgreSQL connection string. |
+| **DATABASE_URL** | Yes | PostgreSQL connection string (app runtime and `PrismaClient` via `@prisma/adapter-pg` in `lib/prisma.ts`). |
+| **DIRECT_URL** | Optional | Non-pooled URL (e.g. Neon direct). **Prisma 7** reads migration/introspection URLs from `prisma.config.ts`, not `schema.prisma`; that file uses `DIRECT_URL` when set, else `DATABASE_URL`. Set **DIRECT_URL** on Neon if `migrate deploy` / `db push` fail through the pooler. |
 | **NEXTAUTH_URL** | Yes | App URL (e.g. `https://your-app.vercel.app` or `http://localhost:3000`). |
 | **NEXTAUTH_SECRET** | Yes (production) | Secret for signing cookies/JWTs; at least 32 characters. Generate: `openssl rand -base64 32`. |
 | **SEED_ADMIN_EMAIL** | For seed | Email for the initial admin user. Required in production. |

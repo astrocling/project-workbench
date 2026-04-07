@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_No changes yet._
+
+## [1.0.0] - 2026-04-06
+
+First **stable major** release. The application is versioned with [Semantic Versioning](https://semver.org/spec/v2.0.0.html): **1.0.0** marks production readiness and a commitment that **documented** environment variables, HTTP API shapes, and user-facing behavior will only change in breaking ways with a new **major** version (unless called out as experimental). See [README.md](README.md) and [docs/TECHNICAL.md](docs/TECHNICAL.md) (*Versioning*).
+
 ### Added
 
 - **PTO & holidays (Float-backed)** — Float API sync persists day-level **`PTOHolidayImpact`** (`lib/float/ptoholidaySyncWriters.ts`). **Resourcing** Float column shows PTO/holiday indicators; project **PTO** tab (`ProjectPtoTab`), **PTO & Holidays** company page (`/pto-holidays`, `GET /api/company/pto-holidays`), and **Upcoming PTO & holidays** on PM/PGM/CAD dashboards (`PgmPtoWidget`) surface the same data for planning visibility.

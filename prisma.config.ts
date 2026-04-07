@@ -9,7 +9,9 @@ export default defineConfig({
     path: "prisma/migrations",
     seed: "npx tsx prisma/seed.ts",
   },
+  // Prisma 7: URLs live here (not in schema.prisma). Prefer DIRECT_URL for migrate/introspect
+  // when using Neon (pooled DATABASE_URL + direct connection for DDL); otherwise DATABASE_URL.
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"],
   },
 });

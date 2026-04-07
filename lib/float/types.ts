@@ -4,7 +4,7 @@
  * @see https://dev.float.com/index.html — base URL, pagination (`page`, `per-page`), list response headers.
  * @see https://dev.float.com/overview_authentication.html — Bearer token and User-Agent.
  *
- * Environment (documented in `.env.example`):
+ * Environment (set in `.env`; see README and `docs/TECHNICAL.md`):
  * - `FLOAT_API_TOKEN` — required for API calls (sync, etc.).
  * - `FLOAT_API_USER_AGENT_EMAIL` — optional; included in `User-Agent` as the contact per Float requirements.
  */
