@@ -12,7 +12,7 @@ This document summarizes the technical stack, data model, environment, and APIs 
 | Database | PostgreSQL, Prisma ORM |
 | Auth | NextAuth.js (credentials: email/password) |
 | UI | Tailwind CSS, TanStack Table, React Hook Form, Zod, Recharts |
-| Optional | Upstash Redis (rate limiting in production) |
+| Optional | Upstash Redis (rate limiting in production); Trigger.dev (`@trigger.dev/sdk`) for optional scheduled Float sync (`trigger/`) |
 
 ---
 
@@ -33,7 +33,7 @@ The schema is defined in `prisma/schema.prisma`. Main entities:
 | **ActualHours** | Actual hours by project, person, week (Monday); null = missing. |
 | **ActualHoursMonthSplit** | When a week spans two calendar months (Mon–Sun UTC), actual hours split by `monthKey` (YYYY-MM) and `(projectId, personId, weekStartDate)`. Hours are quarter-hour increments; the two parts sum to the same total as the parent week. Used for CDA MTD actuals and Resourcing UI. |
 | **FloatScheduledHours** | Float-imported scheduled hours by project, person, week (Monday). |
-| **PTOHolidayImpact** | PTO/holiday by person and week. |
+| **PTOHolidayImpact** | Day-level PTO (Float time off) and holidays (regional public/team) per person and UTC calendar day. Populated during **Float API sync** (`lib/float/ptoholidaySyncWriters.ts`); consumed by Resourcing, project **PTO** tab, company **`/pto-holidays`**, and dashboard widgets. |
 | **BudgetLine** | Budget line (type: SOW/CO/Other, label, low/high hours and dollars; values may be negative for change orders). |
 | **ReadyForFloatUpdate** | Per-project, per-person flag for Float sync. |
 | **GridCellComment** | Optional comment on a resourcing grid cell (Planned or Actual) by project, person, week. |
@@ -62,13 +62,14 @@ Unit tests: `__tests__/lib/splitWeekProRata.test.ts`, `__tests__/lib/monthUtils.
 ### PM / PGM / CAD dashboards
 
 - **`lib/portfolioMetrics.ts`** — Builds per-role portfolio metrics and `projectTableRows` for the dashboard projects table. Each row includes **`recoveryThisWeekPercent`** (revenue recovery % for the most recent completed week only—aligned with `revenueRecovery.thisWeek`) and **`recovery4WeekPercent`** (rolling sum over the previous four completed weeks—aligned with the “Previous 4 weeks” portfolio card). Also: burn, buffer, actuals status, status-report RAG / stale flag, and **`requestOpen`** (true when any `ReadyForFloatUpdate` has `ready: true` for a person on a non–hidden-from-grid assignment—same visibility rule as `GET /api/projects/[id]/resourcing`).
+- **Actuals status / missing actuals (split weeks)** — `computeBudgetRollups` (`lib/budgetCalculations.ts`) sets **`actualsStatus`** and **`missingActuals`** from completed weeks where **`plannedHours > 0`** and **`actualHours === null`** on each **`WeeklyHoursRow`** (dashboard **`actualsStatus`** / portfolio **`staleActuals`** use this). **`PATCH /api/projects/[id]/actual-hours`** keeps **`ActualHours.hours`** equal to the sum of **`ActualHoursMonthSplit`** parts when split updates run, so rolled-up totals stay consistent. The Resourcing **Actual** grid additionally uses **`hasMissingActualsSplitWeek`** (same file) with per-month values and split-row flags so amber “missing” cell styling matches per-month unlock rules without treating an unduly month-half as missing. Tests: `__tests__/lib/budgetCalculations.test.ts`.
 - **`components/DashboardProjectsTable.tsx`** — Renders the sortable table (including the **Request** column). Sort state is driven by URL query params `sort` and `dir` on `/pm-dashboard`, `/pgm-dashboard`, and `/cad-dashboard` (see `app/(app)/*-dashboard/page.tsx`). Valid `sort` keys include `requestOpen`.
 - **`PATCH /api/projects/[id]/ready-for-float`** — Updates `ReadyForFloatUpdate`; revalidates `project-resourcing:{id}` and **`portfolio-metrics`** so dashboard `requestOpen` stays in sync.
 - **`components/DashboardClientFilter.tsx`** — Optional client filter; invalid `client` query values redirect to the unfiltered dashboard.
 
 ### Float sync behavior
 
-Scheduled hours are loaded from the **Float API** (not file upload). Orchestration: `lib/float/syncFloatImport.ts` (`executeFloatApiSync`) → `applyFloatImportDatabaseEffects` in `lib/floatImportApply.ts`. The sync also calls `/v3/timeoffs`, `/v3/public-holidays`, and `/v3/holidays` (team holidays; filtered client-side to the sync window) for the same date window as tasks; `lib/float/excludedDays.ts` merges **time off** (per person) and **regional** public/team holidays into `excludedUtcDatesByFloatPeopleId`, and `lib/float/taskAggregation.ts` (`aggregateTasksToWeeklyHours`) subtracts those UTC weekdays before writing `FloatScheduledHours`. Admin route: `GET`/`POST` `app/api/admin/float-sync/route.ts` (UI: **Admin → Float sync**, `/admin/float-sync`; `/admin/float-import` redirects there). **Admin → Holidays** uses `GET /api/admin/float-holidays` (read-only JSON tables).
+Scheduled hours are loaded from the **Float API** (not file upload). Orchestration: `lib/float/syncFloatImport.ts` (`executeFloatApiSync`) → `applyFloatImportDatabaseEffects` in `lib/floatImportApply.ts`. The sync also calls `/v3/timeoffs`, `/v3/public-holidays`, and `/v3/holidays` (team holidays; filtered client-side to the sync window) for the same date window as tasks; `lib/float/excludedDays.ts` merges **time off** (per person) and **regional** public/team holidays into `excludedUtcDatesByFloatPeopleId`, and `lib/float/taskAggregation.ts` (`aggregateTasksToWeeklyHours`) subtracts those UTC weekdays before writing `FloatScheduledHours`. The same sync run **persists** day-level rows into **`PTOHolidayImpact`** for UI features (Resourcing pills, **PTO** tab, **`/pto-holidays`**, dashboard widget). Admin route: `GET`/`POST` `app/api/admin/float-sync/route.ts` (UI: **Admin → Float sync**, `/admin/float-sync`; `/admin/float-import` redirects there). **Admin → Holidays** uses `GET /api/admin/float-holidays` (read-only JSON tables).
 
 - **Auth / config:** `POST` requires Admin session. `FLOAT_API_TOKEN` must be set; optional `FLOAT_API_USER_AGENT_EMAIL` is sent in `User-Agent` per Float’s integration guidelines. If the token is missing, the API returns **503** with a clear message.
 - **Writes:** Only **non-completed** weeks (`!isCompletedWeek` in `lib/weekUtils.ts`, i.e. **current week and future**) are upserted into `FloatScheduledHours`. Past weeks are never overwritten, so historical float data (e.g. for revenue recovery) is preserved when the synced window is limited (default is roughly ±12 months from today; optional JSON body `startDate` / `endDate` overrides). **`PlannedHours` and `ActualHours` are never written by this path.**
@@ -87,6 +88,10 @@ Short spot-checks after deploying or changing Float integration:
 2. **Backfill** — From the Projects list (backfill action) or project flow, run **backfill Float** for a project. Confirm scheduled hours update from stored import runs without error.
 3. **Sync plan from Float** — On the project Edit page, run **Sync plan from Float (past weeks)**. Confirm **Planned** hours align with Float for completed weeks in the resourcing range.
 4. **Project create + Float match** — Create a project whose **name** matches a Float project (or run sync after create so `floatExternalId` is set). Run **Float sync**; confirm assignments and Float hours attach to that project.
+
+### Scheduled Float sync (Trigger.dev)
+
+Optional **background** runs use the same core pipeline as `POST /api/admin/float-sync`: `trigger/floatSync.ts` defines two **`schedules.task`** jobs (`float-sync-weekday`, `float-sync-weekend`) that call `executeFloatApiSync` with `uploadedByUserId: null`. Config: `trigger.config.ts` (`dirs: ["./trigger"]`, `maxDuration` for long runs). **Environment** for the Trigger.dev worker (project dashboard / deploy target) must include **`DATABASE_URL`**, **`FLOAT_API_TOKEN`**, and optionally **`FLOAT_API_USER_AGENT_EMAIL`**—same as the app for Float calls. These tasks **do not** invoke Next.js `revalidateTag` (no request context); interactive admin sync still handles cache invalidation for resourcing tags. Deploy and schedules follow [Trigger.dev](https://trigger.dev) docs (`npx trigger.dev@latest dev` locally, `deploy` for production). Package: `@trigger.dev/sdk` (see `package.json`).
 
 ---
 
@@ -169,6 +174,7 @@ Server-rendered route: `app/(app)/projects/page.tsx` (no separate list API—the
 | `npx prisma db seed` | Run seed script (creates initial admin and roles). |
 | `npx prisma migrate deploy` | Apply pending migrations (e.g. in CI/production). |
 | `npx tsx scripts/sample-data.ts` | Create sample project, people, assignments, hours, and budget line (for testing). |
+| `npx trigger.dev@latest dev` / `deploy` | Optional: run or deploy Trigger.dev tasks (e.g. scheduled Float sync in `trigger/`). Requires Trigger.dev project config and env vars. |
 
 ---
 
@@ -180,6 +186,7 @@ API routes live under `app/api/`. This is a high-level overview for maintainers.
 |------|----------|---------|
 | Auth | `/api/auth/[...nextauth]` | NextAuth sign-in, sign-out, session. |
 | Seed | `/api/seed` | POST with Bearer token (SEED_SECRET) to run seed once (e.g. after deploy). |
+| Company | `GET /api/company/pto-holidays` | Company-wide PTO and holiday payload for **PTO & Holidays** (`/pto-holidays`): active people plus week-bucketed impacts (~12 months from today). Session required. Implemented in `lib/companyPtoServer.ts`. |
 | Projects | `GET/POST /api/projects` | List projects (with filter), create project. |
 | Project | `GET/PATCH/DELETE /api/projects/[id]` | Single project CRUD. **`PATCH`** accepts optional `cdaReportHoursOnly` (boolean): when `true`, CDA “Overall” status copy and CDA status reports omit budget-dollar columns (hours columns only). See *CDA report hours only* below. |
 | Project | `/api/projects/[id]/assignments` | Assignments for a project. |
@@ -213,6 +220,7 @@ All project and admin routes require an authenticated session; admin routes addi
 - Visible assignments (excludes `hiddenFromGrid`)
 - Planned hours, actual hours, Float scheduled hours
 - **`monthSplits`** — `ActualHoursMonthSplit` rows for split weeks (same week window as other hour data)
+- **`ptoHolidayByWeek`** — map of week start key → PTO/holiday entries for visible assignees (Float column pills / tooltips)
 - Ready-for-Float flags
 - Grid cell comments (Planned/Actual)
 

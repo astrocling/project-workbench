@@ -55,8 +55,9 @@ Each project has a detail page with several tabs. The header shows the **as-of d
 
 | Tab | Purpose |
 |-----|---------|
-| **Overview** | Summary, key roles (PM, PGM, CAD), project notes, SOW, Estimate, Float, and Metric links, and a snapshot of budget and revenue recovery. |
-| **Resourcing** | Planned hours, actual hours, and Float scheduled hours by person and week. Use this to compare plan vs actual vs Float and spot gaps. |
+| **Overview** | Summary, key roles (PM, PGM, CAD), project notes, SOW, Estimate, Float, and Metric links, and a snapshot of budget and revenue recovery. When teammates have Float **time off** or a **regional holiday** in the rolling two-week window, small absence pills summarize who is out (see [PTO tab](#pto-tab)). |
+| **Resourcing** | Planned hours, actual hours, and Float scheduled hours by person and week. Use this to compare plan vs actual vs Float and spot gaps. The **Float** grid can show **PTO** and **holiday** indicators per week when Float sync has populated time off and holidays (see [Resourcing tab](#resourcing-tab)). |
+| **PTO** | PTO and regional holidays for **project members** visible on the Resourcing grid across the project date range. Filter by week range and person; see who is on PTO or a holiday and whether a PTO day is full or partial. Data comes from Float sync (`PTOHolidayImpact`). See [PTO tab](#pto-tab). |
 | **CDA** | (When enabled in Settings) Monthly planned and actuals for CDA reporting. Month-to-date actuals for each month incorporate **split-week** hours when a week crosses a month boundary (see Resourcing below). Optional **Report hours only** hides budget dollars on the Overall row in status copy and CDA reports—see [CDA tab](#cda-tab). |
 | **Budget** | Budget lines (e.g. SOW, CO, Other) with low/high hours and dollars, and burn to date. |
 | **Timeline** | High-level timeline with month columns and up to four rows of bars and markers. Each bar has a label, start/end dates, row (1–4), and an optional color (Blue, Green, Amber, Teal, Slate, or Violet). The same timeline (with colors) appears in status report previews and PDFs. |
@@ -76,6 +77,7 @@ The Resourcing tab shows three grids (Planned, Actual, Float) by person and by w
 - **Last week visibility**: When you scroll all the way to the right, the final week column remains fully visible (including its right border).
 - **Current week**: The column for the **Monday–Sunday week (UTC) that contains today** has a **subtle background tint** across the week headers, all three grids (Planned, Actual, Float), and the variance/total rows—so you can quickly see which week is in progress. (Amber variance or red mismatch highlights still take priority when they apply.)
 - **Planned grid — Ready**: Each person row has a **Ready** toggle (for Float sync). People **hidden from grid** (Settings → Assignments) are excluded. When at least one visible person has **Ready** on, the **PM**, **PGM**, and **CAD** dashboard Projects tables show an **open request** in the **Request** column (see [Dashboards and Account](#dashboards-and-account)).
+- **Float grid — PTO and holidays**: When **Admin → Float sync** has run, the **Float** column can show small labels for **PTO** (Float time off) and **holiday** (regional public or team holiday matching the person’s Float region). This helps explain differences between scheduled hours and working time. Tooltip text summarizes the week (e.g. who is out, partial vs full day).
 
 ### Split weeks (month boundary)
 
@@ -85,6 +87,18 @@ Workbench weeks run **Monday–Sunday**. When a week crosses from one calendar m
 - **Planned / Float**: Those grids still show one value per week (unchanged). Only **Actual** uses the split when the week spans two months.
 - **When you can edit**: Uses **UTC** calendar dates. The **first** month in the split becomes editable once that calendar month has ended (for example, after 31 December you can enter December’s share of a December–January week, even while that week is still in progress). The **second** month follows the same rule as other Actual cells: you can enter it after the week is **completed** (not the current week). Expand the cell (split icon) to see both inputs.
 - **Collapsing**: When both month parts are filled, you may see a single total for the week with an option to expand and edit the two parts again (depending on layout state).
+
+---
+
+## PTO tab
+
+The **PTO** tab lists **PTO** (Float time off) and **regional holidays** for people assigned to the project who are **visible on the Resourcing grid** (not hidden under Settings → Assignments). You can narrow the **week range** and filter by **person**. Entries reflect data stored after **Float sync**; regional holidays apply when the person’s **Float region** matches the holiday region (same rules as scheduled hours—see [Float sync](#float-sync-admin-only)).
+
+---
+
+## Company PTO & Holidays
+
+The sidebar link **PTO & Holidays** opens **`/pto-holidays`**, a company-wide view of PTO and holidays across **active people**. Use the **month** control and optional **person** / **region** filters to see who is out and how many people are on PTO in a given month. This page uses the same Float-backed data as the project **PTO** tab, aggregated for planning and visibility (not a substitute for HR systems of record).
 
 ---
 
@@ -214,6 +228,8 @@ Available from the Admin area (link in the header).
 
 Each dashboard includes **portfolio summary cards** (e.g. portfolio value, active project counts) and, when revenue recovery data exists, **portfolio revenue recovery** cards for **To date**, **This week** (most recent completed week), and **Previous 4 weeks**.
 
+Below the portfolio cards, an **Upcoming PTO & holidays** section lists the **current and next ISO weeks** (Monday start) and, for each of your scoped projects, who is on **PTO** or a **holiday** among visible assignees. Use it as a quick visibility aid alongside the project tables.
+
 The **Projects** table lists every active project in scope for that role. Columns:
 
 | Column | Meaning |
@@ -225,7 +241,7 @@ The **Projects** table lists every active project in scope for that role. Column
 | **1-wk recovery** | Revenue recovery % for the **most recent completed week** only—the same week labeled on the portfolio **This week** recovery card. |
 | **4-wk recovery** | Revenue recovery % across the **rolling previous four completed weeks** (sum of actual vs forecast dollars for those weeks). |
 | **Request** | Whether an **open request** is active: **Ready** is on in the project Resourcing **Planned** grid for at least one person who is **not** hidden from the grid (amber dot = open, muted = none). Sort to group projects with open requests. |
-| **Actuals** | Whether weekly actuals look up to date, one week behind, or more than one week behind (traffic-light indicator). |
+| **Actuals** | Whether weekly actuals look up to date, one week behind, or more than one week behind (traffic-light), based on **rolled-up weekly totals** vs planned for completed weeks. For **split-month** weeks, totals come from the sum of the two month parts once saved. The **Resourcing** Actual grid uses stricter per-month rules for **cell** highlighting on those weeks. |
 | **Status** | Overall RAG from the latest status report when the report is recent; a blue indicator if a report exists but is older than two weeks; gray if there is no report. |
 
 Click any column header to **sort** (toggle ascending/descending). You can filter the table by **client** using the client dropdown when your portfolio spans multiple clients.

@@ -8,9 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **PTO & holidays (Float-backed)** — Float API sync persists day-level **`PTOHolidayImpact`** (`lib/float/ptoholidaySyncWriters.ts`). **Resourcing** Float column shows PTO/holiday indicators; project **PTO** tab (`ProjectPtoTab`), **PTO & Holidays** company page (`/pto-holidays`, `GET /api/company/pto-holidays`), and **Upcoming PTO & holidays** on PM/PGM/CAD dashboards (`PgmPtoWidget`) surface the same data for planning visibility.
+- **Trigger.dev (optional)** — `trigger/floatSync.ts` defines scheduled tasks that call `executeFloatApiSync` (same core sync as **Admin → Float sync**). Config in `trigger.config.ts`; see Technical Reference for env and operational notes.
+
 ### Changed
 
 - **Float — API sync replaces CSV upload**: Scheduled hours are loaded from the Float API (**Admin → Float sync**, `GET`/`POST` `/api/admin/float-sync`). CSV upload and `papaparse` were removed. Documentation (README, User Guide, Technical Reference) and integration tests were updated; `__tests__/api/admin/float-sync.test.ts` mocks Float HTTP and runs `executeFloatApiSync` against the database, while `float-import-cleanup.test.ts` still validates `applyFloatImportDatabaseEffects` behavior.
+
+### Fixed
+
+- **Split-week actuals — Resourcing vs rolled-up totals** — `hasMissingActualsSplitWeek` (`lib/budgetCalculations.ts`) aligns amber “missing” styling on split **Actual** cells with per-month unlock rules; **`PATCH /api/projects/[id]/actual-hours`** keeps **`ActualHours`** totals aligned with **`ActualHoursMonthSplit`** when split parts are saved. Reduces false “missing” highlights when only one month-half of a split week is due.
 
 ## [0.3.0] - 2026-04-01
 
