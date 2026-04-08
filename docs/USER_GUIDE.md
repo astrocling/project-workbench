@@ -189,7 +189,7 @@ If the token is missing, the sync action shows an error (API returns **503**).
 
 ### What sync does
 
-- **Assignments and hours:** Updates project assignments and writes **Float scheduled hours** (the **Float** grid on Resourcing) for **every non-completed week** in the synced window — i.e. the **current week and all future weeks** through the API date range. Past weeks are **not** overwritten.
+- **Assignments and hours:** Updates project assignments and writes **Float scheduled hours** (the **Float** grid on Resourcing). For each person still on that project in Float, Workbench **clears** all **incomplete** float rows for that project/person (the **current week and all future weeks** through the API window — anything after the sync “as-of” cutoff), **then** writes the new hours from Float. That way, if you **move or remove** allocations in Float, old hours do not linger in weeks that no longer have work. **Completed** past weeks are **not** deleted or overwritten by sync.
 - **Removed in Float:** If someone no longer appears on a project in Float for the synced snapshot, their **future** Float scheduled hours for that project are cleared in Workbench. Past weeks and the **assignment** row are left until you change them under **Settings → Assignments**.
 
 ### What sync does **not** change

@@ -51,8 +51,14 @@ export function resolveProjectIdForMergedFloatEntry(
 }
 
 /**
- * Upsert assignments, future-only FloatScheduledHours, future cleanup, and FloatImportRun.
- * Past weeks are never overwritten or deleted.
+ * Upsert assignments, FloatScheduledHours for incomplete weeks from the merge, future cleanup, and
+ * FloatImportRun.
+ *
+ * For each (project, person) still in the merged import, all **incomplete** float rows
+ * (`weekStartDate` > `asOf`) are removed first, then rows from this run are upserted — so weeks
+ * that disappear from Float no longer leave stale hours in the grid. **Completed** weeks
+ * (`weekStartDate` ≤ `asOf`) are never deleted or updated. People removed from the merge still
+ * have future rows cleared by the separate removed-person pass.
  */
 export async function applyFloatImportDatabaseEffects(
   prisma: PrismaClient,
@@ -184,6 +190,34 @@ export async function applyFloatImportDatabaseEffects(
     (r) => !isCompletedWeek(r.weekStartDate, asOf)
   );
 
+  const projectIdsInImport = Array.from(projectNamesSet)
+    .map((name) => projectsByName.get(name.toLowerCase()))
+    .filter((id): id is string => Boolean(id));
+
+  const inImportSet = new Set<string>();
+  for (const entry of mergedFloatByProjectPerson.values()) {
+    const projectId = resolveProjectIdForMergedFloatEntry(
+      entry,
+      projectsByName,
+      projectsForResolution
+    );
+    const personId = personByName.get(entry.personName.toLowerCase());
+    if (projectId && personId) inImportSet.add(`${projectId}|${personId}`);
+  }
+
+  if (inImportSet.size > 0) {
+    const orPairs = Array.from(inImportSet).map((key) => {
+      const [projectId, personId] = key.split("|");
+      return { projectId, personId };
+    });
+    await prisma.floatScheduledHours.deleteMany({
+      where: {
+        weekStartDate: { gt: asOf },
+        OR: orPairs,
+      },
+    });
+  }
+
   for (let i = 0; i < floatHoursRowsToWrite.length; i += FLOAT_HOURS_BATCH_SIZE) {
     const chunk = floatHoursRowsToWrite.slice(i, i + FLOAT_HOURS_BATCH_SIZE);
     if (chunk.length === 0) continue;
@@ -198,21 +232,6 @@ export async function applyFloatImportDatabaseEffects(
       DO UPDATE SET hours = EXCLUDED.hours, "updatedAt" = now()
     `;
   }
-
-  const inImportSet = new Set<string>();
-  for (const entry of mergedFloatByProjectPerson.values()) {
-    const projectId = resolveProjectIdForMergedFloatEntry(
-      entry,
-      projectsByName,
-      projectsForResolution
-    );
-    const personId = personByName.get(entry.personName.toLowerCase());
-    if (projectId && personId) inImportSet.add(`${projectId}|${personId}`);
-  }
-
-  const projectIdsInImport = Array.from(projectNamesSet)
-    .map((name) => projectsByName.get(name.toLowerCase()))
-    .filter((id): id is string => Boolean(id));
 
   if (projectIdsInImport.length > 0) {
     const futureFloatRows = await prisma.floatScheduledHours.findMany({

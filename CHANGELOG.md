@@ -8,7 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_No changes yet._
+### Fixed
+
+- **Float import — stale hours when schedules change** — For each `(project, person)` still present in the merged Float snapshot, **Admin → Float sync** now **deletes** all incomplete `FloatScheduledHours` rows (`weekStartDate` after the sync as-of date) for that pair **before** upserting hours from the API. Previously, only weeks present in the new aggregate were upserted, so weeks where you removed or moved allocations in Float could keep old values on the Resourcing **Float** grid. Completed (past) weeks are still never deleted or overwritten; people removed entirely from a project in Float are still cleaned up as before. Implementation: `applyFloatImportDatabaseEffects` in `lib/floatImportApply.ts`. Documented in [docs/USER_GUIDE.md](docs/USER_GUIDE.md) (*Float sync*) and [docs/TECHNICAL.md](docs/TECHNICAL.md) (*Float sync behavior*).
 
 ## [1.0.0] - 2026-04-06
 

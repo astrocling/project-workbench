@@ -121,7 +121,7 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Float sync (Admin)
 
-Admins pull scheduled hours from the **Float API** at **Admin → Float sync** (`/admin/float-sync`). Set **`FLOAT_API_TOKEN`** (and optionally **`FLOAT_API_USER_AGENT_EMAIL`**) in the environment. The app matches Float projects to Workbench projects by Float project id (`floatExternalId`) or by name, syncs people from Float, and applies the same scheduled-hours rules as documented in [docs/TECHNICAL.md](docs/TECHNICAL.md) (future weeks only, cleanup for people removed in Float, etc.). Sync also writes **time off** and **holiday** data used by PTO/holiday features (see User Guide and Technical Reference).
+Admins pull scheduled hours from the **Float API** at **Admin → Float sync** (`/admin/float-sync`). Set **`FLOAT_API_TOKEN`** (and optionally **`FLOAT_API_USER_AGENT_EMAIL`**) in the environment. The app matches Float projects to Workbench projects by Float project id (`floatExternalId`) or by name, syncs people from Float, and applies the same scheduled-hours rules as documented in [docs/TECHNICAL.md](docs/TECHNICAL.md): incomplete weeks are replaced from the current Float snapshot (so stale hours are not left behind when schedules change), past weeks are not overwritten, and future rows are cleared for people removed from a project in Float. Sync also writes **time off** and **holiday** data used by PTO/holiday features (see User Guide and Technical Reference).
 
 ## Optional: Trigger.dev (scheduled Float sync)
 
