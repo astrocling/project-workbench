@@ -180,7 +180,7 @@ If the token is missing, the sync action shows an error (API returns **503**).
 
 - **Projects** — Matched by Float project id once stored on the project (`floatExternalId`), or by project **name** (normalized). Use the same names in Workbench as in Float, or run sync after creating a project so the link is stored.
 - **People** — Pulled from Float; Workbench creates or updates `Person` rows (including Float id and **Float region** id + display name when Float or holiday payloads provide them).
-- **Roles** — Role names on Float tasks must exist in Workbench (**Admin → Roles**). Unknown names are listed on the sync page so you can add roles and sync again.
+- **Roles** — Role names on Float tasks should exist in Workbench (**Admin → Roles**). Unknown names are listed on the sync page so you can add roles and sync again. If Float has **no** usable role on the task or person, Workbench still adds the person to the project using a **fallback role** (the first role by name) so they are not skipped—you can change the role under **Settings → Assignments**.
 
 ### Holidays and sync failures
 
@@ -189,7 +189,7 @@ If the token is missing, the sync action shows an error (API returns **503**).
 
 ### What sync does
 
-- **Assignments and hours:** Updates project assignments and writes **Float scheduled hours** (the **Float** grid on Resourcing). For each person still on that project in Float, Workbench **clears** all **incomplete** float rows for that project/person (the **current week and all future weeks** through the API window — anything after the sync “as-of” cutoff), **then** writes the new hours from Float. That way, if you **move or remove** allocations in Float, old hours do not linger in weeks that no longer have work. **Completed** past weeks are **not** deleted or overwritten by sync.
+- **Assignments and hours:** Updates **project assignments** for everyone on a Float **task** in the window—including people who end up with **no** weekly Float hours (for example **zero hours per day** on the task, or the week’s working days all excluded by PTO/holidays). Those people still get an assignment so they show on the project; the **Float** column may be empty for weeks with no scheduled time. Sync also writes **Float scheduled hours** (the **Float** grid on Resourcing). For each person still on that project in Float, Workbench **clears** all **incomplete** float rows for that project/person (the **current week and all future weeks** through the API window — anything after the sync “as-of” cutoff), **then** writes the new hours from Float. That way, if you **move or remove** allocations in Float, old hours do not linger in weeks that no longer have work. **Completed** past weeks are **not** deleted or overwritten by sync.
 - **Removed in Float:** If someone no longer appears on a project in Float for the synced snapshot, their **future** Float scheduled hours for that project are cleared in Workbench. Past weeks and the **assignment** row are left until you change them under **Settings → Assignments**.
 
 ### What sync does **not** change

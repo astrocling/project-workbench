@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Float sync — people added on tasks get project assignments** — For every Float **(project, person)** pair that appears on a **task** in the sync window, Workbench upserts **`ProjectAssignment`**, even when that pair produces **no** positive weekly hours (for example **0 hours per day**, or weekdays fully excluded by PTO/holidays so **`FloatScheduledHours`** rows are never written). People still appear under **Settings → Assignments** and on the Resourcing grid when the role can be resolved. If Float has **no** mappable role (`role_id` missing, unknown name, or no match in Workbench), sync uses the **first Workbench role by name** as a fallback so the person is not omitted. Implementation: `executeFloatApiSync` / `mergedFloatByProjectPerson` backfill from `tasksForSync`, `fallbackRoleIdForAssignment` and batched `INSERT … ON CONFLICT` in `lib/floatImportApply.ts`. Tests: `__tests__/api/admin/float-sync.test.ts`.
+
+### Changed
+
+- **Float sync — database performance** — Clears future **`FloatScheduledHours`** with **tuple `(projectId, personId) IN (…)`** deletes (`deleteFutureFloatScheduledHoursForPairs` in `lib/floatImportApply.ts`) instead of large `OR` filters or **N** per-pair `deleteMany` calls. Adds index **`FloatScheduledHours_projectId_weekStartDate_idx`**. **`syncPeopleFromFloatList`** loads **`Person`** rows **only** for Float `people_id` / name matches, not the full table. **`PTOHolidayImpact`** cleanup uses **`NOT EXISTS`** against **`unnest(ARRAY[…])`** for large approved-id lists. Returns **`touchedProjectIds`** from `applyFloatImportDatabaseEffects` for downstream use. **`POST /api/admin/float-sync`** revalidates **`revalidateTag("project-resourcing")`** once (with **`GET /api/projects/[id]/resourcing`** also tagged globally) instead of revalidating every project id in a loop.
+
 ### Fixed
 
 - **Float import — stale hours when schedules change** — For each `(project, person)` still present in the merged Float snapshot, **Admin → Float sync** now **deletes** all incomplete `FloatScheduledHours` rows (`weekStartDate` after the sync as-of date) for that pair **before** upserting hours from the API. Previously, only weeks present in the new aggregate were upserted, so weeks where you removed or moved allocations in Float could keep old values on the Resourcing **Float** grid. Completed (past) weeks are still never deleted or overwritten; people removed entirely from a project in Float are still cleaned up as before. Implementation: `applyFloatImportDatabaseEffects` in `lib/floatImportApply.ts`. Documented in [docs/USER_GUIDE.md](docs/USER_GUIDE.md) (*Float sync*) and [docs/TECHNICAL.md](docs/TECHNICAL.md) (*Float sync behavior*).
