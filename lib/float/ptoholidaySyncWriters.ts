@@ -405,14 +405,18 @@ export async function applyPtoHolidaySyncWriters(
     `;
   } else {
     await prisma.$executeRaw`
-      DELETE FROM "PTOHolidayImpact"
+      DELETE FROM "PTOHolidayImpact" pi
       WHERE type = CAST('PTO' AS "PTOHolidayType")
         AND "weekStartDate" >= ${winStart}::date
         AND "weekStartDate" <= ${winEnd}::date
-        AND "floatSourceId" IS NOT NULL
-        AND "floatSourceId" NOT IN (${Prisma.join(
-          approvedList.map((id) => Prisma.sql`${id}`)
-        )})
+        AND pi."floatSourceId" IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM unnest(ARRAY[${Prisma.join(
+            approvedList.map((id) => Prisma.sql`${id}`)
+          )}]::text[]) AS a(id)
+          WHERE a.id = pi."floatSourceId"
+        )
     `;
   }
 
@@ -427,14 +431,18 @@ export async function applyPtoHolidaySyncWriters(
     `;
   } else {
     await prisma.$executeRaw`
-      DELETE FROM "PTOHolidayImpact"
+      DELETE FROM "PTOHolidayImpact" pi
       WHERE type = CAST('Holiday' AS "PTOHolidayType")
         AND "weekStartDate" >= ${winStart}::date
         AND "weekStartDate" <= ${winEnd}::date
-        AND "floatSourceId" IS NOT NULL
-        AND "floatSourceId" NOT IN (${Prisma.join(
-          holList.map((id) => Prisma.sql`${id}`)
-        )})
+        AND pi."floatSourceId" IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM unnest(ARRAY[${Prisma.join(
+            holList.map((id) => Prisma.sql`${id}`)
+          )}]::text[]) AS h(id)
+          WHERE h.id = pi."floatSourceId"
+        )
     `;
   }
 }

@@ -209,7 +209,10 @@ export async function GET(
       };
     },
     ["project-resourcing"],
-    { revalidate: 60, tags: [`project-resourcing:${id}`] }
+    {
+      revalidate: 60,
+      tags: ["project-resourcing", `project-resourcing:${id}`],
+    }
   );
 
   // Default range: full project span.

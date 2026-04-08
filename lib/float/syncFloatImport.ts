@@ -3,7 +3,7 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
-import type { Project } from "@prisma/client";
+import type { Person, Project } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import {
   aggregateTasksToWeeklyHours,
@@ -321,7 +321,33 @@ export async function syncPeopleFromFloatList(
   newPersonNames: string[],
   regionNameByFloatId: Map<number, string>
 ): Promise<void> {
-  const allDb = await prisma.person.findMany();
+  const floatExtIds = [...new Set(floatPeople.map((fp) => String(fp.people_id)))];
+  const floatNameLowers = [
+    ...new Set(
+      floatPeople
+        .map((fp) => (fp.name ?? "").trim().toLowerCase())
+        .filter((n) => n.length > 0)
+    ),
+  ];
+
+  let allDb: Person[];
+  if (floatExtIds.length === 0 && floatNameLowers.length === 0) {
+    allDb = [];
+  } else {
+    allDb = await prisma.$queryRaw<Person[]>(Prisma.sql`
+      SELECT * FROM "Person"
+      WHERE (${floatExtIds.length > 0
+        ? Prisma.sql`"externalId" IN (${Prisma.join(
+            floatExtIds.map((id) => Prisma.sql`${id}`)
+          )})`
+        : Prisma.sql`false`})
+        OR (${floatNameLowers.length > 0
+        ? Prisma.sql`LOWER("name") IN (${Prisma.join(
+            floatNameLowers.map((n) => Prisma.sql`${n}`)
+          )})`
+        : Prisma.sql`false`})
+    `);
+  }
   const byExternal = new Map<string, (typeof allDb)[0]>();
   for (const p of allDb) {
     if (p.externalId) byExternal.set(p.externalId, p);
@@ -441,6 +467,7 @@ export type ExecuteFloatApiSyncParams = {
 export type ExecuteFloatApiSyncResult = {
   run: { id: string; completedAt: Date };
   unknownRoles: string[];
+  touchedProjectIds: string[];
 };
 
 /**
@@ -556,10 +583,10 @@ export async function executeFloatApiSync(
         where: { id: match.id },
         data: { floatExternalId: String(fid) },
       });
+      match.floatExternalId = String(fid);
     }
   }
 
-  projects = await prisma.project.findMany();
   const projectsByNameReloaded = new Map<string, string>(
     projects.map((p) => [p.name.toLowerCase(), p.id] as const)
   );

@@ -168,7 +168,7 @@ describe("float import cleanup: remove future hours when person not in merged im
       ],
     ]);
 
-    const { run } = await applyFloatImportDatabaseEffects(prisma, {
+    const { run, touchedProjectIds } = await applyFloatImportDatabaseEffects(prisma, {
       asOf: AS_OF,
       uploadedByUserId: null,
       mergedFloatByProjectPerson,
@@ -184,6 +184,8 @@ describe("float import cleanup: remove future hours when person not in merged im
       roleById,
     });
     importRunId = run.id;
+
+    expect(touchedProjectIds).toContain(projectId);
 
     const aliceFloat = await prisma.floatScheduledHours.findMany({
       where: { projectId, personId: personAliceId },

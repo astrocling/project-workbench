@@ -65,11 +65,8 @@ export async function POST(req: NextRequest) {
       uploadedByUserId,
     });
 
-    /** `GET /api/projects/[id]/resourcing` caches with `unstable_cache`; sync writes FloatScheduledHours but must invalidate or the grid stays stale until TTL. */
-    const allProjectIds = await prisma.project.findMany({ select: { id: true } });
-    for (const { id: projectId } of allProjectIds) {
-      revalidateTag(`project-resourcing:${projectId}`, "max");
-    }
+    /** `GET /api/projects/[id]/resourcing` uses `unstable_cache` with tags `project-resourcing` and `project-resourcing:{id}`; one global revalidation invalidates all resourcing caches after sync. */
+    revalidateTag("project-resourcing", "max");
 
     return NextResponse.json({
       ok: true,

@@ -363,6 +363,7 @@ model FloatScheduledHours {
   person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@id([projectId, personId, weekStartDate])
+  @@index([projectId, weekStartDate])
 }
 
 /// Day-level PTO and public-holiday impacts synced from Float (no live API needed for grid/calendar).

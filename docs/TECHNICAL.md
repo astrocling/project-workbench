@@ -89,6 +89,8 @@ Scheduled hours are loaded from the **Float API** (not file upload). Orchestrati
 
 **Tests:** `__tests__/api/admin/float-import-cleanup.test.ts` covers `applyFloatImportDatabaseEffects` (future cleanup for people not in the merge, past weeks preserved). `__tests__/api/admin/float-sync.test.ts` mocks Float HTTP and runs `executeFloatApiSync` end-to-end against the DB.
 
+- **DB / load (implementation notes):** Future `FloatScheduledHours` rows for import pairs are cleared with **tuple `IN`** deletes (`deleteFutureFloatScheduledHoursForPairs` in `lib/floatImportApply.ts`) instead of a large `OR` tree or one `deleteMany` per pair. A secondary index on **`(projectId, weekStartDate)`** supports the “future rows per imported project” scan. `syncPeopleFromFloatList` loads **`Person`** rows matching Float `people_id` / name **only** (not a full table read); `applyPtoHolidaySyncWriters` still loads all rows with `externalId` set so **regional holiday** expansion sees every person with a `floatRegionId`. After **Admin → Float sync**, **`revalidateTag("project-resourcing")`** invalidates cached `GET /api/projects/[id]/resourcing` for all projects in one call (entries are also tagged per-project for targeted invalidation elsewhere). On staging/production-like data, validate hot paths with **`EXPLAIN (ANALYZE, BUFFERS)`** on the delete helpers and the future-rows query if tuning further.
+
 #### Manual QA checklist (Float sync)
 
 Short spot-checks after deploying or changing Float integration:
@@ -101,6 +103,8 @@ Short spot-checks after deploying or changing Float integration:
 ### Scheduled Float sync (Trigger.dev)
 
 Optional **background** runs use the same core pipeline as `POST /api/admin/float-sync`: `trigger/floatSync.ts` defines two **`schedules.task`** jobs (`float-sync-weekday`, `float-sync-weekend`) that call `executeFloatApiSync` with `uploadedByUserId: null`. Config: `trigger.config.ts` (`dirs: ["./trigger"]`, `maxDuration` for long runs). **Environment** for the Trigger.dev worker (project dashboard / deploy target) must include **`DATABASE_URL`**, **`FLOAT_API_TOKEN`**, and optionally **`FLOAT_API_USER_AGENT_EMAIL`**—same as the app for Float calls. These tasks **do not** invoke Next.js `revalidateTag` (no request context); interactive admin sync still handles cache invalidation for resourcing tags. Deploy and schedules follow [Trigger.dev](https://trigger.dev) docs (`npx trigger.dev@latest dev` locally, `deploy` for production). Package: `@trigger.dev/sdk` (see `package.json`).
+
+**Schedule / window tradeoffs (product & ops):** Weekday **hourly** and weekend **every 6h** UTC runs the **full** pipeline (`defaultFloatSyncDateRange` in `lib/float/syncFloatImport.ts` is roughly **±12 months** of tasks/time off/holidays). Reducing **cron frequency** (e.g. a few times per weekday) lowers API and DB load if slightly stale grids are acceptable. Narrowing **`startDate` / `endDate`** (via `POST` body or future defaults) reduces rows fetched and written; coordinate with stakeholders before changing defaults. A **changed-since** optimization would require Float API support—verify against current Float docs before relying on it.
 
 ---
 

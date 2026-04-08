@@ -16,6 +16,33 @@ import { isCompletedWeek } from "@/lib/weekUtils";
 export const FLOAT_HOURS_BATCH_SIZE = 500;
 
 /**
+ * Deletes future (weekStartDate > asOf) FloatScheduledHours rows for the given (projectId, personId)
+ * pairs in one statement — avoids large OR trees and N-per-pair deleteMany loops.
+ */
+export async function deleteFutureFloatScheduledHoursForPairs(
+  prisma: PrismaClient,
+  asOf: Date,
+  pairs: Array<{ projectId: string; personId: string }>
+): Promise<void> {
+  if (pairs.length === 0) return;
+  const distinct = [
+    ...new Map(
+      pairs.map((p) => [`${p.projectId}|${p.personId}`, p] as const)
+    ).values(),
+  ];
+  await prisma.$executeRaw`
+    DELETE FROM "FloatScheduledHours"
+    WHERE "weekStartDate" > ${asOf}
+    AND ("projectId", "personId") IN (
+      ${Prisma.join(
+        distinct.map((p) => Prisma.sql`(${p.projectId}, ${p.personId})`),
+        ", "
+      )}
+    )
+  `;
+}
+
+/**
  * Bulk `ProjectAssignment` upserts per statement. A single interactive transaction with thousands
  * of Prisma `upsert()` calls hits the default 5s transaction timeout.
  */
@@ -95,6 +122,8 @@ export async function applyFloatImportDatabaseEffects(
 ): Promise<{
   run: { id: string; completedAt: Date };
   unknownRoles: string[];
+  /** Workbench project ids affected by this apply (merge + import project scope); for cache revalidation. */
+  touchedProjectIds: string[];
 }> {
   const {
     asOf,
@@ -213,6 +242,17 @@ export async function applyFloatImportDatabaseEffects(
     .map((name) => projectsByName.get(name.toLowerCase()))
     .filter((id): id is string => Boolean(id));
 
+  const touchedProjectIds = new Set<string>();
+  for (const id of projectIdsInImport) touchedProjectIds.add(id);
+  for (const entry of mergedFloatByProjectPerson.values()) {
+    const pid = resolveProjectIdForMergedFloatEntry(
+      entry,
+      projectsByName,
+      projectsForResolution
+    );
+    if (pid) touchedProjectIds.add(pid);
+  }
+
   const inImportSet = new Set<string>();
   for (const entry of mergedFloatByProjectPerson.values()) {
     const projectId = resolveProjectIdForMergedFloatEntry(
@@ -229,12 +269,7 @@ export async function applyFloatImportDatabaseEffects(
       const [projectId, personId] = key.split("|");
       return { projectId, personId };
     });
-    await prisma.floatScheduledHours.deleteMany({
-      where: {
-        weekStartDate: { gt: asOf },
-        OR: orPairs,
-      },
-    });
+    await deleteFutureFloatScheduledHoursForPairs(prisma, asOf, orPairs);
   }
 
   for (let i = 0; i < floatHoursRowsToWrite.length; i += FLOAT_HOURS_BATCH_SIZE) {
@@ -265,15 +300,7 @@ export async function applyFloatImportDatabaseEffects(
       (r) => !inImportSet.has(`${r.projectId}|${r.personId}`)
     );
     if (removedPairs.length > 0) {
-      for (const pair of removedPairs) {
-        await prisma.floatScheduledHours.deleteMany({
-          where: {
-            projectId: pair.projectId,
-            personId: pair.personId,
-            weekStartDate: { gt: asOf },
-          },
-        });
-      }
+      await deleteFutureFloatScheduledHoursForPairs(prisma, asOf, removedPairs);
     }
   }
 
@@ -325,5 +352,6 @@ export async function applyFloatImportDatabaseEffects(
       completedAt: run?.completedAt ?? completedAt,
     },
     unknownRoles,
+    touchedProjectIds: Array.from(touchedProjectIds),
   };
 }
