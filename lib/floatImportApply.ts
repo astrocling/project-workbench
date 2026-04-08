@@ -15,6 +15,12 @@ import { isCompletedWeek } from "@/lib/weekUtils";
 /** Chunk size for bulk FloatScheduledHours upserts to avoid huge queries. */
 export const FLOAT_HOURS_BATCH_SIZE = 500;
 
+/**
+ * Bulk `ProjectAssignment` upserts per statement. A single interactive transaction with thousands
+ * of Prisma `upsert()` calls hits the default 5s transaction timeout.
+ */
+export const ASSIGNMENT_UPSERT_BATCH_SIZE = 500;
+
 export type MergedFloatEntry = {
   projectName: string;
   personName: string;
@@ -76,6 +82,13 @@ export async function applyFloatImportDatabaseEffects(
     projectsForResolution?: Array<{ id: string; name: string; floatExternalId: string | null }>;
     personByName: Map<string, string>;
     roleById: Map<string, string>;
+    /**
+     * When Float task/person has no resolvable role name, or the name does not match a Workbench
+     * `Role`, use this id for `ProjectAssignment` upserts so people still appear on the project
+     * (Float hours do not depend on role). Omit to skip assignment when the role cannot be resolved
+     * (legacy behavior).
+     */
+    fallbackRoleIdForAssignment?: string | null;
     /** When set (Float API sync), persists PTO and regional holidays into `PTOHolidayImpact`. */
     ptoHolidaySync?: PtoHolidaySyncPayload;
   }
@@ -96,6 +109,7 @@ export async function applyFloatImportDatabaseEffects(
     projectsForResolution,
     personByName,
     roleById,
+    fallbackRoleIdForAssignment,
     ptoHolidaySync,
   } = params;
 
@@ -115,23 +129,28 @@ export async function applyFloatImportDatabaseEffects(
     if (!projectId) continue;
     const personId = personByName.get(entry.personName.toLowerCase());
     if (!personId) continue;
-    const roleId = roleById.get(entry.roleName.toLowerCase());
+    let roleId = roleById.get(entry.roleName.toLowerCase());
+    if (!roleId && fallbackRoleIdForAssignment) {
+      roleId = fallbackRoleIdForAssignment;
+    }
     if (!roleId) continue;
     assignmentUpdates.set(`${projectId}:${personId}`, { projectId, personId, roleId });
   }
 
-  if (assignmentUpdates.size > 0) {
-    await prisma.$transaction(
-      Array.from(assignmentUpdates.values()).map(({ projectId, personId, roleId }) =>
-        prisma.projectAssignment.upsert({
-          where: {
-            projectId_personId: { projectId, personId },
-          },
-          create: { projectId, personId, roleId },
-          update: { roleId },
-        })
-      )
-    );
+  const assignmentRows = Array.from(assignmentUpdates.values());
+  for (let i = 0; i < assignmentRows.length; i += ASSIGNMENT_UPSERT_BATCH_SIZE) {
+    const chunk = assignmentRows.slice(i, i + ASSIGNMENT_UPSERT_BATCH_SIZE);
+    if (chunk.length === 0) continue;
+    await prisma.$executeRaw`
+      INSERT INTO "ProjectAssignment" ("projectId", "personId", "roleId", "createdAt", "updatedAt")
+      VALUES ${Prisma.join(
+        chunk.map((r) =>
+          Prisma.sql`(${Prisma.join([r.projectId, r.personId, r.roleId])}, now(), now())`
+        )
+      )}
+      ON CONFLICT ("projectId", "personId")
+      DO UPDATE SET "roleId" = EXCLUDED."roleId", "updatedAt" = now()
+    `;
   }
 
   const projectFloatHoursMap = new Map<

@@ -20,6 +20,8 @@ const FLOAT_PROJECT_ID = 888001;
 const FLOAT_PERSON_ID = 99901;
 /** Same Float region as {@link FLOAT_PERSON_ID}; row omits region_name to test merged people map. */
 const FLOAT_PERSON_ID_2 = 99902;
+/** No Float `role_id` on person or task — assignment uses Workbench fallback role. */
+const FLOAT_PERSON_ID_3 = 99904;
 const FLOAT_CLIENT_ID = 1;
 const FLOAT_ROLE_ID = 42;
 
@@ -138,6 +140,14 @@ describe("Float API sync (mocked HTTP)", () => {
           role_id: FLOAT_ROLE_ID,
           region_id: 42,
         },
+        {
+          people_id: FLOAT_PERSON_ID_3,
+          name: "API Sync Person No Role",
+          email: "no-role@example.com",
+          active: 1,
+          account: {},
+          region_id: 42,
+        },
       ],
       projects: [
         {
@@ -156,6 +166,24 @@ describe("Float API sync (mocked HTTP)", () => {
           end_date: TASK_DAY,
           hours: 8,
           role_id: FLOAT_ROLE_ID,
+        },
+        /** 0h/day — no weekly hour rows; must still create ProjectAssignment via task backfill. */
+        {
+          task_id: 91002,
+          project_id: FLOAT_PROJECT_ID,
+          people_id: FLOAT_PERSON_ID_2,
+          start_date: TASK_DAY,
+          end_date: TASK_DAY,
+          hours: 0,
+          role_id: FLOAT_ROLE_ID,
+        },
+        {
+          task_id: 91004,
+          project_id: FLOAT_PROJECT_ID,
+          people_id: FLOAT_PERSON_ID_3,
+          start_date: TASK_DAY,
+          end_date: TASK_DAY,
+          hours: 8,
         },
       ],
     });
@@ -189,7 +217,11 @@ describe("Float API sync (mocked HTTP)", () => {
       await prisma.project.deleteMany({ where: { id: projectId } });
     }
     await prisma.person.deleteMany({
-      where: { externalId: { in: [String(FLOAT_PERSON_ID), String(FLOAT_PERSON_ID_2)] } },
+      where: {
+        externalId: {
+          in: [String(FLOAT_PERSON_ID), String(FLOAT_PERSON_ID_2), String(FLOAT_PERSON_ID_3)],
+        },
+      },
     });
     if (roleId) {
       await prisma.role.deleteMany({ where: { id: roleId } });
@@ -257,6 +289,40 @@ describe("Float API sync (mocked HTTP)", () => {
     });
     expect(assignment).toBeTruthy();
     expect(assignment!.roleId).toBe(roleId);
+  });
+
+  it("creates ProjectAssignment for a person with only zero-hour tasks (no FloatScheduledHours rows)", async () => {
+    expect(projectId).toBeDefined();
+    const p2 = await prisma.person.findFirstOrThrow({
+      where: { externalId: String(FLOAT_PERSON_ID_2) },
+    });
+    const assignment = await prisma.projectAssignment.findUnique({
+      where: {
+        projectId_personId: { projectId: projectId!, personId: p2.id },
+      },
+    });
+    expect(assignment).toBeTruthy();
+    expect(assignment!.roleId).toBe(roleId);
+    const floatRows = await prisma.floatScheduledHours.findMany({
+      where: { projectId: projectId!, personId: p2.id },
+    });
+    expect(floatRows).toHaveLength(0);
+  });
+
+  it("assigns fallback Workbench role when Float has no mappable role on task/person", async () => {
+    expect(projectId).toBeDefined();
+    const p3 = await prisma.person.findFirstOrThrow({
+      where: { externalId: String(FLOAT_PERSON_ID_3) },
+    });
+    const assignment = await prisma.projectAssignment.findUnique({
+      where: {
+        projectId_personId: { projectId: projectId!, personId: p3.id },
+      },
+    });
+    expect(assignment).toBeTruthy();
+    const firstRole = await prisma.role.findFirst({ orderBy: { name: "asc" } });
+    expect(firstRole).toBeTruthy();
+    expect(assignment!.roleId).toBe(firstRole!.id);
   });
 });
 

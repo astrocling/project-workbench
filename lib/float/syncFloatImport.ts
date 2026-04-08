@@ -617,18 +617,52 @@ export async function executeFloatApiSync(
     );
   }
 
+  /** Tasks with 0h/day (or all days excluded) produce no hour rows; still upsert assignments. */
+  for (const task of tasksForSync) {
+    const pid = num(task.project_id);
+    if (pid == null) continue;
+    const peopleIds: number[] = [];
+    if (task.people_ids?.length) {
+      for (const x of task.people_ids) {
+        const n = num(x);
+        if (n != null) peopleIds.push(n);
+      }
+    } else {
+      const one = num(task.people_id);
+      if (one != null) peopleIds.push(one);
+    }
+    for (const peid of peopleIds) {
+      const mergeKey = `${pid}|${peid}`;
+      if (mergedFloatByProjectPerson.has(mergeKey)) continue;
+      const fpMeta = floatProjectById.get(pid);
+      if (!fpMeta) continue;
+      const floatPerson = peopleByFloatId.get(peid);
+      const personName = floatPerson?.name?.trim() || `Float ${peid}`;
+      const projectName = fpMeta.name;
+      const roleName = pairRoles.get(`${pid}|${peid}`) ?? "";
+      if (roleName && !roleNames.has(roleName) && !unknownRoles.includes(roleName)) {
+        unknownRoles.push(roleName);
+      }
+      mergedFloatByProjectPerson.set(mergeKey, {
+        projectName,
+        personName,
+        roleName,
+        weekMap: new Map<string, number>(),
+        floatProjectId: pid,
+      });
+    }
+  }
+
   const projectNamesSet = new Set<string>();
+  for (const e of mergedFloatByProjectPerson.values()) {
+    projectNamesSet.add(e.projectName);
+  }
+
   const projectAssignmentsMap = new Map<
     string,
     Array<{ personName: string; roleName: string }>
   >();
   const projectToClientMap = new Map<string, string>();
-
-  for (const row of hourRows) {
-    const fpMeta = floatProjectById.get(row.floatProjectId);
-    if (!fpMeta) continue;
-    projectNamesSet.add(fpMeta.name);
-  }
 
   const projectNames = Array.from(projectNamesSet).sort();
 
@@ -666,6 +700,11 @@ export async function executeFloatApiSync(
 
   const asOf = getAsOfDate();
 
+  const fallbackRoleIdForAssignment =
+    knownRoles.length > 0
+      ? [...knownRoles].sort((a, b) => a.name.localeCompare(b.name))[0]!.id
+      : undefined;
+
   return applyFloatImportDatabaseEffects(prisma, {
     asOf,
     uploadedByUserId,
@@ -683,6 +722,7 @@ export async function executeFloatApiSync(
     })),
     personByName,
     roleById,
+    fallbackRoleIdForAssignment,
     ptoHolidaySync: {
       startYmd: startDate,
       endYmd: endDate,
