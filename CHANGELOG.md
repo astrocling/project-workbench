@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-04-08
+
+Patch release: Float sync correctness and performance, with a database index migration (`prisma/migrations/20260408155337_float_scheduled_hours_project_week_index`). Deploy with `prisma migrate deploy` (included in `npm run build`).
+
 ### Added
 
 - **Float sync — people added on tasks get project assignments** — For every Float **(project, person)** pair that appears on a **task** in the sync window, Workbench upserts **`ProjectAssignment`**, even when that pair produces **no** positive weekly hours (for example **0 hours per day**, or weekdays fully excluded by PTO/holidays so **`FloatScheduledHours`** rows are never written). People still appear under **Settings → Assignments** and on the Resourcing grid when the role can be resolved. If Float has **no** mappable role (`role_id` missing, unknown name, or no match in Workbench), sync uses the **first Workbench role by name** as a fallback so the person is not omitted. Implementation: `executeFloatApiSync` / `mergedFloatByProjectPerson` backfill from `tasksForSync`, `fallbackRoleIdForAssignment` and batched `INSERT … ON CONFLICT` in `lib/floatImportApply.ts`. Tests: `__tests__/api/admin/float-sync.test.ts`.

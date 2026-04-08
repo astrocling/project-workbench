@@ -302,7 +302,7 @@ function resolveDbProject(
   const ext = String(floatProjectId);
   const byExt = projects.find((p) => p.floatExternalId === ext);
   if (byExt) return byExt;
-  let p = projects.find(
+  const p = projects.find(
     (x) => normalizeProjectNameForLookup(x.name) === normalizeProjectNameForLookup(floatName)
   );
   if (p) return p;
@@ -571,7 +571,7 @@ export async function executeFloatApiSync(
     regionNameByFloatId
   );
 
-  let projects = await prisma.project.findMany();
+  const projects = await prisma.project.findMany();
   const projectsByNameLower = new Map(
     projects.map((p) => [p.name.toLowerCase(), p.id] as const)
   );
