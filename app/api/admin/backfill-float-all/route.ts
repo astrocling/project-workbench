@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import {
-  backfillFloatScheduledHoursForProjectFromRuns,
+  backfillFloatScheduledHoursAllProjectsFromRuns,
   loadFloatImportRunsForBackfill,
 } from "@/lib/backfillFloatFromImports";
 
@@ -41,27 +41,12 @@ export async function POST() {
     people.map((p) => [p.name.trim().toLowerCase(), p.id] as const)
   );
 
-  let upsertsTotal = 0;
-  let projectsWithData = 0;
-  let projectsSkipped = 0;
-
-  for (const p of projects) {
-    const { upserted, hadImportData } = await backfillFloatScheduledHoursForProjectFromRuns(
-      prisma,
-      {
-        projectId: p.id,
-        projectName: p.name,
-        runs,
-        personIdByLowerName,
-      }
-    );
-    if (!hadImportData) {
-      projectsSkipped++;
-      continue;
-    }
-    projectsWithData++;
-    upsertsTotal += upserted;
-  }
+  const { upsertsTotal, projectsWithData, projectsSkipped } =
+    await backfillFloatScheduledHoursAllProjectsFromRuns(prisma, {
+      projects,
+      runs,
+      personIdByLowerName,
+    });
 
   revalidateTag("project-resourcing", "max");
 

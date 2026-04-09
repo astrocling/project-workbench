@@ -757,5 +757,6 @@ export async function executeFloatApiSync(
       publicHolidays: publicHolidays as Array<Record<string, unknown>>,
       teamHolidays: teamHolidays as Array<Record<string, unknown>>,
     },
+    floatApiSyncWindow: { start: windowStart, end: windowEnd },
   });
 }

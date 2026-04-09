@@ -89,11 +89,12 @@ export function resolveProjectIdForMergedFloatEntry(
  *
  * For each (project, person) that has **at least one incomplete-week hour** in this merge, all
  * **incomplete** float rows (`weekStartDate` > `asOf`) for that pair are removed first, then rows
- * from this run are upserted — so weeks that disappear from Float no longer leave stale hours.
- * Pairs that only have completed-week rollups in this run do **not** get a blanket future delete
- * (otherwise forward hours with no incomplete-week row to replace — e.g. after backfill — would be
- * wiped). **Completed** weeks (`weekStartDate` ≤ `asOf`) are never deleted or updated. People
- * removed from the merge still have future rows cleared by the separate removed-person pass.
+ * from this run are upserted — except when `floatApiSyncWindow` is set (Float API sync): then no
+ * pre-upsert delete runs for those pairs, so CSV / backfill hours that the API snapshot omits are
+ * not wiped (upserts only add or overwrite weeks present in this merge). Pairs that only have
+ * completed-week rollups in this run do **not** get a blanket future delete. **Completed** weeks
+ * (`weekStartDate` ≤ `asOf`) are never deleted or updated. People removed from the merge still have
+ * future rows cleared by the separate removed-person pass.
  */
 export async function applyFloatImportDatabaseEffects(
   prisma: PrismaClient,
@@ -120,6 +121,12 @@ export async function applyFloatImportDatabaseEffects(
     fallbackRoleIdForAssignment?: string | null;
     /** When set (Float API sync), persists PTO and regional holidays into `PTOHolidayImpact`. */
     ptoHolidaySync?: PtoHolidaySyncPayload;
+    /**
+     * When set (Float API sync), skips the pre-upsert “delete all future hours for this pair” step
+     * so backfilled rows survive; merge weeks are still upserted. Window bounds are informational
+     * for callers (same range as the task fetch).
+     */
+    floatApiSyncWindow?: { start: Date; end: Date };
   }
 ): Promise<{
   run: { id: string; completedAt: Date };
@@ -142,6 +149,7 @@ export async function applyFloatImportDatabaseEffects(
     roleById,
     fallbackRoleIdForAssignment,
     ptoHolidaySync,
+    floatApiSyncWindow,
   } = params;
 
   const projectNamesSet = new Set(projectNames);
@@ -271,7 +279,7 @@ export async function applyFloatImportDatabaseEffects(
     pairsWithFutureWrites.add(`${r.projectId}|${r.personId}`);
   }
 
-  if (pairsWithFutureWrites.size > 0) {
+  if (pairsWithFutureWrites.size > 0 && !floatApiSyncWindow) {
     const orPairs = Array.from(pairsWithFutureWrites).map((key) => {
       const [projectId, personId] = key.split("|");
       return { projectId, personId };

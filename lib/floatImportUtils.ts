@@ -155,3 +155,69 @@ export function getProjectDataFromAllImports(
 
   return { assignmentsList, floatList, matchedKey };
 }
+
+/**
+ * Merged float hours for many Workbench projects in one pass over import runs.
+ * Semantics match calling {@link getProjectDataFromAllImports} per project: for each project,
+ * later runs overwrite earlier values per (personName, weekStart). Uses a per-run cache keyed by
+ * {@link normalizeProjectNameForLookup}(project name) so duplicate-normalized names only resolve
+ * `getProjectDataFromImport` once per run.
+ */
+export function mergeFloatHoursForProjectsFromRuns(
+  runs: FloatImportRunWithDate[],
+  projects: Array<{ id: string; name: string }>
+): Map<string, FloatHourItem[]> {
+  const hoursByProjectAndPerson = new Map<
+    string,
+    Map<string, { personName: string; weekMap: Map<string, number> }>
+  >();
+  for (const p of projects) {
+    hoursByProjectAndPerson.set(p.id, new Map());
+  }
+
+  for (const run of runs) {
+    const floatListByNormName = new Map<string, FloatHourItem[]>();
+    for (const p of projects) {
+      const norm = normalizeProjectNameForLookup(p.name);
+      let floatList: FloatHourItem[];
+      if (floatListByNormName.has(norm)) {
+        floatList = floatListByNormName.get(norm)!;
+      } else {
+        const { floatList: fl } = getProjectDataFromImport(run, p.name);
+        floatList = fl;
+        floatListByNormName.set(norm, floatList);
+      }
+      const hoursByPerson = hoursByProjectAndPerson.get(p.id)!;
+      for (const item of floatList) {
+        const personName = item.personName;
+        const personKey = personName.trim().toLowerCase();
+        if (!hoursByPerson.has(personKey)) {
+          hoursByPerson.set(personKey, { personName, weekMap: new Map() });
+        }
+        const entry = hoursByPerson.get(personKey)!;
+        entry.personName = personName;
+        for (const w of item.weeks ?? []) {
+          if (w.weekStart != null && w.hours != null) {
+            entry.weekMap.set(w.weekStart, w.hours);
+          }
+        }
+      }
+    }
+  }
+
+  const result = new Map<string, FloatHourItem[]>();
+  for (const p of projects) {
+    const hoursByPerson = hoursByProjectAndPerson.get(p.id)!;
+    const floatList: FloatHourItem[] = [];
+    for (const { personName, weekMap } of hoursByPerson.values()) {
+      const weeks = Array.from(weekMap.entries())
+        .map(([weekStart, hours]) => ({ weekStart, hours }))
+        .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+      if (weeks.length > 0) {
+        floatList.push({ personName, roleName: "", weeks });
+      }
+    }
+    result.set(p.id, floatList);
+  }
+  return result;
+}
