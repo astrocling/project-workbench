@@ -239,9 +239,29 @@ export function filterHolidayRowsOverlappingYmdWindow(
 
 export type FloatTimeOffJson = {
   people_id?: number | string | null;
+  /** Float `/v3/timeoffs` commonly uses this array; see {@link floatPeopleIdsFromTimeoffRow}. */
+  people_ids?: Array<number | string> | null;
   start_date?: string | null;
   end_date?: string | null;
 };
+
+/**
+ * Float `/v3/timeoffs` uses `people_ids` (array); single `people_id` kept for older/alternate payloads.
+ * Must match {@link floatPeopleIdsFromTimeoffRow} in `ptoholidaySyncWriters.ts` (no circular import).
+ */
+function floatPeopleIdsFromTimeoffRow(row: Record<string, unknown>): number[] {
+  const raw = row["people_ids"];
+  if (Array.isArray(raw)) {
+    const out: number[] = [];
+    for (const el of raw) {
+      const n = num(el as number | string);
+      if (n != null) out.push(n);
+    }
+    if (out.length > 0) return out;
+  }
+  const single = num(row["people_id"] as number | string | undefined);
+  return single != null ? [single] : [];
+}
 
 export type BuildExcludedDaysParams = {
   /** Raw `/v3/people` rows (needs `people_id`, optional `region_id`). */
@@ -282,13 +302,16 @@ export function buildExcludedUtcDatesByFloatPeopleId(
   }
 
   for (const t of params.timeOffs) {
-    const pid = num(t.people_id);
-    if (pid == null) continue;
-    const range = holidayRangeYmdFromRow(t as Record<string, unknown>);
+    const row = t as Record<string, unknown>;
+    const pids = floatPeopleIdsFromTimeoffRow(row);
+    if (pids.length === 0) continue;
+    const range = holidayRangeYmdFromRow(row);
     if (!range) continue;
     const days = expandInclusiveUtcRangeToYmds(range.start, range.end);
-    const set = ensureSet(map, pid);
-    for (const ymd of days) set.add(ymd);
+    for (const pid of pids) {
+      const set = ensureSet(map, pid);
+      for (const ymd of days) set.add(ymd);
+    }
   }
 
   const applyRegional = (rows: Array<Record<string, unknown>>) => {

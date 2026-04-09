@@ -10,7 +10,7 @@ import {
 } from "@/lib/float/excludedDays";
 
 describe("buildExcludedUtcDatesByFloatPeopleId", () => {
-  it("adds time off days per people_id only", () => {
+  it("adds time off days per people_id", () => {
     const map = buildExcludedUtcDatesByFloatPeopleId({
       floatPeople: [{ people_id: 10, region_id: 1 }],
       timeOffs: [
@@ -22,6 +22,18 @@ describe("buildExcludedUtcDatesByFloatPeopleId", () => {
     expect(map.get(10)?.has("2024-06-03")).toBe(true);
     expect(map.get(10)?.has("2024-06-04")).toBe(true);
     expect(map.get(99)?.size ?? 0).toBe(0);
+  });
+
+  it("adds time off days from people_ids when people_id is absent (Float API)", () => {
+    const map = buildExcludedUtcDatesByFloatPeopleId({
+      floatPeople: [{ people_id: 10, region_id: 1 }],
+      timeOffs: [
+        { people_ids: [10], start_date: "2024-06-03", end_date: "2024-06-03" },
+      ],
+      publicHolidays: [],
+      teamHolidays: [],
+    });
+    expect(map.get(10)?.has("2024-06-03")).toBe(true);
   });
 
   it("adds time off for a single day when only start_date is present", () => {
