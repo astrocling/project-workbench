@@ -167,8 +167,16 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });
   }
 
-  const data: { roleId?: string; billRateOverride?: number | null; hiddenFromGrid?: boolean } = {};
-  if (parsed.data.roleId !== undefined) data.roleId = parsed.data.roleId;
+  const data: {
+    roleId?: string;
+    billRateOverride?: number | null;
+    hiddenFromGrid?: boolean;
+    syncRoleFromFloat?: boolean;
+  } = {};
+  if (parsed.data.roleId !== undefined) {
+    data.roleId = parsed.data.roleId;
+    data.syncRoleFromFloat = false;
+  }
   if (parsed.data.billRateOverride !== undefined) data.billRateOverride = parsed.data.billRateOverride;
   if (parsed.data.hiddenFromGrid !== undefined) data.hiddenFromGrid = parsed.data.hiddenFromGrid;
   if (Object.keys(data).length === 0) {

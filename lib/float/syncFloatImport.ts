@@ -22,6 +22,10 @@ import {
   buildFloatRegionNameMap,
   floatRegionLabelFromPersonRow,
 } from "@/lib/float/regionLabel";
+import {
+  buildWorkbenchRoleLookup,
+  getFallbackRoleIdForNewAssignment,
+} from "@/lib/float/roleWorkbenchMatch";
 import { applyFloatImportDatabaseEffects, type MergedFloatEntry } from "@/lib/floatImportApply";
 import { normalizeProjectNameForLookup } from "@/lib/floatImportUtils";
 import { getAsOfDate } from "@/lib/weekUtils";
@@ -523,10 +527,7 @@ export async function executeFloatApiSync(
 
   const tasksForSync = dedupeFloatTasksForAggregation(tasks);
 
-  const roleNames = new Set(knownRoles.map((r) => r.name));
-  const roleById = new Map(
-    knownRoles.map((r) => [r.name.toLowerCase(), r.id] as const)
-  );
+  const { resolveFloatRoleNameToWorkbenchId } = buildWorkbenchRoleLookup(knownRoles);
   const roleIdToName = new Map<number, string>();
   for (const r of floatRolesList) {
     const id = num(r.role_id);
@@ -619,7 +620,11 @@ export async function executeFloatApiSync(
     const roleName =
       pairRoles.get(`${row.floatProjectId}|${row.floatPeopleId}`) ?? "";
 
-    if (roleName && !roleNames.has(roleName) && !unknownRoles.includes(roleName)) {
+    if (
+      roleName.trim() &&
+      !resolveFloatRoleNameToWorkbenchId(roleName) &&
+      !unknownRoles.includes(roleName)
+    ) {
       unknownRoles.push(roleName);
     }
 
@@ -667,7 +672,11 @@ export async function executeFloatApiSync(
       const personName = floatPerson?.name?.trim() || `Float ${peid}`;
       const projectName = fpMeta.name;
       const roleName = pairRoles.get(`${pid}|${peid}`) ?? "";
-      if (roleName && !roleNames.has(roleName) && !unknownRoles.includes(roleName)) {
+      if (
+        roleName.trim() &&
+        !resolveFloatRoleNameToWorkbenchId(roleName) &&
+        !unknownRoles.includes(roleName)
+      ) {
         unknownRoles.push(roleName);
       }
       mergedFloatByProjectPerson.set(mergeKey, {
@@ -727,10 +736,7 @@ export async function executeFloatApiSync(
 
   const asOf = getAsOfDate();
 
-  const fallbackRoleIdForAssignment =
-    knownRoles.length > 0
-      ? [...knownRoles].sort((a, b) => a.name.localeCompare(b.name))[0]!.id
-      : undefined;
+  const fallbackRoleIdForAssignment = getFallbackRoleIdForNewAssignment(knownRoles);
 
   return applyFloatImportDatabaseEffects(prisma, {
     asOf,
@@ -748,7 +754,7 @@ export async function executeFloatApiSync(
       floatExternalId: p.floatExternalId,
     })),
     personByName,
-    roleById,
+    workbenchRoles: knownRoles,
     fallbackRoleIdForAssignment,
     ptoHolidaySync: {
       startYmd: startDate,

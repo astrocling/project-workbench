@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Float sync — project assignment roles** — Float import no longer assigns the same fallback role (previously the first Workbench role alphabetically, often **Analytics Engineer**) to everyone when Float’s role label did not exactly match a Workbench `Role` name. Unmapped Float roles now **keep** the existing assignment role for that person on the project; **new** rows use a stable preferred fallback (`lib/float/roleWorkbenchMatch.ts`). Float labels are matched with normalization and optional aliases. **`ProjectAssignment.syncRoleFromFloat`** (default true): saving a role in **Settings → Assignments** sets it to false so Float sync does not overwrite manual role choices.
+
+### Changed
+
+- **Float sync — assignment role from job title** — When **`syncRoleFromFloat`** is true, Workbench now prefers **`Person.floatJobTitle`** (Float `job_title`) mapped to a Workbench `Role` via `resolveJobTitleToWorkbenchId` and **`FLOAT_JOB_TITLE_ALIASES`**, and only then falls back to Float **scheduling** role names from tasks (`lib/floatImportApply.ts`). This aligns project assignment roles with the Admin **People** job title when both are present; extend aliases in `lib/float/roleWorkbenchMatch.ts` as needed for your org’s titles.
+
 ## [1.0.1] - 2026-04-08
 
 Patch release: Float sync correctness and performance, with a database index migration (`prisma/migrations/20260408155337_float_scheduled_hours_project_week_index`). Deploy with `prisma migrate deploy` (included in `npm run build`).

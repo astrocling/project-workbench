@@ -267,6 +267,8 @@ model ProjectAssignment {
   personId        String
   roleId          String
   billRateOverride Decimal? @db.Decimal(10, 2)
+  /// When false, Float sync does not overwrite `roleId` (user set the role in Workbench).
+  syncRoleFromFloat Boolean @default(true)
   /// When true, this person's row is hidden in the project Resourcing tab only.
   hiddenFromGrid  Boolean   @default(false)
   createdAt       DateTime  @default(now())

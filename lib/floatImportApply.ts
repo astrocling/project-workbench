@@ -9,6 +9,13 @@ import {
   applyPtoHolidaySyncWriters,
   type PtoHolidaySyncPayload,
 } from "@/lib/float/ptoholidaySyncWriters";
+import {
+  buildWorkbenchRoleLookup,
+  getFallbackRoleIdForNewAssignment,
+  resolveJobTitleToWorkbenchId,
+  type WorkbenchRoleRow,
+} from "@/lib/float/roleWorkbenchMatch";
+import { projectAssignmentHasSyncRoleFromFloatColumn } from "@/lib/projectAssignmentSyncColumn";
 import { normalizeProjectNameForLookup } from "@/lib/floatImportUtils";
 import { isCompletedWeek } from "@/lib/weekUtils";
 
@@ -111,12 +118,12 @@ export async function applyFloatImportDatabaseEffects(
     /** When provided (API sync), ties hours to the correct project when names collide in Float. */
     projectsForResolution?: Array<{ id: string; name: string; floatExternalId: string | null }>;
     personByName: Map<string, string>;
-    roleById: Map<string, string>;
+    /** All Workbench `Role` rows — used to resolve Float labels and compute fallback for new rows. */
+    workbenchRoles: WorkbenchRoleRow[];
     /**
      * When Float task/person has no resolvable role name, or the name does not match a Workbench
-     * `Role`, use this id for `ProjectAssignment` upserts so people still appear on the project
-     * (Float hours do not depend on role). Omit to skip assignment when the role cannot be resolved
-     * (legacy behavior).
+     * `Role`, use this id for **new** `ProjectAssignment` rows only (existing rows keep their role).
+     * Defaults via {@link getFallbackRoleIdForNewAssignment} when omitted.
      */
     fallbackRoleIdForAssignment?: string | null;
     /** When set (Float API sync), persists PTO and regional holidays into `PTOHolidayImpact`. */
@@ -146,13 +153,80 @@ export async function applyFloatImportDatabaseEffects(
     projectsByName,
     projectsForResolution,
     personByName,
-    roleById,
+    workbenchRoles,
     fallbackRoleIdForAssignment,
     ptoHolidaySync,
     floatApiSyncWindow,
   } = params;
 
   const projectNamesSet = new Set(projectNames);
+
+  const { resolveFloatRoleNameToWorkbenchId } = buildWorkbenchRoleLookup(workbenchRoles);
+  const fallbackForNew =
+    fallbackRoleIdForAssignment ?? getFallbackRoleIdForNewAssignment(workbenchRoles) ?? null;
+
+  const pairList: Array<{ projectId: string; personId: string }> = [];
+  for (const entry of mergedFloatByProjectPerson.values()) {
+    const projectId = resolveProjectIdForMergedFloatEntry(
+      entry,
+      projectsByName,
+      projectsForResolution
+    );
+    if (!projectId) continue;
+    const personId = personByName.get(entry.personName.toLowerCase());
+    if (!personId) continue;
+    pairList.push({ projectId, personId });
+  }
+  const pairDedup = [
+    ...new Map(pairList.map((p) => [`${p.projectId}|${p.personId}`, p] as const)).values(),
+  ];
+
+  const personIdsUnique = [...new Set(pairDedup.map((p) => p.personId))];
+  const floatJobTitleByPersonId = new Map<string, string | null>();
+  if (personIdsUnique.length > 0) {
+    const peopleRows = await prisma.person.findMany({
+      where: { id: { in: personIdsUnique } },
+      select: { id: true, floatJobTitle: true },
+    });
+    for (const p of peopleRows) {
+      floatJobTitleByPersonId.set(p.id, p.floatJobTitle);
+    }
+  }
+
+  const hasSyncRoleCol = await projectAssignmentHasSyncRoleFromFloatColumn(prisma);
+
+  const existingAssignmentByPair = new Map<
+    string,
+    { roleId: string; syncRoleFromFloat: boolean }
+  >();
+  for (let i = 0; i < pairDedup.length; i += ASSIGNMENT_UPSERT_BATCH_SIZE) {
+    const slice = pairDedup.slice(i, i + ASSIGNMENT_UPSERT_BATCH_SIZE);
+    if (slice.length === 0) continue;
+    const rows = hasSyncRoleCol
+      ? await prisma.projectAssignment.findMany({
+          where: { OR: slice.map((p) => ({ projectId: p.projectId, personId: p.personId })) },
+          select: {
+            projectId: true,
+            personId: true,
+            roleId: true,
+            syncRoleFromFloat: true,
+          },
+        })
+      : await prisma.projectAssignment.findMany({
+          where: { OR: slice.map((p) => ({ projectId: p.projectId, personId: p.personId })) },
+          select: { projectId: true, personId: true, roleId: true },
+        });
+    for (const r of rows) {
+      const syncFloat =
+        hasSyncRoleCol && "syncRoleFromFloat" in r && typeof r.syncRoleFromFloat === "boolean"
+          ? r.syncRoleFromFloat
+          : true;
+      existingAssignmentByPair.set(`${r.projectId}|${r.personId}`, {
+        roleId: r.roleId,
+        syncRoleFromFloat: syncFloat,
+      });
+    }
+  }
 
   const assignmentUpdates = new Map<
     string,
@@ -168,9 +242,25 @@ export async function applyFloatImportDatabaseEffects(
     if (!projectId) continue;
     const personId = personByName.get(entry.personName.toLowerCase());
     if (!personId) continue;
-    let roleId = roleById.get(entry.roleName.toLowerCase());
-    if (!roleId && fallbackRoleIdForAssignment) {
-      roleId = fallbackRoleIdForAssignment;
+    const pairKey = `${projectId}|${personId}`;
+    const existing = existingAssignmentByPair.get(pairKey);
+    const fromJobTitle = resolveJobTitleToWorkbenchId(
+      floatJobTitleByPersonId.get(personId) ?? null,
+      workbenchRoles
+    );
+    const fromFloatRole = resolveFloatRoleNameToWorkbenchId(entry.roleName);
+
+    let roleId: string | undefined;
+    if (existing && !existing.syncRoleFromFloat) {
+      roleId = existing.roleId;
+    } else if (fromJobTitle) {
+      roleId = fromJobTitle;
+    } else if (fromFloatRole) {
+      roleId = fromFloatRole;
+    } else if (existing) {
+      roleId = existing.roleId;
+    } else if (fallbackForNew) {
+      roleId = fallbackForNew;
     }
     if (!roleId) continue;
     assignmentUpdates.set(`${projectId}:${personId}`, { projectId, personId, roleId });
@@ -180,16 +270,29 @@ export async function applyFloatImportDatabaseEffects(
   for (let i = 0; i < assignmentRows.length; i += ASSIGNMENT_UPSERT_BATCH_SIZE) {
     const chunk = assignmentRows.slice(i, i + ASSIGNMENT_UPSERT_BATCH_SIZE);
     if (chunk.length === 0) continue;
-    await prisma.$executeRaw`
-      INSERT INTO "ProjectAssignment" ("projectId", "personId", "roleId", "createdAt", "updatedAt")
-      VALUES ${Prisma.join(
-        chunk.map((r) =>
-          Prisma.sql`(${Prisma.join([r.projectId, r.personId, r.roleId])}, now(), now())`
-        )
-      )}
-      ON CONFLICT ("projectId", "personId")
-      DO UPDATE SET "roleId" = EXCLUDED."roleId", "updatedAt" = now()
-    `;
+    if (hasSyncRoleCol) {
+      await prisma.$executeRaw`
+        INSERT INTO "ProjectAssignment" ("projectId", "personId", "roleId", "syncRoleFromFloat", "createdAt", "updatedAt")
+        VALUES ${Prisma.join(
+          chunk.map((r) =>
+            Prisma.sql`(${Prisma.join([r.projectId, r.personId, r.roleId])}, true, now(), now())`
+          )
+        )}
+        ON CONFLICT ("projectId", "personId")
+        DO UPDATE SET "roleId" = EXCLUDED."roleId", "updatedAt" = now()
+      `;
+    } else {
+      await prisma.$executeRaw`
+        INSERT INTO "ProjectAssignment" ("projectId", "personId", "roleId", "createdAt", "updatedAt")
+        VALUES ${Prisma.join(
+          chunk.map((r) =>
+            Prisma.sql`(${Prisma.join([r.projectId, r.personId, r.roleId])}, now(), now())`
+          )
+        )}
+        ON CONFLICT ("projectId", "personId")
+        DO UPDATE SET "roleId" = EXCLUDED."roleId", "updatedAt" = now()
+      `;
+    }
   }
 
   const projectFloatHoursMap = new Map<

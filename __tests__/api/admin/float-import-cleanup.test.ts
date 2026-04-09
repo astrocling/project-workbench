@@ -150,7 +150,6 @@ describe("float import cleanup: remove future hours when person not in merged im
       prisma.person.findMany(),
       prisma.project.findMany(),
     ]);
-    const roleById = new Map(knownRoles.map((r) => [r.name.toLowerCase(), r.id]));
     const personByName = new Map(persons.map((p) => [p.name.toLowerCase(), p.id]));
     const projectsByName = new Map(projects.map((p) => [p.name.toLowerCase(), p.id]));
 
@@ -181,7 +180,7 @@ describe("float import cleanup: remove future hours when person not in merged im
       newPersonNames: [],
       projectsByName,
       personByName,
-      roleById,
+      workbenchRoles: knownRoles,
     });
     importRunId = run.id;
 
@@ -211,5 +210,76 @@ describe("float import cleanup: remove future hours when person not in merged im
       where: { projectId },
     });
     expect(assignments).toHaveLength(2);
+  });
+
+  it("preserves assignment role when syncRoleFromFloat is false even if Float resolves to another role", async () => {
+    if (!projectId || !personAliceId || !roleId) {
+      throw new Error("Test setup did not complete");
+    }
+    const pm = await prisma.role.findFirst({
+      where: { name: "Project Manager" },
+    });
+    if (!pm) {
+      throw new Error("Expected a Workbench Role named Project Manager (from seed)");
+    }
+
+    await prisma.projectAssignment.update({
+      where: {
+        projectId_personId: { projectId, personId: personAliceId },
+      },
+      data: { roleId, syncRoleFromFloat: false },
+    });
+
+    const [knownRoles, persons, projects] = await Promise.all([
+      prisma.role.findMany(),
+      prisma.person.findMany(),
+      prisma.project.findMany(),
+    ]);
+    const personByName = new Map(persons.map((p) => [p.name.toLowerCase(), p.id]));
+    const projectsByName = new Map(projects.map((p) => [p.name.toLowerCase(), p.id]));
+
+    const weekKey = formatWeekKey(FUTURE_WEEK);
+    const mergeKey = `${TEST_PROJECT_NAME}|${PERSON_ALICE}`.toLowerCase();
+    const mergedFloatByProjectPerson = new Map([
+      [
+        mergeKey,
+        {
+          projectName: TEST_PROJECT_NAME,
+          personName: PERSON_ALICE,
+          roleName: "Project Manager",
+          weekMap: new Map([[weekKey, 1]]),
+        },
+      ],
+    ]);
+
+    const { run: rolePreserveRun } = await applyFloatImportDatabaseEffects(prisma, {
+      asOf: AS_OF,
+      uploadedByUserId: null,
+      mergedFloatByProjectPerson,
+      projectNames: [TEST_PROJECT_NAME],
+      projectAssignments: {
+        [TEST_PROJECT_NAME]: [{ personName: PERSON_ALICE, roleName: "Project Manager" }],
+      },
+      projectToClientMap: {},
+      unknownRoles: [],
+      newPersonNames: [],
+      projectsByName,
+      personByName,
+      workbenchRoles: knownRoles,
+    });
+    await prisma.floatImportRun.deleteMany({ where: { id: rolePreserveRun.id } });
+
+    const aliceAssignment = await prisma.projectAssignment.findUniqueOrThrow({
+      where: { projectId_personId: { projectId, personId: personAliceId } },
+    });
+    expect(aliceAssignment.roleId).toBe(roleId);
+    expect(aliceAssignment.syncRoleFromFloat).toBe(false);
+
+    await prisma.projectAssignment.update({
+      where: {
+        projectId_personId: { projectId, personId: personAliceId },
+      },
+      data: { roleId, syncRoleFromFloat: true },
+    });
   });
 });

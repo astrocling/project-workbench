@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { FloatClient } from "@/lib/float/client";
+import { getFallbackRoleIdForNewAssignment } from "@/lib/float/roleWorkbenchMatch";
 import { executeFloatApiSync } from "@/lib/float/syncFloatImport";
 import { FLOAT_LIST_MAX_PER_PAGE, FLOAT_PER_PAGE_PARAM } from "@/lib/float/types";
 
@@ -99,6 +100,17 @@ describe("Float API sync (mocked HTTP)", () => {
       update: {},
     });
     roleId = role.id;
+
+    await prisma.role.upsert({
+      where: { name: "Lead Developer" },
+      create: { name: "Lead Developer" },
+      update: {},
+    });
+    await prisma.role.upsert({
+      where: { name: "Designer" },
+      create: { name: "Designer" },
+      update: {},
+    });
 
     const project = await prisma.project.upsert({
       where: { slug: TEST_SLUG },
@@ -288,7 +300,10 @@ describe("Float API sync (mocked HTTP)", () => {
       },
     });
     expect(assignment).toBeTruthy();
-    expect(assignment!.roleId).toBe(roleId);
+    /** Job title "Senior Developer" maps to Lead Developer; Float scheduling role name is ignored when job title resolves. */
+    const leadDeveloper = await prisma.role.findFirst({ where: { name: "Lead Developer" } });
+    expect(leadDeveloper).toBeTruthy();
+    expect(assignment!.roleId).toBe(leadDeveloper!.id);
   });
 
   it("creates ProjectAssignment for a person with only zero-hour tasks (no FloatScheduledHours rows)", async () => {
@@ -302,14 +317,17 @@ describe("Float API sync (mocked HTTP)", () => {
       },
     });
     expect(assignment).toBeTruthy();
-    expect(assignment!.roleId).toBe(roleId);
+    /** Job title "Designer" matches Workbench Role "Designer" over Float scheduling role. */
+    const designerRole = await prisma.role.findFirst({ where: { name: "Designer" } });
+    expect(designerRole).toBeTruthy();
+    expect(assignment!.roleId).toBe(designerRole!.id);
     const floatRows = await prisma.floatScheduledHours.findMany({
       where: { projectId: projectId!, personId: p2.id },
     });
     expect(floatRows).toHaveLength(0);
   });
 
-  it("assigns fallback Workbench role when Float has no mappable role on task/person", async () => {
+  it("assigns preferred fallback Workbench role when Float has no mappable role on task/person", async () => {
     expect(projectId).toBeDefined();
     const p3 = await prisma.person.findFirstOrThrow({
       where: { externalId: String(FLOAT_PERSON_ID_3) },
@@ -320,9 +338,10 @@ describe("Float API sync (mocked HTTP)", () => {
       },
     });
     expect(assignment).toBeTruthy();
-    const firstRole = await prisma.role.findFirst({ orderBy: { name: "asc" } });
-    expect(firstRole).toBeTruthy();
-    expect(assignment!.roleId).toBe(firstRole!.id);
+    const allRoles = await prisma.role.findMany();
+    const expectedFallback = getFallbackRoleIdForNewAssignment(allRoles);
+    expect(expectedFallback).toBeTruthy();
+    expect(assignment!.roleId).toBe(expectedFallback);
   });
 });
 
@@ -447,5 +466,137 @@ describe("Float API sync — regional holiday with nested region on public-holid
     expect(rows).toHaveLength(1);
     expect(Number(rows[0]!.hours)).toBe(4);
     expect(rows[0]!.weekStartDate.toISOString().startsWith("2030-06-03")).toBe(true);
+  });
+});
+
+describe("Float API sync — job title overrides Analytics Engineer scheduling role", () => {
+  const TEST_SLUG_JT = "float-sync-job-title-vs-ae";
+  const TEST_PROJECT_NAME_JT = "Float Sync Job Title Vs AE Project";
+  const FLOAT_PROJECT_ID_JT = 888005;
+  const FLOAT_PERSON_ID_JT = 99905;
+  const FLOAT_ROLE_ID_AE = 99100;
+
+  let projectIdJt: string | undefined;
+  let importRunIdJt: string | undefined;
+  let personIdJt: string | undefined;
+
+  beforeAll(async () => {
+    if (!process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL is required for this integration test. Load .env or set it.");
+    }
+
+    await prisma.role.upsert({
+      where: { name: "Analytics Engineer" },
+      create: { name: "Analytics Engineer" },
+      update: {},
+    });
+    await prisma.role.upsert({
+      where: { name: "Solutions Consultant" },
+      create: { name: "Solutions Consultant" },
+      update: {},
+    });
+
+    const project = await prisma.project.upsert({
+      where: { slug: TEST_SLUG_JT },
+      create: {
+        slug: TEST_SLUG_JT,
+        name: TEST_PROJECT_NAME_JT,
+        clientName: "Test Client",
+        startDate: new Date("2030-01-01"),
+        endDate: new Date("2030-12-31"),
+      },
+      update: { name: TEST_PROJECT_NAME_JT },
+    });
+    projectIdJt = project.id;
+
+    const fetchImpl = createMockFloatFetch({
+      people: [
+        {
+          people_id: FLOAT_PERSON_ID_JT,
+          name: "JT vs AE Person",
+          email: "jt-vs-ae@example.com",
+          job_title: "Senior Consultant",
+          active: 1,
+          account: {},
+          role_id: FLOAT_ROLE_ID_AE,
+          region_id: 42,
+          region_name: "Test Region",
+        },
+      ],
+      projects: [
+        {
+          project_id: FLOAT_PROJECT_ID_JT,
+          name: TEST_PROJECT_NAME_JT,
+          client_id: FLOAT_CLIENT_ID,
+        },
+      ],
+      clients: [{ client_id: FLOAT_CLIENT_ID, name: "Acme Corp" }],
+      roles: [{ role_id: FLOAT_ROLE_ID_AE, name: "Analytics Engineer" }],
+      tasks: [
+        {
+          project_id: FLOAT_PROJECT_ID_JT,
+          people_id: FLOAT_PERSON_ID_JT,
+          start_date: TASK_DAY,
+          end_date: TASK_DAY,
+          hours: 8,
+          role_id: FLOAT_ROLE_ID_AE,
+        },
+      ],
+    });
+
+    const client = new FloatClient({
+      token: "test-token-jt-ae",
+      baseUrl: "https://api.test",
+      fetchImpl,
+    });
+
+    const { run } = await executeFloatApiSync(prisma, client, {
+      startDate: SYNC_START,
+      endDate: SYNC_END,
+      uploadedByUserId: null,
+    });
+    importRunIdJt = run.id;
+
+    const person = await prisma.person.findFirst({
+      where: { externalId: String(FLOAT_PERSON_ID_JT) },
+    });
+    personIdJt = person?.id;
+  });
+
+  afterAll(async () => {
+    if (importRunIdJt) {
+      await prisma.floatImportRun.deleteMany({ where: { id: importRunIdJt } });
+    }
+    if (projectIdJt) {
+      await prisma.floatScheduledHours.deleteMany({ where: { projectId: projectIdJt } });
+      await prisma.projectAssignment.deleteMany({ where: { projectId: projectIdJt } });
+      await prisma.project.deleteMany({ where: { id: projectIdJt } });
+    }
+    await prisma.person.deleteMany({
+      where: { externalId: String(FLOAT_PERSON_ID_JT) },
+    });
+  });
+
+  it("uses job title (Senior Consultant → Solutions Consultant) instead of Float scheduling role Analytics Engineer", async () => {
+    expect(projectIdJt).toBeDefined();
+    expect(personIdJt).toBeDefined();
+
+    const solutionsConsultant = await prisma.role.findFirst({
+      where: { name: "Solutions Consultant" },
+    });
+    const analyticsEngineer = await prisma.role.findFirst({
+      where: { name: "Analytics Engineer" },
+    });
+    expect(solutionsConsultant).toBeTruthy();
+    expect(analyticsEngineer).toBeTruthy();
+
+    const assignment = await prisma.projectAssignment.findUnique({
+      where: {
+        projectId_personId: { projectId: projectIdJt!, personId: personIdJt! },
+      },
+    });
+    expect(assignment).toBeTruthy();
+    expect(assignment!.roleId).toBe(solutionsConsultant!.id);
+    expect(assignment!.roleId).not.toBe(analyticsEngineer!.id);
   });
 });
