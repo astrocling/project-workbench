@@ -87,11 +87,13 @@ export function resolveProjectIdForMergedFloatEntry(
  * Upsert assignments, FloatScheduledHours for incomplete weeks from the merge, future cleanup, and
  * FloatImportRun.
  *
- * For each (project, person) still in the merged import, all **incomplete** float rows
- * (`weekStartDate` > `asOf`) are removed first, then rows from this run are upserted — so weeks
- * that disappear from Float no longer leave stale hours in the grid. **Completed** weeks
- * (`weekStartDate` ≤ `asOf`) are never deleted or updated. People removed from the merge still
- * have future rows cleared by the separate removed-person pass.
+ * For each (project, person) that has **at least one incomplete-week hour** in this merge, all
+ * **incomplete** float rows (`weekStartDate` > `asOf`) for that pair are removed first, then rows
+ * from this run are upserted — so weeks that disappear from Float no longer leave stale hours.
+ * Pairs that only have completed-week rollups in this run do **not** get a blanket future delete
+ * (otherwise forward hours with no incomplete-week row to replace — e.g. after backfill — would be
+ * wiped). **Completed** weeks (`weekStartDate` ≤ `asOf`) are never deleted or updated. People
+ * removed from the merge still have future rows cleared by the separate removed-person pass.
  */
 export async function applyFloatImportDatabaseEffects(
   prisma: PrismaClient,
@@ -264,8 +266,13 @@ export async function applyFloatImportDatabaseEffects(
     if (projectId && personId) inImportSet.add(`${projectId}|${personId}`);
   }
 
-  if (inImportSet.size > 0) {
-    const orPairs = Array.from(inImportSet).map((key) => {
+  const pairsWithFutureWrites = new Set<string>();
+  for (const r of floatHoursRowsToWrite) {
+    pairsWithFutureWrites.add(`${r.projectId}|${r.personId}`);
+  }
+
+  if (pairsWithFutureWrites.size > 0) {
+    const orPairs = Array.from(pairsWithFutureWrites).map((key) => {
       const [projectId, personId] = key.split("|");
       return { projectId, personId };
     });

@@ -3,7 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { getProjectId } from "@/lib/slug";
-import { getProjectDataFromAllImports } from "@/lib/floatImportUtils";
+import {
+  backfillFloatScheduledHoursForProjectFromRuns,
+  loadFloatImportRunsForBackfill,
+} from "@/lib/backfillFloatFromImports";
 
 /**
  * Backfill FloatScheduledHours for an existing project from all float imports.
@@ -27,16 +30,7 @@ export async function POST(
   const project = await prisma.project.findUnique({ where: { id } });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
-  const allRuns = await prisma.floatImportRun.findMany({
-    orderBy: { completedAt: "asc" },
-    select: {
-      completedAt: true,
-      projectNames: true,
-      projectAssignments: true,
-      projectFloatHours: true,
-    },
-  });
-  const { floatList } = getProjectDataFromAllImports(allRuns, project.name);
+  const allRuns = await loadFloatImportRunsForBackfill(prisma);
   const availableInImport = Array.from(
     new Set(
       allRuns.flatMap((run) => {
@@ -46,7 +40,16 @@ export async function POST(
     )
   );
 
-  if (floatList.length === 0) {
+  const { upserted, hadImportData } = await backfillFloatScheduledHoursForProjectFromRuns(
+    prisma,
+    {
+      projectId: id,
+      projectName: project.name,
+      runs: allRuns,
+    }
+  );
+
+  if (!hadImportData) {
     return NextResponse.json(
       {
         error: "No float data found",
@@ -61,38 +64,9 @@ export async function POST(
     );
   }
 
-  let count = 0;
-  for (const { personName, weeks } of floatList) {
-    const person = await prisma.person.findFirst({
-      where: { name: { equals: personName, mode: "insensitive" } },
-    });
-    if (!person) continue;
-    for (const { weekStart, hours } of weeks) {
-      if (hours == null || hours === undefined) continue;
-      const weekStartDate = new Date(weekStart + "T00:00:00.000Z");
-      await prisma.floatScheduledHours.upsert({
-        where: {
-          projectId_personId_weekStartDate: {
-            projectId: id,
-            personId: person.id,
-            weekStartDate,
-          },
-        },
-        create: {
-          projectId: id,
-          personId: person.id,
-          weekStartDate,
-          hours,
-        },
-        update: { hours },
-      });
-      count++;
-    }
-  }
-
   return NextResponse.json({
     ok: true,
-    message: `Backfilled ${count} float hour entries for ${project.name}`,
-    count,
+    message: `Backfilled ${upserted} float hour entries for ${project.name}`,
+    count: upserted,
   });
 }

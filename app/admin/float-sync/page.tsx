@@ -19,6 +19,7 @@ export default function FloatSyncPage() {
   const [lastRun, setLastRun] = useState<LastRun>(null);
   const [loadingRun, setLoadingRun] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -68,6 +69,29 @@ export default function FloatSyncPage() {
     }
   }
 
+  async function handleBackfillAll() {
+    if (
+      !window.confirm(
+        "Restore Float scheduled hours for every project from stored import history? This uses the same merge as per-project Backfill and may take a minute. Run after Float sync has populated import runs."
+      )
+    ) {
+      return;
+    }
+    setError("");
+    setSuccess("");
+    setBackfilling(true);
+    const res = await fetch("/api/admin/backfill-float-all", { method: "POST" });
+    setBackfilling(false);
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      const msg = typeof data.error === "string" ? data.error : "Backfill failed";
+      setError(msg);
+      return;
+    }
+    const message = typeof data.message === "string" ? data.message : "Backfill completed.";
+    setSuccess(message);
+  }
+
   const unknown = unknownRolesList(lastRun);
 
   return (
@@ -91,14 +115,29 @@ export default function FloatSyncPage() {
           {success && (
             <p className="text-body-sm text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 p-3 rounded-md">{success}</p>
           )}
-          <button
-            type="button"
-            onClick={handleSync}
-            disabled={syncing}
-            className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {syncing ? "Syncing…" : "Sync from Float"}
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={handleSync}
+              disabled={syncing || backfilling}
+              className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {syncing ? "Syncing…" : "Sync from Float"}
+            </button>
+            <button
+              type="button"
+              onClick={handleBackfillAll}
+              disabled={syncing || backfilling}
+              className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-border bg-white dark:bg-dark-muted text-surface-800 dark:text-surface-100 font-semibold text-body-sm shadow-sm hover:bg-surface-50 dark:hover:bg-dark-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {backfilling ? "Restoring…" : "Restore hours from import history (all projects)"}
+            </button>
+          </div>
+          <p className="text-body-xs text-surface-600 dark:text-surface-400">
+            Use <strong className="font-semibold text-surface-800 dark:text-surface-200">Restore hours…</strong>{" "}
+            after a bad sync to repopulate <code className="text-body-xs bg-surface-100 dark:bg-dark-muted px-1 rounded">FloatScheduledHours</code> from
+            saved sync snapshots (same as project Settings → Backfill, but for every project at once).
+          </p>
         </div>
 
         <div className="mt-6 bg-white dark:bg-dark-surface p-6 rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark">
