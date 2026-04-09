@@ -280,6 +280,7 @@ export async function applyFloatImportDatabaseEffects(
         )}
         ON CONFLICT ("projectId", "personId")
         DO UPDATE SET "roleId" = EXCLUDED."roleId", "updatedAt" = now()
+        WHERE "ProjectAssignment"."syncRoleFromFloat" = true
       `;
     } else {
       await prisma.$executeRaw`

@@ -13,6 +13,10 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { applyFloatImportDatabaseEffects } from "@/lib/floatImportApply";
+import {
+  projectAssignmentHasSyncRoleFromFloatColumn,
+  resetProjectAssignmentSyncRoleColumnCache,
+} from "@/lib/projectAssignmentSyncColumn";
 import { formatWeekKey } from "@/lib/weekUtils";
 
 const TEST_SLUG = "float-import-cleanup-test";
@@ -32,10 +36,21 @@ describe("float import cleanup: remove future hours when person not in merged im
   let personBobId: string | undefined;
   let roleId: string | undefined;
   let importRunId: string | undefined;
+  /** When false, DB has no `syncRoleFromFloat` column (run `prisma migrate deploy` on this DATABASE_URL). */
+  let suiteEnabled = false;
 
   beforeAll(async () => {
     if (!process.env.DATABASE_URL) {
       throw new Error("DATABASE_URL is required for this integration test. Load .env or set it.");
+    }
+    resetProjectAssignmentSyncRoleColumnCache();
+    suiteEnabled = await projectAssignmentHasSyncRoleFromFloatColumn(prisma);
+    if (!suiteEnabled) {
+      // eslint-disable-next-line no-console -- surfaced when integration tests are skipped
+      console.warn(
+        "[float-import-cleanup.test] Skipping: ProjectAssignment.syncRoleFromFloat missing. Run prisma migrate deploy on DATABASE_URL."
+      );
+      return;
     }
     const role = await prisma.role.upsert({
       where: { name: TEST_ROLE_NAME },
@@ -141,7 +156,8 @@ describe("float import cleanup: remove future hours when person not in merged im
     });
   });
 
-  it("deletes future FloatScheduledHours for person not in import; keeps past weeks and person in import", async () => {
+  it("deletes future FloatScheduledHours for person not in import; keeps past weeks and person in import", async (ctx) => {
+    ctx.skip(!suiteEnabled);
     if (!projectId || !personAliceId || !personBobId) {
       throw new Error("Test setup did not complete");
     }
@@ -212,7 +228,8 @@ describe("float import cleanup: remove future hours when person not in merged im
     expect(assignments).toHaveLength(2);
   });
 
-  it("preserves assignment role when syncRoleFromFloat is false even if Float resolves to another role", async () => {
+  it("preserves assignment role when syncRoleFromFloat is false even if Float resolves to another role", async (ctx) => {
+    ctx.skip(!suiteEnabled);
     if (!projectId || !personAliceId || !roleId) {
       throw new Error("Test setup did not complete");
     }
@@ -278,6 +295,107 @@ describe("float import cleanup: remove future hours when person not in merged im
     await prisma.projectAssignment.update({
       where: {
         projectId_personId: { projectId, personId: personAliceId },
+      },
+      data: { roleId, syncRoleFromFloat: true },
+    });
+  });
+
+  it("updates assignment role from Float when syncRoleFromFloat is true, while locked row is unchanged (defensive upsert)", async (ctx) => {
+    ctx.skip(!suiteEnabled);
+    if (!projectId || !personAliceId || !personBobId || !roleId) {
+      throw new Error("Test setup did not complete");
+    }
+    const pm = await prisma.role.findFirst({
+      where: { name: "Project Manager" },
+    });
+    if (!pm) {
+      throw new Error("Expected a Workbench Role named Project Manager (from seed)");
+    }
+
+    await prisma.projectAssignment.update({
+      where: {
+        projectId_personId: { projectId, personId: personAliceId },
+      },
+      data: { roleId, syncRoleFromFloat: false },
+    });
+    await prisma.projectAssignment.update({
+      where: {
+        projectId_personId: { projectId, personId: personBobId },
+      },
+      data: { roleId, syncRoleFromFloat: true },
+    });
+
+    const [knownRoles, persons, projects] = await Promise.all([
+      prisma.role.findMany(),
+      prisma.person.findMany(),
+      prisma.project.findMany(),
+    ]);
+    const personByName = new Map(persons.map((p) => [p.name.toLowerCase(), p.id]));
+    const projectsByName = new Map(projects.map((p) => [p.name.toLowerCase(), p.id]));
+
+    const weekKey = formatWeekKey(FUTURE_WEEK);
+    const mergedFloatByProjectPerson = new Map([
+      [
+        "alice",
+        {
+          projectName: TEST_PROJECT_NAME,
+          personName: PERSON_ALICE,
+          roleName: "Project Manager",
+          weekMap: new Map([[weekKey, 1]]),
+        },
+      ],
+      [
+        "bob",
+        {
+          projectName: TEST_PROJECT_NAME,
+          personName: PERSON_BOB,
+          roleName: "Project Manager",
+          weekMap: new Map([[weekKey, 1]]),
+        },
+      ],
+    ]);
+
+    const { run: dualRun } = await applyFloatImportDatabaseEffects(prisma, {
+      asOf: AS_OF,
+      uploadedByUserId: null,
+      mergedFloatByProjectPerson,
+      projectNames: [TEST_PROJECT_NAME],
+      projectAssignments: {
+        [TEST_PROJECT_NAME]: [
+          { personName: PERSON_ALICE, roleName: "Project Manager" },
+          { personName: PERSON_BOB, roleName: "Project Manager" },
+        ],
+      },
+      projectToClientMap: {},
+      unknownRoles: [],
+      newPersonNames: [],
+      projectsByName,
+      personByName,
+      workbenchRoles: knownRoles,
+    });
+    await prisma.floatImportRun.deleteMany({ where: { id: dualRun.id } });
+
+    const aliceAssignment = await prisma.projectAssignment.findUniqueOrThrow({
+      where: { projectId_personId: { projectId, personId: personAliceId } },
+    });
+    const bobAssignment = await prisma.projectAssignment.findUniqueOrThrow({
+      where: { projectId_personId: { projectId, personId: personBobId } },
+    });
+
+    expect(aliceAssignment.roleId).toBe(roleId);
+    expect(aliceAssignment.syncRoleFromFloat).toBe(false);
+    expect(bobAssignment.roleId).toBe(pm.id);
+    expect(bobAssignment.syncRoleFromFloat).toBe(true);
+
+    await prisma.projectAssignment.update({
+      where: {
+        projectId_personId: { projectId, personId: personAliceId },
+      },
+      data: { roleId, syncRoleFromFloat: true },
+    });
+    await prisma.projectAssignment.update({
+      where: {
+        projectId_personId: { projectId, personId: personBobId },
       },
       data: { roleId, syncRoleFromFloat: true },
     });
