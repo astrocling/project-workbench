@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-04-10
+
+Patch release: Float scheduled hours now subtract **time off** using the same person identifiers Float returns on `/v3/timeoffs` as the PTO UI (`people_ids` array, with `people_id` as fallback). **Deploy:** no new migrations; redeploy the app and run **Admin → Float sync** so `FloatScheduledHours` refresh with corrected exclusions.
+
+### Fixed
+
+- **Float sync — PTO excluded from scheduled-hour rollups** — `buildExcludedUtcDatesByFloatPeopleId` (`lib/float/excludedDays.ts`) previously read only `people_id` on each time off row. Float’s API commonly returns **`people_ids`** (array) without a top-level `people_id`, so **no** time off was applied when merging exclusions for `aggregateTasksToWeeklyHours`. PTO and holiday **pills** and the project **PTO** tab still looked correct (they use `floatPeopleIdsFromTimeoffRow` in `lib/float/ptoholidaySyncWriters.ts`). The exclusion builder now resolves people the same way (**`people_ids` first, then `people_id`**), so **Resourcing → Float** weekly hours match non-working days. Tests: `__tests__/lib/float/excludedDays.test.ts`.
+
+### Documentation
+
+- **Technical Reference** — Float sync behavior: document time-off person resolution for `excludedUtcDatesByFloatPeopleId`.
+- **User Guide** — Float sync: note that scheduled-hour math aligns with PTO data for `people_ids`-only time off rows.
+- **README** — Release tag example updated to **v1.0.3**.
+
 ## [1.0.2] - 2026-04-09
 
 Patch release: Float assignment **role** handling (job title preference, manual lock, safer fallbacks), **global backfill** from import history, documentation updates, and database migrations for `ProjectAssignment.syncRoleFromFloat`. **Deploy:** ensure production `DATABASE_URL` is set; Vercel build runs `prisma migrate deploy` before `next build`, which applies `20260409145854_project_assignment_sync_role_from_float` and `20260409220000_ensure_sync_role_from_float_if_missing`.

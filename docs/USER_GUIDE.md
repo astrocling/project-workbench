@@ -1,6 +1,6 @@
 # Project Workbench — User Guide
 
-This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.0.2** and later **1.x** behavior unless a section notes otherwise. The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
+This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.0.3** and later **1.x** behavior unless a section notes otherwise. The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
 
 ---
 
@@ -163,7 +163,7 @@ If you use **Float sync** first, project names in Workbench should match Float (
 
 ## Float sync (Admin only)
 
-Admins pull scheduled hours from the **Float API** (no file upload). The app reads Float people, projects, clients, roles, tasks, **time off**, **public holidays**, and **team holidays** for the same date window and updates Workbench to match. Scheduled hours use **UTC weekdays** in that window, minus **per-person** non-working days: Float **time off** (always), plus **public** and **team** holidays **only when** the person’s **Float region** matches the holiday’s region (see Admin People **Region** below). People **without** a Float region still get **time-off** exclusions but **not** regional holiday exclusions—set regions in Float if holiday weeks should line up.
+Admins pull scheduled hours from the **Float API** (no file upload). The app reads Float people, projects, clients, roles, tasks, **time off**, **public holidays**, and **team holidays** for the same date window and updates Workbench to match. Scheduled hours use **UTC weekdays** in that window, minus **per-person** non-working days: Float **time off** (always), plus **public** and **team** holidays **only when** the person’s **Float region** matches the holiday’s region (see Admin People **Region** below). People **without** a Float region still get **time-off** exclusions but **not** regional holiday exclusions—set regions in Float if holiday weeks should line up. Time off is matched to people the same way for **scheduled-hour totals** and for **PTO** features (Float may attach time off to **`people_ids`** rather than a single **`people_id`** field).
 
 ### Where to go
 
