@@ -108,6 +108,13 @@ npx tsx scripts/sample-data.ts
 
 Creates a sample project with people, assignments, planned/actual hours, and budget line.
 
+## Production release (maintainers)
+
+1. **Version** — Bump `version` in `package.json`, update [CHANGELOG.md](CHANGELOG.md) with a dated section, and run `npm install` (or `npm install --package-lock-only`) so `package-lock.json` matches.
+2. **Verify** — `npm test` (requires `DATABASE_URL` for Float integration tests) and `npm run build` against a database that will receive migrations (Vercel’s build runs `prisma migrate deploy` automatically).
+3. **Deploy** — Merge to your production branch; confirm [environment variables](docs/TECHNICAL.md#environment-variables) in Vercel (or your host), especially `DATABASE_URL`, `NEXTAUTH_SECRET`, and Float tokens if you use sync.
+4. **Tag (optional)** — `git tag v1.0.2 && git push origin v1.0.2` after the release commit lands.
+
 ## Documentation
 
 - **Release notes** — [CHANGELOG.md](CHANGELOG.md). The app version in `package.json` is shown in the footer (`lib/version.ts`).
@@ -122,6 +129,10 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## Float sync (Admin)
 
 Admins pull scheduled hours from the **Float API** at **Admin → Float sync** (`/admin/float-sync`). Set **`FLOAT_API_TOKEN`** (and optionally **`FLOAT_API_USER_AGENT_EMAIL`**) in the environment. The app matches Float projects to Workbench projects by Float project id (`floatExternalId`) or by name, syncs people from Float, and applies the same scheduled-hours rules as documented in [docs/TECHNICAL.md](docs/TECHNICAL.md): incomplete weeks are replaced from the current Float snapshot (so stale hours are not left behind when schedules change), past weeks are not overwritten, and future rows are cleared for people removed from a project in Float. Sync also writes **time off** and **holiday** data used by PTO/holiday features (see User Guide and Technical Reference).
+
+**Project assignment roles** prefer each person’s Float **job title** (shown under **Admin → People**) mapped to Workbench roles, then Float **scheduling** roles from tasks; unmapped labels no longer force a single global fallback for everyone—see [docs/TECHNICAL.md](docs/TECHNICAL.md) (*Float sync behavior*). Saving a role in **Settings → Assignments** locks that row so Float sync does not overwrite it.
+
+**Restore hours from import history (all projects)** on the same admin page runs a one-shot backfill of `FloatScheduledHours` for every project from stored sync snapshots (same merge as per-project **Backfill**). Use when you need to repopulate float hours broadly after a bad sync; requires prior successful Float syncs so import history exists.
 
 ## Optional: Trigger.dev (scheduled Float sync)
 

@@ -8,13 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+## [1.0.2] - 2026-04-09
 
-- **Float sync — project assignment roles** — Float import no longer assigns the same fallback role (previously the first Workbench role alphabetically, often **Analytics Engineer**) to everyone when Float’s role label did not exactly match a Workbench `Role` name. Unmapped Float roles now **keep** the existing assignment role for that person on the project; **new** rows use a stable preferred fallback (`lib/float/roleWorkbenchMatch.ts`). Float labels are matched with normalization and optional aliases. **`ProjectAssignment.syncRoleFromFloat`** (default true): saving a role in **Settings → Assignments** sets it to false so Float sync does not overwrite manual role choices.
+Patch release: Float assignment **role** handling (job title preference, manual lock, safer fallbacks), **global backfill** from import history, documentation updates, and database migrations for `ProjectAssignment.syncRoleFromFloat`. **Deploy:** ensure production `DATABASE_URL` is set; Vercel build runs `prisma migrate deploy` before `next build`, which applies `20260409145854_project_assignment_sync_role_from_float` and `20260409220000_ensure_sync_role_from_float_if_missing`.
+
+### Added
+
+- **Admin — restore Float hours for all projects** — `POST /api/admin/backfill-float-all` and **Admin → Float sync** → **Restore hours from import history (all projects)** repopulate `FloatScheduledHours` for every project from merged `FloatImportRun` history (`lib/backfillFloatFromImports.ts`), using the same merge rules as per-project **Backfill**. Revalidates `project-resourcing`. Requires at least one prior Float sync so import runs exist.
+
+### Documentation
+
+- **User Guide** — Float sync: updated **Matching rules** for job-title-first role resolution, preferred fallback for new assignments, and preserving existing roles when Float labels do not map; added **Restore hours from import history (all projects)** and **Assignment roles and Float sync**; Admin entry point described as **sidebar** (not header).
+- **Technical Reference** — Documented `POST /api/admin/backfill-float-all`.
+- **README** — Float sync section summarizes assignment-role behavior and the all-projects restore action.
 
 ### Changed
 
-- **Float sync — assignment role from job title** — When **`syncRoleFromFloat`** is true, Workbench now prefers **`Person.floatJobTitle`** (Float `job_title`) mapped to a Workbench `Role` via `resolveJobTitleToWorkbenchId` and **`FLOAT_JOB_TITLE_ALIASES`**, and only then falls back to Float **scheduling** role names from tasks (`lib/floatImportApply.ts`). This aligns project assignment roles with the Admin **People** job title when both are present; extend aliases in `lib/float/roleWorkbenchMatch.ts` as needed for your org’s titles.
+- **Float sync — assignment role from job title** — When **`syncRoleFromFloat`** is true, Workbench prefers **`Person.floatJobTitle`** (Float `job_title`) mapped to a Workbench `Role` via `resolveJobTitleToWorkbenchId` and **`FLOAT_JOB_TITLE_ALIASES`**, then Float **scheduling** role names from tasks (`lib/floatImportApply.ts`). Extend aliases in `lib/float/roleWorkbenchMatch.ts` as needed for your org’s titles.
+
+### Fixed
+
+- **Float sync — project assignment roles** — Float import no longer assigns the same fallback role (previously the first Workbench role alphabetically, often **Analytics Engineer**) to everyone when Float’s role label did not exactly match a Workbench `Role` name. Unmapped Float roles now **keep** the existing assignment role for that person on the project; **new** rows use a stable preferred fallback (`lib/float/roleWorkbenchMatch.ts`). Float labels are matched with normalization and optional aliases. **`ProjectAssignment.syncRoleFromFloat`** (default true): saving a role in **Settings → Assignments** sets it to false so Float sync does not overwrite manual role choices.
 
 ## [1.0.1] - 2026-04-08
 

@@ -1,6 +1,6 @@
 # Project Workbench — User Guide
 
-This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.0** and later **1.x** behavior unless a section notes otherwise. The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
+This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.0.2** and later **1.x** behavior unless a section notes otherwise. The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
 
 ---
 
@@ -42,7 +42,7 @@ From the table you can:
 - Click a **project name** to open the project detail page.
 - Use the **Actions** column (icons) when you have edit or delete permission:
   - **Edit** (pencil) — Opens the project edit page (Settings and key details).
-  - **Backfill** (refresh) — Repopulates this project’s Float scheduled hours from stored Float import data. Use this when a project is missing historical float data (e.g. the project was created after an import). A confirmation dialog appears first; it explains that existing float hours for the project may be overwritten and that this isn’t a common action—if you aren’t doing it on purpose, it’s best to cancel.
+  - **Backfill** (refresh) — Repopulates this project’s Float scheduled hours from stored Float import data. Use this when a project is missing historical float data (e.g. the project was created after an import). A confirmation dialog appears first; it explains that existing float hours for the project may be overwritten and that this isn’t a common action—if you aren’t doing it on purpose, it’s best to cancel. Admins can run the same style of restore for **all** projects at once from **Admin → Float sync** (*Restore hours from import history (all projects)*).
   - **Delete** (trash, Admins only) — Permanently removes the project and all its data. A confirmation modal appears: you must type the project name exactly to confirm before the delete is performed. This cannot be undone.
 
 ---
@@ -179,8 +179,8 @@ If the token is missing, the sync action shows an error (API returns **503**).
 ### Matching rules
 
 - **Projects** — Matched by Float project id once stored on the project (`floatExternalId`), or by project **name** (normalized). Use the same names in Workbench as in Float, or run sync after creating a project so the link is stored.
-- **People** — Pulled from Float; Workbench creates or updates `Person` rows (including Float id and **Float region** id + display name when Float or holiday payloads provide them).
-- **Roles** — Role names on Float tasks should exist in Workbench (**Admin → Roles**). Unknown names are listed on the sync page so you can add roles and sync again. If Float has **no** usable role on the task or person, Workbench still adds the person to the project using a **fallback role** (the first role by name) so they are not skipped—you can change the role under **Settings → Assignments**.
+- **People** — Pulled from Float; Workbench creates or updates `Person` rows (including Float id, **job title** from Float, and **Float region** id + display name when Float or holiday payloads provide them).
+- **Roles** — Workbench matches Float scheduling roles and **job titles** to **Admin → Roles** names (with normalization). Unknown Float role labels appear on the sync page under **Last sync** so you can add or alias roles and run sync again. **Assignment role** resolution (when Float is allowed to set the role—see below): prefers the person’s **job title** in **Admin → People** (from Float `job_title`) when it maps to a Workbench role; otherwise uses the role name from Float tasks. If a label still does not map: **existing** assignment rows **keep** their current Workbench role; **new** rows use a stable preferred fallback (typically **Solutions Consultant**, not merely “first alphabetically”) so people are not skipped. You can always set or correct a role under **Settings → Assignments**; saving there tells Workbench **not** to overwrite that assignment’s role on future Float syncs until you turn that behavior back on (see *Assignment roles and Float sync* below).
 
 ### Holidays and sync failures
 
@@ -206,11 +206,21 @@ If the token is missing, the sync action shows an error (API returns **503**).
 
 - **Rate limiting:** In production, if Redis is configured, sync is rate-limited (e.g. 20 requests per 15 minutes per user).
 
+### Restore hours from import history (all projects)
+
+On **Admin → Float sync**, **Restore hours from import history (all projects)** repopulates **Float scheduled hours** for **every** project from stored Float sync snapshots (`FloatImportRun`), using the **same merge rules** as **Backfill** on a single project (Projects list or project settings). Use it after a problematic sync or when many projects need historical float rows restored at once—only works if **Float sync** has run before so import history exists. Confirm the dialog before the operation runs.
+
+### Assignment roles and Float sync
+
+- By default, Float sync **updates** each project assignment’s **role** when it can resolve Float’s job title or scheduling role to a Workbench role.
+- If you **change a person’s role** in **Settings → Assignments** and save, Workbench **stops** applying Float’s role for that person on that project on future syncs, so your choice sticks (see Technical Reference: `ProjectAssignment.syncRoleFromFloat`). To let Float drive the role again for that row, **remove the assignment and add the person again** (new assignments default to following Float), or have a developer set `syncRoleFromFloat` back to true in the database.
+- Keep **Admin → People** **job titles** accurate (they come from Float) so assignment roles align with how your org titles map to Workbench roles.
+
 ---
 
 ## Admin: Roles, People, and Users (Admin only)
 
-Available from the Admin area (link in the header).
+Available from the **Admin** entry in the **sidebar** (admins only).
 
 | Page | Purpose |
 |------|---------|

@@ -222,6 +222,7 @@ API routes live under `app/api/`. This is a high-level overview for maintainers.
 | Roles | `GET /api/roles` | List roles. |
 | Account | `POST /api/account/change-password` | Change password for current user (current password required). |
 | Admin | `GET/POST /api/admin/float-sync` | Float API sync: `GET` returns latest `FloatImportRun`; `POST` pulls tasks, time off, holidays, and reference data from Float and applies the same DB effects as `applyFloatImportDatabaseEffects` (Admin only). |
+| Admin | `POST /api/admin/backfill-float-all` | **Admin only.** Restores `FloatScheduledHours` for **all** projects from merged `FloatImportRun` history (`lib/backfillFloatFromImports.ts`), same rules as `POST /api/projects/[id]/backfill-float` per project. Returns JSON with counts (`upsertsTotal`, `projectsWithData`, `projectsSkipped`, `importRunCount`). Revalidates `project-resourcing`. UI: **Admin → Float sync** → **Restore hours from import history (all projects)**. If there are no `FloatImportRun` rows, responds with `ok: false` and an error message (HTTP 200). |
 | Admin | `GET /api/admin/float-holidays` | Lists Float public and team holidays for the query window (default like sync); Admin only; requires `FLOAT_API_TOKEN`. |
 | Admin | `/api/admin/roles`, `/api/admin/people`, `/api/admin/users` | CRUD for roles, people, app users (Admin only). |
 
