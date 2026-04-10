@@ -12,7 +12,7 @@ import {
 import {
   buildWorkbenchRoleLookup,
   getFallbackRoleIdForNewAssignment,
-  resolveJobTitleToWorkbenchId,
+  resolveRoleIdForNewAssignmentFromFloat,
   type WorkbenchRoleRow,
 } from "@/lib/float/roleWorkbenchMatch";
 import { projectAssignmentHasSyncRoleFromFloatColumn } from "@/lib/projectAssignmentSyncColumn";
@@ -162,7 +162,7 @@ export async function applyFloatImportDatabaseEffects(
   const projectNamesSet = new Set(projectNames);
 
   const { resolveFloatRoleNameToWorkbenchId } = buildWorkbenchRoleLookup(workbenchRoles);
-  const fallbackForNew =
+  const mergedFallback =
     fallbackRoleIdForAssignment ?? getFallbackRoleIdForNewAssignment(workbenchRoles) ?? null;
 
   const pairList: Array<{ projectId: string; personId: string }> = [];
@@ -244,23 +244,18 @@ export async function applyFloatImportDatabaseEffects(
     if (!personId) continue;
     const pairKey = `${projectId}|${personId}`;
     const existing = existingAssignmentByPair.get(pairKey);
-    const fromJobTitle = resolveJobTitleToWorkbenchId(
-      floatJobTitleByPersonId.get(personId) ?? null,
-      workbenchRoles
-    );
-    const fromFloatRole = resolveFloatRoleNameToWorkbenchId(entry.roleName);
-
     let roleId: string | undefined;
     if (existing && !existing.syncRoleFromFloat) {
       roleId = existing.roleId;
-    } else if (fromJobTitle) {
-      roleId = fromJobTitle;
-    } else if (fromFloatRole) {
-      roleId = fromFloatRole;
-    } else if (existing) {
-      roleId = existing.roleId;
-    } else if (fallbackForNew) {
-      roleId = fallbackForNew;
+    } else {
+      roleId = resolveRoleIdForNewAssignmentFromFloat({
+        workbenchRoles,
+        floatRoleName: entry.roleName,
+        floatJobTitle: floatJobTitleByPersonId.get(personId) ?? null,
+        existingRoleId: existing?.roleId,
+        resolveFloatRoleNameToWorkbenchId,
+        fallbackRoleIdForNew: mergedFallback,
+      });
     }
     if (!roleId) continue;
     assignmentUpdates.set(`${projectId}:${personId}`, { projectId, personId, roleId });

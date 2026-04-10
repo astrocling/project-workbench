@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { getProjectDataFromAllImports } from "@/lib/floatImportUtils";
+import { resolveRoleIdForNewAssignmentFromFloat } from "@/lib/float/roleWorkbenchMatch";
 import { slugify, ensureUniqueSlug } from "@/lib/slug";
 import { z } from "zod";
 
@@ -152,23 +153,26 @@ export async function POST(req: NextRequest) {
     if (assignmentsList.length > 0 || floatList.length > 0) {
       backfillStats = { ...backfillStats, matched: true };
     }
-    if (assignmentsList.length > 0 && backfillStats.floatHoursCreated === 0) {
-      backfillStats.floatHoursNote =
-        "Assignments came from the last sync, but no float hours were stored for that run. Run Float sync in Admin so the next sync stores float hours; then use Backfill on this project’s Edit page.";
-    }
 
     const knownRoles = await prisma.role.findMany();
-    const roleByName = new Map(knownRoles.map((r) => [r.name.toLowerCase(), r.id]));
 
     for (const { personName, roleName } of assignmentsList) {
-      const roleId = roleByName.get(roleName.toLowerCase());
-      if (!roleId) continue;
       let person = await prisma.person.findFirst({
         where: { name: { equals: personName, mode: "insensitive" } },
+        select: { id: true, floatJobTitle: true },
       });
       if (!person) {
-        person = await prisma.person.create({ data: { name: personName } });
+        person = await prisma.person.create({
+          data: { name: personName },
+          select: { id: true, floatJobTitle: true },
+        });
       }
+      const roleId = resolveRoleIdForNewAssignmentFromFloat({
+        workbenchRoles: knownRoles,
+        floatRoleName: roleName,
+        floatJobTitle: person.floatJobTitle,
+      });
+      if (!roleId) continue;
       await prisma.projectAssignment.upsert({
         where: {
           projectId_personId: { projectId: project.id, personId: person.id },

@@ -129,3 +129,39 @@ export function getFallbackRoleIdForNewAssignment(roles: WorkbenchRoleRow[]): st
   const sorted = [...roles].sort((a, b) => a.name.localeCompare(b.name));
   return sorted[sorted.length - 1]?.id;
 }
+
+/**
+ * Same resolution order as Float import apply for sync-from-Float assignments:
+ * job title → Float role label (with aliases) → existing assignment role → fallback for new rows.
+ * Use when creating project assignments from Float import JSON without duplicating logic.
+ */
+export function resolveRoleIdForNewAssignmentFromFloat(params: {
+  workbenchRoles: WorkbenchRoleRow[];
+  floatRoleName: string;
+  floatJobTitle: string | null | undefined;
+  /** When the person already has an assignment, keep this role if nothing else resolves (before fallback). */
+  existingRoleId?: string | null;
+  /**
+   * Reuse a resolver from {@link buildWorkbenchRoleLookup} to avoid rebuilding maps per row
+   * (e.g. Float import inner loop).
+   */
+  resolveFloatRoleNameToWorkbenchId?: (floatRoleName: string) => string | null;
+  /**
+   * Overrides default fallback role id (e.g. `fallbackRoleIdForAssignment` from import apply).
+   * When omitted, uses {@link getFallbackRoleIdForNewAssignment}.
+   */
+  fallbackRoleIdForNew?: string | null;
+}): string | undefined {
+  const resolveFloat =
+    params.resolveFloatRoleNameToWorkbenchId ??
+    buildWorkbenchRoleLookup(params.workbenchRoles).resolveFloatRoleNameToWorkbenchId;
+  const fromJobTitle = resolveJobTitleToWorkbenchId(params.floatJobTitle, params.workbenchRoles);
+  const fromFloatRole = resolveFloat(params.floatRoleName);
+  const fallbackForNew =
+    params.fallbackRoleIdForNew ?? getFallbackRoleIdForNewAssignment(params.workbenchRoles);
+
+  if (fromJobTitle) return fromJobTitle;
+  if (fromFloatRole) return fromFloatRole;
+  if (params.existingRoleId) return params.existingRoleId;
+  return fallbackForNew;
+}
