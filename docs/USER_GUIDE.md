@@ -1,6 +1,6 @@
 # Project Workbench — User Guide
 
-This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.0.3** and later **1.x** behavior unless a section notes otherwise. The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
+This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.0.4** and later **1.x** behavior unless a section notes otherwise. The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
 
 ---
 
@@ -157,6 +157,8 @@ The Status Reports tab is where you create and maintain status reports and expor
    - Optional: single bill rate, notes, SOW link, estimate link, Float link, Metric link, and resourcing thresholds.
 3. Submit to create the project. You can then add assignments, key roles, budget lines, and rates from the project detail page.
 
+**Float data on create:** If **Admin → Float sync** has run at least once, creating a project whose **name** matches a Float project in **stored import history** (`FloatImportRun`) automatically **creates `ProjectAssignment` rows** (using Float role names and each person’s Float **job title** when roles are resolved) and **writes `FloatScheduledHours`** from the merged history—Workbench creates **`Person`** rows for any names that do not exist yet. The API response can include **`backfillFromImport`** with counts (and sometimes a note if assignments were created but no float hours were found in history; run **Float sync** again and use **Backfill** on the project if needed). Use the same **project name** as Float, or on **New project** choose a **Float project** from the dropdown when available so **`floatProjectName`** is sent—either way the lookup matches merged import history.
+
 If you use **Float sync** first, project names in Workbench should match Float (or you can create projects and run a **backfill** after sync to apply stored Float data).
 
 ---
@@ -189,7 +191,8 @@ If the token is missing, the sync action shows an error (API returns **503**).
 
 ### What sync does
 
-- **Assignments and hours:** Updates **project assignments** for everyone on a Float **task** in the window—including people who end up with **no** weekly Float hours (for example **zero hours per day** on the task, or the week’s working days all excluded by PTO/holidays). Those people still get an assignment so they show on the project; the **Float** column may be empty for weeks with no scheduled time. Sync also writes **Float scheduled hours** (the **Float** grid on Resourcing). For each person still on that project in Float, Workbench **clears** all **incomplete** float rows for that project/person (the **current week and all future weeks** through the API window — anything after the sync “as-of” cutoff), **then** writes the new hours from Float. That way, if you **move or remove** allocations in Float, old hours do not linger in weeks that no longer have work. **Completed** past weeks are **not** deleted or overwritten by sync.
+- **Assignments:** Updates **project assignments** for everyone on a Float **task** in the window—including people who end up with **no** weekly Float hours (for example **zero hours per day** on the task, or the week’s working days all excluded by PTO/holidays). Those people still get an assignment so they show on the project; the **Float** column may be empty for weeks with no scheduled time.
+- **Float scheduled hours (Admin API sync):** Writes **Float scheduled hours** for the **Float** grid by **upserting** incomplete weeks (current and future through the sync window) that appear in the merged Float snapshot. **Admin → Float sync** does **not** bulk-delete all future `FloatScheduledHours` for every in-sync pair before writing—doing so would wipe weeks that exist in Workbench from **backfill** or prior runs but are **outside** the current API task window. Instead, weeks present in this run are written with **`INSERT … ON CONFLICT`**, and **future** rows are cleared only for **(project, person)** pairs that **no longer appear** on the project in Float (see below). **Completed** past weeks are **not** overwritten. If you rely on a full refresh of every future week from Float alone, run **Admin → Float sync** on a window that includes those weeks, or use **Backfill** / **Restore hours from import history** when you need to realign from stored snapshots.
 - **Removed in Float:** If someone no longer appears on a project in Float for the synced snapshot, their **future** Float scheduled hours for that project are cleared in Workbench. Past weeks and the **assignment** row are left until you change them under **Settings → Assignments**.
 
 ### What sync does **not** change

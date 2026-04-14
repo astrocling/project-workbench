@@ -113,7 +113,7 @@ Creates a sample project with people, assignments, planned/actual hours, and bud
 1. **Version** — Bump `version` in `package.json`, update [CHANGELOG.md](CHANGELOG.md) with a dated section, and run `npm install` (or `npm install --package-lock-only`) so `package-lock.json` matches.
 2. **Verify** — `npm test` (requires `DATABASE_URL` for Float integration tests) and `npm run build` against a database that will receive migrations (Vercel’s build runs `prisma migrate deploy` automatically).
 3. **Deploy** — Merge to your production branch; confirm [environment variables](docs/TECHNICAL.md#environment-variables) in Vercel (or your host), especially `DATABASE_URL`, `NEXTAUTH_SECRET`, and Float tokens if you use sync.
-4. **Tag (optional)** — `git tag v1.0.3 && git push origin v1.0.3` after the release commit lands.
+4. **Tag (optional)** — `git tag v1.0.4 && git push origin v1.0.4` after the release commit lands.
 
 ## Documentation
 
@@ -128,7 +128,9 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Float sync (Admin)
 
-Admins pull scheduled hours from the **Float API** at **Admin → Float sync** (`/admin/float-sync`). Set **`FLOAT_API_TOKEN`** (and optionally **`FLOAT_API_USER_AGENT_EMAIL`**) in the environment. The app matches Float projects to Workbench projects by Float project id (`floatExternalId`) or by name, syncs people from Float, and applies the same scheduled-hours rules as documented in [docs/TECHNICAL.md](docs/TECHNICAL.md): incomplete weeks are replaced from the current Float snapshot (so stale hours are not left behind when schedules change), past weeks are not overwritten, and future rows are cleared for people removed from a project in Float. Sync also writes **time off** and **holiday** data used by PTO/holiday features (see User Guide and Technical Reference). **Time off** is applied to scheduled-hour rollups using Float’s **`people_ids`** / **`people_id`** fields so **Float** grid totals stay aligned with PTO after sync.
+Admins pull scheduled hours from the **Float API** at **Admin → Float sync** (`/admin/float-sync`). Set **`FLOAT_API_TOKEN`** (and optionally **`FLOAT_API_USER_AGENT_EMAIL`**) in the environment. The app matches Float projects to Workbench projects by Float project id (`floatExternalId`) or by name, syncs people from Float, and upserts incomplete-week **`FloatScheduledHours`** from the merged snapshot; **future** rows are cleared when someone is **removed** from a project in Float. API sync intentionally does **not** bulk-delete every future float hour before upsert (see [docs/TECHNICAL.md](docs/TECHNICAL.md) *Float sync behavior*). **Completed** past weeks are not overwritten. Sync also writes **time off** and **holiday** data used by PTO/holiday features (see User Guide and Technical Reference). **Time off** is applied to scheduled-hour rollups using Float’s **`people_ids`** / **`people_id`** fields so **Float** grid totals stay aligned with PTO after sync.
+
+**New project:** If Float import history exists, creating a project whose name matches Float (or a selected Float project on the New project form) can **auto-populate assignments and `FloatScheduledHours`** from merged `FloatImportRun` data—see User Guide (*Creating a new project*).
 
 **Project assignment roles** prefer each person’s Float **job title** (shown under **Admin → People**) mapped to Workbench roles, then Float **scheduling** roles from tasks; unmapped labels no longer force a single global fallback for everyone—see [docs/TECHNICAL.md](docs/TECHNICAL.md) (*Float sync behavior*). Saving a role in **Settings → Assignments** locks that row so Float sync does not overwrite it.
 
