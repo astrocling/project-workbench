@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-04-14
+
+Minor release: **project create** can populate **assignments** and **Float scheduled hours** from merged Float import history when the new project matches a Float project name; documentation now matches **Admin Float API sync** write behavior (`floatApiSyncWindow` / no blanket pre-delete). **Deploy:** no new migrations; redeploy as usual.
+
+### Added
+
+- **Projects — Float backfill on create** — `POST /api/projects` (`app/api/projects/route.ts`): after creating a project, if the **name** (or optional **`floatProjectName`**, e.g. from the New project Float project dropdown) matches a project in merged **`FloatImportRun`** history, Workbench upserts **`ProjectAssignment`** rows using `resolveRoleIdForNewAssignmentFromFloat` (Float role + job title via `lib/float/roleWorkbenchMatch.ts`), creates missing **`Person`** rows, and batch-upserts **`FloatScheduledHours`** via `getProjectDataFromAllImports` and `floatScheduledHourRowsFromMergedLists`. JSON response includes **`backfillFromImport`** (`matched`, `assignmentsCreated`, `floatHoursCreated`, optional **`floatHoursNote`** when assignments exist but no float hours were in history). Tests: `__tests__/lib/roleWorkbenchMatch.test.ts`.
+
+### Documentation
+
+- **User Guide** — *Creating a new project*: Float backfill on create; *Float sync* → *What sync does*: Admin API sync uses upserts + removed-person cleanup (not bulk pre-delete of all incomplete weeks); aligns with `executeFloatApiSync` + `floatApiSyncWindow`.
+- **Technical Reference** — *Float sync behavior* (**Writes** / **Cleanup**), *Manual QA checklist*, **`POST /api/projects`** row in API overview.
+- **README** — Float sync summary and new-project backfill pointer.
+- **Errata (1.0.1 release notes)** — The **1.0.1** “stale hours” fix described a delete-then-upsert behavior that applies to **non–API-sync** import paths; **Admin → Float API sync** documents the correct model as of this release (see *Documentation* above).
+
 ## [1.0.3] - 2026-04-10
 
 Patch release: Float scheduled hours now subtract **time off** using the same person identifiers Float returns on `/v3/timeoffs` as the PTO UI (`people_ids` array, with `people_id` as fallback). **Deploy:** no new migrations; redeploy the app and run **Admin → Float sync** so `FloatScheduledHours` refresh with corrected exclusions.
@@ -58,7 +73,7 @@ Patch release: Float sync correctness and performance, with a database index mig
 
 ### Fixed
 
-- **Float import — stale hours when schedules change** — For each `(project, person)` still present in the merged Float snapshot, **Admin → Float sync** now **deletes** all incomplete `FloatScheduledHours` rows (`weekStartDate` after the sync as-of date) for that pair **before** upserting hours from the API. Previously, only weeks present in the new aggregate were upserted, so weeks where you removed or moved allocations in Float could keep old values on the Resourcing **Float** grid. Completed (past) weeks are still never deleted or overwritten; people removed entirely from a project in Float are still cleaned up as before. Implementation: `applyFloatImportDatabaseEffects` in `lib/floatImportApply.ts`. Documented in [docs/USER_GUIDE.md](docs/USER_GUIDE.md) (*Float sync*) and [docs/TECHNICAL.md](docs/TECHNICAL.md) (*Float sync behavior*).
+- **Float import — stale hours when schedules change** — Import paths that **omit** `floatApiSyncWindow` now delete incomplete `FloatScheduledHours` for `(project, person)` pairs that have incomplete-week rows in the merge **before** upserting, so weeks dropped from the merge do not leave stale future values where that delete path runs. Previously, only weeks present in the new aggregate were upserted. **Admin → Float API sync** (`executeFloatApiSync`) uses a different model (`floatApiSyncWindow` set): see **v1.0.4** documentation errata and [docs/USER_GUIDE.md](docs/USER_GUIDE.md) (*Float sync*). Completed (past) weeks are still never deleted or overwritten; people removed entirely from a project in Float are still cleaned up. Implementation: `applyFloatImportDatabaseEffects` in `lib/floatImportApply.ts`.
 
 ## [1.0.0] - 2026-04-06
 

@@ -8,6 +8,7 @@ import {
   getFallbackRoleIdForNewAssignment,
   normalizeFloatRoleName,
   resolveJobTitleToWorkbenchId,
+  resolveRoleIdForNewAssignmentFromFloat,
 } from "@/lib/float/roleWorkbenchMatch";
 
 describe("roleWorkbenchMatch", () => {
@@ -55,5 +56,82 @@ describe("roleWorkbenchMatch", () => {
     expect(resolveJobTitleToWorkbenchId("", roles)).toBeNull();
     expect(resolveJobTitleToWorkbenchId(null, roles)).toBeNull();
     expect(resolveJobTitleToWorkbenchId("Unknown Title XYZ", roles)).toBeNull();
+  });
+
+  describe("resolveRoleIdForNewAssignmentFromFloat", () => {
+    const roles = [
+      { id: "pm", name: "Project Manager" },
+      { id: "ld", name: "Lead Developer" },
+      { id: "sc", name: "Solutions Consultant" },
+    ];
+    const { resolveFloatRoleNameToWorkbenchId } = buildWorkbenchRoleLookup(roles);
+
+    it("resolves Float alias (e.g. pm) to Workbench role", () => {
+      expect(
+        resolveRoleIdForNewAssignmentFromFloat({
+          workbenchRoles: roles,
+          floatRoleName: "pm",
+          floatJobTitle: null,
+          resolveFloatRoleNameToWorkbenchId,
+        })
+      ).toBe("pm");
+    });
+
+    it("prefers job title over Float role when both apply", () => {
+      expect(
+        resolveRoleIdForNewAssignmentFromFloat({
+          workbenchRoles: roles,
+          floatRoleName: "pm",
+          floatJobTitle: "Senior Developer",
+          resolveFloatRoleNameToWorkbenchId,
+        })
+      ).toBe("ld");
+    });
+
+    it("uses job title when Float role is empty", () => {
+      expect(
+        resolveRoleIdForNewAssignmentFromFloat({
+          workbenchRoles: roles,
+          floatRoleName: "",
+          floatJobTitle: "Senior Developer",
+          resolveFloatRoleNameToWorkbenchId,
+        })
+      ).toBe("ld");
+    });
+
+    it("uses fallback when Float role and job title do not map", () => {
+      expect(
+        resolveRoleIdForNewAssignmentFromFloat({
+          workbenchRoles: roles,
+          floatRoleName: "totally unknown float label",
+          floatJobTitle: null,
+          resolveFloatRoleNameToWorkbenchId,
+        })
+      ).toBe("sc");
+    });
+
+    it("uses existingRoleId before fallback when no job/float resolution", () => {
+      expect(
+        resolveRoleIdForNewAssignmentFromFloat({
+          workbenchRoles: roles,
+          floatRoleName: "totally unknown float label",
+          floatJobTitle: null,
+          existingRoleId: "ld",
+          resolveFloatRoleNameToWorkbenchId,
+        })
+      ).toBe("ld");
+    });
+
+    it("respects fallbackRoleIdForNew override", () => {
+      expect(
+        resolveRoleIdForNewAssignmentFromFloat({
+          workbenchRoles: roles,
+          floatRoleName: "nope",
+          floatJobTitle: null,
+          resolveFloatRoleNameToWorkbenchId,
+          fallbackRoleIdForNew: "ld",
+        })
+      ).toBe("ld");
+    });
   });
 });

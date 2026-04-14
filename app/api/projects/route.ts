@@ -3,7 +3,15 @@ import { unstable_cache, revalidateTag } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
+import {
+  batchUpsertFloatScheduledHours,
+  floatScheduledHourRowsFromMergedLists,
+} from "@/lib/backfillFloatFromImports";
 import { getProjectDataFromAllImports } from "@/lib/floatImportUtils";
+import {
+  buildWorkbenchRoleLookup,
+  resolveRoleIdForNewAssignmentFromFloat,
+} from "@/lib/float/roleWorkbenchMatch";
 import { slugify, ensureUniqueSlug } from "@/lib/slug";
 import { z } from "zod";
 
@@ -152,23 +160,60 @@ export async function POST(req: NextRequest) {
     if (assignmentsList.length > 0 || floatList.length > 0) {
       backfillStats = { ...backfillStats, matched: true };
     }
-    if (assignmentsList.length > 0 && backfillStats.floatHoursCreated === 0) {
-      backfillStats.floatHoursNote =
-        "Assignments came from the last sync, but no float hours were stored for that run. Run Float sync in Admin so the next sync stores float hours; then use Backfill on this project’s Edit page.";
-    }
 
     const knownRoles = await prisma.role.findMany();
-    const roleByName = new Map(knownRoles.map((r) => [r.name.toLowerCase(), r.id]));
+    const { resolveFloatRoleNameToWorkbenchId } = buildWorkbenchRoleLookup(knownRoles);
+
+    const personKey = (s: string) => s.trim().toLowerCase();
+    const uniqueNameByKey = new Map<string, string>();
+    for (const { personName } of assignmentsList) {
+      const k = personKey(personName);
+      if (!uniqueNameByKey.has(k)) uniqueNameByKey.set(k, personName.trim());
+    }
+    for (const { personName } of floatList) {
+      const k = personKey(personName);
+      if (!uniqueNameByKey.has(k)) uniqueNameByKey.set(k, personName.trim());
+    }
+
+    type PersonRow = { id: string; floatJobTitle: string | null };
+    const personByKey = new Map<string, PersonRow>();
+    const displayNames = [...uniqueNameByKey.values()];
+    if (displayNames.length > 0) {
+      const existing = await prisma.person.findMany({
+        where: {
+          OR: displayNames.map((n) => ({ name: { equals: n, mode: "insensitive" as const } })),
+        },
+        select: { id: true, name: true, floatJobTitle: true },
+      });
+      for (const p of existing) {
+        personByKey.set(personKey(p.name), {
+          id: p.id,
+          floatJobTitle: p.floatJobTitle,
+        });
+      }
+      for (const [k, displayName] of uniqueNameByKey) {
+        if (personByKey.has(k)) continue;
+        const created = await prisma.person.create({
+          data: { name: displayName },
+          select: { id: true, floatJobTitle: true },
+        });
+        personByKey.set(k, {
+          id: created.id,
+          floatJobTitle: created.floatJobTitle,
+        });
+      }
+    }
 
     for (const { personName, roleName } of assignmentsList) {
-      const roleId = roleByName.get(roleName.toLowerCase());
-      if (!roleId) continue;
-      let person = await prisma.person.findFirst({
-        where: { name: { equals: personName, mode: "insensitive" } },
+      const person = personByKey.get(personKey(personName));
+      if (!person) continue;
+      const roleId = resolveRoleIdForNewAssignmentFromFloat({
+        workbenchRoles: knownRoles,
+        floatRoleName: roleName,
+        floatJobTitle: person.floatJobTitle,
+        resolveFloatRoleNameToWorkbenchId,
       });
-      if (!person) {
-        person = await prisma.person.create({ data: { name: personName } });
-      }
+      if (!roleId) continue;
       await prisma.projectAssignment.upsert({
         where: {
           projectId_personId: { projectId: project.id, personId: person.id },
@@ -179,33 +224,18 @@ export async function POST(req: NextRequest) {
       backfillStats.assignmentsCreated += 1;
     }
 
-    for (const { personName, weeks } of floatList) {
-      const person = await prisma.person.findFirst({
-        where: { name: { equals: personName, mode: "insensitive" } },
-      });
-      if (!person) continue;
-      for (const { weekStart, hours } of weeks) {
-        if (hours == null || hours === undefined) continue;
-        const weekStartDate = new Date(weekStart + "T00:00:00.000Z");
-        await prisma.floatScheduledHours.upsert({
-          where: {
-            projectId_personId_weekStartDate: {
-              projectId: project.id,
-              personId: person.id,
-              weekStartDate,
-            },
-          },
-          create: {
-            projectId: project.id,
-            personId: person.id,
-            weekStartDate,
-            hours,
-          },
-          update: { hours },
-        });
-        backfillStats.floatHoursCreated += 1;
-      }
+    const personIdByLowerName = new Map<string, string>();
+    for (const [k, p] of personByKey) {
+      personIdByLowerName.set(k, p.id);
     }
+    const floatHourRows = floatScheduledHourRowsFromMergedLists(
+      new Map([[project.id, floatList]]),
+      personIdByLowerName
+    );
+    if (floatHourRows.length > 0) {
+      await batchUpsertFloatScheduledHours(prisma, floatHourRows);
+    }
+    backfillStats.floatHoursCreated = floatHourRows.length;
 
     if (backfillStats.assignmentsCreated > 0 && backfillStats.floatHoursCreated === 0) {
       backfillStats.floatHoursNote =
