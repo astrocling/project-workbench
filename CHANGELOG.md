@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-04-14
+
+Patch release: project **Settings** saves now invalidate the cached project payload correctly so the project shell (title, dates, etc.) stays in sync without relying on a full client **`router.refresh()`**. **Deploy:** no new migrations; redeploy as usual.
+
+### Fixed
+
+- **Project settings — stale UI after save** — `getCachedProjectBySlugOrId` (`lib/projectCache.ts`) tags the fetch with **`project-detail`**; **`PATCH`**/**`DELETE`** `/api/projects/[id]` revalidate that tag (with existing `portfolio-metrics` / `projects-list`). **Project Settings** no longer calls **`router.refresh()`** after a successful save; tag revalidation is enough. Implementation: `app/api/projects/[id]/route.ts`, `components/ProjectSettingsTab.tsx`.
+
+### Documentation
+
+- **Technical Reference** — API overview: `GET/PATCH/DELETE /api/projects/[id]` notes **`project-detail`** revalidation after mutating requests.
+- **README** — Release tag example updated to **v1.0.5**.
+- **User Guide** — Release version line updated to **1.0.5**.
+
 ## [1.0.4] - 2026-04-14
 
 Minor release: **project create** can populate **assignments** and **Float scheduled hours** from merged Float import history when the new project matches a Float project name; documentation now matches **Admin Float API sync** write behavior (`floatApiSyncWindow` / no blanket pre-delete). **Deploy:** no new migrations; redeploy as usual.
