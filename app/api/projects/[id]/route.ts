@@ -158,6 +158,7 @@ export async function PATCH(
   });
   revalidateTag("portfolio-metrics", "max");
   revalidateTag("projects-list", "max");
+  revalidateTag("project-detail", "max");
   return NextResponse.json(project);
 }
 
@@ -178,5 +179,6 @@ export async function DELETE(
   await prisma.project.delete({ where: { id: project.id } });
   revalidateTag("portfolio-metrics", "max");
   revalidateTag("projects-list", "max");
+  revalidateTag("project-detail", "max");
   return NextResponse.json({ ok: true });
 }
