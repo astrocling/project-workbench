@@ -218,7 +218,6 @@ export function ProjectSettingsTab({
       lastSavedRef.current = JSON.stringify(buildPayload());
       setSaving(false);
       setSaveStatus("saved");
-      router.refresh();
       setTimeout(() => setSaveStatus("idle"), 2000);
     }, 800);
 

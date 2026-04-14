@@ -28,6 +28,6 @@ export function getCachedProjectBySlugOrId(slugOrId: string) {
       });
     },
     ["project-detail", slugOrId],
-    { revalidate: 30 }
+    { revalidate: 30, tags: ["project-detail"] }
   )();
 }
