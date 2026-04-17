@@ -25,11 +25,14 @@ export const FLOAT_HOURS_BATCH_SIZE = 500;
 /**
  * Deletes future (weekStartDate > asOf) FloatScheduledHours rows for the given (projectId, personId)
  * pairs in one statement — avoids large OR trees and N-per-pair deleteMany loops.
+ * When `windowEnd` is set, deletes are also bounded by `weekStartDate <= windowEnd` so rows outside
+ * the sync window are left intact.
  */
 export async function deleteFutureFloatScheduledHoursForPairs(
   prisma: PrismaClient,
   asOf: Date,
-  pairs: Array<{ projectId: string; personId: string }>
+  pairs: Array<{ projectId: string; personId: string }>,
+  windowEnd?: Date
 ): Promise<void> {
   if (pairs.length === 0) return;
   const distinct = [
@@ -37,6 +40,20 @@ export async function deleteFutureFloatScheduledHoursForPairs(
       pairs.map((p) => [`${p.projectId}|${p.personId}`, p] as const)
     ).values(),
   ];
+  if (windowEnd) {
+    await prisma.$executeRaw`
+      DELETE FROM "FloatScheduledHours"
+      WHERE "weekStartDate" > ${asOf}
+      AND "weekStartDate" <= ${windowEnd}
+      AND ("projectId", "personId") IN (
+        ${Prisma.join(
+          distinct.map((p) => Prisma.sql`(${p.projectId}, ${p.personId})`),
+          ", "
+        )}
+      )
+    `;
+    return;
+  }
   await prisma.$executeRaw`
     DELETE FROM "FloatScheduledHours"
     WHERE "weekStartDate" > ${asOf}
@@ -94,14 +111,17 @@ export function resolveProjectIdForMergedFloatEntry(
  * Upsert assignments, FloatScheduledHours for incomplete weeks from the merge, future cleanup, and
  * FloatImportRun.
  *
- * For each (project, person) that has **at least one incomplete-week hour** in this merge, all
- * **incomplete** float rows (`weekStartDate` > `asOf`) for that pair are removed first, then rows
- * from this run are upserted — except when `floatApiSyncWindow` is set (Float API sync): then no
- * pre-upsert delete runs for those pairs, so CSV / backfill hours that the API snapshot omits are
- * not wiped (upserts only add or overwrite weeks present in this merge). Pairs that only have
- * completed-week rollups in this run do **not** get a blanket future delete. **Completed** weeks
- * (`weekStartDate` ≤ `asOf`) are never deleted or updated. People removed from the merge still have
- * future rows cleared by the separate removed-person pass.
+ * When `floatApiSyncWindow` is set (Float API sync), **Float is the source of truth for future
+ * weeks within the sync window**: for every (project, person) pair present in the merge, all float
+ * rows with `asOf` < `weekStartDate` ≤ `floatApiSyncWindow.end` are deleted before upsert so weeks
+ * Float no longer reports do not persist. Rows outside the sync window are not touched.
+ *
+ * For non-API-sync paths, for each pair that has **at least one incomplete-week hour** in this
+ * merge, all **incomplete** float rows (`weekStartDate` > `asOf`) for that pair are removed first,
+ * then rows from this run are upserted. Pairs that only have completed-week rollups do **not** get
+ * a blanket future delete. **Completed** weeks (`weekStartDate` ≤ `asOf`) are never deleted or
+ * updated. People removed from the merge still have future rows cleared by the separate
+ * removed-person pass.
  */
 export async function applyFloatImportDatabaseEffects(
   prisma: PrismaClient,
@@ -378,7 +398,26 @@ export async function applyFloatImportDatabaseEffects(
     pairsWithFutureWrites.add(`${r.projectId}|${r.personId}`);
   }
 
-  if (pairsWithFutureWrites.size > 0 && !floatApiSyncWindow) {
+  if (floatApiSyncWindow) {
+    /**
+     * Float API sync: Float is the source of truth for future weeks within the sync window.
+     * Delete all future rows in the window for every pair present in this merge so that weeks
+     * Float no longer reports (including zero-hour or fully-removed allocations for specific
+     * weeks) do not persist as stale rows. Rows outside the sync window are untouched.
+     */
+    const pairsInImport = Array.from(inImportSet).map((key) => {
+      const [projectId, personId] = key.split("|");
+      return { projectId, personId };
+    });
+    if (pairsInImport.length > 0) {
+      await deleteFutureFloatScheduledHoursForPairs(
+        prisma,
+        asOf,
+        pairsInImport,
+        floatApiSyncWindow.end
+      );
+    }
+  } else if (pairsWithFutureWrites.size > 0) {
     const orPairs = Array.from(pairsWithFutureWrites).map((key) => {
       const [projectId, personId] = key.split("|");
       return { projectId, personId };
