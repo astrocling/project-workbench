@@ -38,6 +38,16 @@ export type FloatTaskJson = {
   start_date?: string | null;
   end_date?: string | null;
   hours?: number | string | null;
+  /**
+   * Float repeat cadence (undefined/0 = non-repeating source task).
+   *   1 = weekly, 2 = every 2 weeks, 3 = monthly (same day-of-month).
+   * The `/v3/tasks` endpoint returns only the source occurrence for repeating tasks;
+   * {@link expandRepeatedTasks} materialises the remaining occurrences up to
+   * {@link repeat_end_date} so aggregation counts every week the allocation covers.
+   */
+  repeat_state?: number | string | null;
+  /** Final UTC calendar day (YYYY-MM-DD) on which an occurrence may start. */
+  repeat_end_date?: string | null;
 };
 
 export type AggregateTasksWindow = {
@@ -128,6 +138,98 @@ function taskIdNumber(task: FloatTaskJson): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+const REPEAT_STATE_WEEKLY = 1;
+const REPEAT_STATE_BIWEEKLY = 2;
+const REPEAT_STATE_MONTHLY = 3;
+/** Hard upper bound on occurrences emitted per repeating task (safety net vs. runaway loops). */
+const MAX_REPEAT_OCCURRENCES = 520; // ~10 years weekly
+
+function addUtcDays(d: Date, days: number): Date {
+  return new Date(d.getTime() + days * MS_PER_DAY);
+}
+
+function addUtcMonths(d: Date, months: number): Date {
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + months, d.getUTCDate())
+  );
+}
+
+function utcYmd(d: Date): string {
+  return utcDateOnly(d).toISOString().slice(0, 10);
+}
+
+/**
+ * Expand Float repeating tasks (`repeat_state > 0` with a `repeat_end_date`) into one
+ * concrete task per occurrence so aggregation attributes hours to every week the
+ * allocation covers.
+ *
+ * Float's `/v3/tasks` endpoint returns only the **source** occurrence for a recurring
+ * task (e.g. a weekly 1h Thursday task from 3/5 through 7/10 returns a single row with
+ * `start_date = end_date = 2026-03-05`). Without expansion, only week 3/2 would be
+ * counted; all subsequent weeks silently show 0 hours in the Float Actuals grid.
+ *
+ * Cadence mapping (Float `repeat_state`):
+ *   1 = weekly, 2 = every 2 weeks, 3 = monthly (same day-of-month)
+ * Any other non-zero state is passed through unexpanded (source-only) so we don't
+ * invent hours for patterns we can't safely model.
+ *
+ * Each emitted occurrence preserves task fields but resets `repeat_state`/`repeat_end_date`
+ * so downstream code (including a second call here) does not re-expand.
+ */
+export function expandRepeatedTasks(tasks: FloatTaskJson[]): FloatTaskJson[] {
+  const out: FloatTaskJson[] = [];
+  for (const task of tasks) {
+    const stateNum = toNum(task.repeat_state);
+    const repeatEnd = parseFloatApiDate(task.repeat_end_date ?? undefined);
+    const start = parseFloatApiDate(task.start_date ?? undefined);
+    const end = parseFloatApiDate(task.end_date ?? undefined);
+
+    if (!stateNum || !repeatEnd || !start || !end) {
+      out.push(task);
+      continue;
+    }
+    if (
+      stateNum !== REPEAT_STATE_WEEKLY &&
+      stateNum !== REPEAT_STATE_BIWEEKLY &&
+      stateNum !== REPEAT_STATE_MONTHLY
+    ) {
+      out.push(task);
+      continue;
+    }
+
+    const d0 = utcDateOnly(start);
+    const d1 = utcDateOnly(end);
+    const maxStart = utcDateOnly(repeatEnd);
+    if (d1.getTime() < d0.getTime() || maxStart.getTime() < d0.getTime()) {
+      out.push(task);
+      continue;
+    }
+    const durationDays = Math.round((d1.getTime() - d0.getTime()) / MS_PER_DAY);
+
+    const advance = (s: Date): Date => {
+      if (stateNum === REPEAT_STATE_WEEKLY) return addUtcDays(s, 7);
+      if (stateNum === REPEAT_STATE_BIWEEKLY) return addUtcDays(s, 14);
+      return addUtcMonths(s, 1);
+    };
+
+    let s = d0;
+    let guard = 0;
+    while (s.getTime() <= maxStart.getTime() && guard < MAX_REPEAT_OCCURRENCES) {
+      const occEnd = addUtcDays(s, durationDays);
+      out.push({
+        ...task,
+        start_date: utcYmd(s),
+        end_date: utcYmd(occEnd),
+        repeat_state: 0,
+        repeat_end_date: null,
+      });
+      s = advance(s);
+      guard += 1;
+    }
+  }
+  return out;
+}
+
 /**
  * Float `/v3/tasks` list responses can include the same `task_id` more than once (e.g. pagination
  * overlap). Aggregating without deduping adds per-day hours multiple times for those rows.
@@ -185,7 +287,14 @@ export function aggregateTasksToWeeklyHours(
 
   const hoursPerUtcDay = new Map<string, number>();
 
-  for (const task of tasks) {
+  /**
+   * Float returns only the source occurrence for repeating allocations; expand them
+   * so every occurrence within `repeat_end_date` contributes to its week bucket.
+   * Non-repeating tasks pass through unchanged.
+   */
+  const expanded = expandRepeatedTasks(tasks);
+
+  for (const task of expanded) {
     const projectId = toProjectId(task);
     if (projectId == null) continue;
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateTasksToWeeklyHours,
   dedupeFloatTasksForAggregation,
+  expandRepeatedTasks,
   weeklyHoursCompositeKey,
   weeklyHoursMapToRows,
 } from "@/lib/float/taskAggregation";
@@ -235,5 +236,119 @@ describe("aggregateTasksToWeeklyHours", () => {
     expect(
       aggregateTasksToWeeklyHours(tasks, { weekdaysOnly: true }).get(weeklyHoursCompositeKey(1, 1, wk))
     ).toBe(10);
+  });
+
+  /**
+   * Regression: Float `/v3/tasks` returns only the source occurrence for a repeating
+   * allocation. Without expansion, a weekly 1h task (3/5 → 7/10) only logged 1 week of
+   * hours in the Float Actuals grid. See debug session d9e2b6.
+   */
+  it("expands weekly repeating tasks up to repeat_end_date", () => {
+    const source: FloatTaskJson = {
+      task_id: 1,
+      project_id: 10,
+      people_id: 100,
+      start_date: "2026-03-05",
+      end_date: "2026-03-05",
+      hours: 1,
+      repeat_state: 1,
+      repeat_end_date: "2026-07-10",
+    };
+    const expanded = expandRepeatedTasks([source]);
+    expect(expanded).toHaveLength(19);
+    expect(expanded[0].start_date).toBe("2026-03-05");
+    expect(expanded[expanded.length - 1].start_date).toBe("2026-07-09");
+    for (const occ of expanded) {
+      expect(occ.repeat_state).toBe(0);
+      expect(occ.repeat_end_date).toBeNull();
+    }
+
+    const map = aggregateTasksToWeeklyHours([source], { weekdaysOnly: true });
+    expect(map.size).toBe(19);
+    for (const v of map.values()) expect(v).toBe(1);
+    expect(
+      map.get(weeklyHoursCompositeKey(10, 100, "2026-04-13"))
+    ).toBe(1);
+    expect(
+      map.get(weeklyHoursCompositeKey(10, 100, "2026-07-06"))
+    ).toBe(1);
+  });
+
+  it("expands bi-weekly repeating tasks and preserves day-range duration", () => {
+    const expanded = expandRepeatedTasks([
+      {
+        task_id: 2,
+        project_id: 10,
+        people_id: 100,
+        start_date: "2026-03-02",
+        end_date: "2026-03-04",
+        hours: 2,
+        repeat_state: 2,
+        repeat_end_date: "2026-04-30",
+      },
+    ]);
+    expect(expanded.map((t) => t.start_date)).toEqual([
+      "2026-03-02",
+      "2026-03-16",
+      "2026-03-30",
+      "2026-04-13",
+      "2026-04-27",
+    ]);
+    expect(expanded.map((t) => t.end_date)).toEqual([
+      "2026-03-04",
+      "2026-03-18",
+      "2026-04-01",
+      "2026-04-15",
+      "2026-04-29",
+    ]);
+  });
+
+  it("expands monthly repeating tasks on same day-of-month", () => {
+    const expanded = expandRepeatedTasks([
+      {
+        task_id: 3,
+        project_id: 10,
+        people_id: 100,
+        start_date: "2026-03-15",
+        end_date: "2026-03-15",
+        hours: 4,
+        repeat_state: 3,
+        repeat_end_date: "2026-06-16",
+      },
+    ]);
+    expect(expanded.map((t) => t.start_date)).toEqual([
+      "2026-03-15",
+      "2026-04-15",
+      "2026-05-15",
+      "2026-06-15",
+    ]);
+  });
+
+  it("leaves non-repeating tasks untouched", () => {
+    const source: FloatTaskJson = {
+      task_id: 4,
+      project_id: 10,
+      people_id: 100,
+      start_date: "2026-03-05",
+      end_date: "2026-03-09",
+      hours: 1,
+      repeat_state: 0,
+      repeat_end_date: null,
+    };
+    expect(expandRepeatedTasks([source])).toEqual([source]);
+  });
+
+  it("leaves repeating tasks without repeat_end_date untouched", () => {
+    const source: FloatTaskJson = {
+      task_id: 5,
+      project_id: 10,
+      people_id: 100,
+      start_date: "2026-03-05",
+      end_date: "2026-03-05",
+      hours: 1,
+      repeat_state: 1,
+      repeat_end_date: null,
+    };
+    expect(expandRepeatedTasks([source])).toEqual([source]);
   });
 });
