@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-05-06
+
+Patch release: **Resourcing** adds split-week **Weekly Actuals** keyboard navigation and bulk **Expand** / **Collapse** for split weeks; **Status reports** fixes production HTML meeting-notes sanitization (**sanitize-html**, no jsdom); **Project settings** fixes saves after rename (mutating APIs use **project id**, URL refresh on new slug); documentation aligned. **Deploy:** no new migrations; redeploy as usual.
+
 ### Added
 
 - **Resourcing — bulk expand/collapse split weeks** — In **Weekly Actuals**, when the visible range includes month-boundary weeks, the header shows a compact **Split weeks** hint next to **Expand** / **Collapse** to open or roll up **all** split cells at once (React state only; `components/ResourcingGrids.tsx`). Buttons disable when already fully expanded or fully collapsed. Per-cell split/rollup and comment controls use **`tabIndex={-1}`** so keyboard Tab moves through hour fields first.
@@ -27,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **User Guide** — *Settings tab*: autosave, rename + URL slug update, and meeting notes HTML safety in *Status Reports*.
 - **README** — Documentation index: User Guide summary mentions split-week keyboard and bulk expand/collapse.
 - **README** — Documentation index: Technical Reference summary mentions project API **id or slug** and **sanitize-html** for meeting notes.
+- **README** — Production release tag example updated to **v1.0.8**.
+- **User Guide** — Release version line updated to **1.0.8**.
 
 ## [1.0.7] - 2026-05-05
 

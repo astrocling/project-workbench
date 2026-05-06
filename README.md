@@ -113,7 +113,7 @@ Creates a sample project with people, assignments, planned/actual hours, and bud
 1. **Version** — Bump `version` in `package.json`, update [CHANGELOG.md](CHANGELOG.md) with a dated section, and run `npm install` (or `npm install --package-lock-only`) so `package-lock.json` matches.
 2. **Verify** — `npm test` (requires `DATABASE_URL` for Float integration tests) and `npm run build` against a database that will receive migrations (Vercel’s build runs `prisma migrate deploy` automatically).
 3. **Deploy** — Merge to your production branch; confirm [environment variables](docs/TECHNICAL.md#environment-variables) in Vercel (or your host), especially `DATABASE_URL`, `NEXTAUTH_SECRET`, and Float tokens if you use sync.
-4. **Tag (optional)** — `git tag v1.0.7 && git push origin v1.0.7` after the release commit lands.
+4. **Tag (optional)** — `git tag v1.0.8 && git push origin v1.0.8` after the release commit lands.
 
 ## Documentation
 

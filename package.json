@@ -1,6 +1,6 @@
 {
   "name": "project-workbench",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "private": true,
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
