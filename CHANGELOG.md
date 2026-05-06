@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Resourcing — collapse Weekly Actuals** — The middle **Weekly Actuals** grid can be collapsed so **Planned** and **Float** sit closer for comparison: icon-only chevron in the section header (`actualsCollapsed` state in `components/ResourcingGrids.tsx`; tighter vertical spacing between cards while collapsed). No API or persistence.
 - **Status reports — refresh timeline when editing** — While editing a Standard or Milestones report, **Refresh timeline** (with a confirmation step) replaces only the timeline slice of the report snapshot with the project’s current timeline bars and markers; report date, previous-months window, and other snapshot fields stay unchanged. `POST /api/projects/[id]/status-reports/[reportId]/refresh-timeline`; preview refetches after refresh. Implementation: `lib/statusReportPdfData.ts`, `app/api/projects/[id]/status-reports/[reportId]/refresh-timeline/route.ts`, `components/StatusReportsTab.tsx`, `components/StatusReportPreview.tsx`.
 
 ### Fixed
@@ -19,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **User Guide** — *Resourcing tab*: **Collapsing Weekly Actuals** (chevron, tighter Planned vs Float layout while collapsed).
+- **Technical Reference** — *Resourcing API details*: **Weekly Actuals collapse** behavior and implementation notes (`ResourcingGrids`).
+- **README** — User Guide summary mentions collapsible Weekly Actuals.
 - **User Guide** — *Admin: Roles, People, and Users*: **Users** row expanded; new **Admin → Users** subsection (table, **Edit**, optional password reset, narrow screens).
 - **Technical Reference** — *Admin pages (UI)*: **Users** page layout and scroll behavior; pointer to `app/admin/users/page.tsx`.
 - **User Guide** — *Status Reports tab*: new **Saving a report** subsection (form closes, list refresh, scroll, page 1 on create, preview via row action).

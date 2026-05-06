@@ -260,6 +260,8 @@ All project and admin routes require an authenticated session; admin routes addi
 
 **Resourcing grid UI:** The column for the UTC week where `isCurrentWeek()` is true (`lib/weekUtils.ts`, same Monday 00:00 UTC week boundaries as the rest of the app) gets a subtle inset tint via the `resourcing-current-week` class on `th`/`td`, styled in `app/globals.css` and applied in `components/ResourcingGrids.tsx` for headers, body cells, and total/variance rows.
 
+**Weekly Actuals collapse (UI-only):** `ResourcingGrids` holds `actualsCollapsed` in React state (not persisted). When `true`, the middle table renders only its first header row (title + icon-only toggle); the column-header row, `<tbody>`, and `<tfoot>` are omitted. The wrapper that stacks the three grid cards uses `space-y-2` instead of `space-y-6` while collapsed so Planned and Float sit closer vertically. The control is `position: absolute` in the sticky title `<th>` (`ChevronUp` = expanded/collapse action, `ChevronDown` = collapsed/expand action) with `aria-expanded`, `aria-label`, and `title` matching **Hide weekly actuals** / **Show weekly actuals**. Horizontal scrolling still applies to the remaining grids inside the same `overflow-x-auto` container.
+
 ### Status report rendering (HTML + PDF)
 
 The status report preview and exported PDF are generated from the same component (`components/StatusReportView.tsx`). Any layout or typography changes (including fonts) must be made there so HTML preview and PDF export stay identical.
