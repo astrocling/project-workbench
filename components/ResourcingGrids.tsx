@@ -463,6 +463,39 @@ export function ResourcingGrids({
   const sortedAssignments = [...assignments].sort((a, b) =>
     (a.person.name || "").localeCompare(b.person.name || "", undefined, { sensitivity: "base" })
   );
+  const hasAnySplitWeekColumn = weeks.some((w) => getMonthKeysForWeek(w).length === 2);
+  const expandAllSplitWeeks = () => {
+    const next = new Set<string>();
+    for (const a of sortedAssignments) {
+      for (const w of weeks) {
+        if (getMonthKeysForWeek(w).length === 2) {
+          next.add(splitCellKey(a.personId, formatWeekKey(w)));
+        }
+      }
+    }
+    setExpandedSplitCells(next);
+  };
+  const collapseAllSplitWeeks = () => setExpandedSplitCells(new Set());
+  const splitWeekBulkState = (() => {
+    if (!hasAnySplitWeekColumn || sortedAssignments.length === 0) {
+      return { allExpanded: false, noneExpanded: true };
+    }
+    let total = 0;
+    let expanded = 0;
+    for (const a of sortedAssignments) {
+      for (const w of weeks) {
+        if (getMonthKeysForWeek(w).length === 2) {
+          total++;
+          if (expandedSplitCells.has(splitCellKey(a.personId, formatWeekKey(w)))) expanded++;
+        }
+      }
+    }
+    return {
+      allExpanded: total > 0 && expanded === total,
+      noneExpanded: expanded === 0,
+    };
+  })();
+
   const plannedWeekTotal = (weekKey: string) =>
     Array.from(allPersonIdsForRollup).reduce((sum, pid) => sum + getPlanned(pid, weekKey), 0);
   const actualWeekTotal = (weekKey: string) =>
@@ -728,6 +761,47 @@ export function ResourcingGrids({
     }
   }
 
+  /** Actuals grid only: focus split half (frame 0 | 1) or single-week input in the same column. */
+  const focusActualGridInput = (row: number, col: number, frame: 0 | 1): boolean => {
+    const split = document.querySelector<HTMLInputElement>(
+      `input[data-resourcing-grid="actual"][data-resourcing-row="${row}"][data-resourcing-col="${col}"][data-resourcing-split-frame="${frame}"]`
+    );
+    if (split) {
+      split.focus();
+      return true;
+    }
+    const single = document.querySelector<HTMLInputElement>(
+      `input[data-resourcing-grid="actual"][data-resourcing-row="${row}"][data-resourcing-col="${col}"]:not([data-resourcing-split-frame])`
+    );
+    if (single) {
+      single.focus();
+      return true;
+    }
+    return false;
+  };
+
+  const handlePlannedGridArrowNav = (e: React.KeyboardEvent, row: number, col: number) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    const nextRow = e.key === "ArrowDown" ? row + 1 : row - 1;
+    if (nextRow < 0) return;
+    const target = document.querySelector<HTMLInputElement>(
+      `input[data-resourcing-grid="planned"][data-resourcing-row="${nextRow}"][data-resourcing-col="${col}"]`
+    );
+    if (target) {
+      e.preventDefault();
+      target.focus();
+    }
+  };
+
+  const handleActualGridArrowNav = (e: React.KeyboardEvent<HTMLInputElement>, row: number, col: number) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    const nextRow = e.key === "ArrowDown" ? row + 1 : row - 1;
+    if (nextRow < 0) return;
+    const raw = e.currentTarget.getAttribute("data-resourcing-split-frame");
+    const frame: 0 | 1 = raw === "1" ? 1 : 0;
+    if (focusActualGridInput(nextRow, col, frame)) e.preventDefault();
+  };
+
   const hoursInput = (
     personId: string,
     weekKey: string,
@@ -738,16 +812,6 @@ export function ResourcingGrids({
     colIndex?: number,
     gridType?: "planned" | "actual"
   ) => {
-    const handleGridArrowKey = (e: React.KeyboardEvent, row: number, col: number, grid: "planned" | "actual") => {
-      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-      const nextRow = e.key === "ArrowDown" ? row + 1 : row - 1;
-      if (nextRow < 0) return;
-      e.preventDefault();
-      const target = document.querySelector<HTMLInputElement>(
-        `input[data-resourcing-grid="${grid}"][data-resourcing-row="${nextRow}"][data-resourcing-col="${col}"]`
-      );
-      target?.focus();
-    };
     const weekDate = new Date(weekKey);
     const completed = isCompletedWeek(weekDate, asOf);
     const isCurrWeek = isCurrentWeek(weekDate);
@@ -798,7 +862,11 @@ export function ResourcingGrids({
                     updatePlanned(personId, weekKey, roundToQuarter(clamped));
                     setEditingPlanned(null);
                   }}
-                  onKeyDown={gridType != null && rowIndex != null && colIndex != null ? (e) => handleGridArrowKey(e, rowIndex, colIndex, gridType) : undefined}
+                  onKeyDown={
+                    gridType === "planned" && rowIndex != null && colIndex != null
+                      ? (e) => handlePlannedGridArrowNav(e, rowIndex, colIndex)
+                      : undefined
+                  }
                   {...(gridType != null && rowIndex != null && colIndex != null
                     ? {
                         "data-resourcing-grid": gridType,
@@ -930,7 +998,11 @@ export function ResourcingGrids({
                   }
                   setEditingActual(null);
                 }}
-                onKeyDown={gridType != null && rowIndex != null && colIndex != null ? (e) => handleGridArrowKey(e, rowIndex, colIndex, gridType) : undefined}
+                onKeyDown={
+                  gridType === "actual" && rowIndex != null && colIndex != null
+                    ? (e) => handleActualGridArrowNav(e, rowIndex, colIndex)
+                    : undefined
+                }
                 {...(gridType != null && rowIndex != null && colIndex != null
                   ? {
                       "data-resourcing-grid": gridType,
@@ -1043,6 +1115,7 @@ export function ResourcingGrids({
           <span className="tabular-nums">{val1 != null || val2 != null ? weekTotal : "—"}</span>
           <button
             type="button"
+            tabIndex={-1}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -1058,6 +1131,7 @@ export function ResourcingGrids({
         {canEdit && (
           <button
             type="button"
+            tabIndex={-1}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -1085,6 +1159,8 @@ export function ResourcingGrids({
     personId: string,
     weekKey: string,
     monthKeys: [string, string],
+    rowIndex: number,
+    colIndex: number,
     onCollapse?: () => void
   ) => {
     const weekDate = new Date(weekKey);
@@ -1180,6 +1256,7 @@ export function ResourcingGrids({
             <div className="flex justify-center">
               <button
                 type="button"
+                tabIndex={-1}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -1205,6 +1282,11 @@ export function ResourcingGrids({
                 onFocus={() => setEditingActual({ personId, weekKey, monthKey: monthKeys[0], str: val1 != null ? String(val1) : "" })}
                 onChange={(e) => setEditingActual((prev) => (prev?.personId === personId && prev?.weekKey === weekKey && prev?.monthKey === monthKeys[0] ? { ...prev, str: e.target.value } : { personId, weekKey, monthKey: monthKeys[0], str: e.target.value }))}
                 onBlur={handleBlur1}
+                onKeyDown={(e) => handleActualGridArrowNav(e, rowIndex, colIndex)}
+                data-resourcing-grid="actual"
+                data-resourcing-row={rowIndex}
+                data-resourcing-col={colIndex}
+                data-resourcing-split-frame="0"
                 placeholder="—"
                 className="flex-1 min-w-0 border rounded px-0.5 py-0.5 text-xs text-center box-border [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
@@ -1224,6 +1306,11 @@ export function ResourcingGrids({
                 onFocus={() => setEditingActual({ personId, weekKey, monthKey: monthKeys[1], str: val2 != null ? String(val2) : "" })}
                 onChange={(e) => setEditingActual((prev) => (prev?.personId === personId && prev?.weekKey === weekKey && prev?.monthKey === monthKeys[1] ? { ...prev, str: e.target.value } : { personId, weekKey, monthKey: monthKeys[1], str: e.target.value }))}
                 onBlur={handleBlur2}
+                onKeyDown={(e) => handleActualGridArrowNav(e, rowIndex, colIndex)}
+                data-resourcing-grid="actual"
+                data-resourcing-row={rowIndex}
+                data-resourcing-col={colIndex}
+                data-resourcing-split-frame="1"
                 placeholder="—"
                 className="flex-1 min-w-0 border rounded px-0.5 py-0.5 text-xs text-center box-border [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
@@ -1235,6 +1322,7 @@ export function ResourcingGrids({
         {canEdit && (
           <button
             type="button"
+            tabIndex={-1}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -1547,16 +1635,55 @@ export function ResourcingGrids({
                   className={`relative p-2 border text-left ${sticky} ${stickyOpaqueBody} ${stickyEdge} border-surface-200 dark:border-dark-border`}
                   style={{ left: 0, width: stickyColsWidth, minWidth: stickyColsWidth }}
                 >
-                  <h3 className="pr-9 text-display-md font-bold text-surface-900 dark:text-white">
-                    2. Weekly Actuals Grid
-                  </h3>
+                  <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 pr-10">
+                    <h3 className="text-display-md font-bold text-surface-900 dark:text-white">
+                      2. Weekly Actuals Grid
+                    </h3>
+                    {!actualsCollapsed && hasAnySplitWeekColumn && sortedAssignments.length > 0 ? (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span
+                          id="weekly-actuals-split-weeks-hint"
+                          className="text-xs text-surface-500 dark:text-surface-400 leading-none whitespace-nowrap"
+                          title="Weeks that span two calendar months"
+                        >
+                          Split weeks
+                        </span>
+                        <div
+                          className="inline-flex shrink-0 overflow-hidden rounded border border-surface-200 bg-surface-50 dark:border-dark-border dark:bg-dark-raised/80"
+                          role="group"
+                          aria-labelledby="weekly-actuals-split-weeks-hint"
+                        >
+                          <button
+                            type="button"
+                            onClick={expandAllSplitWeeks}
+                            disabled={splitWeekBulkState.allExpanded}
+                            aria-label="Expand all month-split week cells"
+                            title="Show both months for every split week"
+                            className="px-2 py-0.5 text-xs font-medium text-surface-700 transition enabled:hover:bg-white enabled:hover:text-surface-900 disabled:cursor-not-allowed disabled:opacity-40 dark:text-surface-200 enabled:dark:hover:bg-dark-surface dark:disabled:opacity-35 border-r border-surface-200 dark:border-dark-border focus-visible:outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-jblue-400"
+                          >
+                            Expand
+                          </button>
+                          <button
+                            type="button"
+                            onClick={collapseAllSplitWeeks}
+                            disabled={splitWeekBulkState.noneExpanded}
+                            aria-label="Collapse all month-split week cells"
+                            title="Roll up to one value per split week"
+                            className="px-2 py-0.5 text-xs font-medium text-surface-700 transition enabled:hover:bg-white enabled:hover:text-surface-900 disabled:cursor-not-allowed disabled:opacity-40 dark:text-surface-200 enabled:dark:hover:bg-dark-surface dark:disabled:opacity-35 focus-visible:outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-jblue-400"
+                          >
+                            Collapse
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
                   <button
                     type="button"
                     onClick={() => setActualsCollapsed((c) => !c)}
                     aria-expanded={!actualsCollapsed}
                     aria-label={actualsCollapsed ? "Show weekly actuals" : "Hide weekly actuals"}
                     title={actualsCollapsed ? "Show weekly actuals" : "Hide weekly actuals"}
-                    className="absolute top-1/2 right-2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-surface-500 transition hover:bg-surface-100 hover:text-surface-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2 dark:text-surface-400 dark:hover:bg-dark-raised dark:hover:text-surface-100"
+                    className="absolute top-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-md text-surface-500 transition hover:bg-surface-100 hover:text-surface-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2 dark:text-surface-400 dark:hover:bg-dark-raised dark:hover:text-surface-100"
                   >
                     {actualsCollapsed ? (
                       <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
@@ -1606,8 +1733,13 @@ export function ResourcingGrids({
                         if (monthKeys.length === 2) {
                           const expanded = expandedSplitCells.has(splitCellKey(a.personId, k));
                           if (expanded) {
-                            return actualsSplitCell(a.personId, k, monthKeys as [string, string], () =>
-                              setSplitCellExpanded(a.personId, k, false)
+                            return actualsSplitCell(
+                              a.personId,
+                              k,
+                              monthKeys as [string, string],
+                              idx,
+                              weekIdx,
+                              () => setSplitCellExpanded(a.personId, k, false)
                             );
                           }
                           return actualsRolledUpCell(a.personId, k, monthKeys as [string, string], () =>

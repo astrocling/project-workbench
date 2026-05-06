@@ -8,16 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Resourcing — bulk expand/collapse split weeks** — In **Weekly Actuals**, when the visible range includes month-boundary weeks, the header shows a compact **Split weeks** hint next to **Expand** / **Collapse** to open or roll up **all** split cells at once (React state only; `components/ResourcingGrids.tsx`). Buttons disable when already fully expanded or fully collapsed. Per-cell split/rollup and comment controls use **`tabIndex={-1}`** so keyboard Tab moves through hour fields first.
+
 ### Fixed
 
+- **Resourcing — split-week Actuals keyboard navigation** — Expanded month-split cells participate in the same navigation as single-week cells: **Arrow Up/Down** moves by person row while staying in the **same month half** (first or second month in the cell); **Tab** walks month inputs then the next week without stopping on split/rollup chrome (`data-resourcing-*` / `data-resourcing-split-frame` on inputs, `focusActualGridInput` in `components/ResourcingGrids.tsx`).
 - **Status reports — production crash on HTML meeting notes** — SSR for `StatusReportView` loaded **jsdom** via **isomorphic-dompurify**, which triggered **`ERR_REQUIRE_ESM`** in some production builds (CommonJS `require` of ESM-only **`@exodus/bytes`** inside **html-encoding-sniffer**). Meeting notes sanitization now uses **`sanitize-html`** in `lib/meetingNotesHtml.ts` (no jsdom). Tests: `__tests__/lib/meetingNotesHtml.test.ts`.
 - **Project settings — `{"error":"Not found"}` after renaming** — Debounced save and Float actions used **`/api/projects/{slug}`**; **`PATCH`** regenerates the slug when the **name** changes, so the next save used a stale slug. The client now uses **`/api/projects/{projectId}`** for **`PATCH`**, **backfill-float**, and **sync-plan-from-float**, and **`router.replace`**es to **`/projects/{newSlug}?tab=settings`** when the API returns an updated slug (`components/ProjectSettingsTab.tsx`).
 
 ### Documentation
 
+- **User Guide** — *Resourcing tab* → *Split weeks*: keyboard behavior (Tab, arrows, month “frames”) and bulk **Expand** / **Collapse** for all split weeks.
+- **Technical Reference** — *Resourcing API details*: split-week grid keyboard navigation and bulk expansion (client-only `expandedSplitCells` state).
 - **Technical Reference** — *Status report rendering*: meeting notes HTML sanitization (**sanitize-html**, no jsdom) and rationale.
 - **Technical Reference** — *API overview*: `GET/PATCH/DELETE /api/projects/[id]` accepts **id or slug**; **Settings** client uses **project id** in mutating URLs and URL refresh on slug change.
 - **User Guide** — *Settings tab*: autosave, rename + URL slug update, and meeting notes HTML safety in *Status Reports*.
+- **README** — Documentation index: User Guide summary mentions split-week keyboard and bulk expand/collapse.
 - **README** — Documentation index: Technical Reference summary mentions project API **id or slug** and **sanitize-html** for meeting notes.
 
 ## [1.0.7] - 2026-05-05
