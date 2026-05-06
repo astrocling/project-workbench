@@ -140,7 +140,7 @@ export default function AdminUsersPage() {
       <div className="px-6 pt-4">
         <h1 className="text-display-md font-bold text-surface-900 dark:text-white">Users</h1>
       </div>
-      <main className="p-8 max-w-2xl">
+      <main className="p-8 max-w-6xl">
         <form onSubmit={handleSubmit} className="bg-white dark:bg-dark-surface p-6 rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark mb-6">
           <h2 className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-4">Create user</h2>
           {error && (
@@ -223,29 +223,31 @@ export default function AdminUsersPage() {
           </div>
         </form>
 
-        <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border overflow-hidden shadow-card-light dark:shadow-card-dark">
-          <table className="w-full text-body-sm border-collapse">
+        <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark overflow-x-auto">
+          <table className="w-full min-w-[640px] text-body-sm border-collapse">
             <thead>
               <tr className="bg-surface-50 dark:bg-dark-raised border-b border-surface-200 dark:border-dark-border">
                 <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Name</th>
-                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Email</th>
-                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Permissions</th>
+                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold min-w-0">Email</th>
+                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold whitespace-nowrap">Permissions</th>
                 <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Role</th>
-                <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Actions</th>
+                <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold whitespace-nowrap w-[1%]">Actions</th>
               </tr>
             </thead>
             <tbody>
               {users.map((u) => (
                 <tr key={u.id} className="border-b border-surface-100 dark:border-dark-border/60 last:border-0 hover:bg-jblue-500/[0.03] dark:hover:bg-jblue-500/[0.06] transition-colors duration-100">
-                  <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
+                  <td className="px-4 py-3 text-surface-700 dark:text-surface-200 max-w-[12rem] truncate" title={[u.firstName, u.lastName].filter(Boolean).join(" ") || undefined}>
                     {[u.firstName, u.lastName].filter(Boolean).join(" ") || "—"}
                   </td>
-                  <td className="px-4 py-3 text-surface-700 dark:text-surface-200">{u.email}</td>
-                  <td className="px-4 py-3 text-surface-700 dark:text-surface-200">{u.permissions === "Admin" ? "Super user" : "User"}</td>
-                  <td className="px-4 py-3 text-surface-700 dark:text-surface-200">
+                  <td className="px-4 py-3 text-surface-700 dark:text-surface-200 min-w-0 max-w-[18rem] truncate" title={u.email}>
+                    {u.email}
+                  </td>
+                  <td className="px-4 py-3 text-surface-700 dark:text-surface-200 whitespace-nowrap">{u.permissions === "Admin" ? "Super user" : "User"}</td>
+                  <td className="px-4 py-3 text-surface-700 dark:text-surface-200 min-w-0 max-w-[10rem] truncate" title={u.role ? ROLE_LABELS[u.role] : undefined}>
                     {u.role ? ROLE_LABELS[u.role] : "—"}
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right whitespace-nowrap w-[1%]">
                     <button
                       type="button"
                       onClick={() => openEdit(u)}
