@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Status reports — refresh timeline when editing** — While editing a Standard or Milestones report, **Refresh timeline** (with a confirmation step) replaces only the timeline slice of the report snapshot with the project’s current timeline bars and markers; report date, previous-months window, and other snapshot fields stay unchanged. `POST /api/projects/[id]/status-reports/[reportId]/refresh-timeline`; preview refetches after refresh. Implementation: `lib/statusReportPdfData.ts`, `app/api/projects/[id]/status-reports/[reportId]/refresh-timeline/route.ts`, `components/StatusReportsTab.tsx`, `components/StatusReportPreview.tsx`.
+
+### Fixed
+
+- **Admin → Users — Edit / password reset unreachable** — The user list used a narrow main column (`max-w-2xl`) and a table card with `overflow-hidden`, so long emails and multiple columns could clip the **Actions** column (**Edit**), blocking the edit modal (including **New password**). The page now uses a wider main width (`max-w-6xl`), `overflow-x-auto` on the table card with a sensible table `min-width`, a shrink-wrapped **Actions** column, and truncated name/email/role cells with `title` tooltips for full values. Implementation: `app/admin/users/page.tsx`.
+- **Status reports — unclear save / duplicate risk** — After **Save** (new report) or **Update** (edit), the form now closes, the list refreshes (create resets to page 1 of the paginated list), and the page scrolls to the **Status Reports** table so success is obvious and accidental double-submits are less likely. Implementation: `components/StatusReportsTab.tsx`.
+
+### Documentation
+
+- **User Guide** — *Admin: Roles, People, and Users*: **Users** row expanded; new **Admin → Users** subsection (table, **Edit**, optional password reset, narrow screens).
+- **Technical Reference** — *Admin pages (UI)*: **Users** page layout and scroll behavior; pointer to `app/admin/users/page.tsx`.
+- **User Guide** — *Status Reports tab*: new **Saving a report** subsection (form closes, list refresh, scroll, page 1 on create, preview via row action).
+- **Technical Reference** — *Status report rendering*: **Status Reports tab (create/edit UX)** bullet; `StatusReportsTab` post-save behavior.
+
 ## [1.0.5] - 2026-04-14
 
 Patch release: project **Settings** saves now invalidate the cached project payload correctly so the project shell (title, dates, etc.) stays in sync without relying on a full client **`router.refresh()`**. **Deploy:** no new migrations; redeploy as usual.

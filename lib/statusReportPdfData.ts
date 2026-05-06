@@ -36,7 +36,7 @@ export type StatusReportSnapshot = {
   cdaReportHoursOnly?: boolean;
 };
 
-function isStatusReportSnapshot(obj: unknown): obj is StatusReportSnapshot {
+export function isStatusReportSnapshot(obj: unknown): obj is StatusReportSnapshot {
   return (
     typeof obj === "object" &&
     obj != null &&
@@ -50,6 +50,8 @@ function isStatusReportSnapshot(obj: unknown): obj is StatusReportSnapshot {
 export type BuildStatusReportPdfDataOptions = {
   /** Number of months before report date to show on timeline (1–4). Used when creating a new report before snapshot exists. */
   timelinePreviousMonths?: number;
+  /** When true, ignore snapshot.timeline and rebuild timeline from current project bars/markers. */
+  rebuildTimelineFromProject?: boolean;
 };
 
 export async function buildStatusReportPdfData(
@@ -111,7 +113,7 @@ export async function buildStatusReportPdfData(
   if (snapshot?.cda !== undefined) {
     cda = snapshot.cda;
   }
-  if (snapshot?.timeline !== undefined) {
+  if (snapshot?.timeline !== undefined && !options?.rebuildTimelineFromProject) {
     timeline = snapshot.timeline;
     // Always apply "months before" from snapshot so the displayed range is correct
     const prevMonths =

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   Eye,
@@ -328,7 +328,14 @@ export function StatusReportsTab({
   const [formError, setFormError] = useState<string | null>(null);
   const [savedReportId, setSavedReportId] = useState<string | null>(null);
   const [previewReportId, setPreviewReportId] = useState<string | null>(null);
+  const [previewDataKey, setPreviewDataKey] = useState(0);
+  const [showRefreshTimelineModal, setShowRefreshTimelineModal] = useState(false);
+  const [refreshTimelineLoading, setRefreshTimelineLoading] = useState(false);
+  const [refreshTimelineModalError, setRefreshTimelineModalError] = useState<string | null>(null);
+  const [timelineRefreshSuccess, setTimelineRefreshSuccess] = useState<string | null>(null);
   const [copiedReportId, setCopiedReportId] = useState<string | null>(null);
+  /** Scroll target: top of the saved-reports list (after save/update). */
+  const statusReportsListTopRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => {
     fetch(`/api/projects/${projectId}/budget`)
@@ -474,6 +481,7 @@ export function StatusReportsTab({
   }, [cdaEnabled, projectId, applyPreviousReport]);
 
   const openEditForm = useCallback((r: StatusReportRecord) => {
+    setTimelineRefreshSuccess(null);
     setEditingReportId(r.id);
     setFormReportDate(r.reportDate.slice(0, 10));
     setFormVariation((r.variation as "Standard" | "Milestones" | "CDA") || "Standard");
@@ -502,6 +510,10 @@ export function StatusReportsTab({
     setShowForm(false);
     setEditingReportId(null);
     setSavedReportId(null);
+    setShowRefreshTimelineModal(false);
+    setRefreshTimelineModalError(null);
+    setRefreshTimelineLoading(false);
+    setTimelineRefreshSuccess(null);
     loadReports();
   }, [loadReports]);
 
@@ -544,12 +556,51 @@ export function StatusReportsTab({
         setFormError(data.error ?? "Save failed");
         return;
       }
-      setSavedReportId(data.id ?? editingReportId);
-      if (!editingReportId) loadReports();
+      const isCreate = !editingReportId;
+      if (isCreate) setReportsPage(1);
+      loadReports(isCreate ? 1 : reportsPage);
+      setShowForm(false);
+      setEditingReportId(null);
+      setSavedReportId(null);
+      setShowRefreshTimelineModal(false);
+      setRefreshTimelineModalError(null);
+      setRefreshTimelineLoading(false);
+      setTimelineRefreshSuccess(null);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          statusReportsListTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      });
     } finally {
       setFormSaving(false);
     }
-  }, [projectId, editingReportId, rollups, formReportDate, formVariation, formTimelinePreviousMonths, formCompleted, formUpcoming, formRisks, formMeetingNotes, formRagOverall, formRagScope, formRagSchedule, formRagBudget, formRagOverallExplanation, formRagScopeExplanation, formRagScheduleExplanation, formRagBudgetExplanation, loadReports]);
+  }, [projectId, editingReportId, reportsPage, rollups, formReportDate, formVariation, formTimelinePreviousMonths, formCompleted, formUpcoming, formRisks, formMeetingNotes, formRagOverall, formRagScope, formRagSchedule, formRagBudget, formRagOverallExplanation, formRagScopeExplanation, formRagScheduleExplanation, formRagBudgetExplanation, loadReports]);
+
+  const confirmRefreshTimeline = useCallback(async () => {
+    if (!editingReportId) return;
+    setRefreshTimelineLoading(true);
+    setRefreshTimelineModalError(null);
+    try {
+      const res = await fetch(
+        `/api/projects/${projectId}/status-reports/${editingReportId}/refresh-timeline`,
+        { method: "POST" }
+      );
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setRefreshTimelineModalError(data.error ?? "Refresh failed");
+        return;
+      }
+      setShowRefreshTimelineModal(false);
+      setTimelineRefreshSuccess("Timeline on this report was updated to match the project.");
+      if (previewReportId === editingReportId) {
+        setPreviewDataKey((k) => k + 1);
+      }
+      loadReports();
+      setTimeout(() => setTimelineRefreshSuccess(null), 4000);
+    } finally {
+      setRefreshTimelineLoading(false);
+    }
+  }, [editingReportId, projectId, previewReportId, loadReports]);
 
   const estBudgetLow = budgetLines.reduce((s, bl) => s + Number(bl.lowDollars), 0);
   const estBudgetHigh = budgetLines.reduce((s, bl) => s + Number(bl.highDollars), 0);
@@ -803,7 +854,10 @@ export function StatusReportsTab({
   return (
     <div className="flex flex-col gap-4">
       <section className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-200 dark:border-dark-border pb-2">
+        <div
+          ref={statusReportsListTopRef}
+          className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-200 dark:border-dark-border pb-2 scroll-mt-28"
+        >
           <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100">
             Status Reports
           </h2>
@@ -1066,6 +1120,25 @@ export function StatusReportsTab({
                       <option key={n} value={n}>{n} {n === 1 ? "month" : "months"} before report date</option>
                     ))}
                   </select>
+                )}
+                {editingReportId && canEdit && (
+                  <div className="mt-3 space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRefreshTimelineModalError(null);
+                        setShowRefreshTimelineModal(true);
+                      }}
+                      className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-800 dark:text-surface-100 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                    >
+                      Refresh timeline
+                    </button>
+                    {timelineRefreshSuccess && (
+                      <p className="text-body-sm text-emerald-700 dark:text-emerald-400" role="status">
+                        {timelineRefreshSuccess}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -1564,11 +1637,53 @@ export function StatusReportsTab({
           </div>
         )}
       </section>
+      {showRefreshTimelineModal && editingReportId && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="refresh-timeline-modal-title"
+        >
+          <div className="max-w-md w-full rounded-lg border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface shadow-lg p-6 space-y-4">
+            <h3
+              id="refresh-timeline-modal-title"
+              className="text-title-md font-semibold text-surface-800 dark:text-surface-100"
+            >
+              Replace timeline on this report?
+            </h3>
+            <p className="text-body-sm text-surface-600 dark:text-surface-300">
+              {`This will replace the timeline stored on this status report with your project's current timeline (bars and markers) as of now. The report date and how many previous months are shown will not change. Other locked snapshot data (for example budget) is not affected.`}
+            </p>
+            {refreshTimelineModalError && (
+              <p className="text-body-sm text-jred-600 dark:text-jred-400">{refreshTimelineModalError}</p>
+            )}
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowRefreshTimelineModal(false)}
+                disabled={refreshTimelineLoading}
+                className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmRefreshTimeline}
+                disabled={refreshTimelineLoading}
+                className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-jred-600 hover:bg-jred-700 text-white font-semibold text-body-sm disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-jred-500 focus:ring-offset-1"
+              >
+                {refreshTimelineLoading ? "Refreshing…" : "Refresh timeline"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {previewReportId && (
         <StatusReportPreview
           projectId={projectId}
           projectSlug={projectSlug}
           reportId={previewReportId}
+          dataRefreshKey={previewDataKey}
           onClose={() => setPreviewReportId(null)}
         />
       )}

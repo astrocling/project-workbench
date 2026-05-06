@@ -13,12 +13,15 @@ export function StatusReportPreview({
   projectSlug,
   reportId,
   onClose,
+  /** Increment to refetch PDF data (e.g. after timeline snapshot refresh). */
+  dataRefreshKey = 0,
 }: {
   projectId: string;
   /** Slug or id for PDF download URL (API accepts both). */
   projectSlug: string;
   reportId: string;
   onClose: () => void;
+  dataRefreshKey?: number;
 }) {
   const [data, setData] = useState<StatusReportPDFData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,7 +56,7 @@ export function StatusReportPreview({
     return () => {
       mounted.current = false;
     };
-  }, [projectSlug, reportId]);
+  }, [projectSlug, reportId, dataRefreshKey]);
 
   return (
     <div

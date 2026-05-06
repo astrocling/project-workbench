@@ -60,8 +60,8 @@ Each project has a detail page with several tabs. The header shows the **as-of d
 | **PTO** | PTO and regional holidays for **project members** visible on the Resourcing grid across the project date range. Filter by week range and person; see who is on PTO or a holiday and whether a PTO day is full or partial. Data comes from Float sync (`PTOHolidayImpact`). See [PTO tab](#pto-tab). |
 | **CDA** | (When enabled in Settings) Monthly planned and actuals for CDA reporting. Month-to-date actuals for each month incorporate **split-week** hours when a week crosses a month boundary (see Resourcing below). Optional **Report hours only** hides budget dollars on the Overall row in status copy and CDA reports—see [CDA tab](#cda-tab). |
 | **Budget** | Budget lines (e.g. SOW, CO, Other) with low/high hours and dollars, and burn to date. |
-| **Timeline** | High-level timeline with month columns and up to four rows of bars and markers. Each bar has a label, start/end dates, row (1–4), and an optional color (Blue, Green, Amber, Teal, Slate, or Violet). The same timeline (with colors) appears in status report previews and PDFs. |
-| **Status Reports** | Summary table of estimated budget, $ spent, $ remaining, budgeted/actual/remaining hours, with copy-to-clipboard and a % budget used (high est.) circle chart. You can create, edit, view, and export status reports. |
+| **Timeline** | High-level timeline with month columns and up to four rows of bars and markers. Each bar has a label, start/end dates, row (1–4), and an optional color (Blue, Green, Amber, Teal, Slate, or Violet). The same timeline (with colors) appears in status report previews and PDFs. Each saved report stores its **own** copy of the timeline when the report is created; if you change bars or markers later, use **Refresh timeline** while **editing** that report (Standard or Milestones) on the Status Reports tab to update that copy—see [Status Reports tab](#status-reports-tab). |
+| **Status Reports** | Summary table of estimated budget, $ spent, $ remaining, budgeted/actual/remaining hours, with copy-to-clipboard and a % budget used (high est.) circle chart. Create, edit, view, and export status reports. Standard and Milestones reports can **refresh the stored timeline** from the project after the Timeline tab changes—see [Status Reports tab](#status-reports-tab). |
 | **Settings** | Edit project name, client, dates, status, single rate, notes, SOW/Estimate/Float/Metric links, resourcing thresholds, key roles, and optional CDA tab. Within Settings, sub-sections include **Details**, **Links**, **Key roles**, **Resourcing** (thresholds), **Rates** (per-role rate card or single bill rate), and **Assignments** (people assigned, their roles, bill-rate overrides, and “hidden from grid” for the Resourcing tab). |
 
 Only users with edit permission can change data; the **Settings** tab may be read-only for some viewers.
@@ -142,6 +142,32 @@ The Status Reports tab is where you create and maintain status reports and expor
 - **Preview and PDF match**: The in-app preview and the exported PDF use the same layout and styling.
 - **Bigger, presentation-friendly default size**: The preview is auto-scaled larger (while still fitting your screen), and the downloaded PDF is generated at a larger default page size so you can present at 100% zoom without squinting.
 - **Typography**: Status report fonts were updated for readability; the preview and exported PDF use the same typography.
+
+### Saving a report
+
+When you click **Save** (new report) or **Update** (while editing), Workbench saves the report, **closes the form**, refreshes the list, and **scrolls** the page so the **Status Reports** heading and table are in view. That makes it obvious the save succeeded and reduces the chance of clicking save again and creating a duplicate. For a **new** report, the list jumps to **page 1** (reports are ordered with the newest dates first, so your new row is usually there). Use **Preview** (eye icon) on a row when you want to open the report after saving.
+
+### Snapshot (what stays fixed on a saved report)
+
+When you **save a new** status report, Workbench stores a **snapshot** with the reporting period, budget (or CDA) figures, and—for Standard and Milestones variations—the **timeline** (bars and markers) as they were **at that moment**. Preview, the HTML view, and PDF export all read from that snapshot so later changes to resourcing, budget, or the **Timeline** tab do not change older reports.
+
+- **What you can still edit** on an existing report: narrative fields (completed / upcoming / risks / meeting notes), RAG values and explanations, and **variation** where the form allows it.
+- **What stays locked** unless you use **Refresh timeline** (below): **report date**, **reporting period**, **previous months on timeline** (the 1–4 month window chosen at create time), budget/CDA snapshot, and—by default—the **timeline** bars and markers.
+
+### Refresh timeline (Standard and Milestones, editors only)
+
+If you updated the project **Timeline** tab **after** a report was saved, the report still shows the **old** timeline until you refresh it:
+
+1. Open **Edit report** for that row (pencil).
+2. Under **Previous months on timeline** (read-only on edit), click **Refresh timeline**.
+3. Read the confirmation dialog: it explains that the **timeline stored on this report** will be **replaced** with your project’s **current** bars and markers. Your **report date** and **how many previous months** are shown do **not** change; other snapshot data (for example budget) is **not** affected.
+4. Confirm to apply, or cancel to keep the existing stored timeline.
+
+If the project has **no** timeline the app can render (for example **no end date** so the status report timeline cannot be built), the action may fail with an error message—set the project end date and add timeline content on the **Timeline** tab first.
+
+Very old reports **without** a stored snapshot cannot use this action; create a new report if you need a current snapshot.
+
+If the **preview** modal is open for that same report when you refresh, the preview **reloads** so you see the updated timeline without closing it.
 
 ---
 
@@ -230,7 +256,14 @@ Available from the **Admin** entry in the **sidebar** (admins only).
 | **Roles** | Create and manage roles (e.g. Project Manager, FE Developer). Role names must match the ones used on assignments and in Float. |
 | **People** | Manage people (name, email, active). These are the resources that appear on project assignments and Float sync. The **Region** column shows each person’s **Float region** by name when the last sync could resolve one (from people and/or holiday API data); otherwise **Region (id)** if only the numeric id is known, or **—** if unset—used for regional public/team holiday handling in Float scheduled hours. |
 | **Holidays** | Read-only view of Float **public** and **team** holidays (API JSON) for troubleshooting schedules and regions. |
-| **Users** | Manage app logins (email and password) and permissions. Set **User** or **Admin**, and optionally set a **position role** (Project Manager, Program Manager, Client Account Director) so “My Projects” shows the right list. |
+| **Users** | Manage app logins (email and password) and permissions. Set **User** or **Admin**, and optionally set a **position role** (Project Manager, Program Manager, Client Account Director) so “My Projects” shows the right list. Use **Edit** on a row to open the edit dialog (see below)—including **New password** to reset someone’s password without changing their email. |
+
+### Admin → Users
+
+Open **Admin → Users** (`/admin/users`). At the top you can **create** a user (email, password, names, permissions, optional position role). Below, a **table** lists existing users.
+
+- **Edit** — In the **Actions** column on the right, click **Edit** to change names, permissions, position role, and optionally set a **new password** (leave blank to keep the current password). **Save** applies changes; **Cancel** closes the dialog.
+- **Narrow layouts** — If your browser window is small, the user table can scroll **horizontally** inside its card so **Edit** stays available. Long emails or names may show truncated with an ellipsis; hover the cell (or use your browser’s tooltip behavior) to see the full value when a native `title` tooltip is shown.
 
 ---
 

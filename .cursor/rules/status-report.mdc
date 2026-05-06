@@ -1,9 +1,10 @@
 ---
 description: Status report preview and PDF export — single source of truth
-globs: components/StatusReportView.tsx, components/StatusReportPreview.tsx, components/StatusReportPageContent.tsx, lib/statusReportPdfCapture.ts
+globs: components/StatusReportView.tsx, components/StatusReportPreview.tsx, components/StatusReportPageContent.tsx, lib/statusReportPdfCapture.ts, components/StatusReportsTab.tsx, lib/statusReportPdfData.ts
 ---
 
 # Status report layout and PDF
 
 - **Single source of truth:** The only place to change layout or styling for both preview and PDF export is `components/StatusReportView.tsx`. The PDF is produced by client-side capture of that view (html2canvas + jsPDF in `lib/statusReportPdfCapture.ts`).
 - Do not add a separate PDF-only layout or component. Any visual change must be made in StatusReportView so preview and exported PDF stay identical.
+- **Timeline data** for a saved report comes from the report’s JSON **snapshot** (`lib/statusReportPdfData.ts`). To replace only the timeline with current project bars/markers after editing the Timeline tab, use **`POST /api/projects/[id]/status-reports/[reportId]/refresh-timeline`** (see `app/api/projects/[id]/status-reports/[reportId]/refresh-timeline/route.ts` and **Refresh timeline** in `StatusReportsTab.tsx`).
