@@ -66,6 +66,12 @@ Each project has a detail page with several tabs. The header shows the **as-of d
 
 Only users with edit permission can change data; the **Settings** tab may be read-only for some viewers.
 
+### Settings tab (editors)
+
+Open **Settings** from the project detail page. Edits in **Details**, **Links**, **Key roles**, and other sections **save automatically** a short time after you stop changing fields (you may see a brief saved indicator).
+
+- **Renaming the project**: When you change the **project name**, Workbench may **update the page URL** to match the new slug (your tab stays on **Settings**). You do not need a full refresh for further edits or link saves to apply.
+
 ---
 
 ## Resourcing tab
@@ -153,6 +159,7 @@ When you click **Save** (new report) or **Update** (while editing), Workbench sa
 When you **save a new** status report, Workbench stores a **snapshot** with the reporting period, budget (or CDA) figures, and—for Standard and Milestones variations—the **timeline** (bars and markers) as they were **at that moment**. Preview, the HTML view, and PDF export all read from that snapshot so later changes to resourcing, budget, or the **Timeline** tab do not change older reports.
 
 - **What you can still edit** on an existing report: narrative fields (completed / upcoming / risks / meeting notes), RAG values and explanations, and **variation** where the form allows it.
+- **Meeting notes with formatting**: If you paste content that includes **HTML** from another tool, the preview, HTML view, and PDF keep **allowed** formatting (paragraphs, lists, links, basic styles) and drop unsafe markup automatically.
 - **What stays locked** unless you use **Refresh timeline** (below): **report date**, **reporting period**, **previous months on timeline** (the 1–4 month window chosen at create time), budget/CDA snapshot, and—by default—the **timeline** bars and markers.
 
 ### Refresh timeline (Standard and Milestones, editors only)

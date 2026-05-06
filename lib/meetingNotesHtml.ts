@@ -1,27 +1,74 @@
 /**
  * Sanitization and detection for meeting notes rich text (e.g. from Teams Copilot).
- * Uses isomorphic-dompurify so the same sanitized HTML is produced on server and client,
- * avoiding hydration mismatch (no server/client branch).
+ * Uses sanitize-html so server and client both run the same sanitizer without jsdom
+ * (avoids ESM/CJS issues from isomorphic-dompurify → jsdom in production SSR).
  */
 
-import DOMPurify from "isomorphic-dompurify";
+import sanitizeHtml from "sanitize-html";
 
 const MEETING_NOTES_ALLOWED_TAGS = [
-  "p", "br", "div", "ul", "ol", "li", "strong", "b", "em", "i", "u",
-  "a", "h1", "h2", "h3", "h4", "span",
+  "p",
+  "br",
+  "div",
+  "ul",
+  "ol",
+  "li",
+  "strong",
+  "b",
+  "em",
+  "i",
+  "u",
+  "a",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "span",
 ];
-const MEETING_NOTES_ALLOWED_ATTRS = ["href", "target", "rel", "style"];
 
-const SANITIZE_CONFIG = {
-  ALLOWED_TAGS: MEETING_NOTES_ALLOWED_TAGS,
-  ALLOWED_ATTR: MEETING_NOTES_ALLOWED_ATTRS,
-  ADD_ATTR: ["target", "rel"],
-} satisfies Partial<Parameters<typeof DOMPurify.sanitize>[1]>;
+/** Reject url(), expression(), and @import in inline styles (XSS vectors). */
+const SAFE_INLINE_STYLE_VALUE =
+  /^(?!.*url\s*\()(?!.*expression\s*\()(?!.*@import\b)[\s\S]{0,2000}$/i;
+
+const MEETING_NOTES_SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
+  allowedTags: MEETING_NOTES_ALLOWED_TAGS,
+  allowedAttributes: {
+    "*": ["style"],
+    a: ["href", "target", "rel", "style"],
+  },
+  allowedSchemes: ["http", "https", "mailto", "tel"],
+  allowProtocolRelative: false,
+  allowedStyles: {
+    "*": {
+      color: [SAFE_INLINE_STYLE_VALUE],
+      "background-color": [SAFE_INLINE_STYLE_VALUE],
+      "font-size": [SAFE_INLINE_STYLE_VALUE],
+      "font-family": [SAFE_INLINE_STYLE_VALUE],
+      "font-weight": [SAFE_INLINE_STYLE_VALUE],
+      "font-style": [SAFE_INLINE_STYLE_VALUE],
+      "text-decoration": [SAFE_INLINE_STYLE_VALUE],
+      "text-align": [SAFE_INLINE_STYLE_VALUE],
+      "line-height": [SAFE_INLINE_STYLE_VALUE],
+      "margin": [SAFE_INLINE_STYLE_VALUE],
+      "margin-top": [SAFE_INLINE_STYLE_VALUE],
+      "margin-right": [SAFE_INLINE_STYLE_VALUE],
+      "margin-bottom": [SAFE_INLINE_STYLE_VALUE],
+      "margin-left": [SAFE_INLINE_STYLE_VALUE],
+      "padding": [SAFE_INLINE_STYLE_VALUE],
+      "padding-top": [SAFE_INLINE_STYLE_VALUE],
+      "padding-right": [SAFE_INLINE_STYLE_VALUE],
+      "padding-bottom": [SAFE_INLINE_STYLE_VALUE],
+      "padding-left": [SAFE_INLINE_STYLE_VALUE],
+      "vertical-align": [SAFE_INLINE_STYLE_VALUE],
+      "white-space": [SAFE_INLINE_STYLE_VALUE],
+    },
+  },
+};
 
 /** Sanitize HTML for meeting notes (safe to store and render). Same output on server and client. */
 export function sanitizeMeetingNotesHtml(html: string): string {
   if (!html || !html.trim()) return "";
-  return DOMPurify.sanitize(html.trim(), SANITIZE_CONFIG);
+  return sanitizeHtml(html.trim(), MEETING_NOTES_SANITIZE_OPTIONS);
 }
 
 /** True if content looks like HTML (e.g. contains tags). */

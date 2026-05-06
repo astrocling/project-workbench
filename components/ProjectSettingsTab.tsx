@@ -196,16 +196,16 @@ export function ProjectSettingsTab({
     lastSavedRef.current = JSON.stringify(buildPayload());
   }, [loading, buildPayload]);
 
-  // Auto-save when form state changes (debounced)
+  // Auto-save when form state changes (debounced). Use project id in the URL so saves still work after a rename (slug changes server-side).
   useEffect(() => {
-    if (loading || !initialSaveRecordedRef.current) return;
+    if (loading || !projectId || !initialSaveRecordedRef.current) return;
     const payloadStr = JSON.stringify(buildPayload());
     if (payloadStr === lastSavedRef.current) return;
 
     const timer = setTimeout(async () => {
       setSaving(true);
       setError("");
-      const res = await fetch(`/api/projects/${projectSlug}`, {
+      const res = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildPayload()),
@@ -214,6 +214,10 @@ export function ProjectSettingsTab({
         setError(await res.text());
         setSaving(false);
         return;
+      }
+      const updated = (await res.json()) as { slug?: string };
+      if (typeof updated.slug === "string" && updated.slug !== projectSlug) {
+        router.replace(`/projects/${updated.slug}?tab=settings`);
       }
       lastSavedRef.current = JSON.stringify(buildPayload());
       setSaving(false);
@@ -224,6 +228,7 @@ export function ProjectSettingsTab({
     return () => clearTimeout(timer);
   }, [
     loading,
+    projectId,
     projectSlug,
     buildPayload,
     router,
@@ -234,10 +239,10 @@ export function ProjectSettingsTab({
   }
 
   async function backfillFloat() {
-    if (!canEdit || backfillingFloat) return;
+    if (!canEdit || backfillingFloat || !projectId) return;
     setBackfillingFloat(true);
     try {
-      const res = await fetch(`/api/projects/${projectSlug}/backfill-float`, { method: "POST" });
+      const res = await fetch(`/api/projects/${projectId}/backfill-float`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const detail = data.detail ?? data.error ?? "Backfill failed";
@@ -255,11 +260,11 @@ export function ProjectSettingsTab({
   }
 
   async function syncPlanFromFloat() {
-    if (!canEdit || syncingPlanFromFloat) return;
+    if (!canEdit || syncingPlanFromFloat || !projectId) return;
     setShowSyncPlanConfirm(false);
     setSyncingPlanFromFloat(true);
     try {
-      const res = await fetch(`/api/projects/${projectSlug}/sync-plan-from-float`, { method: "POST" });
+      const res = await fetch(`/api/projects/${projectId}/sync-plan-from-float`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         alert(data.error ?? data.message ?? "Sync failed");

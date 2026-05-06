@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Status reports — production crash on HTML meeting notes** — SSR for `StatusReportView` loaded **jsdom** via **isomorphic-dompurify**, which triggered **`ERR_REQUIRE_ESM`** in some production builds (CommonJS `require` of ESM-only **`@exodus/bytes`** inside **html-encoding-sniffer**). Meeting notes sanitization now uses **`sanitize-html`** in `lib/meetingNotesHtml.ts` (no jsdom). Tests: `__tests__/lib/meetingNotesHtml.test.ts`.
+- **Project settings — `{"error":"Not found"}` after renaming** — Debounced save and Float actions used **`/api/projects/{slug}`**; **`PATCH`** regenerates the slug when the **name** changes, so the next save used a stale slug. The client now uses **`/api/projects/{projectId}`** for **`PATCH`**, **backfill-float**, and **sync-plan-from-float**, and **`router.replace`**es to **`/projects/{newSlug}?tab=settings`** when the API returns an updated slug (`components/ProjectSettingsTab.tsx`).
+
+### Documentation
+
+- **Technical Reference** — *Status report rendering*: meeting notes HTML sanitization (**sanitize-html**, no jsdom) and rationale.
+- **Technical Reference** — *API overview*: `GET/PATCH/DELETE /api/projects/[id]` accepts **id or slug**; **Settings** client uses **project id** in mutating URLs and URL refresh on slug change.
+- **User Guide** — *Settings tab*: autosave, rename + URL slug update, and meeting notes HTML safety in *Status Reports*.
+- **README** — Documentation index: Technical Reference summary mentions project API **id or slug** and **sanitize-html** for meeting notes.
+
 ## [1.0.7] - 2026-05-05
 
 Patch release: **Admin → Users** layout restores **Edit** / password reset; **Status Reports** closes the form after save/update (with list refresh) and adds **Refresh timeline** while editing Standard or Milestones reports; **Resourcing** adds collapsible **Weekly Actuals** for easier Planned vs Float comparison; documentation aligned. **Deploy:** no new migrations; redeploy as usual.
