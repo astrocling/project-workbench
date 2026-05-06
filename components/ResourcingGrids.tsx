@@ -19,7 +19,7 @@ import {
   hasMissingActualsSplitWeek,
 } from "@/lib/budgetCalculations";
 import { Toggle } from "@/components/Toggle";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 
 /** Round to nearest 0.25 for resourcing hours. */
 function roundToQuarter(n: number): number {
@@ -146,6 +146,7 @@ export function ResourcingGrids({
   const [commentDraft, setCommentDraft] = useState("");
   const [commentPopoverAnchor, setCommentPopoverAnchor] = useState<{ x: number; y: number } | null>(null);
   const [expandedSplitCells, setExpandedSplitCells] = useState<Set<string>>(new Set());
+  const [actualsCollapsed, setActualsCollapsed] = useState(false);
   const commentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const firstWeekColRef = useRef<HTMLTableCellElement>(null);
@@ -1308,7 +1309,10 @@ export function ResourcingGrids({
         </div>
       )}
       <div ref={scrollContainerRef} className="overflow-x-auto overscroll-x-contain">
-        <div className="space-y-6 inline-block align-top" style={{ paddingRight: "2rem", minWidth: tableWrapperMinWidth }}>
+        <div
+          className={`inline-block align-top ${actualsCollapsed ? "space-y-2" : "space-y-6"}`}
+          style={{ paddingRight: "2rem", minWidth: tableWrapperMinWidth }}
+        >
         <div className="rounded-lg border border-surface-200 dark:border-dark-border overflow-clip shadow-card-light dark:shadow-card-dark bg-white dark:bg-dark-surface" style={{ minWidth: tableWrapperMinWidth, paddingRight: gridCardEndPadding }}>
           <table className="border-separate border-spacing-0 text-sm w-full" style={{ tableLayout: "fixed", minWidth: tableMinWidth }}>
             <colgroup>
@@ -1540,91 +1544,113 @@ export function ResourcingGrids({
               <tr>
                 <th
                   colSpan={4}
-                  className={`p-2 border text-left ${sticky} ${stickyOpaqueBody} ${stickyEdge} border-surface-200 dark:border-dark-border`}
+                  className={`relative p-2 border text-left ${sticky} ${stickyOpaqueBody} ${stickyEdge} border-surface-200 dark:border-dark-border`}
                   style={{ left: 0, width: stickyColsWidth, minWidth: stickyColsWidth }}
                 >
-                  <h3 className="text-display-md font-bold text-surface-900 dark:text-white">2. Weekly Actuals Grid</h3>
+                  <h3 className="pr-9 text-display-md font-bold text-surface-900 dark:text-white">
+                    2. Weekly Actuals Grid
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setActualsCollapsed((c) => !c)}
+                    aria-expanded={!actualsCollapsed}
+                    aria-label={actualsCollapsed ? "Show weekly actuals" : "Hide weekly actuals"}
+                    title={actualsCollapsed ? "Show weekly actuals" : "Hide weekly actuals"}
+                    className="absolute top-1/2 right-2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-surface-500 transition hover:bg-surface-100 hover:text-surface-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2 dark:text-surface-400 dark:hover:bg-dark-raised dark:hover:text-surface-100"
+                  >
+                    {actualsCollapsed ? (
+                      <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
+                    ) : (
+                      <ChevronUp className="h-4 w-4 shrink-0" aria-hidden />
+                    )}
+                  </button>
                 </th>
                 <th colSpan={weeks.length} className="p-0 border-0 bg-transparent" aria-hidden />
               </tr>
-              <tr className={stickyBgHead}>
-                <th className={`p-2 border ${sticky} ${stickyOpaqueHead}`} style={{ left: 0 }} aria-hidden />
-                <th className={`p-2 border text-left ${sticky} ${stickyOpaqueHead}`} style={{ left: colReady }}>Person</th>
-                <th className={`p-2 border text-left ${sticky} ${stickyOpaqueHead}`} style={{ left: leftRole }}>Role</th>
-                <th className={`p-2 text-center ${sticky} ${stickyOpaqueFoot} resourcing-total-header`} style={{ left: leftTotal }}>Total</th>
-                {weeks.map((w) => (
-                  <th
-                    key={formatWeekKey(w)}
-                    className={`p-1 border text-center text-xs whitespace-nowrap w-16 ${currentWeekColClass(w)}`}
-                    title={formatWeekKey(w)}
-                    aria-current={isCurrentWeek(w) ? "date" : undefined}
-                  >
-                    {formatWeekShort(w)}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sortedAssignments.map((a, idx) => {
-                const rowBg = idx % 2 === 0 ? rowEvenBg : rowOddBg;
-                const stickyOpaque = idx % 2 === 0 ? stickyOpaqueEven : stickyOpaqueOdd;
-                return (
-                <tr key={a.personId} className={rowBg}>
-                  <td className={`p-2 border ${sticky} ${stickyOpaque}`} style={{ left: 0 }} />
-                  <td className={`p-2 border ${sticky} ${stickyOpaque} ${getReady(a.personId) ? "resourcing-ready" : ""}`} style={{ left: colReady }}>{a.person.name}</td>
-                  <td className={`p-2 border ${sticky} ${stickyOpaque} ${getReady(a.personId) ? "resourcing-ready" : ""}`} style={{ left: leftRole }}>{a.role.name}</td>
-                  <td className={`p-2 border text-center font-medium tabular-nums ${sticky} ${stickyOpaque} ${stickyEdge} ${getReady(a.personId) ? "resourcing-ready" : ""}`} style={{ left: leftTotal }}>
-                    {formatTotal(actualRowTotal(a.personId))}
-                  </td>
-                  {weeks.map((w, weekIdx) => {
-                    const k = formatWeekKey(w);
-                    const monthKeys = getMonthKeysForWeek(w);
-                    if (monthKeys.length === 2) {
-                      const expanded = expandedSplitCells.has(splitCellKey(a.personId, k));
-                      if (expanded) {
-                        return actualsSplitCell(a.personId, k, monthKeys as [string, string], () =>
-                          setSplitCellExpanded(a.personId, k, false)
-                        );
-                      }
-                      return actualsRolledUpCell(a.personId, k, monthKeys as [string, string], () =>
-                        setSplitCellExpanded(a.personId, k, true)
-                      );
-                    }
-                    return hoursInput(
-                      a.personId,
-                      k,
-                      getActual(a.personId, k),
-                      false,
-                      true,
-                      idx,
-                      weekIdx,
-                      "actual"
-                    );
-                  })}
+              {!actualsCollapsed ? (
+                <tr className={stickyBgHead}>
+                  <th className={`p-2 border ${sticky} ${stickyOpaqueHead}`} style={{ left: 0 }} aria-hidden />
+                  <th className={`p-2 border text-left ${sticky} ${stickyOpaqueHead}`} style={{ left: colReady }}>Person</th>
+                  <th className={`p-2 border text-left ${sticky} ${stickyOpaqueHead}`} style={{ left: leftRole }}>Role</th>
+                  <th className={`p-2 text-center ${sticky} ${stickyOpaqueFoot} resourcing-total-header`} style={{ left: leftTotal }}>Total</th>
+                  {weeks.map((w) => (
+                    <th
+                      key={formatWeekKey(w)}
+                      className={`p-1 border text-center text-xs whitespace-nowrap w-16 ${currentWeekColClass(w)}`}
+                      title={formatWeekKey(w)}
+                      aria-current={isCurrentWeek(w) ? "date" : undefined}
+                    >
+                      {formatWeekShort(w)}
+                    </th>
+                  ))}
                 </tr>
-              );
-              })}
-            </tbody>
-            <tfoot>
-              <tr className={`${stickyBgFoot} font-medium`}>
-                <td className={`p-2 border ${sticky} ${stickyOpaqueFoot}`} style={{ left: 0 }} />
-                <td className={`p-2 border ${sticky} ${stickyOpaqueFoot}`} style={{ left: colReady }} />
-                <td className={`p-2 border ${sticky} ${stickyOpaqueFoot}`} style={{ left: leftRole }}>Total</td>
-                <td className={`p-2 border text-center tabular-nums ${sticky} ${stickyOpaqueFoot} ${stickyEdge}`} style={{ left: leftTotal }}>
-                  {formatTotal(
-                    weeks.reduce((s, w) => s + actualWeekTotal(formatWeekKey(w)), 0)
-                  )}
-                </td>
-                {weeks.map((w) => {
-                  const k = formatWeekKey(w);
-                  return (
-                    <td key={k} className={`p-2 border text-center tabular-nums ${actualsTotalVarianceClass(k)} ${currentWeekColClass(w)}`}>
-                      {formatTotal(actualWeekTotal(k))}
-                    </td>
+              ) : null}
+            </thead>
+            {!actualsCollapsed ? (
+              <>
+                <tbody>
+                  {sortedAssignments.map((a, idx) => {
+                    const rowBg = idx % 2 === 0 ? rowEvenBg : rowOddBg;
+                    const stickyOpaque = idx % 2 === 0 ? stickyOpaqueEven : stickyOpaqueOdd;
+                    return (
+                    <tr key={a.personId} className={rowBg}>
+                      <td className={`p-2 border ${sticky} ${stickyOpaque}`} style={{ left: 0 }} />
+                      <td className={`p-2 border ${sticky} ${stickyOpaque} ${getReady(a.personId) ? "resourcing-ready" : ""}`} style={{ left: colReady }}>{a.person.name}</td>
+                      <td className={`p-2 border ${sticky} ${stickyOpaque} ${getReady(a.personId) ? "resourcing-ready" : ""}`} style={{ left: leftRole }}>{a.role.name}</td>
+                      <td className={`p-2 border text-center font-medium tabular-nums ${sticky} ${stickyOpaque} ${stickyEdge} ${getReady(a.personId) ? "resourcing-ready" : ""}`} style={{ left: leftTotal }}>
+                        {formatTotal(actualRowTotal(a.personId))}
+                      </td>
+                      {weeks.map((w, weekIdx) => {
+                        const k = formatWeekKey(w);
+                        const monthKeys = getMonthKeysForWeek(w);
+                        if (monthKeys.length === 2) {
+                          const expanded = expandedSplitCells.has(splitCellKey(a.personId, k));
+                          if (expanded) {
+                            return actualsSplitCell(a.personId, k, monthKeys as [string, string], () =>
+                              setSplitCellExpanded(a.personId, k, false)
+                            );
+                          }
+                          return actualsRolledUpCell(a.personId, k, monthKeys as [string, string], () =>
+                            setSplitCellExpanded(a.personId, k, true)
+                          );
+                        }
+                        return hoursInput(
+                          a.personId,
+                          k,
+                          getActual(a.personId, k),
+                          false,
+                          true,
+                          idx,
+                          weekIdx,
+                          "actual"
+                        );
+                      })}
+                    </tr>
                   );
-                })}
-              </tr>
-            </tfoot>
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className={`${stickyBgFoot} font-medium`}>
+                    <td className={`p-2 border ${sticky} ${stickyOpaqueFoot}`} style={{ left: 0 }} />
+                    <td className={`p-2 border ${sticky} ${stickyOpaqueFoot}`} style={{ left: colReady }} />
+                    <td className={`p-2 border ${sticky} ${stickyOpaqueFoot}`} style={{ left: leftRole }}>Total</td>
+                    <td className={`p-2 border text-center tabular-nums ${sticky} ${stickyOpaqueFoot} ${stickyEdge}`} style={{ left: leftTotal }}>
+                      {formatTotal(
+                        weeks.reduce((s, w) => s + actualWeekTotal(formatWeekKey(w)), 0)
+                      )}
+                    </td>
+                    {weeks.map((w) => {
+                      const k = formatWeekKey(w);
+                      return (
+                        <td key={k} className={`p-2 border text-center tabular-nums ${actualsTotalVarianceClass(k)} ${currentWeekColClass(w)}`}>
+                          {formatTotal(actualWeekTotal(k))}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                </tfoot>
+              </>
+            ) : null}
           </table>
         </div>
 
