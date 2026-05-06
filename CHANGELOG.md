@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.7] - 2026-05-05
+
+Patch release: **Admin → Users** layout restores **Edit** / password reset; **Status Reports** closes the form after save/update (with list refresh) and adds **Refresh timeline** while editing Standard or Milestones reports; **Resourcing** adds collapsible **Weekly Actuals** for easier Planned vs Float comparison; documentation aligned. **Deploy:** no new migrations; redeploy as usual.
+
 ### Added
 
 - **Resourcing — collapse Weekly Actuals** — The middle **Weekly Actuals** grid can be collapsed so **Planned** and **Float** sit closer for comparison: icon-only chevron in the section header (`actualsCollapsed` state in `components/ResourcingGrids.tsx`; tighter vertical spacing between cards while collapsed). No API or persistence.
@@ -22,8 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **User Guide** — *Resourcing tab*: **Collapsing Weekly Actuals** (chevron, tighter Planned vs Float layout while collapsed).
 - **Technical Reference** — *Resourcing API details*: **Weekly Actuals collapse** behavior and implementation notes (`ResourcingGrids`).
-- **README** — User Guide summary mentions collapsible Weekly Actuals.
-- **User Guide** — *Admin: Roles, People, and Users*: **Users** row expanded; new **Admin → Users** subsection (table, **Edit**, optional password reset, narrow screens).
+- **README** — User Guide summary mentions collapsible Weekly Actuals; production release tag example updated to **v1.0.7**.
+- **User Guide** — *Admin: Roles, People, and Users*: **Users** row expanded; new **Admin → Users** subsection (table, **Edit**, optional password reset, narrow screens); release version line updated to **1.0.7**.
 - **Technical Reference** — *Admin pages (UI)*: **Users** page layout and scroll behavior; pointer to `app/admin/users/page.tsx`.
 - **User Guide** — *Status Reports tab*: new **Saving a report** subsection (form closes, list refresh, scroll, page 1 on create, preview via row action).
 - **Technical Reference** — *Status report rendering*: **Status Reports tab (create/edit UX)** bullet; `StatusReportsTab` post-save behavior.
