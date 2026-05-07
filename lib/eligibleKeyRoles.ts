@@ -16,14 +16,34 @@ const KEY_ROLES = [
 export async function getEligibleKeyRoles(): Promise<{ id: string; name: string }[]> {
   const users = await prisma.user.findMany({
     where: { role: { in: KEY_ROLES } },
-    select: { email: true, firstName: true, lastName: true },
+    select: {
+      email: true,
+      firstName: true,
+      lastName: true,
+      person: { select: { id: true, name: true } },
+    },
   });
 
   if (users.length === 0) {
     return [];
   }
 
-  const emails = [...new Set(users.map((u) => u.email).filter(Boolean))];
+  const matchedIds = new Set<string>();
+  const result: { id: string; name: string }[] = [];
+
+  for (const u of users) {
+    if (u.person && !matchedIds.has(u.person.id)) {
+      matchedIds.add(u.person.id);
+      result.push({ id: u.person.id, name: u.person.name });
+    }
+  }
+
+  const unlinked = users.filter((u) => !u.person);
+  if (unlinked.length === 0) {
+    return result.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  const emails = [...new Set(unlinked.map((u) => u.email).filter(Boolean))];
   const peopleByEmail = await prisma.person.findMany({
     where: { email: { in: emails } },
     orderBy: { name: "asc" },
@@ -35,12 +55,10 @@ export async function getEligibleKeyRoles(): Promise<{ id: string; name: string 
     if (p.email) byEmail.set(p.email, { id: p.id, name: p.name });
   }
 
-  const matchedIds = new Set<string>();
-  const result: { id: string; name: string }[] = [];
   const matchedUserEmails = new Set<string>();
   const matchedUserNames = new Set<string>();
 
-  for (const u of users) {
+  for (const u of unlinked) {
     const byMail = u.email ? byEmail.get(u.email) : undefined;
     if (byMail && !matchedIds.has(byMail.id)) {
       matchedIds.add(byMail.id);
@@ -54,7 +72,7 @@ export async function getEligibleKeyRoles(): Promise<{ id: string; name: string 
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     });
-    for (const u of users) {
+    for (const u of unlinked) {
       const name = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
       if (!name) continue;
       const byMail = u.email ? byEmail.get(u.email) : undefined;
@@ -68,7 +86,7 @@ export async function getEligibleKeyRoles(): Promise<{ id: string; name: string 
     }
   }
 
-  for (const u of users) {
+  for (const u of unlinked) {
     const fullName = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
     if (!fullName) continue;
     if (u.email && matchedUserEmails.has(u.email)) continue;

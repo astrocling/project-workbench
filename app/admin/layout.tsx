@@ -51,6 +51,18 @@ export default function AdminLayout({
           >
             Users
           </Link>
+          <Link
+            href="/admin/accounts"
+            className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
+          >
+            Accounts
+          </Link>
+          <Link
+            href="/admin/slack"
+            className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
+          >
+            Slack
+          </Link>
         </nav>
         <ThemeToggle />
       </header>

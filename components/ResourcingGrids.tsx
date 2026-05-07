@@ -109,11 +109,13 @@ function commentKey(personId: string, weekKey: string, gridType: GridCommentType
 
 export function ResourcingGrids({
   projectId,
+  projectName,
   canEdit,
   floatLastUpdated,
   onActualsUpdated,
 }: {
   projectId: string;
+  projectName: string;
   canEdit: boolean;
   floatLastUpdated: Date | null;
   onActualsUpdated?: () => void;
@@ -155,6 +157,20 @@ export function ResourcingGrids({
     canScrollLeft: false,
     canScrollRight: false,
   });
+  const [resourcingRequestOpen, setResourcingRequestOpen] = useState(false);
+  const [resourcingRequestNote, setResourcingRequestNote] = useState("");
+  const [resourcingRequestSubmitting, setResourcingRequestSubmitting] = useState(false);
+  const [resourcingRequestError, setResourcingRequestError] = useState("");
+  const [showRequestSent, setShowRequestSent] = useState(false);
+  const [openResourcingRequest, setOpenResourcingRequest] = useState<{
+    id: string;
+    createdAt: string;
+  } | null>(null);
+  const [fulfillSubmitting, setFulfillSubmitting] = useState(false);
+  const [fulfillError, setFulfillError] = useState("");
+  const [showFulfillSent, setShowFulfillSent] = useState(false);
+  const skipReadyRefresh = useRef(false);
+  const skipOpenRequestRefresh = useRef(false);
 
   const splitCellKey = (personId: string, weekKey: string) => `${personId}|${weekKey}`;
   const setSplitCellExpanded = (personId: string, weekKey: string, expanded: boolean) => {
@@ -179,6 +195,7 @@ export function ResourcingGrids({
         return r.json();
       })
       .then((data: {
+        projectName?: string;
         range?: { fromWeek: string; toWeek: string };
         project?: { startDate: string; endDate: string | null; actualsLowThresholdPercent: number | null; actualsHighThresholdPercent: number | null };
         assignments?: Assignment[];
@@ -187,6 +204,7 @@ export function ResourcingGrids({
         monthSplits?: ActualMonthSplitRow[];
         floatHours?: FloatRow[];
         readyForFloat?: ReadyRow[];
+        openResourcingRequest?: { id: string; createdAt: string } | null;
         cellComments?: Array<{ personId: string; weekStartDate: string; gridType: GridCommentType; comment: string }>;
         ptoHolidayByWeek?: PtoHolidayByWeek;
       }) => {
@@ -222,7 +240,14 @@ export function ResourcingGrids({
         }));
         setActualMonthSplits(splits);
         setFloat((data.floatHours ?? []).map((row) => ({ ...row, hours: Number(row.hours) })));
-        setReadyForFloat(data.readyForFloat ?? []);
+        if (!skipReadyRefresh.current) {
+          setReadyForFloat(data.readyForFloat ?? []);
+        }
+        if (!skipOpenRequestRefresh.current) {
+          setOpenResourcingRequest(data.openResourcingRequest ?? null);
+        }
+        skipReadyRefresh.current = false;
+        skipOpenRequestRefresh.current = false;
         const commentMap = new Map<string, string>();
         (data.cellComments ?? []).forEach((row) => {
           const week = typeof row.weekStartDate === "string" ? row.weekStartDate.slice(0, 10) : row.weekStartDate;
@@ -353,6 +378,78 @@ export function ResourcingGrids({
     }
   }, [openCommentCell]);
 
+  useEffect(() => {
+    if (!resourcingRequestOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !resourcingRequestSubmitting) {
+        setResourcingRequestOpen(false);
+        setResourcingRequestError("");
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [resourcingRequestOpen, resourcingRequestSubmitting]);
+
+  const submitResourcingRequest = useCallback(async () => {
+    setResourcingRequestSubmitting(true);
+    setResourcingRequestError("");
+    try {
+      const payload: { note?: string } = {};
+      const trimmed = resourcingRequestNote.trim();
+      if (trimmed) payload.note = trimmed;
+      const res = await fetch(`/api/projects/${projectId}/slack/resourcing-request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        if (res.status === 500 && data.error === "Slack is not configured") {
+          setResourcingRequestError("Slack is not configured");
+        } else {
+          setResourcingRequestError(data.error ?? `Request failed (${res.status})`);
+        }
+        return;
+      }
+      setResourcingRequestOpen(false);
+      setResourcingRequestNote("");
+      setShowRequestSent(true);
+      window.setTimeout(() => setShowRequestSent(false), 3000);
+      skipReadyRefresh.current = true;
+      setRefreshTrigger((x) => x + 1);
+    } catch {
+      setResourcingRequestError("Network error");
+    } finally {
+      setResourcingRequestSubmitting(false);
+    }
+  }, [projectId, resourcingRequestNote]);
+
+  const handleFulfillResourcingRequest = useCallback(async () => {
+    setFulfillSubmitting(true);
+    setFulfillError("");
+    try {
+      const res = await fetch(`/api/projects/${projectId}/slack/resourcing-request/fulfill`, {
+        method: "POST",
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setFulfillError(data.error ?? `Request failed (${res.status})`);
+        return;
+      }
+      setOpenResourcingRequest(null);
+      setReadyForFloat((prev) => prev.map((r) => ({ ...r, ready: false })));
+      skipReadyRefresh.current = true;
+      skipOpenRequestRefresh.current = true;
+      setRefreshTrigger((x) => x + 1);
+      setShowFulfillSent(true);
+      window.setTimeout(() => setShowFulfillSent(false), 3000);
+    } catch {
+      setFulfillError("Network error");
+    } finally {
+      setFulfillSubmitting(false);
+    }
+  }, [projectId]);
+
   const allPersonIdsForRollup = useMemo(() => {
     const s = new Set<string>();
     planned.forEach((p) => s.add(p.personId));
@@ -360,6 +457,11 @@ export function ResourcingGrids({
     float.forEach((p) => s.add(p.personId));
     return s;
   }, [planned, actual, float]);
+
+  const hasAnyReady = useMemo(
+    () => readyForFloat.some((r) => r.ready),
+    [readyForFloat]
+  );
 
   if (loading || !project) return <p className="text-body-sm text-surface-700 dark:text-surface-200">Loading grids...</p>;
 
@@ -1419,7 +1521,64 @@ export function ResourcingGrids({
                   className={`p-2 border text-left ${sticky} ${stickyOpaqueBody} ${stickyEdge} border-surface-200 dark:border-dark-border`}
                   style={{ left: 0, width: stickyColsWidth, minWidth: stickyColsWidth }}
                 >
-                  <h3 className="text-display-md font-bold text-surface-900 dark:text-white">1. Project Planning Grid</h3>
+                  <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 pr-2">
+                    <h3 className="text-display-md font-bold text-surface-900 dark:text-white">
+                      1. Project Planning Grid
+                    </h3>
+                    <div className="flex flex-wrap items-center gap-2 shrink-0 justify-end">
+                      {fulfillError ? (
+                        <span className="text-body-sm font-medium text-jred-700 dark:text-jred-400 max-w-[14rem]">
+                          {fulfillError}
+                        </span>
+                      ) : null}
+                      {showRequestSent ? (
+                        <span className="text-body-sm font-medium text-surface-600 dark:text-surface-300 whitespace-nowrap">
+                          Request sent ✓
+                        </span>
+                      ) : null}
+                      {showFulfillSent ? (
+                        <span className="text-body-sm font-medium text-surface-600 dark:text-surface-300 whitespace-nowrap">
+                          Marked fulfilled ✓
+                        </span>
+                      ) : null}
+                      {canEdit && openResourcingRequest ? (
+                        <>
+                          <span className="text-body-sm text-surface-600 dark:text-surface-400 whitespace-nowrap">
+                            Open request
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => void handleFulfillResourcingRequest()}
+                            disabled={fulfillSubmitting}
+                            className="inline-flex h-9 items-center justify-center rounded-md border border-surface-400 bg-white px-3 text-body-sm font-medium text-surface-800 transition hover:bg-surface-50 dark:border-dark-muted dark:bg-dark-surface dark:text-surface-100 dark:hover:bg-dark-raised disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-dark-surface"
+                          >
+                            {fulfillSubmitting ? "Working…" : "Mark fulfilled"}
+                          </button>
+                        </>
+                      ) : null}
+                      {canEdit ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setResourcingRequestError("");
+                            setResourcingRequestNote("");
+                            setResourcingRequestOpen(true);
+                          }}
+                          disabled={!hasAnyReady || !!openResourcingRequest}
+                          title={
+                            openResourcingRequest
+                              ? "Mark the open request fulfilled before sending another."
+                              : !hasAnyReady
+                                ? "Turn on Ready for at least one person first."
+                                : undefined
+                          }
+                          className="inline-flex h-9 items-center justify-center rounded-md border border-jblue-500 px-3 text-body-sm font-medium text-jblue-500 transition hover:bg-jblue-50 dark:hover:bg-jblue-950 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-dark-surface"
+                        >
+                          Request Changes
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
                 </th>
                 <th colSpan={weeks.length} className="p-0 border-0 bg-transparent" aria-hidden />
               </tr>
@@ -1890,6 +2049,83 @@ export function ResourcingGrids({
         </div>
         </div>
       </div>
+
+      {resourcingRequestOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="resourcing-request-title"
+        >
+          <div
+            className="absolute inset-0"
+            aria-hidden
+            onClick={() => {
+              if (!resourcingRequestSubmitting) {
+                setResourcingRequestOpen(false);
+                setResourcingRequestError("");
+              }
+            }}
+          />
+          <div
+            className="relative w-full max-w-md rounded-lg border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface shadow-xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2
+              id="resourcing-request-title"
+              className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-2"
+            >
+              Request Resourcing Changes
+            </h2>
+            <p className="text-body-sm text-surface-500 dark:text-surface-400 mb-1">{projectName}</p>
+            <p className="text-body-sm text-surface-600 dark:text-surface-300 mb-4">
+              A Slack message will be sent to the resourcing channel tagging the PM and PGM for this project.
+            </p>
+            {resourcingRequestError ? (
+              <p className="text-body-sm text-jred-700 dark:text-jred-400 bg-jred-50 dark:bg-jred-900/20 p-3 rounded-md mb-4">
+                {resourcingRequestError}
+              </p>
+            ) : null}
+            <label htmlFor="resourcing-request-note" className="block text-body-sm font-medium text-surface-800 dark:text-surface-200 mb-1.5">
+              Additional notes (optional)
+            </label>
+            <textarea
+              id="resourcing-request-note"
+              value={resourcingRequestNote}
+              onChange={(e) => setResourcingRequestNote(e.target.value.slice(0, 500))}
+              rows={3}
+              maxLength={500}
+              disabled={resourcingRequestSubmitting}
+              className="w-full text-body-sm border border-surface-200 dark:border-dark-border rounded px-2 py-1.5 bg-white dark:bg-dark-surface text-surface-900 dark:text-surface-100 resize-y min-h-[4rem]"
+              placeholder="Add context for the resourcing team…"
+            />
+            <p className="text-xs text-surface-500 dark:text-surface-400 mt-1 tabular-nums">
+              {resourcingRequestNote.length}/500
+            </p>
+            <div className="flex flex-wrap gap-2 mt-4 justify-end">
+              <button
+                type="button"
+                disabled={resourcingRequestSubmitting}
+                onClick={() => {
+                  setResourcingRequestOpen(false);
+                  setResourcingRequestError("");
+                }}
+                className="h-9 px-3 rounded-md border border-surface-300 dark:border-dark-muted text-surface-700 dark:text-surface-200 text-body-sm font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={resourcingRequestSubmitting}
+                onClick={() => void submitResourcingRequest()}
+                className="h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white text-body-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {resourcingRequestSubmitting ? "Sending…" : "Send Request"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {openCommentCell && commentPopoverAnchor && typeof document !== "undefined" &&
         createPortal(

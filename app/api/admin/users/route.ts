@@ -22,11 +22,18 @@ export async function GET() {
       lastName: true,
       permissions: true,
       role: true,
+      slackUserId: true,
       createdAt: true,
+      person: { select: { id: true } },
     },
     orderBy: { email: "asc" },
   });
-  return NextResponse.json(users);
+  return NextResponse.json(
+    users.map(({ person, ...u }) => ({
+      ...u,
+      personId: person?.id ?? null,
+    }))
+  );
 }
 
 const createSchema = z.object({
@@ -74,8 +81,14 @@ export async function POST(req: NextRequest) {
       lastName: true,
       permissions: true,
       role: true,
+      slackUserId: true,
       createdAt: true,
+      person: { select: { id: true } },
     },
   });
-  return NextResponse.json(user);
+  const { person, ...rest } = user;
+  return NextResponse.json({
+    ...rest,
+    personId: person?.id ?? null,
+  });
 }

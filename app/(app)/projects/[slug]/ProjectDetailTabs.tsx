@@ -81,6 +81,7 @@ type InitialAssignment = {
 export function ProjectDetailTabs({
   projectId,
   projectSlug,
+  projectName,
   tab,
   canEdit,
   floatLastUpdated,
@@ -100,6 +101,7 @@ export function ProjectDetailTabs({
 }: {
   projectId: string;
   projectSlug: string;
+  projectName: string;
   tab: string;
   canEdit: boolean;
   floatLastUpdated: Date | null;
@@ -989,6 +991,7 @@ export function ProjectDetailTabs({
       {tab === "resourcing" && (
         <ResourcingGrids
           projectId={projectId}
+          projectName={projectName}
           canEdit={canEdit}
           floatLastUpdated={floatLastUpdated}
           onActualsUpdated={refetchBudgetStatus}

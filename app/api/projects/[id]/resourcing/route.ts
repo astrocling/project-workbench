@@ -5,11 +5,13 @@ import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { getProjectId } from "@/lib/slug";
 import { formatWeekKey, getWeekStartDate, isUtcWeekdayDate } from "@/lib/weekUtils";
+import { ResourcingRequestStatus } from "@prisma/client";
 
 /**
  * Single GET that returns all data needed for the Resourcing tab:
  * project (dates, thresholds), assignments, plannedHours, actualHours,
- * floatHours, readyForFloat, cellComments. Replaces 7 separate API calls.
+ * floatHours, readyForFloat, cellComments, openResourcingRequest (latest OPEN request id if any).
+ * Replaces 7 separate API calls.
  */
 export async function GET(
   req: NextRequest,
@@ -35,6 +37,7 @@ export async function GET(
       const project = await prisma.project.findUnique({
         where: { id: projectId },
         select: {
+          name: true,
           startDate: true,
           endDate: true,
           actualsLowThresholdPercent: true,
@@ -158,6 +161,7 @@ export async function GET(
       }
 
       return {
+        projectName: project.name,
         range: { fromWeek, toWeek },
         project: {
           startDate: project.startDate,
@@ -244,6 +248,12 @@ export async function GET(
   const data = await getCachedResourcing(id, fromWeek, toWeek);
   if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  const openResourcingRequest = await prisma.resourcingRequest.findFirst({
+    where: { projectId: id, status: ResourcingRequestStatus.OPEN },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, createdAt: true },
+  });
+
   if (process.env.NODE_ENV !== "production" && req.nextUrl.searchParams.get("debugSize") === "1") {
     try {
       const bytes = Buffer.byteLength(JSON.stringify(data), "utf8");
@@ -254,5 +264,8 @@ export async function GET(
     }
   }
 
-  return NextResponse.json(data);
+  return NextResponse.json({
+    ...data,
+    openResourcingRequest: openResourcingRequest ?? null,
+  });
 }

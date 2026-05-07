@@ -540,6 +540,21 @@ export async function executeFloatApiSync(
     if (id != null) clientIdToName.set(id, c.name ?? "");
   }
 
+  const floatClientIdToAccountId = new Map<number, string>();
+  for (const [floatClientId, rawName] of clientIdToName) {
+    const name = (rawName ?? "").trim() || `Float client ${floatClientId}`;
+    await prisma.account.updateMany({
+      where: { name, floatClientId: null },
+      data: { floatClientId },
+    });
+    const account = await prisma.account.upsert({
+      where: { floatClientId },
+      create: { name, floatClientId },
+      update: { name },
+    });
+    floatClientIdToAccountId.set(floatClientId, account.id);
+  }
+
   const floatProjectById = new Map<number, { name: string; client_id?: number }>();
   for (const p of floatProjects) {
     const id = num(p.project_id);
@@ -586,6 +601,21 @@ export async function executeFloatApiSync(
       });
       match.floatExternalId = String(fid);
     }
+  }
+
+  for (const [fid, meta] of floatProjectById) {
+    const cid = meta.client_id;
+    if (cid == null) continue;
+    const accountId = floatClientIdToAccountId.get(cid);
+    if (!accountId) continue;
+    const match = resolveDbProject(fid, meta.name, projects, projectsByNameLower);
+    if (!match) continue;
+    if (match.accountId === accountId) continue;
+    await prisma.project.update({
+      where: { id: match.id },
+      data: { accountId },
+    });
+    match.accountId = accountId;
   }
 
   const projectsByNameReloaded = new Map<string, string>(

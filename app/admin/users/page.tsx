@@ -5,6 +5,16 @@ import Link from "next/link";
 
 type UserRole = "ProjectManager" | "ProgramManager" | "ClientAccountDirector";
 
+type PersonOption = {
+  id: string;
+  name: string;
+  email: string | null;
+};
+
+function personOptionLabel(p: PersonOption): string {
+  return p.email ? `${p.name} (${p.email})` : p.name;
+}
+
 type User = {
   id: string;
   email: string;
@@ -12,6 +22,8 @@ type User = {
   lastName: string | null;
   permissions: string;
   role: UserRole | null;
+  slackUserId: string | null;
+  personId: string | null;
   createdAt: string;
 };
 
@@ -23,6 +35,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [floatPeople, setFloatPeople] = useState<PersonOption[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -32,13 +45,23 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [editForm, setEditForm] = useState({ firstName: "", lastName: "", permissions: "User" as "Admin" | "User", role: "" as UserRole | "", password: "" });
+  const [editForm, setEditForm] = useState({
+    firstName: "",
+    lastName: "",
+    permissions: "User" as "Admin" | "User",
+    role: "" as UserRole | "",
+    password: "",
+    slackUserId: "",
+    personId: "",
+  });
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
 
   useEffect(() => {
-    fetch("/api/admin/users")
-      .then(async (r) => {
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      fetch("/api/admin/users").then(async (r) => {
         const text = await r.text();
         if (!text) return [];
         try {
@@ -46,9 +69,29 @@ export default function AdminUsersPage() {
         } catch {
           return [];
         }
+      }),
+      fetch("/api/admin/people").then(async (r) => {
+        const text = await r.text();
+        if (!text) return [];
+        try {
+          return JSON.parse(text) as PersonOption[];
+        } catch {
+          return [];
+        }
+      }),
+    ])
+      .then(([usersList, peopleList]) => {
+        if (!cancelled) {
+          setUsers(usersList);
+          setFloatPeople(peopleList);
+        }
       })
-      .then(setUsers)
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -94,6 +137,8 @@ export default function AdminUsersPage() {
       permissions: u.permissions === "Admin" ? "Admin" : "User",
       role: u.role ?? "",
       password: "",
+      slackUserId: u.slackUserId ?? "",
+      personId: u.personId ?? "",
     });
     setEditError("");
   }
@@ -112,6 +157,8 @@ export default function AdminUsersPage() {
         permissions: editForm.permissions,
         role: editForm.role || null,
         password: editForm.password.trim() || undefined,
+        slackUserId: editForm.slackUserId.trim() || null,
+        personId: editForm.personId.trim() || null,
       }),
     });
     const text = await res.text();
@@ -231,6 +278,9 @@ export default function AdminUsersPage() {
                 <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold min-w-0">Email</th>
                 <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold whitespace-nowrap">Permissions</th>
                 <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Role</th>
+                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold min-w-0">
+                  Slack User ID
+                </th>
                 <th className="text-right px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold whitespace-nowrap w-[1%]">Actions</th>
               </tr>
             </thead>
@@ -246,6 +296,9 @@ export default function AdminUsersPage() {
                   <td className="px-4 py-3 text-surface-700 dark:text-surface-200 whitespace-nowrap">{u.permissions === "Admin" ? "Super user" : "User"}</td>
                   <td className="px-4 py-3 text-surface-700 dark:text-surface-200 min-w-0 max-w-[10rem] truncate" title={u.role ? ROLE_LABELS[u.role] : undefined}>
                     {u.role ? ROLE_LABELS[u.role] : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-surface-700 dark:text-surface-200 min-w-0 max-w-[10rem] truncate font-mono text-body-sm" title={u.slackUserId ?? undefined}>
+                    {u.slackUserId ?? "—"}
                   </td>
                   <td className="px-4 py-3 text-right whitespace-nowrap w-[1%]">
                     <button
@@ -328,6 +381,34 @@ export default function AdminUsersPage() {
                     placeholder="Optional"
                     className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
                   />
+                </div>
+                <div>
+                  <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Slack User ID</label>
+                  <input
+                    type="text"
+                    value={editForm.slackUserId}
+                    onChange={(e) => setEditForm((f) => ({ ...f, slackUserId: e.target.value }))}
+                    placeholder="Leave blank to clear"
+                    className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Float Person</label>
+                  <p className="mt-1 text-body-sm text-surface-600 dark:text-surface-400 mb-2">
+                    Link this user to their Float person record for reliable @mentions and key role resolution.
+                  </p>
+                  <select
+                    value={editForm.personId}
+                    onChange={(e) => setEditForm((f) => ({ ...f, personId: e.target.value }))}
+                    className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+                  >
+                    <option value="">— Not linked —</option>
+                    {floatPeople.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {personOptionLabel(p)}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="flex gap-3 justify-end pt-2">
                   <button

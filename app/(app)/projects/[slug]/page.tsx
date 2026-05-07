@@ -281,6 +281,7 @@ export default async function ProjectDetailPage({
       <ProjectDetailTabs
         projectId={project.id}
         projectSlug={project.slug}
+        projectName={project.name}
         tab={tab}
         canEdit={!!canEdit}
         floatLastUpdated={lastImport?.completedAt ?? null}

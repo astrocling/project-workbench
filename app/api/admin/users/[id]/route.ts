@@ -14,6 +14,8 @@ const updateSchema = z.object({
   permissions: z.enum(["Admin", "User"]).optional(),
   role: z.enum(POSITION_ROLES).optional().nullable(),
   password: z.string().min(6).optional(),
+  slackUserId: z.string().optional().nullable(),
+  personId: z.string().optional().nullable(),
 });
 
 export async function PATCH(
@@ -26,7 +28,7 @@ export async function PATCH(
   if (permissions !== "Admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
-  const body = await req.json();
+  const body: unknown = await req.json();
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });
@@ -65,6 +67,7 @@ export async function PATCH(
     permissions?: PermissionLevel;
     role?: UserPositionRole | null;
     passwordHash?: string;
+    slackUserId?: string | null;
   } = {};
 
   if (parsed.data.firstName !== undefined) data.firstName = parsed.data.firstName || null;
@@ -78,14 +81,46 @@ export async function PATCH(
   if (parsed.data.password?.trim()) {
     data.passwordHash = await bcrypt.hash(parsed.data.password, 10);
   }
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "slackUserId")) {
+    data.slackUserId = parsed.data.slackUserId ?? null;
+  }
 
-  if (Object.keys(data).length === 0) {
+  const wantsPersonUpdate = Object.prototype.hasOwnProperty.call(body as object, "personId");
+
+  if (Object.keys(data).length === 0 && !wantsPersonUpdate) {
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });
   }
 
-  const user = await prisma.user.update({
+  await prisma.$transaction(async (tx) => {
+    if (wantsPersonUpdate) {
+      const pid = parsed.data.personId;
+      if (pid === null || pid === undefined || (typeof pid === "string" && pid.trim() === "")) {
+        await tx.person.updateMany({
+          where: { userId: id },
+          data: { userId: null },
+        });
+      } else if (typeof pid === "string" && pid.trim() !== "") {
+        const linkedPersonId = pid.trim();
+        await tx.person.updateMany({
+          where: { userId: id },
+          data: { userId: null },
+        });
+        await tx.person.updateMany({
+          where: { id: linkedPersonId },
+          data: { userId: id },
+        });
+      }
+    }
+    if (Object.keys(data).length > 0) {
+      await tx.user.update({
+        where: { id },
+        data,
+      });
+    }
+  });
+
+  const user = await prisma.user.findUnique({
     where: { id },
-    data,
     select: {
       id: true,
       email: true,
@@ -93,8 +128,18 @@ export async function PATCH(
       lastName: true,
       permissions: true,
       role: true,
+      slackUserId: true,
       createdAt: true,
+      person: { select: { id: true, name: true } },
     },
   });
-  return NextResponse.json(user);
+
+  if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+  const { person, ...rest } = user;
+  return NextResponse.json({
+    ...rest,
+    personId: person?.id ?? null,
+    person,
+  });
 }

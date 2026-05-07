@@ -9,9 +9,9 @@ export async function GET() {
   const permissions = (session.user as { permissions?: string }).permissions;
   if (permissions !== "Admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const people = await prisma.person.findMany({
-    select: { id: true, name: true, email: true },
+  const accounts = await prisma.account.findMany({
     orderBy: { name: "asc" },
+    include: { _count: { select: { projects: true } } },
   });
-  return NextResponse.json(people);
+  return NextResponse.json(accounts);
 }

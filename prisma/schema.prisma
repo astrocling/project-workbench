@@ -55,14 +55,23 @@ model User {
   lastName      String?
   permissions   PermissionLevel
   role          UserPositionRole?
+  slackUserId   String?
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
+
+  person               Person?
+  resourcingNotifyEntry ResourcingNotifyUser?
+
+  resourcingRequests ResourcingRequest[] @relation("ResourcingRequestedBy")
+  resolvedRequests   ResourcingRequest[] @relation("ResolvedRequests")
 }
 
 model Person {
   id         String   @id @default(cuid())
   name       String
   email      String?
+  userId     String?  @unique
+  user       User?    @relation(fields: [userId], references: [id])
   externalId String?  @unique // Float ID
   /// Float `/v3/people` `region_id` (public/team holiday matching); null if unset in Float
   floatRegionId   Int?
@@ -102,6 +111,17 @@ model Role {
   projectRoleRates   ProjectRoleRate[]
 }
 
+model Account {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  floatClientId  Int?     @unique
+  slackChannelId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  projects Project[]
+}
+
 model Project {
   id         String        @id @default(cuid())
   slug       String        @unique
@@ -136,6 +156,9 @@ model Project {
   metricLink     String?
   /// Float `project_id` from API (`/v3/projects`) for stable sync matching; optional unique string
   floatExternalId String?   @unique
+  accountId       String?
+  account         Account?  @relation(fields: [accountId], references: [id])
+  slackChannelId  String?
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
 
@@ -154,6 +177,7 @@ model Project {
   statusReports        StatusReport[]
   timelineBars         TimelineBar[]
   timelineMarkers      TimelineMarker[]
+  resourcingRequests   ResourcingRequest[]
 
   @@index([status])
 }
@@ -438,6 +462,47 @@ model GridCellComment {
   person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@id([projectId, personId, weekStartDate, gridType])
+}
+
+model AppConfig {
+  id                  String   @id @default("singleton")
+  resourcingChannelId String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model ResourcingNotifyUser {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+enum ResourcingRequestStatus {
+  OPEN
+  FILLED
+  VARIANCE_FLAGGED
+}
+
+model ResourcingRequest {
+  id              String                  @id @default(cuid())
+  projectId       String
+  project         Project                 @relation(fields: [projectId], references: [id])
+  requestedById   String
+  requestedBy     User                    @relation("ResourcingRequestedBy", fields: [requestedById], references: [id])
+  note            String?                 @db.Text
+  requestedPeople Json
+  slackMessageTs  String?
+  slackChannelId  String?
+  status          ResourcingRequestStatus @default(OPEN)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  resolvedAt      DateTime?
+  resolvedById    String?
+  resolvedBy      User?                   @relation("ResolvedRequests", fields: [resolvedById], references: [id])
+
+  @@index([projectId])
+  @@index([requestedById])
 }
 
 model FloatImportRun {
