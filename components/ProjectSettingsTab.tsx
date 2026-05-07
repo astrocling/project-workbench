@@ -40,6 +40,7 @@ export function ProjectSettingsTab({
   const [estimateLink, setEstimateLink] = useState("");
   const [floatLink, setFloatLink] = useState("");
   const [metricLink, setMetricLink] = useState("");
+  const [slackChannelId, setSlackChannelId] = useState("");
   const [eligiblePeople, setEligiblePeople] = useState<{ id: string; name: string }[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -86,6 +87,7 @@ export function ProjectSettingsTab({
       estimateLink: estimateLink.trim() || null,
       floatLink: floatLink.trim() || null,
       metricLink: metricLink.trim() || null,
+      slackChannelId: slackChannelId.trim() || null,
     }),
     [
       name,
@@ -107,6 +109,7 @@ export function ProjectSettingsTab({
       estimateLink,
       floatLink,
       metricLink,
+      slackChannelId,
     ]
   );
 
@@ -128,6 +131,7 @@ export function ProjectSettingsTab({
     estimateLink?: string | null;
     floatLink?: string | null;
     metricLink?: string | null;
+    slackChannelId?: string | null;
     projectKeyRoles?: Array<{ type: string; personId: string; person: { id: string; name: string } }>;
   }) {
     if (!p) return;
@@ -152,6 +156,7 @@ export function ProjectSettingsTab({
     setEstimateLink(p.estimateLink ?? "");
     setFloatLink(p.floatLink ?? "");
     setMetricLink(p.metricLink ?? "");
+    setSlackChannelId(p.slackChannelId ?? "");
   }
 
   function applyEligiblePeople(people: { id: string; name: string }[], keyRoles: { type: string; personId: string; person: { id: string; name: string } }[]) {
@@ -426,6 +431,19 @@ export function ProjectSettingsTab({
                     placeholder="https://..."
                     className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
                   />
+                </div>
+                <div>
+                  <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Slack Channel ID</label>
+                  <input
+                    type="text"
+                    value={slackChannelId}
+                    onChange={(e) => setSlackChannelId(e.target.value)}
+                    placeholder="C0123456789"
+                    className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+                  />
+                  <p className="text-body-sm text-surface-500 dark:text-surface-400 mt-0.5">
+                    The Slack channel ID (e.g. C0123456789) for project notifications.
+                  </p>
                 </div>
               </div>
             </section>

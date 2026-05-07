@@ -178,6 +178,7 @@ model Project {
   timelineBars         TimelineBar[]
   timelineMarkers      TimelineMarker[]
   resourcingRequests   ResourcingRequest[]
+  actualsNudgeLogs     ActualsNudgeLog[]
 
   @@index([status])
 }
@@ -358,6 +359,24 @@ model ActualHours {
   person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@id([projectId, personId, weekStartDate])
+}
+
+model ActualsNudgeLog {
+  id                   String   @id @default(cuid())
+  projectId            String
+  project              Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  weekStart            String // YYYY-MM-DD of missing actuals week
+  nudgeDay             Int // 2=Tuesday, 3=Wednesday, 4=Thursday
+  channel              String // "dm", "project", "account"
+  slackChannelId       String?
+  recipientSlackUserId String? // for DMs only
+  missingPersonNames   Json // string[] snapshot at send time
+  slackOk              Boolean
+  slackError           String?
+  createdAt            DateTime @default(now())
+
+  @@index([projectId, weekStart])
+  @@index([nudgeDay, createdAt])
 }
 
 /// Actuals split by month when a week spans two calendar months (for CDA month reporting).

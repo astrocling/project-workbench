@@ -20,6 +20,7 @@ export type EditProjectInitial = {
   estimateLink: string | null;
   floatLink: string | null;
   metricLink: string | null;
+  slackChannelId: string | null;
   projectKeyRoles: Array<{ type: string; personId: string; person: { id: string; name: string } }>;
 };
 

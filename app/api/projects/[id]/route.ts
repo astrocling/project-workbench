@@ -35,6 +35,7 @@ const updateSchema = z.object({
   estimateLink: z.union([z.string(), z.null()]).optional(),
   floatLink: z.union([z.string(), z.null()]).optional(),
   metricLink: z.union([z.string(), z.null()]).optional(),
+  slackChannelId: z.union([z.string(), z.null()]).optional(),
   pmPersonIds: z.array(z.string()).optional(),
   pgmPersonId: z.string().optional().nullable(),
   cadPersonId: z.string().optional().nullable(),
@@ -116,6 +117,15 @@ export async function PATCH(
   }
   if (Object.prototype.hasOwnProperty.call(body, "metricLink")) {
     data.metricLink = normLink(parsed.data.metricLink ?? (body as { metricLink?: string | null }).metricLink);
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "slackChannelId")) {
+    const raw = parsed.data.slackChannelId ?? (body as { slackChannelId?: string | null }).slackChannelId;
+    if (raw == null) {
+      data.slackChannelId = null;
+    } else {
+      const t = String(raw).trim();
+      data.slackChannelId = t ? t : null;
+    }
   }
 
   // Regenerate slug when name changes

@@ -11,6 +11,7 @@ import {
   type MissingActualsProject,
   getMissingActualsProjects,
 } from "@/lib/missingActuals";
+import { prisma } from "@/lib/prisma";
 
 type NudgeDay = "tuesday" | "wednesday" | "thursday";
 
@@ -119,23 +120,74 @@ async function runTuesday(botToken: string, items: MissingActualsProject[]) {
     const blocks = buildBlocks(m, headline);
 
     if (m.projectManagers.length === 0) {
-      logger.warn("Missing actuals: no PM key roles on project", {
+      logger.info("Nudge skipped", {
         projectId: m.projectId,
         projectName: m.projectName,
+        nudgeDay: 2,
+        reason: "no_pm_slack_id",
       });
     }
 
     for (const pm of m.projectManagers) {
       const sid = pm.slackUserId?.trim();
       if (!sid) continue;
+      let dmChannel: string;
       try {
-        const dmChannel = await slackOpenDm(botToken, sid);
-        await slackPostMessage(botToken, dmChannel, text, blocks);
+        dmChannel = await slackOpenDm(botToken, sid);
       } catch (e) {
         logger.error("Missing actuals: DM to PM failed", {
           projectId: m.projectId,
           slackUserId: sid,
           error: e instanceof Error ? e.message : String(e),
+        });
+        continue;
+      }
+      try {
+        await slackPostMessage(botToken, dmChannel, text, blocks);
+        try {
+          await prisma.actualsNudgeLog.create({
+            data: {
+              projectId: m.projectId,
+              weekStart: m.weekStart,
+              nudgeDay: 2,
+              channel: "dm",
+              slackChannelId: dmChannel,
+              recipientSlackUserId: sid,
+              missingPersonNames: m.missingPersonNames,
+              slackOk: true,
+              slackError: null,
+            },
+          });
+        } catch (logErr) {
+          logger.warn("Failed to write nudge log", {
+            error: logErr instanceof Error ? logErr.message : String(logErr),
+          });
+        }
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        try {
+          await prisma.actualsNudgeLog.create({
+            data: {
+              projectId: m.projectId,
+              weekStart: m.weekStart,
+              nudgeDay: 2,
+              channel: "dm",
+              slackChannelId: dmChannel,
+              recipientSlackUserId: sid,
+              missingPersonNames: m.missingPersonNames,
+              slackOk: false,
+              slackError: errMsg,
+            },
+          });
+        } catch (logErr) {
+          logger.warn("Failed to write nudge log", {
+            error: logErr instanceof Error ? logErr.message : String(logErr),
+          });
+        }
+        logger.error("Missing actuals: DM to PM failed", {
+          projectId: m.projectId,
+          slackUserId: sid,
+          error: errMsg,
         });
       }
     }
@@ -145,19 +197,59 @@ async function runTuesday(botToken: string, items: MissingActualsProject[]) {
 
     const ch = m.projectSlackChannelId?.trim();
     if (!ch) {
-      logger.warn("Missing actuals: PM(s) without Slack user id and no project channel", {
+      logger.info("Nudge skipped", {
         projectId: m.projectId,
         projectName: m.projectName,
-        pmNames: pmsWithoutSlack.map((p) => p.name),
+        nudgeDay: 2,
+        reason: "no_project_channel",
       });
       continue;
     }
     try {
       await slackPostMessage(botToken, ch, text, blocks);
+      try {
+        await prisma.actualsNudgeLog.create({
+          data: {
+            projectId: m.projectId,
+            weekStart: m.weekStart,
+            nudgeDay: 2,
+            channel: "project",
+            slackChannelId: ch,
+            recipientSlackUserId: null,
+            missingPersonNames: m.missingPersonNames,
+            slackOk: true,
+            slackError: null,
+          },
+        });
+      } catch (logErr) {
+        logger.warn("Failed to write nudge log", {
+          error: logErr instanceof Error ? logErr.message : String(logErr),
+        });
+      }
     } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      try {
+        await prisma.actualsNudgeLog.create({
+          data: {
+            projectId: m.projectId,
+            weekStart: m.weekStart,
+            nudgeDay: 2,
+            channel: "project",
+            slackChannelId: ch,
+            recipientSlackUserId: null,
+            missingPersonNames: m.missingPersonNames,
+            slackOk: false,
+            slackError: errMsg,
+          },
+        });
+      } catch (logErr) {
+        logger.warn("Failed to write nudge log", {
+          error: logErr instanceof Error ? logErr.message : String(logErr),
+        });
+      }
       logger.error("Missing actuals: project channel fallback failed", {
         projectId: m.projectId,
-        error: e instanceof Error ? e.message : String(e),
+        error: errMsg,
       });
     }
   }
@@ -167,8 +259,11 @@ async function runWednesday(botToken: string, items: MissingActualsProject[]) {
   for (const m of items) {
     const ch = m.projectSlackChannelId?.trim();
     if (!ch) {
-      logger.info("Missing actuals: skip Wed (no project Slack channel)", {
+      logger.info("Nudge skipped", {
         projectId: m.projectId,
+        projectName: m.projectName,
+        nudgeDay: 3,
+        reason: "no_project_channel",
       });
       continue;
     }
@@ -177,10 +272,49 @@ async function runWednesday(botToken: string, items: MissingActualsProject[]) {
     const blocks = buildBlocks(m, headline);
     try {
       await slackPostMessage(botToken, ch, text, blocks);
+      try {
+        await prisma.actualsNudgeLog.create({
+          data: {
+            projectId: m.projectId,
+            weekStart: m.weekStart,
+            nudgeDay: 3,
+            channel: "project",
+            slackChannelId: ch,
+            recipientSlackUserId: null,
+            missingPersonNames: m.missingPersonNames,
+            slackOk: true,
+            slackError: null,
+          },
+        });
+      } catch (logErr) {
+        logger.warn("Failed to write nudge log", {
+          error: logErr instanceof Error ? logErr.message : String(logErr),
+        });
+      }
     } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      try {
+        await prisma.actualsNudgeLog.create({
+          data: {
+            projectId: m.projectId,
+            weekStart: m.weekStart,
+            nudgeDay: 3,
+            channel: "project",
+            slackChannelId: ch,
+            recipientSlackUserId: null,
+            missingPersonNames: m.missingPersonNames,
+            slackOk: false,
+            slackError: errMsg,
+          },
+        });
+      } catch (logErr) {
+        logger.warn("Failed to write nudge log", {
+          error: logErr instanceof Error ? logErr.message : String(logErr),
+        });
+      }
       logger.error("Missing actuals: Wed project post failed", {
         projectId: m.projectId,
-        error: e instanceof Error ? e.message : String(e),
+        error: errMsg,
       });
     }
   }
@@ -189,8 +323,11 @@ async function runWednesday(botToken: string, items: MissingActualsProject[]) {
 async function runThursday(botToken: string, items: MissingActualsProject[]) {
   for (const m of items) {
     if (!m.accountId || !m.accountSlackChannelId?.trim()) {
-      logger.info("Missing actuals: skip Thu (no account or account Slack channel)", {
+      logger.info("Nudge skipped", {
         projectId: m.projectId,
+        projectName: m.projectName,
+        nudgeDay: 4,
+        reason: "no_account_channel",
       });
       continue;
     }
@@ -200,10 +337,49 @@ async function runThursday(botToken: string, items: MissingActualsProject[]) {
     const blocks = buildBlocks(m, headline);
     try {
       await slackPostMessage(botToken, ch, text, blocks);
+      try {
+        await prisma.actualsNudgeLog.create({
+          data: {
+            projectId: m.projectId,
+            weekStart: m.weekStart,
+            nudgeDay: 4,
+            channel: "account",
+            slackChannelId: ch,
+            recipientSlackUserId: null,
+            missingPersonNames: m.missingPersonNames,
+            slackOk: true,
+            slackError: null,
+          },
+        });
+      } catch (logErr) {
+        logger.warn("Failed to write nudge log", {
+          error: logErr instanceof Error ? logErr.message : String(logErr),
+        });
+      }
     } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      try {
+        await prisma.actualsNudgeLog.create({
+          data: {
+            projectId: m.projectId,
+            weekStart: m.weekStart,
+            nudgeDay: 4,
+            channel: "account",
+            slackChannelId: ch,
+            recipientSlackUserId: null,
+            missingPersonNames: m.missingPersonNames,
+            slackOk: false,
+            slackError: errMsg,
+          },
+        });
+      } catch (logErr) {
+        logger.warn("Failed to write nudge log", {
+          error: logErr instanceof Error ? logErr.message : String(logErr),
+        });
+      }
       logger.error("Missing actuals: Thu account post failed", {
         projectId: m.projectId,
-        error: e instanceof Error ? e.message : String(e),
+        error: errMsg,
       });
     }
   }
