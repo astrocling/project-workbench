@@ -153,6 +153,18 @@ function formatMonthDay(isoDate: string): string {
   return `${String(m).padStart(2, "0")}/${String(day).padStart(2, "0")}`;
 }
 
+/** Status report list row date for Slack modal preview (e.g. May 7, 2026). */
+function formatReportDateForSlackPreview(isoDate: string): string {
+  const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function ragOverallLabelForPreview(status: RagValue | null | undefined): string {
+  if (status == null) return "No RAG set";
+  return status;
+}
+
 function getCurrentMonthKey(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -334,6 +346,11 @@ export function StatusReportsTab({
   const [refreshTimelineModalError, setRefreshTimelineModalError] = useState<string | null>(null);
   const [timelineRefreshSuccess, setTimelineRefreshSuccess] = useState<string | null>(null);
   const [copiedReportId, setCopiedReportId] = useState<string | null>(null);
+  const [slackModalOpen, setSlackModalOpen] = useState(false);
+  const [slackNote, setSlackNote] = useState("");
+  const [slackPosting, setSlackPosting] = useState(false);
+  const [slackError, setSlackError] = useState("");
+  const [slackSuccess, setSlackSuccess] = useState(false);
   /** Scroll target: top of the saved-reports list (after save/update). */
   const statusReportsListTopRef = useRef<HTMLDivElement>(null);
 
@@ -401,6 +418,12 @@ export function StatusReportsTab({
   useEffect(() => {
     loadReports(reportsPage);
   }, [loadReports, reportsPage]);
+
+  useEffect(() => {
+    if (!slackSuccess) return;
+    const t = window.setTimeout(() => setSlackSuccess(false), 3000);
+    return () => window.clearTimeout(t);
+  }, [slackSuccess]);
 
   useEffect(() => {
     const totalPages = Math.ceil(reportsTotal / REPORTS_PER_PAGE) || 1;
@@ -575,6 +598,32 @@ export function StatusReportsTab({
       setFormSaving(false);
     }
   }, [projectId, editingReportId, reportsPage, rollups, formReportDate, formVariation, formTimelinePreviousMonths, formCompleted, formUpcoming, formRisks, formMeetingNotes, formRagOverall, formRagScope, formRagSchedule, formRagBudget, formRagOverallExplanation, formRagScopeExplanation, formRagScheduleExplanation, formRagBudgetExplanation, loadReports]);
+
+  const submitSlackHealthUpdate = useCallback(async () => {
+    setSlackError("");
+    setSlackPosting(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/slack/health-update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          note: slackNote.trim() !== "" ? slackNote.trim() : undefined,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setSlackError(typeof data.error === "string" ? data.error : "Something went wrong");
+        return;
+      }
+      setSlackModalOpen(false);
+      setSlackNote("");
+      setSlackSuccess(true);
+    } catch {
+      setSlackError("Network error");
+    } finally {
+      setSlackPosting(false);
+    }
+  }, [projectId, slackNote]);
 
   const confirmRefreshTimeline = useCallback(async () => {
     if (!editingReportId) return;
@@ -867,6 +916,26 @@ export function StatusReportsTab({
                 <span className="text-body-sm text-amber-600 dark:text-amber-400 font-medium">
                   Update actuals in Resourcing before creating a new report.
                 </span>
+              )}
+              {slackSuccess && (
+                <span
+                  className="text-body-sm font-medium text-jblue-600 dark:text-jblue-400"
+                  role="status"
+                >
+                  Posted to Slack ✓
+                </span>
+              )}
+              {reports.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSlackError("");
+                    setSlackModalOpen(true);
+                  }}
+                  className="inline-flex items-center justify-center gap-2 h-8 px-3 rounded text-label-sm border border-jblue-500 text-jblue-500 font-medium hover:bg-jblue-50 dark:hover:bg-jblue-950 focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                >
+                  Post to Slack
+                </button>
               )}
               <button
                 type="button"
@@ -1673,6 +1742,93 @@ export function StatusReportsTab({
                 className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-jred-600 hover:bg-jred-700 text-white font-semibold text-body-sm disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-jred-500 focus:ring-offset-1"
               >
                 {refreshTimelineLoading ? "Refreshing…" : "Refresh timeline"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {slackModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="slack-health-modal-title"
+        >
+          <div
+            className="absolute inset-0"
+            aria-hidden
+            onClick={() => {
+              if (!slackPosting) {
+                setSlackModalOpen(false);
+                setSlackError("");
+              }
+            }}
+          />
+          <div
+            className="relative w-full max-w-md rounded-lg border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface shadow-xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2
+              id="slack-health-modal-title"
+              className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-2"
+            >
+              Post Status Update to Slack
+            </h2>
+            <p className="text-body-sm text-surface-600 dark:text-surface-300 mb-4">
+              The most recent status report will be posted to the configured Slack channel for this project.
+            </p>
+            {reports[0] && (
+              <div className="rounded-md border border-surface-200 dark:border-dark-border bg-surface-50 dark:bg-dark-raised p-3 mb-4 space-y-2">
+                <p className="text-label-sm font-medium text-surface-700 dark:text-surface-200">Preview</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <RagStatusLight status={reports[0].ragOverall ?? null} />
+                  <span className="text-body-sm text-surface-800 dark:text-surface-100">
+                    {ragOverallLabelForPreview(reports[0].ragOverall ?? null)}
+                  </span>
+                </div>
+                <p className="text-body-sm text-surface-600 dark:text-surface-300">
+                  Report date: {formatReportDateForSlackPreview(reports[0].reportDate)}
+                </p>
+              </div>
+            )}
+            {slackError ? (
+              <p className="text-body-sm text-jred-700 dark:text-jred-400 bg-jred-50 dark:bg-jred-900/20 p-3 rounded-md mb-4">
+                {slackError}
+              </p>
+            ) : null}
+            <label htmlFor="slack-health-note" className="block text-body-sm font-medium text-surface-800 dark:text-surface-200 mb-1.5">
+              Add a note (optional)
+            </label>
+            <textarea
+              id="slack-health-note"
+              value={slackNote}
+              onChange={(e) => setSlackNote(e.target.value.slice(0, 500))}
+              rows={3}
+              maxLength={500}
+              disabled={slackPosting}
+              className="w-full text-body-sm border border-surface-200 dark:border-dark-border rounded px-2 py-1.5 bg-white dark:bg-dark-surface text-surface-900 dark:text-surface-100 resize-y min-h-[4rem]"
+              placeholder="Optional context for the Slack post…"
+            />
+            <p className="text-xs text-surface-500 dark:text-surface-400 mt-1 tabular-nums">{slackNote.length}/500</p>
+            <div className="flex flex-wrap gap-2 mt-4 justify-end">
+              <button
+                type="button"
+                disabled={slackPosting}
+                onClick={() => {
+                  setSlackModalOpen(false);
+                  setSlackError("");
+                }}
+                className="h-9 px-3 rounded-md border border-surface-300 dark:border-dark-muted text-surface-700 dark:text-surface-200 text-body-sm font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={slackPosting || !reports[0]}
+                onClick={() => void submitSlackHealthUpdate()}
+                className="h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white text-body-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {slackPosting ? "Posting…" : "Post to Slack"}
               </button>
             </div>
           </div>
