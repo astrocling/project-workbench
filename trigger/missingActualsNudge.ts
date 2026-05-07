@@ -43,13 +43,14 @@ function buildFallbackText(m: MissingActualsProject, headline: string): string {
 }
 
 function buildBlocks(m: MissingActualsProject, headline: string) {
+  const baseUrl = process.env.WORKBENCH_BASE_URL ?? "https://pw.theclingans.com";
   const peopleLines = m.missingPersonNames.map((n) => `• ${slackMrkdwnEscape(n)}`).join("\n");
   return [
     {
       type: "section" as const,
       text: {
         type: "mrkdwn" as const,
-        text: `*${slackMrkdwnEscape(headline)}*\n${slackMrkdwnEscape(m.projectName)} · _${slackMrkdwnEscape(m.weekLabel)}_`,
+        text: `*${slackMrkdwnEscape(headline)}*\n*<${baseUrl}/projects/${m.projectSlug}/resourcing|${slackMrkdwnEscape(m.projectName)}>* · _${slackMrkdwnEscape(m.weekLabel)}_`,
       },
     },
     {
@@ -115,7 +116,7 @@ async function slackOpenDm(botToken: string, slackUserId: string): Promise<strin
 
 async function runTuesday(botToken: string, items: MissingActualsProject[]) {
   for (const m of items) {
-    const headline = "Missing actuals (reminder 1 of 3)";
+    const headline = "Missing actuals";
     const text = buildFallbackText(m, headline);
     const blocks = buildBlocks(m, headline);
 
@@ -267,7 +268,7 @@ async function runWednesday(botToken: string, items: MissingActualsProject[]) {
       });
       continue;
     }
-    const headline = "Missing actuals (reminder 2 of 3)";
+    const headline = "Missing actuals";
     const text = buildFallbackText(m, headline);
     const blocks = buildBlocks(m, headline);
     try {
@@ -332,7 +333,7 @@ async function runThursday(botToken: string, items: MissingActualsProject[]) {
       continue;
     }
     const ch = m.accountSlackChannelId.trim();
-    const headline = "Missing actuals (reminder 3 of 3)";
+    const headline = "Missing actuals";
     const text = buildFallbackText(m, headline);
     const blocks = buildBlocks(m, headline);
     try {

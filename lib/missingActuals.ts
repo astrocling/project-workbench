@@ -26,6 +26,7 @@ export type KeyRoleContact = {
 /** One project with people who had Float scheduled hours but no substantive actuals for the prior UTC week. */
 export type MissingActualsProject = {
   projectId: string;
+  projectSlug: string;
   projectName: string;
   /** Present when Thursday account-channel nudge is allowed (needs account + channel). */
   accountId: string | null;
@@ -174,6 +175,7 @@ export async function getMissingActualsProjects(): Promise<MissingActualsProject
     where: { id: { in: projectIds }, status: "Active" },
     select: {
       id: true,
+      slug: true,
       name: true,
       slackChannelId: true,
       accountId: true,
@@ -215,6 +217,7 @@ export async function getMissingActualsProjects(): Promise<MissingActualsProject
     const roles = p.projectKeyRoles;
     result.push({
       projectId: p.id,
+      projectSlug: p.slug,
       projectName: p.name,
       accountId: p.accountId,
       projectSlackChannelId: p.slackChannelId?.trim() || null,
