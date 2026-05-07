@@ -116,7 +116,7 @@ async function slackOpenDm(botToken: string, slackUserId: string): Promise<strin
 
 async function runTuesday(botToken: string, items: MissingActualsProject[]) {
   for (const m of items) {
-    const headline = "Missing actuals";
+    const headline = "Missing Actuals";
     const text = buildFallbackText(m, headline);
     const blocks = buildBlocks(m, headline);
 
@@ -268,9 +268,18 @@ async function runWednesday(botToken: string, items: MissingActualsProject[]) {
       });
       continue;
     }
-    const headline = "Missing actuals";
+    const headline = "Missing Actuals";
     const text = buildFallbackText(m, headline);
-    const blocks = buildBlocks(m, headline);
+    const blocks = [
+      ...buildBlocks(m, headline),
+      {
+        type: "section" as const,
+        text: {
+          type: "mrkdwn" as const,
+          text: "_If your timecard is missing please stop what you're doing and enter it into Metric now, help your PM keep their reporting up to date._",
+        },
+      },
+    ] as ReturnType<typeof buildBlocks>;
     try {
       await slackPostMessage(botToken, ch, text, blocks);
       try {
@@ -333,7 +342,7 @@ async function runThursday(botToken: string, items: MissingActualsProject[]) {
       continue;
     }
     const ch = m.accountSlackChannelId.trim();
-    const headline = "Missing actuals";
+    const headline = "Missing Actuals";
     const text = buildFallbackText(m, headline);
     const blocks = buildBlocks(m, headline);
     try {
