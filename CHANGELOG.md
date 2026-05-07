@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Slack — project health updates from Status Reports** — Editors can **Post to Slack** from the Status Reports tab to send a summary of the **most recent** saved report (RAG, budget snapshot, next milestone, key-role mentions when Slack user IDs are set) to the project’s Slack channel, with an optional note. Channel resolution: **Settings → Links → Slack Channel ID** on the project, else the linked **Account** channel (see Admin → Accounts). API: `POST /api/projects/[id]/slack/health-update` (`app/api/projects/[id]/slack/health-update/route.ts`); UI: `components/StatusReportsTab.tsx`.
+- **Slack — resourcing change requests** — From the Resourcing tab, **Request Resourcing Changes** opens a modal and posts to the **org resourcing** Slack channel (configured in **Admin → Slack**), tagging PM/PGM and optional **notify** users. The request stores a **Float hours snapshot** for requested people; project editors use **Mark fulfilled** to run Float API sync and post a thread reply with filled / partial / unexpected deltas. APIs: `POST /api/projects/[id]/slack/resourcing-request`, `POST /api/projects/[id]/slack/resourcing-request/fulfill`; data: `ResourcingRequest`, `AppConfig.resourcingChannelId`, `ResourcingNotifyUser` (`prisma/schema.prisma`); UI: `components/ResourcingGrids.tsx`.
+- **Slack — missing-actuals nudges (Trigger.dev)** — Three weekly schedules (**Tuesday / Wednesday / Thursday 15:00 UTC**) remind teams about **prior UTC week** gaps where **Float scheduled hours > 0** but **actual hours are missing or zero**. **Tuesday:** DM each PM who has a **Slack user ID**; for PMs without one, post to the **project** channel if configured. **Wednesday:** project channel only (extra nudge copy). **Thursday:** **account** channel when the project has an account with `slackChannelId`. Requires **`SLACK_BOT_TOKEN`** and **`DATABASE_URL`** on the Trigger worker; optional **`WORKBENCH_BASE_URL`** for links. Sends are logged in **`ActualsNudgeLog`**. Implementation: `trigger/missingActualsNudge.ts`, selection logic `lib/missingActuals.ts`.
+- **Admin — Slack configuration** — **Admin → Slack** (`/admin/slack`): set **resourcing channel** ID (`AppConfig`), manage users who receive resourcing-request **@mentions** (`ResourcingNotifyUser`). APIs: `GET/PATCH /api/admin/slack-config`, `GET/PATCH /api/admin/slack-config/notify-users`, `PATCH /api/admin/slack-config/notify-users/[userId]`.
+- **Admin — Accounts** — **Admin → Accounts** (`/admin/accounts`): list **Account** rows (synced from Float clients) and set **`slackChannelId`** for account-level Slack posts (missing-actuals Thursday + health-update fallback). APIs: `GET /api/admin/accounts`, `PATCH /api/admin/accounts/[id]`.
+- **Schema** — `User.slackUserId`, `Project.slackChannelId`, `Account.slackChannelId`, `AppConfig`, `ResourcingNotifyUser`, `ResourcingRequest`, `ActualsNudgeLog` (migrations `20260506194215_add_slack_foundation`, `20260507164830_add_actuals_nudge_log`, `20260507180000_add_person_user_link_and_notify`).
+
+### Changed
+
+- **Status reports — block create when actuals are stale** — New reports cannot be saved while the project has **missing actuals** (completed weeks with **planned > 0** and **no actual hours**), matching portfolio **Actuals** semantics (`projectHasMissingActuals` / `computeBudgetRollups`). Client shows the same message before POST. This is **independent** of the Float-based missing-actuals **Slack nudge** criteria (see Technical Reference).
+
+### Documentation
+
+- README, User Guide, Technical Reference, and `.env.example` updated for Slack env vars, admin pages, APIs, and Trigger schedules.
+
 ## [1.0.8] - 2026-05-06
 
 Patch release: **Resourcing** adds split-week **Weekly Actuals** keyboard navigation and bulk **Expand** / **Collapse** for split weeks; **Status reports** fixes production HTML meeting-notes sanitization (**sanitize-html**, no jsdom); **Project settings** fixes saves after rename (mutating APIs use **project id**, URL refresh on new slug); documentation aligned. **Deploy:** no new migrations; redeploy as usual.

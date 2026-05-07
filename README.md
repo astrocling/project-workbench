@@ -26,6 +26,7 @@ Internal web application to replace an Excel Project Management Workbook for tra
    - `NEXTAUTH_URL` – App URL (e.g. `http://localhost:3000`)
    - `NEXTAUTH_SECRET` – Generate with `openssl rand -base64 32`
    - `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` – For initial admin user
+   - **Slack (optional)** — `SLACK_BOT_TOKEN` (bot `xoxb-…` for `chat.postMessage` and related APIs), `WORKBENCH_BASE_URL` (canonical HTTPS URL for links in Slack). See [docs/TECHNICAL.md](docs/TECHNICAL.md#slack-integration).
 
 3. **Database**
 
@@ -64,6 +65,8 @@ In Vercel, set these environment variables for your project (Project → Setting
 - **`SEED_ADMIN_PASSWORD`** – Password for the initial admin (required in production).
 
 Redeploy after adding or changing environment variables.
+
+**Slack (optional):** To post **resourcing requests**, **status health updates**, and (with Trigger.dev) **missing-actuals nudges**, set **`SLACK_BOT_TOKEN`** in Vercel (same value as local if you use one bot). Set **`WORKBENCH_BASE_URL`** to your production URL so Slack messages link to the correct host. Channel IDs and notify lists are stored in the database (**Admin → Slack**, **Admin → Accounts**, project **Settings → Links**); see [docs/TECHNICAL.md](docs/TECHNICAL.md#slack-integration).
 
 **Rate limiting (optional but recommended in production):** Login, seed, and admin Float sync are rate-limited when [Upstash Redis](https://upstash.com) is configured. Set **`UPSTASH_REDIS_REST_URL`** and **`UPSTASH_REDIS_REST_TOKEN`** in Vercel (from your [Upstash Console](https://console.upstash.com/redis)). Limits: login 10 attempts per 15 min per IP; seed 5 per hour per IP; Float sync 20 per 15 min per user. Without these env vars, rate limiting is skipped (e.g. local dev).
 
@@ -123,8 +126,8 @@ Creates a sample project with people, assignments, planned/actual hours, and bud
 
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html). **1.0.0** is the first major release: the app is intended for production use, and **documented** configuration (environment variables), HTTP APIs, and user-visible behavior should be considered stable. Breaking changes to those surfaces are expected to coincide with a new **major** version. Experimental or explicitly labeled features may evolve without a major bump; see [docs/TECHNICAL.md](docs/TECHNICAL.md).
 
-- **[User Guide](docs/USER_GUIDE.md)** — How to use the app: projects, PM/PGM/CAD dashboards (including 1-wk vs 4-wk recovery columns and upcoming PTO/holidays), resourcing (split-week actuals with keyboard navigation and bulk expand/collapse, Float PTO/holiday hints, collapsible Weekly Actuals to compare Planned vs Float), project **PTO** tab and company **PTO & Holidays** page, budget, Float sync, and admin (Roles, People, Users). Written in standard Markdown for easy copy into Confluence.
-- **[Technical Reference](docs/TECHNICAL.md)** — Tech stack, data model, environment variables, week/as-of semantics, split-week actual hours (`ActualHoursMonthSplit`), PTO/holiday persistence and UI, optional **Trigger.dev** scheduled Float sync, permissions, **Projects list page** (filters, pagination, query params, Prisma `select`), scripts (including `migrate:split-week-actuals`), and API overview (e.g. **`/api/projects/[id]`** accepts project **id or slug**; status report meeting-notes HTML uses **sanitize-html**). Also Confluence-friendly.
+- **[User Guide](docs/USER_GUIDE.md)** — How to use the app: projects, PM/PGM/CAD dashboards (including 1-wk vs 4-wk recovery columns and upcoming PTO/holidays), resourcing (split-week actuals with keyboard navigation and bulk expand/collapse, Float PTO/holiday hints, collapsible Weekly Actuals to compare Planned vs Float, **Slack resourcing requests** when configured), project **PTO** tab and company **PTO & Holidays** page, budget, Float sync, status reports (**Post to Slack** health updates), and admin (Roles, People, Users, **Slack**, **Accounts**). Written in standard Markdown for easy copy into Confluence.
+- **[Technical Reference](docs/TECHNICAL.md)** — Tech stack, data model, environment variables, week/as-of semantics, split-week actual hours (`ActualHoursMonthSplit`), PTO/holiday persistence and UI, optional **Trigger.dev** scheduled Float sync and **missing-actuals Slack nudges**, **Slack** APIs and schema, permissions, **Projects list page** (filters, pagination, query params, Prisma `select`), scripts (including `migrate:split-week-actuals`), and API overview (e.g. **`/api/projects/[id]`** accepts project **id or slug**; status report meeting-notes HTML uses **sanitize-html**). Also Confluence-friendly.
 
 ## Float sync (Admin)
 
@@ -139,3 +142,5 @@ Admins pull scheduled hours from the **Float API** at **Admin → Float sync** (
 ## Optional: Trigger.dev (scheduled Float sync)
 
 The repo can run **scheduled** Float API → database sync via [Trigger.dev](https://trigger.dev) (`trigger/floatSync.ts`, `trigger.config.ts`), using the same `executeFloatApiSync` path as the admin API. Configure the Trigger.dev project and set worker env vars (**`DATABASE_URL`**, **`FLOAT_API_TOKEN`**, optional **`FLOAT_API_USER_AGENT_EMAIL`**). Details: [docs/TECHNICAL.md](docs/TECHNICAL.md) (*Scheduled Float sync (Trigger.dev)*). This does not replace manual admin sync for Next.js cache revalidation of resourcing tags.
+
+The same Trigger project can run **missing-actuals Slack nudges** (`trigger/missingActualsNudge.ts`): weekly tasks at **Tuesday / Wednesday / Thursday 15:00 UTC**. The worker needs **`SLACK_BOT_TOKEN`**, **`DATABASE_URL`**, and optionally **`WORKBENCH_BASE_URL`**. See [docs/TECHNICAL.md](docs/TECHNICAL.md#slack-integration).

@@ -20,7 +20,7 @@ This document summarizes the technical stack, data model, environment, and APIs 
 | Database | PostgreSQL, Prisma ORM |
 | Auth | NextAuth.js (credentials: email/password) |
 | UI | Tailwind CSS, TanStack Table, React Hook Form, Zod, Recharts, **sanitize-html** (HTML meeting notes in status reports) |
-| Optional | Upstash Redis (rate limiting in production); Trigger.dev (`@trigger.dev/sdk`) for optional scheduled Float sync (`trigger/`) |
+| Optional | Upstash Redis (rate limiting in production); Trigger.dev (`@trigger.dev/sdk`) for optional scheduled Float sync (`trigger/floatSync.ts`) and missing-actuals Slack nudges (`trigger/missingActualsNudge.ts`) |
 
 ---
 
@@ -30,10 +30,11 @@ The schema is defined in `prisma/schema.prisma`. Main entities:
 
 | Entity | Purpose |
 |--------|---------|
-| **User** | App login (email, password hash, permissions: User/Admin, optional position role). |
-| **Person** | Resource (name, email, active, optional externalId, optional `floatRegionId` / `floatRegionName` from Float sync). Used for assignments and Float import; may be linked to User by email/name for “My Projects”. |
+| **User** | App login (email, password hash, permissions: User/Admin, optional position role, optional **`slackUserId`** for Slack mentions and DM nudges). |
+| **Person** | Resource (name, email, active, optional **`userId`** link to **User** for Slack resolution on key roles, optional externalId, optional `floatRegionId` / `floatRegionName` from Float sync). Used for assignments and Float import; may be linked to User by email/name for “My Projects”. |
+| **Account** | Client/account entity (unique **name**, optional **`floatClientId`**, optional **`slackChannelId`**). Projects may reference an account for Thursday missing-actuals posts and Slack health-update fallback channel. |
 | **Role** | Role type (e.g. Project Manager, FE Developer). Used on assignments and matched to Float role names on sync. |
-| **Project** | Project (slug, name, client, start/end dates, status, optional single rate, notes, SOW/estimate/float/metric links, resourcing thresholds, `cdaEnabled`, `cdaReportHoursOnly`, optional clientSponsor/keyStaffName for status reports). |
+| **Project** | Project (slug, name, client, start/end dates, status, optional **`accountId`**, optional **`slackChannelId`** for Slack health updates and Wed/Tue nudges, optional single rate, notes, SOW/estimate/float/metric links, resourcing thresholds, `cdaEnabled`, `cdaReportHoursOnly`, optional clientSponsor/keyStaffName for status reports). |
 | **ProjectAssignment** | Person assigned to a project in a role; optional bill-rate override; optional hiddenFromGrid (hide from Resourcing tab only). **`syncRoleFromFloat`** (default true): when false, Float sync does not change `roleId` (set when the user saves a different role in **Settings → Assignments**). |
 | **ProjectRoleRate** | Per-role bill rate for a project (rate card). |
 | **ProjectKeyRole** | Key role assignment (PM, PGM, CAD) per project and person. |
@@ -51,6 +52,10 @@ The schema is defined in `prisma/schema.prisma`. Main entities:
 | **TimelineBar** | Timeline bar (row, label, start/end date, optional color hex) for a project. |
 | **TimelineMarker** | Timeline marker (shape, label, date) on a bar row. |
 | **FloatImportRun** | Metadata for each Float import (timestamp, unknown roles, new people, project names, JSON for backfill and client mapping). |
+| **AppConfig** | Singleton row (`id: singleton`); **`resourcingChannelId`** — Slack channel for org-wide **resourcing request** posts. |
+| **ResourcingNotifyUser** | Users (by `userId`) who receive **@mentions** on resourcing request Slack messages (in addition to PM/PGM). |
+| **ResourcingRequest** | Resourcing change request: project, requester, optional note, JSON **`requestedPeople`** (with embedded Float hours snapshot), optional **`slackMessageTs`** / **`slackChannelId`** for thread replies, **`status`** (`OPEN` / `FILLED` / `VARIANCE_FLAGGED`). |
+| **ActualsNudgeLog** | Audit log for **missing-actuals** Slack sends (project, prior-week `weekStart`, `nudgeDay` 2/3/4, channel kind, Slack ids, snapshot of missing names, ok/error). |
 
 Weeks are always identified by **week start date** (Monday) in UTC. All hour tables use `(projectId, personId, weekStartDate)` (or equivalent for PTO) as the scope.
 
@@ -110,6 +115,67 @@ Optional **background** runs use the same core pipeline as `POST /api/admin/floa
 
 **Schedule / window tradeoffs (product & ops):** Weekday **hourly** and weekend **every 6h** UTC runs the **full** pipeline (`defaultFloatSyncDateRange` in `lib/float/syncFloatImport.ts` is roughly **±12 months** of tasks/time off/holidays). Reducing **cron frequency** (e.g. a few times per weekday) lowers API and DB load if slightly stale grids are acceptable. Narrowing **`startDate` / `endDate`** (via `POST` body or future defaults) reduces rows fetched and written; coordinate with stakeholders before changing defaults. A **changed-since** optimization would require Float API support—verify against current Float docs before relying on it.
 
+### Missing-actuals Slack nudges (Trigger.dev)
+
+`trigger/missingActualsNudge.ts` defines three **`schedules.task`** jobs:
+
+| Task id | Cron (UTC) | Behavior |
+|---------|------------|----------|
+| `missing-actuals-nudge-tuesday` | `0 15 * * 2` (Tue 15:00) | For each qualifying **active** project: DM every **PM** who has **`User.slackUserId`** set (linked via **`Person.userId`**). PMs **without** a Slack user id fall back to a single post in **`Project.slackChannelId`** when set. |
+| `missing-actuals-nudge-wednesday` | `0 15 * * 3` | Post to **`Project.slackChannelId`** only (skips if unset); includes an extra reminder line in the blocks. |
+| `missing-actuals-nudge-thursday` | `0 15 * * 4` | Post to **`Account.slackChannelId`** when the project has **`accountId`** and the account has a channel; otherwise skip. |
+
+**Qualifying projects** (`lib/missingActuals.ts` → `getMissingActualsProjects`): **prior full UTC week** (Mon–Sun immediately before the current week) where, for at least one `(project, person, week)` row, **`FloatScheduledHours.hours > 0`** and **`ActualHours`** is missing **or** hours are **0**. This is **not** the same rule as **status report create** blocking (which uses **planned vs actual** on completed weeks via `projectHasMissingActuals` / `computeBudgetRollups`).
+
+**Worker env:** **`SLACK_BOT_TOKEN`**, **`DATABASE_URL`**, optional **`WORKBENCH_BASE_URL`** (default in code: production-style URL; override for staging). If the token is missing, tasks no-op with a log warning.
+
+**Logging:** Each send attempt creates an **`ActualsNudgeLog`** row (`slackOk` / `slackError`).
+
+---
+
+## Slack integration
+
+Slack features use the Slack **Web API** (`chat.postMessage`, `conversations.open`, `reactions.add`) with a **bot token** stored in **`SLACK_BOT_TOKEN`** on the **Next.js server** (Vercel) and on the **Trigger.dev** worker for scheduled nudges.
+
+### Environment variables (Slack)
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| **SLACK_BOT_TOKEN** | For Slack features | Bot OAuth token (`xoxb-…`). Without it, project Slack routes return **500** `"Slack is not configured"`; Trigger nudges skip. |
+| **WORKBENCH_BASE_URL** | Optional | Public HTTPS origin for links in Slack (no trailing slash enforced in code). Defaults to a hard-coded production URL if unset—**set explicitly** for preview/staging. |
+
+### Channel and user configuration
+
+| Setting | Where | Used for |
+|---------|--------|----------|
+| **Resourcing Slack channel** | **Admin → Slack** → persisted in **`AppConfig.resourcingChannelId`** | `POST .../slack/resourcing-request` |
+| **Notify users** | **Admin → Slack** → **`ResourcingNotifyUser`** rows | Extra `@user` mentions on resourcing requests |
+| **Slack user ID** | **Admin → Users** → **`User.slackUserId`** | Mentions, Tuesday PM DMs, requester display in Slack |
+| **Person ↔ User link** | **`Person.userId`** (Prisma) | Resolve PM/PGM **`Person`** rows to **`User.slackUserId`** for mentions and DMs |
+| **Project channel** | **Settings → Links** → **`Project.slackChannelId`** (`PATCH /api/projects/[id]`) | Health updates, Tue fallback, Wed nudge |
+| **Account channel** | **Admin → Accounts** → **`Account.slackChannelId`** | Health update fallback (project channel first), Thu nudge |
+
+### API routes (Slack)
+
+| Route | Auth | Purpose |
+|-------|------|---------|
+| `POST /api/projects/[id]/slack/health-update` | Session (User/Admin) | Post **latest saved** status report summary + optional note to project channel (or account fallback). |
+| `POST /api/projects/[id]/slack/resourcing-request` | Session (User/Admin) | Create **`ResourcingRequest`**, post to resourcing channel with PM/PGM/notify mentions and Float snapshot for **Ready** people. |
+| `POST /api/projects/[id]/slack/resourcing-request/fulfill` | Session (User/Admin) | Run **`executeFloatApiSync`**, compare new Float hours to the request snapshot, reply in Slack thread, update request **`status`**. Intended for editors on the project (same as **Mark fulfilled** on the Resourcing tab). |
+| `GET/PATCH /api/admin/slack-config` | Admin | Read/update **`AppConfig.resourcingChannelId`**. |
+| `GET/PATCH /api/admin/slack-config/notify-users` | Admin | List or replace notify-user set. |
+| `PATCH /api/admin/slack-config/notify-users/[userId]` | Admin | Toggle one user’s notify membership. |
+| `GET /api/admin/accounts` | Admin | List accounts (from Float client sync). |
+| `PATCH /api/admin/accounts/[id]` | Admin | Set **`Account.slackChannelId`**. |
+
+`[id]` on project routes is **id or slug** (`getProjectId`).
+
+### Slack app setup (operators)
+
+- Create a Slack app, install to workspace, add **Bot Token Scopes** as needed for: posting messages, opening DMs (`conversations.open`), reading/posting in channels the bot is invited to, adding reactions (fulfill flow). Copy the **Bot User OAuth Token** into **`SLACK_BOT_TOKEN`**.
+- Invite the bot to the **resourcing**, **project**, and **account** channels used in Workbench.
+- Use Slack’s UI (or API) to copy **channel IDs** (`C…`) and **member IDs** (`U…`) into Workbench.
+
 ---
 
 ## Environment variables
@@ -130,6 +196,8 @@ Optional **background** runs use the same core pipeline as `POST /api/admin/floa
 | **BLOB_READ_WRITE_TOKEN** | Optional | Vercel Blob token for caching status report PDFs; if unset, PDFs are generated on demand without cache. |
 | **FLOAT_API_TOKEN** | For Float sync | Bearer token for Float API v3 (`/v3/people`, `/v3/projects`, `/v3/tasks`, `/v3/timeoffs`, `/v3/public-holidays`, `/v3/holidays` (team holidays), etc.). Required for `POST /api/admin/float-sync` and `GET /api/admin/float-holidays` to run; omit only if you never use sync. |
 | **FLOAT_API_USER_AGENT_EMAIL** | Optional | Contact email embedded in `User-Agent` for Float API requests (recommended). |
+| **SLACK_BOT_TOKEN** | For Slack | Bot token for Slack Web API. See [Slack integration](#slack-integration). |
+| **WORKBENCH_BASE_URL** | Optional | Canonical public URL for links inside Slack messages. See [Slack integration](#slack-integration). |
 
 When Upstash is set, rate limits apply: login (per IP), seed (per IP), float sync (`floatImportRatelimit`, same Redis prefix as legacy “float-import”; 20 per 15 min per user). Without them, rate limiting is skipped (e.g. local dev).
 
@@ -154,8 +222,8 @@ Permission helpers live in `lib/auth.ts`; NextAuth configuration (session, crede
 
 | Permission | Capabilities |
 |------------|--------------|
-| **User** | View and edit projects (assignments, hours, budget, rates, key roles). Cannot access Admin. |
-| **Admin** | Everything User can do, plus: Admin area (Float sync, Holidays, Roles, People, Users), delete projects. |
+| **User** | View and edit projects (assignments, hours, budget, rates, key roles). Can **mark resourcing requests fulfilled** and run the Float sync step tied to fulfillment when Slack is configured. Cannot access Admin. |
+| **Admin** | Everything User can do, plus: Admin area (Float sync, Holidays, Roles, People, Users, **Slack**, **Accounts**), delete projects. |
 
 Session permission is read from the current user’s `permissions` field (User or Admin). See **Projects list page** below for how “My Projects” resolves the current user’s `Person` and filters `ProjectKeyRole`.
 
@@ -194,7 +262,7 @@ Server-rendered route: `app/(app)/projects/page.tsx` (no separate list API—the
 | `npx prisma db seed` | Run seed script (creates initial admin and roles). |
 | `npx prisma migrate deploy` | Apply pending migrations (e.g. in CI/production). |
 | `npx tsx scripts/sample-data.ts` | Create sample project, people, assignments, hours, and budget line (for testing). |
-| `npx trigger.dev@latest dev` / `deploy` | Optional: run or deploy Trigger.dev tasks (e.g. scheduled Float sync in `trigger/`). Requires Trigger.dev project config and env vars. |
+| `npx trigger.dev@latest dev` / `deploy` | Optional: run or deploy Trigger.dev tasks (`trigger/`): scheduled Float sync, missing-actuals Slack nudges. Requires Trigger.dev project config and env vars (**`DATABASE_URL`**, **`FLOAT_API_TOKEN`**, **`SLACK_BOT_TOKEN`** as applicable). |
 
 ---
 
@@ -208,7 +276,8 @@ API routes live under `app/api/`. This is a high-level overview for maintainers.
 | Seed | `/api/seed` | POST with Bearer token (SEED_SECRET) to run seed once (e.g. after deploy). |
 | Company | `GET /api/company/pto-holidays` | Company-wide PTO and holiday payload for **PTO & Holidays** (`/pto-holidays`): active people plus week-bucketed impacts (~12 months from today). Session required. Implemented in `lib/companyPtoServer.ts`. |
 | Projects | `GET/POST /api/projects` | List projects (with filter), create project. **`POST`** creates the project, then—if the name (or optional **`floatProjectName`**) matches a Float project in merged **`FloatImportRun`** history—upserts **`ProjectAssignment`** rows (role resolution via `resolveRoleIdForNewAssignmentFromFloat` / `lib/float/roleWorkbenchMatch.ts`), creates missing **`Person`** rows, and batch-upserts **`FloatScheduledHours`** from `getProjectDataFromAllImports` + `floatScheduledHourRowsFromMergedLists`. Response may include **`backfillFromImport`** (`matched`, `assignmentsCreated`, `floatHoursCreated`, optional `floatHoursNote`). |
-| Project | `GET/PATCH/DELETE /api/projects/[id]` | Single project CRUD. **`[id]`** is either the project’s **primary key (CUID)** or its current **slug** (`resolveProject` in `app/api/projects/[id]/route.ts`). **`PATCH`** and **`DELETE`** revalidate Next.js cache tags **`portfolio-metrics`**, **`projects-list`**, and **`project-detail`** (the project detail page uses `getCachedProjectBySlugOrId` in `lib/projectCache.ts` with a `project-detail` tag). **`PATCH`** accepts optional `cdaReportHoursOnly` (boolean): when `true`, CDA “Overall” status copy and CDA status reports omit budget-dollar columns (hours columns only). See *CDA report hours only* below. **Client note:** `components/ProjectSettingsTab.tsx` calls **`PATCH`**, **backfill-float**, and **sync-plan-from-float** with **`/api/projects/{projectId}`** (CUID) so autosave still resolves the row after a **name** change regenerates the slug; on **`PATCH`** success, if the response **`slug`** differs from the URL segment, the app **`router.replace`**s to `/projects/{newSlug}?tab=settings`. |
+| Project | `GET/PATCH/DELETE /api/projects/[id]` | Single project CRUD. **`[id]`** is either the project’s **primary key (CUID)** or its current **slug** (`resolveProject` in `app/api/projects/[id]/route.ts`). **`PATCH`** accepts optional **`slackChannelId`** (Slack channel `C…` or null) for notifications. **`PATCH`** and **`DELETE`** revalidate Next.js cache tags **`portfolio-metrics`**, **`projects-list`**, and **`project-detail`** (the project detail page uses `getCachedProjectBySlugOrId` in `lib/projectCache.ts` with a `project-detail` tag). **`PATCH`** accepts optional `cdaReportHoursOnly` (boolean): when `true`, CDA “Overall” status copy and CDA status reports omit budget-dollar columns (hours columns only). See *CDA report hours only* below. **Client note:** `components/ProjectSettingsTab.tsx` calls **`PATCH`**, **backfill-float**, and **sync-plan-from-float** with **`/api/projects/{projectId}`** (CUID) so autosave still resolves the row after a **name** change regenerates the slug; on **`PATCH`** success, if the response **`slug`** differs from the URL segment, the app **`router.replace`**s to `/projects/{newSlug}?tab=settings`. |
+| Project | `POST /api/projects/[id]/slack/health-update`, `POST .../slack/resourcing-request`, `POST .../slack/resourcing-request/fulfill` | Slack integrations; see [Slack integration](#slack-integration). |
 | Project | `/api/projects/[id]/assignments` | Assignments for a project. |
 | Project | `/api/projects/[id]/resourcing` | Single endpoint for Resourcing tab (assignments, planned/actual/float hours, cell comments). |
 | Project | `/api/projects/[id]/planned-hours`, `actual-hours`, `float-hours` | Hour entries by project. **`actual-hours`**: `GET` returns `rows` and `monthSplits` (split-week breakdowns). `PATCH` accepts either a single `hours` value or `parts` (`{ monthKey, hours }[]` where **`hours` may be `null`** to remove a month split) for split weeks—see *Split-week actual hours* above. |
@@ -218,7 +287,7 @@ API routes live under `app/api/`. This is a high-level overview for maintainers.
 | Project | `/api/projects/[id]/revenue-recovery` | Revenue recovery to date. |
 | Project | `/api/projects/[id]/cda`, `/api/projects/[id]/cda-milestones` | CDA monthly data and milestones. |
 | Project | `/api/projects/[id]/timeline`, `timeline/bars`, `timeline/markers` | Timeline bars and markers. Bars support an optional `color` (6-digit hex, e.g. `#1941FA`) in GET responses and in POST/PATCH bodies; null means default blue. |
-| Project | `/api/projects/[id]/status-reports`, `status-reports/[reportId]`, `status-reports/[reportId]/pdf`, **`POST status-reports/[reportId]/refresh-timeline`** | Status reports CRUD and PDF export (PDF may be cached in Vercel Blob). **`POST refresh-timeline`** (session, User/Admin): merges a freshly built **timeline** (from current `TimelineBar` / `TimelineMarker` rows and `report.reportDate` + `snapshot.timelinePreviousMonths`) into the existing JSON **snapshot** only; revalidates tag `status-report-{reportId}` and clears cached PDF. Requires a valid snapshot (`isStatusReportSnapshot` in `lib/statusReportPdfData.ts`); uses `buildStatusReportPdfData(..., { rebuildTimelineFromProject: true })`. Implementation: `app/api/projects/[id]/status-reports/[reportId]/refresh-timeline/route.ts`. |
+| Project | `/api/projects/[id]/status-reports`, `status-reports/[reportId]`, `status-reports/[reportId]/pdf`, **`POST status-reports/[reportId]/refresh-timeline`** | Status reports CRUD and PDF export (PDF may be cached in Vercel Blob). **`POST`** (create) returns **400** if the project has **missing actuals** (completed weeks with planned hours but no actuals)—`projectHasMissingActuals` (`lib/projectActualsStale.ts`). **`POST refresh-timeline`** (session, User/Admin): merges a freshly built **timeline** (from current `TimelineBar` / `TimelineMarker` rows and `report.reportDate` + `snapshot.timelinePreviousMonths`) into the existing JSON **snapshot** only; revalidates tag `status-report-{reportId}` and clears cached PDF. Requires a valid snapshot (`isStatusReportSnapshot` in `lib/statusReportPdfData.ts`); uses `buildStatusReportPdfData(..., { rebuildTimelineFromProject: true })`. Implementation: `app/api/projects/[id]/status-reports/[reportId]/refresh-timeline/route.ts`. |
 | Project | `/api/projects/[id]/float-default-roles`, `backfill-float`, `sync-plan-from-float`, `ready-for-float` | Float-related backfill and flags. **Backfill** repopulates a project’s Float scheduled hours from stored import runs (also from Projects list via backfill icon with confirmation). **Sync plan from Float** (`POST sync-plan-from-float`) copies `FloatScheduledHours` into `PlannedHours` for all weeks that have Float data (assigned people), with CSV import fallback only for **completed** weeks missing a DB row; project Edit page with confirmation. |
 | Projects | `GET /api/projects/my-pm-slugs` | Project slugs where current user is PM (e.g. for sidebar). |
 | People | `GET /api/people`, `/api/people/eligible-key-roles` | List people, people eligible for key roles. |
@@ -227,7 +296,9 @@ API routes live under `app/api/`. This is a high-level overview for maintainers.
 | Admin | `GET/POST /api/admin/float-sync` | Float API sync: `GET` returns latest `FloatImportRun`; `POST` pulls tasks, time off, holidays, and reference data from Float and applies the same DB effects as `applyFloatImportDatabaseEffects` (Admin only). |
 | Admin | `POST /api/admin/backfill-float-all` | **Admin only.** Restores `FloatScheduledHours` for **all** projects from merged `FloatImportRun` history (`lib/backfillFloatFromImports.ts`), same rules as `POST /api/projects/[id]/backfill-float` per project. Returns JSON with counts (`upsertsTotal`, `projectsWithData`, `projectsSkipped`, `importRunCount`). Revalidates `project-resourcing`. UI: **Admin → Float sync** → **Restore hours from import history (all projects)**. If there are no `FloatImportRun` rows, responds with `ok: false` and an error message (HTTP 200). |
 | Admin | `GET /api/admin/float-holidays` | Lists Float public and team holidays for the query window (default like sync); Admin only; requires `FLOAT_API_TOKEN`. |
-| Admin | `/api/admin/roles`, `/api/admin/people`, `/api/admin/users` | CRUD for roles, people, app users (Admin only). |
+| Admin | `/api/admin/roles`, `/api/admin/people`, `/api/admin/users` | CRUD for roles, people, app users (Admin only). **`PATCH /api/admin/users/[id]`** accepts optional **`slackUserId`**. |
+| Admin | `/api/admin/slack-config`, `/api/admin/slack-config/notify-users`, `/api/admin/slack-config/notify-users/[userId]` | Slack org config and resourcing notify list. |
+| Admin | `GET /api/admin/accounts`, `PATCH /api/admin/accounts/[id]` | Float-backed **Account** list; set **`slackChannelId`**. |
 
 **Admin Users UI** (`/admin/users`, `app/admin/users/page.tsx`): The user list is a `<table>` inside a card with **`overflow-x-auto`** so narrow viewports can scroll horizontally instead of clipping the **Actions** column. The main content area uses **`max-w-6xl`** (wider than the create-user form alone) so five columns fit more comfortably. The **Actions** column uses **`whitespace-nowrap`** and the common **`w-[1%]`** table pattern so the **Edit** control keeps a stable width; name, email, and role cells use **truncation** plus **`title`** attributes for full-string tooltips where helpful. User updates (including optional password hash refresh) go to **`PATCH /api/admin/users/[id]`** (`app/api/admin/users/[id]/route.ts`).
 
@@ -300,7 +371,7 @@ The CDA **Budget** sub-tab card (`CDATab`) calls `computeCdaProjections({ contra
 
 ## Deployment
 
-- **Build** — The build script runs `prisma migrate deploy` then `next build`, so `DATABASE_URL` must be set for the build environment (e.g. Vercel Production and Preview if you deploy there). Pending migrations are applied at build time; seed does not run during build.
+- **Build** — The build script runs `prisma migrate deploy` then `next build`, so `DATABASE_URL` must be set for the build environment (e.g. Vercel Production and Preview if you deploy there). Pending migrations are applied at build time; seed does not run during build. Releases that add **Slack** tables (`Account`, `AppConfig`, `ResourcingRequest`, `ActualsNudgeLog`, `User.slackUserId`, etc.) require those migrations to run before the new routes are used.
 - **Migrations and seed** — After deploy, create the initial admin user via `npm run db:deploy` (with production `DATABASE_URL`) or the one-time seed API (`POST /api/seed` with Bearer token and `SEED_SECRET`; set `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` in production). Migrations are applied in **folder-name order** (lexicographic); new migrations must use timestamps that sort after any migrations they depend on (e.g. the `add_timeline_bar_color` migration must run after the migration that creates the `TimelineBar` table).
 
 For full steps (Vercel env vars, rate limiting, one-time seed), see the main **README** in the repository.

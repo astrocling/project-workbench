@@ -1,6 +1,6 @@
 # Project Workbench — User Guide
 
-This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.0.8** and later **1.x** behavior unless a section notes otherwise. The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
+This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.0.8** as a baseline and newer behavior documented in [CHANGELOG.md](../CHANGELOG.md) (including Slack integrations when your deployment includes them). The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
 
 ---
 
@@ -56,13 +56,13 @@ Each project has a detail page with several tabs. The header shows the **as-of d
 | Tab | Purpose |
 |-----|---------|
 | **Overview** | Summary, key roles (PM, PGM, CAD), project notes, SOW, Estimate, Float, and Metric links, and a snapshot of budget and revenue recovery. When teammates have Float **time off** or a **regional holiday** in the rolling two-week window, small absence pills summarize who is out (see [PTO tab](#pto-tab)). |
-| **Resourcing** | Planned hours, actual hours, and Float scheduled hours by person and week. Use this to compare plan vs actual vs Float and spot gaps. You can **collapse Weekly Actuals** (chevron on that section) to bring Planned and Float closer on screen. The **Float** grid can show **PTO** and **holiday** indicators per week when Float sync has populated time off and holidays (see [Resourcing tab](#resourcing-tab)). |
+| **Resourcing** | Planned hours, actual hours, and Float scheduled hours by person and week. Use this to compare plan vs actual vs Float and spot gaps. You can **collapse Weekly Actuals** (chevron on that section) to bring Planned and Float closer on screen. When Slack is configured, use **Request Resourcing Changes** to notify the org resourcing channel (see [Resourcing tab](#resourcing-tab)). The **Float** grid can show **PTO** and **holiday** indicators per week when Float sync has populated time off and holidays (see [Resourcing tab](#resourcing-tab)). |
 | **PTO** | PTO and regional holidays for **project members** visible on the Resourcing grid across the project date range. Filter by week range and person; see who is on PTO or a holiday and whether a PTO day is full or partial. Data comes from Float sync (`PTOHolidayImpact`). See [PTO tab](#pto-tab). |
 | **CDA** | (When enabled in Settings) Monthly planned and actuals for CDA reporting. Month-to-date actuals for each month incorporate **split-week** hours when a week crosses a month boundary (see Resourcing below). Optional **Report hours only** hides budget dollars on the Overall row in status copy and CDA reports—see [CDA tab](#cda-tab). |
 | **Budget** | Budget lines (e.g. SOW, CO, Other) with low/high hours and dollars, and burn to date. |
 | **Timeline** | High-level timeline with month columns and up to four rows of bars and markers. Each bar has a label, start/end dates, row (1–4), and an optional color (Blue, Green, Amber, Teal, Slate, or Violet). The same timeline (with colors) appears in status report previews and PDFs. Each saved report stores its **own** copy of the timeline when the report is created; if you change bars or markers later, use **Refresh timeline** while **editing** that report (Standard or Milestones) on the Status Reports tab to update that copy—see [Status Reports tab](#status-reports-tab). |
-| **Status Reports** | Summary table of estimated budget, $ spent, $ remaining, budgeted/actual/remaining hours, with copy-to-clipboard and a % budget used (high est.) circle chart. Create, edit, view, and export status reports. Standard and Milestones reports can **refresh the stored timeline** from the project after the Timeline tab changes—see [Status Reports tab](#status-reports-tab). |
-| **Settings** | Edit project name, client, dates, status, single rate, notes, SOW/Estimate/Float/Metric links, resourcing thresholds, key roles, and optional CDA tab. Within Settings, sub-sections include **Details**, **Links**, **Key roles**, **Resourcing** (thresholds), **Rates** (per-role rate card or single bill rate), and **Assignments** (people assigned, their roles, bill-rate overrides, and “hidden from grid” for the Resourcing tab). |
+| **Status Reports** | Summary table of estimated budget, $ spent, $ remaining, budgeted/actual/remaining hours, with copy-to-clipboard and a % budget used (high est.) circle chart. Create, edit, view, and export status reports. **New** reports cannot be saved while **actuals are stale** (completed weeks with planned hours but missing actuals)—update the Resourcing tab first. When Slack is configured, **Post to Slack** sends the latest saved report summary to the project’s Slack channel (see [Status Reports tab](#status-reports-tab)). Standard and Milestones reports can **refresh the stored timeline** from the project after the Timeline tab changes—see [Status Reports tab](#status-reports-tab). |
+| **Settings** | Edit project name, client, dates, status, single rate, notes, SOW/Estimate/Float/Metric links, optional **Slack channel ID** (for status health posts and some automated nudges), resourcing thresholds, key roles, and optional CDA tab. Within Settings, sub-sections include **Details**, **Links**, **Key roles**, **Resourcing** (thresholds), **Rates** (per-role rate card or single bill rate), and **Assignments** (people assigned, their roles, bill-rate overrides, and “hidden from grid” for the Resourcing tab). |
 
 Only users with edit permission can change data; the **Settings** tab may be read-only for some viewers.
 
@@ -84,6 +84,7 @@ The Resourcing tab shows three grids (Planned, Actual, Float) by person and by w
 - **Current week**: The column for the **Monday–Sunday week (UTC) that contains today** has a **subtle background tint** across the week headers, all three grids (Planned, Actual, Float), and the variance/total rows—so you can quickly see which week is in progress. (Amber variance or red mismatch highlights still take priority when they apply.)
 - **Collapsing Weekly Actuals**: In the **Weekly Actuals** grid title row, the small **chevron** on the right collapses or expands that grid (**Hide weekly actuals** / **Show weekly actuals**—also in the hover tooltip and for assistive technologies). When collapsed, only the title row remains and the vertical gap between **Planned** and **Float** tightens so you can compare those two grids with less scrolling. Expand again when you need to view or edit actual hours.
 - **Planned grid — Ready**: Each person row has a **Ready** toggle (for Float sync). People **hidden from grid** (Settings → Assignments) are excluded. When at least one visible person has **Ready** on, the **PM**, **PGM**, and **CAD** dashboard Projects tables show an **open request** in the **Request** column (see [Dashboards and Account](#dashboards-and-account)).
+- **Request Resourcing Changes** (when Slack is enabled): Opens a short form to send a Slack message to your organization’s **resourcing** channel (set by an admin). The message tags the project’s **PM** and **PGM** (and optional notify list) and captures who had **Ready** on so resourcing can align Float. When an **open** request exists, use **Mark fulfilled** on the Planned grid header to run the fulfillment flow (Float sync + Slack thread summary). You cannot send a new request until the open one is fulfilled. If you see **Slack is not configured**, an administrator must set **`SLACK_BOT_TOKEN`** and the resourcing channel in **Admin → Slack**.
 - **Float grid — PTO and holidays**: When **Admin → Float sync** has run, the **Float** column can show small labels for **PTO** (Float time off) and **holiday** (regional public or team holiday matching the person’s Float region). This helps explain differences between scheduled hours and working time. Tooltip text summarizes the week (e.g. who is out, partial vs full day).
 
 ### Split weeks (month boundary)
@@ -148,9 +149,20 @@ The monthly CDA tables (month-by-month planned and actuals) are unchanged; only 
 
 The Status Reports tab is where you create and maintain status reports and export them as PDFs.
 
+- **Stale actuals block new reports**: You cannot **save a new** status report if the project still has **missing actuals** for any **completed** week where someone had **planned hours** but **no actual hours** entered (same idea as the **Actuals** column on PM/PGM/CAD dashboards). Update the **Resourcing** tab first; then create the report.
 - **Preview and PDF match**: The in-app preview and the exported PDF use the same layout and styling.
 - **Bigger, presentation-friendly default size**: The preview is auto-scaled larger (while still fitting your screen), and the downloaded PDF is generated at a larger default page size so you can present at 100% zoom without squinting.
 - **Typography**: Status report fonts were updated for readability; the preview and exported PDF use the same typography.
+
+### Post to Slack (when configured)
+
+If your team has connected Slack, a **Post to Slack** control appears near the status reports list. It opens a short dialog: optional note (up to 500 characters), then **Post to Slack**. Workbench sends a **health update** summarizing the **most recent saved** report (RAG, budget figures, next milestone, etc.) to the Slack channel for this project.
+
+**Channel selection:** The app uses the **Slack Channel ID** on the project (**Settings → Links**) if set; otherwise it can fall back to the **account** channel configured under **Admin → Accounts** (when the project is linked to an account that has a channel id). If neither is set, you’ll get an error asking to configure a channel.
+
+**Mentions:** When PM/PGM (and linked **User** records) have **Slack user IDs** stored in **Admin → Users**, they can be @-mentioned in the posted message.
+
+This action does not replace saving a report in Workbench; it only mirrors the latest saved snapshot to Slack.
 
 ### Saving a report
 
@@ -257,16 +269,18 @@ On **Admin → Float sync**, **Restore hours from import history (all projects)*
 
 ---
 
-## Admin: Roles, People, and Users (Admin only)
+## Admin: Roles, People, Users, Slack, and Accounts (Admin only)
 
 Available from the **Admin** entry in the **sidebar** (admins only).
 
 | Page | Purpose |
 |------|---------|
 | **Roles** | Create and manage roles (e.g. Project Manager, FE Developer). Role names must match the ones used on assignments and in Float. |
-| **People** | Manage people (name, email, active). These are the resources that appear on project assignments and Float sync. The **Region** column shows each person’s **Float region** by name when the last sync could resolve one (from people and/or holiday API data); otherwise **Region (id)** if only the numeric id is known, or **—** if unset—used for regional public/team holiday handling in Float scheduled hours. |
+| **People** | Manage people (name, email, active). These are the resources that appear on project assignments and Float sync. The **Region** column shows each person’s **Float region** by name when the last sync could resolve one (from people and/or holiday API data); otherwise **Region (id)** if only the numeric id is known, or **—** if unset—used for regional public/team holiday handling in Float scheduled hours. Linking a **User** to a **Person** (by email / account setup) helps Slack **@mentions** for PM/PGM when their Workbench user has a **Slack user ID**. |
 | **Holidays** | Read-only view of Float **public** and **team** holidays (API JSON) for troubleshooting schedules and regions. |
-| **Users** | Manage app logins (email and password) and permissions. Set **User** or **Admin**, and optionally set a **position role** (Project Manager, Program Manager, Client Account Director) so “My Projects” shows the right list. Use **Edit** on a row to open the edit dialog (see below)—including **New password** to reset someone’s password without changing their email. |
+| **Users** | Manage app logins (email and password) and permissions. Set **User** or **Admin**, optional **position role**, and optional **Slack user ID** (`U…`) so Slack messages can @mention the right person and so **Tuesday** missing-actuals DMs can reach PMs. Use **Edit** on a row to open the edit dialog (see below)—including **New password** to reset someone’s password without changing their email. |
+| **Slack** | Set the **resourcing** Slack channel ID where **Request Resourcing Changes** messages are posted. Choose which users are on the **notify** list for extra @mentions on those requests. The page reminds you that the bot token is configured via **`SLACK_BOT_TOKEN`** in the server environment. |
+| **Accounts** | List **accounts** (clients) synced from Float. Set an optional **Slack channel ID** per account for **account-level** notifications (e.g. Thursday missing-actuals summary and fallback channel for **Post to Slack** when the project has no channel of its own). |
 
 ### Admin → Users
 
@@ -343,6 +357,7 @@ Your **My Projects** list (on `/projects`) uses the **Person** link described in
 | **Invalid email or password** | Ensure the database has been seeded and your user exists. Ask an admin to run the seed or add your account in Admin → Users. |
 | **Project names must match** (Float) | Create projects in Workbench with names that match Float, or run sync so `floatExternalId` is set. Add missing roles in Admin → Roles and sync again if needed. |
 | **Float API not configured** | Set `FLOAT_API_TOKEN` in the server environment. |
+| **Slack is not configured** / health post errors | Admin must set **`SLACK_BOT_TOKEN`** on the server, invite the bot to channels, and configure **Admin → Slack** (resourcing channel), **Settings → Links** (project channel), and/or **Admin → Accounts** (account channel) as needed. |
 | **Too many sync requests** | Wait and try again later; sync is rate-limited when Redis is configured. |
 | **Page looks broken** (overlapping layout, wrong styles, sidebar over content) | Try a **hard refresh** (e.g. Mac: `Cmd+Shift+R`). If it persists, a **browser extension** may be injecting styles or scripts — see *Browser extensions* below. |
 
