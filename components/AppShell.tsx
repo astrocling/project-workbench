@@ -8,13 +8,11 @@ const SIDEBAR_COLLAPSED_KEY = "project-workbench-sidebar-collapsed";
 export function AppShell({
   userDisplayName,
   isAdmin,
-  pmSlugs,
   asOfDateLabel,
   children,
 }: {
   userDisplayName: string | null;
   isAdmin: boolean;
-  pmSlugs: string[];
   asOfDateLabel: string;
   children: React.ReactNode;
 }) {
@@ -46,7 +44,6 @@ export function AppShell({
       <AppSidebar
         userDisplayName={userDisplayName}
         isAdmin={isAdmin}
-        pmSlugs={pmSlugs}
         collapsed={collapsed}
         onToggleCollapse={toggleCollapsed}
       />

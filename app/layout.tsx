@@ -23,6 +23,10 @@ export const metadata: Metadata = {
   },
   description: "Project budget and resourcing tracker",
   robots: { index: false, follow: false },
+  icons: {
+    icon: [{ url: "/brand/j512.png", type: "image/png", sizes: "512x512" }],
+    apple: [{ url: "/brand/j512.png", type: "image/png", sizes: "180x180" }],
+  },
 };
 
 function isProductionEnv(): boolean {

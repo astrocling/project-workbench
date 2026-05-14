@@ -1,22 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { ThemeToggle } from "@/components/ThemeProvider";
-import { CalendarOff, Network, Users } from "lucide-react";
-
-function OpenTabsIcon({ className }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <rect width="18" height="18" x="3" y="3" rx="2" />
-      <path d="M7 3v18" />
-      <path d="M3 9h4" />
-      <path d="M3 15h4" />
-    </svg>
-  );
-}
+import { CalendarOff, Hand, Network, Users } from "lucide-react";
 
 const navItems = [
   { href: "/pm-dashboard", label: "PM Dashboard", active: true },
@@ -105,59 +94,15 @@ function firstNameFromDisplay(displayName: string | null | undefined): string | 
 export function AppSidebar({
   userDisplayName,
   isAdmin,
-  pmSlugs: pmSlugsFromServer,
   collapsed = false,
   onToggleCollapse,
 }: {
   userDisplayName: string | null;
   isAdmin: boolean;
-  /** When provided (from layout), sidebar skips client fetch for "Open my projects". */
-  pmSlugs?: string[];
   collapsed?: boolean;
   onToggleCollapse?: () => void;
 }) {
   const pathname = usePathname();
-  const [pmSlugsFetched, setPmSlugsFetched] = useState<string[] | null>(null);
-  const pmSlugs =
-    pmSlugsFromServer ?? (pmSlugsFetched !== null ? pmSlugsFetched : null);
-
-  useEffect(() => {
-    if (pmSlugsFromServer != null) return;
-    let cancelled = false;
-    fetch("/api/projects/my-pm-slugs")
-      .then((res) => (res.ok ? res.json() : { slugs: [] }))
-      .then((data: { slugs?: string[] }) => {
-        if (!cancelled && Array.isArray(data.slugs)) setPmSlugsFetched(data.slugs);
-      })
-      .catch(() => {
-        if (!cancelled) setPmSlugsFetched([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [pmSlugsFromServer]);
-
-  function openMyProjectsInNewWindow() {
-    if (!pmSlugs?.length || typeof document === "undefined") return;
-    const origin = window.location.origin;
-    const base = `${origin}/projects`;
-    // Use temporary <a target="_blank"> and .click() so the browser allows multiple new tabs
-    // from one user gesture (popup blockers often allow link clicks but block multiple window.open).
-    for (const slug of pmSlugs) {
-      const a = document.createElement("a");
-      a.href = `${base}/${slug}`;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
-  }
-
-  const openPmTitle =
-    pmSlugs === null
-      ? "Loading project count…"
-      : `Open all projects where you are PM in new tabs (${pmSlugs.length} project${pmSlugs.length === 1 ? "" : "s"})`;
 
   const firstName = firstNameFromDisplay(userDisplayName);
   const sidebarGreeting = firstName ? `Hi ${firstName}` : "Hi";
@@ -170,56 +115,79 @@ export function AppSidebar({
       aria-label="Application"
     >
       <div
-        className={`flex h-14 shrink-0 items-center border-b border-surface-200 dark:border-dark-border ${
-          collapsed ? "justify-center px-1" : "gap-2 px-2"
+        className={`shrink-0 border-b border-surface-200 dark:border-dark-border ${
+          collapsed
+            ? "flex flex-col items-center gap-1 px-1 py-2"
+            : "flex min-h-[4.75rem] flex-col justify-center gap-1.5 px-2 py-2.5"
         }`}
       >
-        {onToggleCollapse && (
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            aria-expanded={!collapsed}
-            aria-controls="app-sidebar-nav"
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-surface-600 transition-colors hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-dark-muted"
-          >
-            {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
-          </button>
-        )}
-        {!collapsed && (
-          <span
-            className="min-w-0 truncate text-title-md font-semibold text-surface-900 dark:text-white"
-            title={sidebarGreeting}
-          >
-            {sidebarGreeting}
-          </span>
-        )}
+        <div
+          className={`flex gap-2 ${collapsed ? "flex-col items-center" : "min-h-14 min-w-0 items-center"}`}
+        >
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              aria-expanded={!collapsed}
+              aria-controls="app-sidebar-nav"
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-surface-600 transition-colors hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-dark-muted"
+            >
+              {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+            </button>
+          )}
+          {collapsed && (
+            <Image
+              src="/brand/j512.png"
+              alt="Jakala"
+              width={515}
+              height={515}
+              className="h-12 w-12 object-contain"
+              priority
+              unoptimized
+            />
+          )}
+          {!collapsed && (
+            <div className="flex min-h-14 min-w-0 flex-1 items-center">
+              <Image
+                src="/brand/jakala-wordmark.png"
+                alt="Jakala"
+                width={1315}
+                height={546}
+                className="h-14 w-full max-w-full object-contain object-left dark:hidden"
+                priority
+                unoptimized
+              />
+              <Image
+                src="/brand/jakala-wordmark-dark.png"
+                alt=""
+                width={1315}
+                height={546}
+                className="hidden h-14 w-full max-w-full object-contain object-left dark:block"
+                aria-hidden
+                priority
+                unoptimized
+              />
+            </div>
+          )}
+        </div>
       </div>
       <nav
         id="app-sidebar-nav"
         className={`flex flex-1 flex-col gap-0.5 ${collapsed ? "items-center px-1 py-2" : "p-2"}`}
         aria-label="Main"
       >
-        <button
-          type="button"
-          onClick={openMyProjectsInNewWindow}
-          disabled={pmSlugs === null}
-          title={openPmTitle}
-          className={`flex items-center rounded-md text-body-sm font-medium text-surface-700 transition-colors hover:bg-surface-200 disabled:opacity-60 dark:text-surface-200 dark:hover:bg-dark-muted ${
-            collapsed
-              ? "w-10 shrink-0 justify-center px-0 py-2.5"
-              : "w-full gap-3 px-3 py-2.5"
-          }`}
-        >
-          <OpenTabsIcon className="shrink-0" />
-          <span className={collapsed ? "sr-only" : ""}>
-            {pmSlugs === null
-              ? "Loading…"
-              : pmSlugs.length === 0
-                ? "Open my projects (0)"
-                : `Open my projects (${pmSlugs.length})`}
-          </span>
-        </button>
+        {!collapsed && (
+          <div
+            role="status"
+            aria-live="polite"
+            title={sidebarGreeting}
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-body-sm font-semibold text-surface-900 dark:text-white"
+          >
+            <Hand className="h-5 w-5 shrink-0 text-surface-600 dark:text-surface-300" aria-hidden strokeWidth={2} />
+            <span className="min-w-0 truncate">{sidebarGreeting}</span>
+          </div>
+        )}
         {navItems.map((item) => {
           const isActive =
             item.active &&

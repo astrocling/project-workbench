@@ -1,0 +1,615 @@
+This file is a merged representation of a subset of the codebase, containing specifically included files, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Only files matching these patterns are included: prisma/schema.prisma
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+prisma/
+  schema.prisma
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="prisma/schema.prisma">
+// Prisma schema for Project Workbench
+// PostgreSQL + Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PermissionLevel {
+  User
+  Admin
+}
+
+enum UserPositionRole {
+  ProjectManager
+  ProgramManager
+  ClientAccountDirector
+}
+
+enum ProjectStatus {
+  Active
+  Closed
+}
+
+enum BudgetLineType {
+  SOW
+  CO
+  Other
+}
+
+enum KeyRoleType {
+  PM
+  PGM
+  CAD
+}
+
+enum PTOHolidayType {
+  PTO
+  Holiday
+}
+
+enum GridCommentType {
+  Planned
+  Actual
+}
+
+model IndustryGroup {
+  id         String    @id @default(cuid())
+  name       String    @unique
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  accounts Account[]
+  users    User[]
+}
+
+model User {
+  id            String            @id @default(cuid())
+  email         String            @unique
+  passwordHash  String
+  firstName     String?
+  lastName      String?
+  permissions   PermissionLevel
+  role          UserPositionRole?
+  slackUserId   String?
+  industryGroupId String?
+  industryGroup   IndustryGroup?    @relation(fields: [industryGroupId], references: [id], onDelete: SetNull)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  person               Person?
+  resourcingNotifyEntry ResourcingNotifyUser?
+
+  @@index([industryGroupId])
+
+  resourcingRequests ResourcingRequest[] @relation("ResourcingRequestedBy")
+  resolvedRequests   ResourcingRequest[] @relation("ResolvedRequests")
+}
+
+model Person {
+  id         String   @id @default(cuid())
+  name       String
+  email      String?
+  userId     String?  @unique
+  user       User?    @relation(fields: [userId], references: [id])
+  externalId String?  @unique // Float ID
+  /// Float `/v3/people` `region_id` (public/team holiday matching); null if unset in Float
+  floatRegionId   Int?
+  /// Human-readable region label from Float sync (people and/or holiday payloads); null if unknown
+  floatRegionName String?
+  /// Float `/v3/people` `job_title`
+  floatJobTitle          String?
+  /// Float `department.name` (denormalized from `/v3/people`)
+  floatDepartmentName    String?
+  /// Float `tags` (string array JSON)
+  floatTags              Json?
+  /// Float person `active` (scheduling); distinct from Workbench `active`
+  floatSchedulingActive  Boolean?
+  /// Short label from Float `expand=account` (e.g. access / login snapshot)
+  floatAccessLabel       String?
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  projectAssignments      ProjectAssignment[]
+  plannedHours            PlannedHours[]
+  actualHours             ActualHours[]
+  actualHoursMonthSplits  ActualHoursMonthSplit[]
+  floatScheduledHours     FloatScheduledHours[]
+  ptoHolidayImpacts       PTOHolidayImpact[]
+  projectKeyRoles      ProjectKeyRole[]
+  readyForFloatUpdates ReadyForFloatUpdate[]
+  gridCellComments     GridCellComment[]
+}
+
+model Role {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  projectAssignments ProjectAssignment[]
+  projectRoleRates   ProjectRoleRate[]
+}
+
+model Account {
+  id               String          @id @default(cuid())
+  name             String          @unique
+  floatClientId    Int?            @unique
+  slackChannelId   String?
+  industryGroupId String?
+  industryGroup   IndustryGroup?  @relation(fields: [industryGroupId], references: [id], onDelete: SetNull)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  projects Project[]
+
+  @@index([industryGroupId])
+}
+
+model Project {
+  id         String        @id @default(cuid())
+  slug       String        @unique
+  name       String
+  clientName String
+  startDate  DateTime
+  endDate    DateTime?
+  status     ProjectStatus @default(Active)
+  /// Actuals under resourced by more than this % → purple (default 10)
+  actualsLowThresholdPercent  Int?
+  /// Actuals over resourced by more than this % → red (default 5)
+  actualsHighThresholdPercent Int?
+  /// Use one bill rate for all roles instead of per-role rate card
+  useSingleRate  Boolean   @default(false)
+  singleBillRate Decimal?  @db.Decimal(10, 2)
+  /// Show CDA (monthly planned/actuals) tab
+  cdaEnabled     Boolean   @default(false)
+  /// Status report / CDA copy: Overall table shows hours only (hide budget dollars)
+  cdaReportHoursOnly Boolean @default(false)
+  /// Client sponsor (for status report biographical block)
+  clientSponsor   String?
+  /// Second client sponsor (for status report biographical block)
+  clientSponsor2  String?
+  /// Other contact (for status report biographical block)
+  otherContact    String?
+  /// Key staff name (for status report biographical block)
+  keyStaffName   String?
+  notes          String?   @db.Text
+  sowLink        String?
+  estimateLink   String?
+  floatLink      String?
+  metricLink     String?
+  /// Float `project_id` from API (`/v3/projects`) for stable sync matching; optional unique string
+  floatExternalId String?   @unique
+  accountId       String?
+  account         Account?  @relation(fields: [accountId], references: [id])
+  slackChannelId  String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  assignments          ProjectAssignment[]
+  projectRoleRates     ProjectRoleRate[]
+  projectKeyRoles      ProjectKeyRole[]
+  plannedHours         PlannedHours[]
+  actualHours             ActualHours[]
+  actualHoursMonthSplits  ActualHoursMonthSplit[]
+  floatScheduledHours  FloatScheduledHours[]
+  budgetLines          BudgetLine[]
+  readyForFloatUpdates ReadyForFloatUpdate[]
+  gridCellComments     GridCellComment[]
+  cdaMonths            CdaMonth[]
+  cdaMilestones        CdaMilestone[]
+  statusReports        StatusReport[]
+  timelineBars         TimelineBar[]
+  timelineMarkers      TimelineMarker[]
+  resourcingRequests   ResourcingRequest[]
+  actualsNudgeLogs     ActualsNudgeLog[]
+
+  @@index([status])
+}
+
+enum StatusReportVariation {
+  Standard
+  Milestones
+  CDA
+}
+
+enum RagStatus {
+  Red
+  Amber
+  Green
+}
+
+model StatusReport {
+  id                      String                @id @default(cuid())
+  projectId               String
+  reportDate              DateTime              @db.Date
+  variation               StatusReportVariation  @default(Standard)
+  completedActivities     String                @db.Text
+  upcomingActivities      String                @db.Text
+  risksIssuesDecisions    String                @db.Text
+  meetingNotes            String?               @db.Text
+  ragOverall              RagStatus?
+  ragScope                RagStatus?
+  ragSchedule             RagStatus?
+  ragBudget               RagStatus?
+  ragOverallExplanation   String?               @db.Text
+  ragScopeExplanation     String?              @db.Text
+  ragScheduleExplanation  String?              @db.Text
+  ragBudgetExplanation    String?              @db.Text
+  snapshot                Json?                 // Locked period, budget, CDA data at report creation
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+
+  project                 Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([projectId, reportDate])
+}
+
+model CdaMonth {
+  projectId   String
+  monthKey    String   // YYYY-MM
+  planned     Decimal  @default(0) @db.Decimal(10, 2)
+  mtdActuals  Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, monthKey])
+  @@index([projectId])
+}
+
+model CdaMilestone {
+  id           String    @id @default(cuid())
+  projectId    String
+  phase        String
+  devStartDate DateTime? @db.Date
+  devEndDate   DateTime? @db.Date
+  uatStartDate DateTime? @db.Date
+  uatEndDate   DateTime? @db.Date
+  deployDate   DateTime? @db.Date
+  completed    Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model TimelineBar {
+  id        String    @id @default(cuid())
+  projectId String
+  rowIndex  Int       // 1-4
+  label     String
+  startDate DateTime  @db.Date
+  endDate   DateTime  @db.Date
+  order     Int       @default(0)
+  color     String?   // hex e.g. #1941FA; null = default blue
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model TimelineMarker {
+  id        String    @id @default(cuid())
+  projectId String
+  rowIndex  Int       @default(1) // 1-4, which bar row the marker appears on
+  shape     String    @default("Pin") // BadgeAlert | ThumbsUp | TrendingUpDown | Rocket | PencilRuler | Pin
+  label     String
+  date      DateTime  @db.Date
+  order     Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model ProjectAssignment {
+  projectId       String
+  personId        String
+  roleId          String
+  billRateOverride Decimal? @db.Decimal(10, 2)
+  /// When false, Float sync does not overwrite `roleId` (user set the role in Workbench).
+  syncRoleFromFloat Boolean @default(true)
+  /// When true, this person's row is hidden in the project Resourcing tab only.
+  hiddenFromGrid  Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  role    Role    @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@id([projectId, personId])
+}
+
+model ProjectRoleRate {
+  projectId String
+  roleId    String
+  billRate  Decimal @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  role    Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, roleId])
+}
+
+model ProjectKeyRole {
+  projectId String
+  personId  String
+  type      KeyRoleType
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, personId, type])
+  @@index([personId, type])
+}
+
+model PlannedHours {
+  projectId     String
+  personId      String
+  weekStartDate DateTime @db.Date
+  hours         Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, personId, weekStartDate])
+}
+
+model ActualHours {
+  projectId     String
+  personId      String
+  weekStartDate DateTime  @db.Date
+  hours         Decimal?  @db.Decimal(10, 2) // null = missing (distinct from 0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, personId, weekStartDate])
+}
+
+model ActualsNudgeLog {
+  id                   String   @id @default(cuid())
+  projectId            String
+  project              Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  weekStart            String // YYYY-MM-DD of missing actuals week
+  nudgeDay             Int // 2=Tuesday, 3=Wednesday, 4=Thursday
+  channel              String // "dm", "project", "account"
+  slackChannelId       String?
+  recipientSlackUserId String? // for DMs only
+  missingPersonNames   Json // string[] snapshot at send time
+  slackOk              Boolean
+  slackError           String?
+  createdAt            DateTime @default(now())
+
+  @@index([projectId, weekStart])
+  @@index([nudgeDay, createdAt])
+}
+
+/// Actuals split by month when a week spans two calendar months (for CDA month reporting).
+model ActualHoursMonthSplit {
+  projectId     String
+  personId      String
+  weekStartDate DateTime @db.Date
+  monthKey      String   // YYYY-MM
+  hours         Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, personId, weekStartDate, monthKey])
+  @@index([projectId])
+}
+
+model FloatScheduledHours {
+  projectId     String
+  personId      String
+  weekStartDate DateTime @db.Date
+  hours         Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, personId, weekStartDate])
+  @@index([projectId, weekStartDate])
+}
+
+/// Day-level PTO and public-holiday impacts synced from Float (no live API needed for grid/calendar).
+model PTOHolidayImpact {
+  personId      String
+  /// Specific affected calendar day.
+  date          DateTime      @db.Date
+  /// Monday of the ISO week containing `date` (denormalized for weekly grid queries).
+  weekStartDate DateTime      @db.Date
+  type          PTOHolidayType
+  /// PTO hours for this day; null for holidays (person is out).
+  hours         Float?
+  /// Holiday name or PTO type label from Float when available.
+  label         String?
+  /// Region id for HOLIDAY rows (matches Person.floatRegionId); null for PTO.
+  floatRegionId Int?
+  /// Float time-off id or holiday id as string; aids upsert/dedup during sync.
+  floatSourceId String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([personId, date, type])
+  @@index([personId, weekStartDate])
+  @@index([weekStartDate])
+  @@index([floatSourceId])
+}
+
+model BudgetLine {
+  id        String         @id @default(cuid())
+  projectId String
+  type      BudgetLineType
+  label     String
+  lowHours  Decimal        @db.Decimal(10, 2)
+  highHours Decimal        @db.Decimal(10, 2)
+  lowDollars  Decimal      @db.Decimal(12, 2)
+  highDollars Decimal      @db.Decimal(12, 2)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model ReadyForFloatUpdate {
+  projectId String
+  personId  String
+  ready     Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, personId])
+}
+
+model GridCellComment {
+  projectId     String
+  personId      String
+  weekStartDate DateTime    @db.Date
+  gridType      GridCommentType
+  comment       String      @db.Text
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, personId, weekStartDate, gridType])
+}
+
+model AppConfig {
+  id                  String   @id @default("singleton")
+  resourcingChannelId String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model ResourcingNotifyUser {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+enum ResourcingRequestStatus {
+  OPEN
+  FILLED
+  VARIANCE_FLAGGED
+}
+
+model ResourcingRequest {
+  id              String                  @id @default(cuid())
+  projectId       String
+  project         Project                 @relation(fields: [projectId], references: [id])
+  requestedById   String
+  requestedBy     User                    @relation("ResourcingRequestedBy", fields: [requestedById], references: [id])
+  note            String?                 @db.Text
+  requestedPeople Json
+  slackMessageTs  String?
+  slackChannelId  String?
+  status          ResourcingRequestStatus @default(OPEN)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  resolvedAt      DateTime?
+  resolvedById    String?
+  resolvedBy      User?                   @relation("ResolvedRequests", fields: [resolvedById], references: [id])
+
+  @@index([projectId])
+  @@index([requestedById])
+}
+
+model FloatImportRun {
+  id                 String   @id @default(cuid())
+  completedAt        DateTime
+  uploadedByUserId   String?
+  unknownRoles       Json     @default("[]") // string array of role names
+  newPersonNames     Json     @default("[]") // string[] of person names newly created in this run
+  projectNames       Json     @default("[]") // string[] of unique project names from CSV
+  projectAssignments Json     @default("{}") // { "ProjectName": [{ personName, roleName }] }
+  /// Float hour data keyed by project name for backfilling when projects are created after import
+  projectFloatHours  Json     @default("{}") // { "ProjectName": [{ personName, roleName, weeks: [{ weekStart, hours }] }] }
+  /// Project name -> client name for auto-populating client when creating projects from Float
+  projectClients     Json     @default("{}") // { "ProjectName": "ClientName" }
+  createdAt          DateTime @default(now())
+
+  @@index([completedAt])
+}
+</file>
+
+</files>
