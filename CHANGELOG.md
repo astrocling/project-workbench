@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-05-14
+
+Minor release: **Industry groups** taxonomy on accounts and users (project inheritance via Float-linked **Account**), **Slack** integration (status health posts, resourcing change requests with fulfill flow, admin Slack/Accounts configuration, optional **Trigger.dev** missing-actuals nudges), **Jakala** sidebar branding and shell simplification (no layout-level `getDashboardContext`), and **status reports** blocked when project actuals are stale. **Deploy:** apply new Prisma migrations in order (`prisma migrate deploy`); set Slack-related env vars and Trigger worker secrets as documented in [docs/TECHNICAL.md](docs/TECHNICAL.md) and `.env.example`.
+
 ### Added
 
 - **Industry groups (taxonomy)** — Admins maintain **`IndustryGroup`** rows (**Admin → Industry groups**): create, rename, archive/restore (soft archive via `archivedAt`). Assign a group to **Float-backed client accounts** (**Admin → Accounts**) and optionally to **Workbench users** (**Admin → Users**). Projects **inherit** the industry group from their linked **`accountId`** (set by Float sync—no per-project group field). New assignments cannot use an **archived** group; existing account/user links may keep a group after it is archived. APIs: `GET/POST /api/admin/industry-groups`, `PATCH /api/admin/industry-groups/[id]`; **`PATCH /api/admin/accounts/[id]`** and **`PATCH /api/admin/users/[id]`** accept **`industryGroupId`** (nullable). Project **Settings → Details** shows the effective group read-only with a link to **Admin → Accounts**. Helpers: `lib/industryGroupAssign.ts`. Cached project payload and **`GET/PATCH /api/projects/[id]`** include **`account.industryGroup`** (`lib/projectCache.ts`, `app/api/projects/[id]/route.ts`). **Migration:** `20260514160928_add_industry_group`.
@@ -30,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **README** — Documentation index: User Guide / Technical Reference blurbs mention **sidebar** and **app shell** (`README.md`).
 - README, User Guide, and Technical Reference updated for **Industry groups** (admin UI, inheritance from accounts, APIs, migration).
 - README, User Guide, Technical Reference, and `.env.example` updated for Slack env vars, admin pages, APIs, and Trigger schedules.
+- **README** — Production release tag example updated to **v1.1.0**.
+- **User Guide** — Release version line updated to **1.1.0**.
 
 ## [1.0.8] - 2026-05-06
 
