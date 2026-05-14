@@ -14,6 +14,16 @@ This guide explains how to use Project Workbench for project budget and resourci
 
 If you see "Invalid email or password", an administrator may need to run the initial database seed or add your user account (see Technical documentation).
 
+### Sidebar (signed-in app)
+
+After you sign in, a **left sidebar** is always visible on main app pages (dashboards, Projects list, project detail, PTO & Holidays, Account, etc.):
+
+- **Header** — **Jakala** logo (full wordmark when the sidebar is expanded, compact mark when collapsed) and a control to **collapse** or **expand** the sidebar. The header row is sized so the logo reads clearly next to the control.
+- **Navigation** — When the sidebar is **expanded**, the first row under the logo is **Hi &lt;your first name&gt;** (from your profile name, or from your email before `@` when no first name is available), then links such as **PM Dashboard**, **PGM Dashboard**, **CAD Dashboard**, **PTO & Holidays**, and **Projects**. When **collapsed**, that greeting row is hidden so the narrow rail stays icon-focused; your full display name still appears in the footer when expanded, and screen readers are informed when the sidebar is collapsed.
+- **Footer** — Theme (light/dark), **Account** (e.g. change password), **Admin** (if you are an admin), and **Sign out**.
+
+Open individual projects from the **Projects** list or your role dashboard tables as usual.
+
 ### First-time setup (administrators)
 
 The first admin user is created when the database is seeded. Use the credentials configured in the environment (e.g. `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`). Do not use default credentials in production.

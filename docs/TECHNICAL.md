@@ -24,6 +24,16 @@ This document summarizes the technical stack, data model, environment, and APIs 
 
 ---
 
+## App shell
+
+Signed-in routes under `app/(app)/` use a shared chrome:
+
+- **`app/(app)/layout.tsx`** (server) — Session gate, **`AppShell`** props (`userDisplayName`, `isAdmin`, **`asOfDateLabel`**). Does **not** call **`getDashboardContext`** for layout; avoid blocking the shell on DB work that only dashboards or the projects list need.
+- **`components/AppShell.tsx`** (client) — Collapsible sidebar + main column (sticky **Project Workbench** header with as-of date, scrollable main).
+- **`components/AppSidebar.tsx`** (client) — **Jakala** assets from **`public/brand/`** (`jakala-wordmark.png` / `jakala-wordmark-dark.png` when expanded, **`j512.png`** when collapsed). Expanded: larger wordmark beside the collapse control (header vertically centered in its block; wordmark **`object-left`** in the remaining width). **First nav row** when expanded: **`Hi <First name>`** (see `firstNameFromDisplay` — session **name** first token, else email local-part before `@`) plus Lucide **`Hand`**; row omitted when collapsed. Nav links, theme toggle, optional full **`userDisplayName`** in footer (expanded), **Account** / **Admin** / **Sign out**. Persisted collapse: **`localStorage`** key `project-workbench-sidebar-collapsed` via **`AppShell`**.
+
+---
+
 ## Data model (overview)
 
 The schema is defined in `prisma/schema.prisma`. Main entities:
@@ -245,7 +255,7 @@ Server-rendered route: `app/(app)/projects/page.tsx` (no separate list API—the
 
 | Topic | Implementation |
 |--------|------------------|
-| **My Projects** | `getDashboardContext(session)` returns `personId` (cached 60s per user in `lib/dashboardContext.ts`; same cache key as the app layout). Filter: `projectKeyRoles: { some: { personId } } }` (any PM/PGM/CAD key role). If no `Person` is linked, the filter uses an impossible id so the table is empty. |
+| **My Projects** | `getDashboardContext(session)` returns `personId` (cached 60s per user in `lib/dashboardContext.ts`). The projects list page and PM/PGM/CAD dashboards call this helper when they need the current user’s linked **Person** id. Filter: `projectKeyRoles: { some: { personId } } }` (any PM/PGM/CAD key role). If no `Person` is linked, the filter uses an impossible id so the table is empty. |
 | **Query params** | `filter` (`my` \| `active` \| `closed` \| `all`), `sort` (`name` \| `clientName` \| `status` \| `pms` \| `pgm` \| `cad`), `dir` (`asc` \| `desc`), `page` (default `1`), `pageSize` (default `100`, max `200`). Legacy `?filter=atRisk` is normalized to `all`. |
 | **Data loading** | `findMany` uses a **narrow `select`**: project id/slug/name/clientName/status and `projectKeyRoles` with `person.name` only (not full `Project` rows). |
 | **Status filter index** | `Project` has `@@index([status])` for Active/Closed filters. |
@@ -297,7 +307,7 @@ API routes live under `app/api/`. This is a high-level overview for maintainers.
 | Project | `/api/projects/[id]/timeline`, `timeline/bars`, `timeline/markers` | Timeline bars and markers. Bars support an optional `color` (6-digit hex, e.g. `#1941FA`) in GET responses and in POST/PATCH bodies; null means default blue. |
 | Project | `/api/projects/[id]/status-reports`, `status-reports/[reportId]`, `status-reports/[reportId]/pdf`, **`POST status-reports/[reportId]/refresh-timeline`** | Status reports CRUD and PDF export (PDF may be cached in Vercel Blob). **`POST`** (create) returns **400** if the project has **missing actuals** (completed weeks with planned hours but no actuals)—`projectHasMissingActuals` (`lib/projectActualsStale.ts`). **`POST refresh-timeline`** (session, User/Admin): merges a freshly built **timeline** (from current `TimelineBar` / `TimelineMarker` rows and `report.reportDate` + `snapshot.timelinePreviousMonths`) into the existing JSON **snapshot** only; revalidates tag `status-report-{reportId}` and clears cached PDF. Requires a valid snapshot (`isStatusReportSnapshot` in `lib/statusReportPdfData.ts`); uses `buildStatusReportPdfData(..., { rebuildTimelineFromProject: true })`. Implementation: `app/api/projects/[id]/status-reports/[reportId]/refresh-timeline/route.ts`. |
 | Project | `/api/projects/[id]/float-default-roles`, `backfill-float`, `sync-plan-from-float`, `ready-for-float` | Float-related backfill and flags. **Backfill** repopulates a project’s Float scheduled hours from stored import runs (also from Projects list via backfill icon with confirmation). **Sync plan from Float** (`POST sync-plan-from-float`) copies `FloatScheduledHours` into `PlannedHours` for all weeks that have Float data (assigned people), with CSV import fallback only for **completed** weeks missing a DB row; project Edit page with confirmation. |
-| Projects | `GET /api/projects/my-pm-slugs` | Project slugs where current user is PM (e.g. for sidebar). |
+| Projects | `GET /api/projects/my-pm-slugs` | JSON **`{ slugs: string[] }`** — project **slugs** where the current user is **PM**. Session required. Implemented in `app/api/projects/my-pm-slugs/route.ts`. (No first-party UI depends on this route today; useful for scripts or future features.) |
 | People | `GET /api/people`, `/api/people/eligible-key-roles` | List people, people eligible for key roles. |
 | Roles | `GET /api/roles` | List roles. |
 | Account | `POST /api/account/change-password` | Change password for current user (current password required). |

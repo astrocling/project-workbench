@@ -21,9 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Status reports — block create when actuals are stale** — New reports cannot be saved while the project has **missing actuals** (completed weeks with **planned > 0** and **no actual hours**), matching portfolio **Actuals** semantics (`projectHasMissingActuals` / `computeBudgetRollups`). Client shows the same message before POST. This is **independent** of the Float-based missing-actuals **Slack nudge** criteria (see Technical Reference).
+- **App sidebar** — **Jakala** branding in the header (`public/brand/jakala-wordmark.png` / `jakala-wordmark-dark.png` expanded, `j512.png` collapsed): larger wordmark, vertical centering of the header row, wordmark aligned **left** in its strip. **Hi &lt;First name&gt;** (from session name or email local-part) is the **first main-nav row** with a **Hand** icon when expanded; the greeting row is **omitted when collapsed** (footer still exposes the signed-in name to assistive tech). Removed **Open my projects** (bulk open in new tabs). **`app/(app)/layout.tsx`** no longer calls **`getDashboardContext`** for shell chrome—dashboards and the projects list still load **`personId`** / context where needed (`components/AppSidebar.tsx`, `components/AppShell.tsx`).
 
 ### Documentation
 
+- **User Guide** — *Getting started* → **Sidebar (signed-in app)** (`docs/USER_GUIDE.md`).
+- **Technical Reference** — *App shell*; *Projects list* (`getDashboardContext` wording); *API overview* (`GET /api/projects/my-pm-slugs` no longer described as sidebar wiring) (`docs/TECHNICAL.md`).
+- **README** — Documentation index: User Guide / Technical Reference blurbs mention **sidebar** and **app shell** (`README.md`).
 - README, User Guide, and Technical Reference updated for **Industry groups** (admin UI, inheritance from accounts, APIs, migration).
 - README, User Guide, Technical Reference, and `.env.example` updated for Slack env vars, admin pages, APIs, and Trigger schedules.
 
