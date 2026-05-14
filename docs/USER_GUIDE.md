@@ -1,6 +1,6 @@
 # Project Workbench — User Guide
 
-This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.0.8** as a baseline and newer behavior documented in [CHANGELOG.md](../CHANGELOG.md) (including Slack integrations when your deployment includes them). The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
+This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.0.8** as a baseline and newer behavior documented in [CHANGELOG.md](../CHANGELOG.md) (including Slack integrations and **Industry groups** taxonomy when your deployment includes them). The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
 
 ---
 
@@ -62,7 +62,7 @@ Each project has a detail page with several tabs. The header shows the **as-of d
 | **Budget** | Budget lines (e.g. SOW, CO, Other) with low/high hours and dollars, and burn to date. |
 | **Timeline** | High-level timeline with month columns and up to four rows of bars and markers. Each bar has a label, start/end dates, row (1–4), and an optional color (Blue, Green, Amber, Teal, Slate, or Violet). The same timeline (with colors) appears in status report previews and PDFs. Each saved report stores its **own** copy of the timeline when the report is created; if you change bars or markers later, use **Refresh timeline** while **editing** that report (Standard or Milestones) on the Status Reports tab to update that copy—see [Status Reports tab](#status-reports-tab). |
 | **Status Reports** | Summary table of estimated budget, $ spent, $ remaining, budgeted/actual/remaining hours, with copy-to-clipboard and a % budget used (high est.) circle chart. Create, edit, view, and export status reports. **New** reports cannot be saved while **actuals are stale** (completed weeks with planned hours but missing actuals)—update the Resourcing tab first. When Slack is configured, **Post to Slack** sends the latest saved report summary to the project’s Slack channel (see [Status Reports tab](#status-reports-tab)). Standard and Milestones reports can **refresh the stored timeline** from the project after the Timeline tab changes—see [Status Reports tab](#status-reports-tab). |
-| **Settings** | Edit project name, client, dates, status, single rate, notes, SOW/Estimate/Float/Metric links, optional **Slack channel ID** (for status health posts and some automated nudges), resourcing thresholds, key roles, and optional CDA tab. Within Settings, sub-sections include **Details**, **Links**, **Key roles**, **Resourcing** (thresholds), **Rates** (per-role rate card or single bill rate), and **Assignments** (people assigned, their roles, bill-rate overrides, and “hidden from grid” for the Resourcing tab). |
+| **Settings** | Edit project name, client, dates, status, single rate, notes, SOW/Estimate/Float/Metric links, optional **Slack channel ID** (for status health posts and some automated nudges), resourcing thresholds, key roles, and optional CDA tab. Within Settings, sub-sections include **Details** (includes read-only **Industry group** inherited from the linked Float **client account** when `accountId` is set — see Admin → Accounts), **Links**, **Key roles**, **Resourcing** (thresholds), **Rates** (per-role rate card or single bill rate), and **Assignments** (people assigned, their roles, bill-rate overrides, and “hidden from grid” for the Resourcing tab). |
 
 Only users with edit permission can change data; the **Settings** tab may be read-only for some viewers.
 
@@ -70,6 +70,7 @@ Only users with edit permission can change data; the **Settings** tab may be rea
 
 Open **Settings** from the project detail page. Edits in **Details**, **Links**, **Key roles**, and other sections **save automatically** a short time after you stop changing fields (you may see a brief saved indicator).
 
+- **Industry group (read-only)** — When Float sync has linked the project to a **client account**, **Details** shows that account’s **industry group** (or explains that none is set). To change it, an admin assigns the group on **Admin → Accounts** for that client; **all projects** sharing that account then show the same group. Until an account link exists, the panel explains that the project will inherit a group once sync links it.
 - **Renaming the project**: When you change the **project name**, Workbench may **update the page URL** to match the new slug (your tab stays on **Settings**). You do not need a full refresh for further edits or link saves to apply.
 
 ---
@@ -269,24 +270,34 @@ On **Admin → Float sync**, **Restore hours from import history (all projects)*
 
 ---
 
-## Admin: Roles, People, Users, Slack, and Accounts (Admin only)
+## Admin: Roles, Industry groups, People, Users, Slack, and Accounts (Admin only)
 
 Available from the **Admin** entry in the **sidebar** (admins only).
 
 | Page | Purpose |
 |------|---------|
 | **Roles** | Create and manage roles (e.g. Project Manager, FE Developer). Role names must match the ones used on assignments and in Float. |
+| **Industry groups** | Create and maintain **industry group** labels (taxonomy). Archive or restore groups (**archive** hides them from **new** account/user picks; existing links can stay until changed). Shows how many accounts and users reference each group. |
 | **People** | Manage people (name, email, active). These are the resources that appear on project assignments and Float sync. The **Region** column shows each person’s **Float region** by name when the last sync could resolve one (from people and/or holiday API data); otherwise **Region (id)** if only the numeric id is known, or **—** if unset—used for regional public/team holiday handling in Float scheduled hours. Linking a **User** to a **Person** (by email / account setup) helps Slack **@mentions** for PM/PGM when their Workbench user has a **Slack user ID**. |
 | **Holidays** | Read-only view of Float **public** and **team** holidays (API JSON) for troubleshooting schedules and regions. |
-| **Users** | Manage app logins (email and password) and permissions. Set **User** or **Admin**, optional **position role**, and optional **Slack user ID** (`U…`) so Slack messages can @mention the right person and so **Tuesday** missing-actuals DMs can reach PMs. Use **Edit** on a row to open the edit dialog (see below)—including **New password** to reset someone’s password without changing their email. |
+| **Users** | Manage app logins (email and password) and permissions. Set **User** or **Admin**, optional **position role**, optional **Slack user ID** (`U…`) so Slack messages can @mention the right person and so **Tuesday** missing-actuals DMs can reach PMs. Optional **industry group** per user (independent from client accounts). Use **Edit** on a row to open the edit dialog (see below)—including **New password** to reset someone’s password without changing their email. |
 | **Slack** | Set the **resourcing** Slack channel ID where **Request Resourcing Changes** messages are posted. Choose which users are on the **notify** list for extra @mentions on those requests. The page reminds you that the bot token is configured via **`SLACK_BOT_TOKEN`** in the server environment. |
-| **Accounts** | List **accounts** (clients) synced from Float. Set an optional **Slack channel ID** per account for **account-level** notifications (e.g. Thursday missing-actuals summary and fallback channel for **Post to Slack** when the project has no channel of its own). |
+| **Accounts** | List **accounts** (clients) synced from Float. Set an optional **Slack channel ID** per account for **account-level** notifications (e.g. Thursday missing-actuals summary and fallback channel for **Post to Slack** when the project has no channel of its own). Set an optional **industry group** per account—all **projects linked to that account** (via Float sync **`accountId`**) inherit that group on **Project → Settings → Details**. |
+
+### Admin → Industry groups
+
+Open **Admin → Industry groups** (`/admin/industry-groups`). Add groups with **New group name** + **Add**. The table lists each group’s **status** (active vs archived), how many **accounts** and **users** reference it, and actions:
+
+- **Edit** — Change the **name** or mark **Archived**. Archived groups are not offered for **new** assignments on Accounts or Users, but existing links stay until an admin clears or replaces them.
+- **Archive** / **Restore** — Quick toggle without opening the modal.
+
+Define groups before assigning them on **Accounts** or **Users**.
 
 ### Admin → Users
 
-Open **Admin → Users** (`/admin/users`). At the top you can **create** a user (email, password, names, permissions, optional position role). Below, a **table** lists existing users.
+Open **Admin → Users** (`/admin/users`). At the top you can **create** a user (email, password, names, permissions, optional position role). Below, a **table** lists existing users (including an **Industry group** column when set).
 
-- **Edit** — In the **Actions** column on the right, click **Edit** to change names, permissions, position role, and optionally set a **new password** (leave blank to keep the current password). **Save** applies changes; **Cancel** closes the dialog.
+- **Edit** — In the **Actions** column on the right, click **Edit** to change names, permissions, position role, optional **industry group** (separate from any client-account group), optional **Slack user ID**, and optionally set a **new password** (leave blank to keep the current password). **Save** applies changes; **Cancel** closes the dialog.
 - **Narrow layouts** — If your browser window is small, the user table can scroll **horizontally** inside its card so **Edit** stays available. Long emails or names may show truncated with an ellipsis; hover the cell (or use your browser’s tooltip behavior) to see the full value when a native `title` tooltip is shown.
 
 ---
@@ -360,6 +371,7 @@ Your **My Projects** list (on `/projects`) uses the **Person** link described in
 | **Slack is not configured** / health post errors | Admin must set **`SLACK_BOT_TOKEN`** on the server, invite the bot to channels, and configure **Admin → Slack** (resourcing channel), **Settings → Links** (project channel), and/or **Admin → Accounts** (account channel) as needed. |
 | **Too many sync requests** | Wait and try again later; sync is rate-limited when Redis is configured. |
 | **Page looks broken** (overlapping layout, wrong styles, sidebar over content) | Try a **hard refresh** (e.g. Mac: `Cmd+Shift+R`). If it persists, a **browser extension** may be injecting styles or scripts — see *Browser extensions* below. |
+| **Cannot assign industry group on account/user** | The group may be **archived**. Restore it under **Admin → Industry groups** or choose an active group. Existing links may still show “(archived)” until cleared. Projects inherit from **Admin → Accounts** only after Float sync links **`accountId`**. |
 
 ### Browser extensions
 

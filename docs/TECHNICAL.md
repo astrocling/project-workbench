@@ -30,11 +30,12 @@ The schema is defined in `prisma/schema.prisma`. Main entities:
 
 | Entity | Purpose |
 |--------|---------|
-| **User** | App login (email, password hash, permissions: User/Admin, optional position role, optional **`slackUserId`** for Slack mentions and DM nudges). |
+| **User** | App login (email, password hash, permissions: User/Admin, optional position role, optional **`slackUserId`** for Slack mentions and DM nudges, optional **`industryGroupId`** link to **IndustryGroup** for user-level taxonomy labels). |
 | **Person** | Resource (name, email, active, optional **`userId`** link to **User** for Slack resolution on key roles, optional externalId, optional `floatRegionId` / `floatRegionName` from Float sync). Used for assignments and Float import; may be linked to User by email/name for “My Projects”. |
-| **Account** | Client/account entity (unique **name**, optional **`floatClientId`**, optional **`slackChannelId`**). Projects may reference an account for Thursday missing-actuals posts and Slack health-update fallback channel. |
+| **Account** | Client/account entity (unique **name**, optional **`floatClientId`**, optional **`slackChannelId`**, optional **`industryGroupId`**). Projects with **`Project.accountId`** inherit that account’s industry group for reporting/UI. Used for Thursday missing-actuals posts and Slack health-update fallback channel. |
+| **IndustryGroup** | Admin-defined taxonomy (**name** unique, optional **`archivedAt`** for soft archive). Referenced by **Account** and **User**. New assignments to accounts/users must use a non-archived group (`lib/industryGroupAssign.ts`). |
 | **Role** | Role type (e.g. Project Manager, FE Developer). Used on assignments and matched to Float role names on sync. |
-| **Project** | Project (slug, name, client, start/end dates, status, optional **`accountId`**, optional **`slackChannelId`** for Slack health updates and Wed/Tue nudges, optional single rate, notes, SOW/estimate/float/metric links, resourcing thresholds, `cdaEnabled`, `cdaReportHoursOnly`, optional clientSponsor/keyStaffName for status reports). |
+| **Project** | Project (slug, name, client, start/end dates, status, optional **`accountId`** → effective industry group comes from **`Account.industryGroup`** when linked, optional **`slackChannelId`** for Slack health updates and Wed/Tue nudges, optional single rate, notes, SOW/estimate/float/metric links, resourcing thresholds, `cdaEnabled`, `cdaReportHoursOnly`, optional clientSponsor/keyStaffName for status reports). |
 | **ProjectAssignment** | Person assigned to a project in a role; optional bill-rate override; optional hiddenFromGrid (hide from Resourcing tab only). **`syncRoleFromFloat`** (default true): when false, Float sync does not change `roleId` (set when the user saves a different role in **Settings → Assignments**). |
 | **ProjectRoleRate** | Per-role bill rate for a project (rate card). |
 | **ProjectKeyRole** | Key role assignment (PM, PGM, CAD) per project and person. |
@@ -58,6 +59,13 @@ The schema is defined in `prisma/schema.prisma`. Main entities:
 | **ActualsNudgeLog** | Audit log for **missing-actuals** Slack sends (project, prior-week `weekStart`, `nudgeDay` 2/3/4, channel kind, Slack ids, snapshot of missing names, ok/error). |
 
 Weeks are always identified by **week start date** (Monday) in UTC. All hour tables use `(projectId, personId, weekStartDate)` (or equivalent for PTO) as the scope.
+
+### Industry groups
+
+- **Models:** `IndustryGroup` (**`name`** unique, optional **`archivedAt`** soft-archive), optional FKs **`Account.industryGroupId`** and **`User.industryGroupId`** (`onDelete: SetNull` when a group row is deleted; archives do not delete the row).
+- **Project effective group:** No **`Project.industryGroup`** column—all projects linked to an account (**`Project.accountId`**) inherit **`Account.industryGroup`**. Editors see read-only copy on **Settings → Details** (`components/ProjectSettingsTab.tsx`). **`getCachedProjectBySlugOrId`** (`lib/projectCache.ts`) and **`resolveProject`** in **`app/api/projects/[id]/route.ts`** include **`account.industryGroup`** (`id`, `name`, `archivedAt`).
+- **Validation:** **`assertIndustryGroupAssignable`** (`lib/industryGroupAssign.ts`) blocks **newly** assigning an archived group id to accounts/users (existing archived references may remain until cleared).
+- **Admin:** **`GET/POST /api/admin/industry-groups`**, **`PATCH /api/admin/industry-groups/[id]`**; **`PATCH /api/admin/accounts/[id]`** / **`PATCH /api/admin/users/[id]`** accept **`industryGroupId`** (nullable). UI: **`/admin/industry-groups`**, pickers on Accounts and Users.
 
 ### Split-week actual hours
 
@@ -165,8 +173,8 @@ Slack features use the Slack **Web API** (`chat.postMessage`, `conversations.ope
 | `GET/PATCH /api/admin/slack-config` | Admin | Read/update **`AppConfig.resourcingChannelId`**. |
 | `GET/PATCH /api/admin/slack-config/notify-users` | Admin | List or replace notify-user set. |
 | `PATCH /api/admin/slack-config/notify-users/[userId]` | Admin | Toggle one user’s notify membership. |
-| `GET /api/admin/accounts` | Admin | List accounts (from Float client sync). |
-| `PATCH /api/admin/accounts/[id]` | Admin | Set **`Account.slackChannelId`**. |
+| `GET /api/admin/accounts` | Admin | List accounts (from Float client sync); includes **`industryGroup`** when set. |
+| `PATCH /api/admin/accounts/[id]` | Admin | Set **`Account.slackChannelId`** and/or **`industryGroupId`**. See [Industry groups](#industry-groups) above. |
 
 `[id]` on project routes is **id or slug** (`getProjectId`).
 
@@ -223,7 +231,7 @@ Permission helpers live in `lib/auth.ts`; NextAuth configuration (session, crede
 | Permission | Capabilities |
 |------------|--------------|
 | **User** | View and edit projects (assignments, hours, budget, rates, key roles). Can **mark resourcing requests fulfilled** and run the Float sync step tied to fulfillment when Slack is configured. Cannot access Admin. |
-| **Admin** | Everything User can do, plus: Admin area (Float sync, Holidays, Roles, People, Users, **Slack**, **Accounts**), delete projects. |
+| **Admin** | Everything User can do, plus: Admin area (Float sync, Holidays, Roles, **Industry groups**, People, Users, **Slack**, **Accounts**), delete projects. |
 
 Session permission is read from the current user’s `permissions` field (User or Admin). See **Projects list page** below for how “My Projects” resolves the current user’s `Person` and filters `ProjectKeyRole`.
 
@@ -276,7 +284,7 @@ API routes live under `app/api/`. This is a high-level overview for maintainers.
 | Seed | `/api/seed` | POST with Bearer token (SEED_SECRET) to run seed once (e.g. after deploy). |
 | Company | `GET /api/company/pto-holidays` | Company-wide PTO and holiday payload for **PTO & Holidays** (`/pto-holidays`): active people plus week-bucketed impacts (~12 months from today). Session required. Implemented in `lib/companyPtoServer.ts`. |
 | Projects | `GET/POST /api/projects` | List projects (with filter), create project. **`POST`** creates the project, then—if the name (or optional **`floatProjectName`**) matches a Float project in merged **`FloatImportRun`** history—upserts **`ProjectAssignment`** rows (role resolution via `resolveRoleIdForNewAssignmentFromFloat` / `lib/float/roleWorkbenchMatch.ts`), creates missing **`Person`** rows, and batch-upserts **`FloatScheduledHours`** from `getProjectDataFromAllImports` + `floatScheduledHourRowsFromMergedLists`. Response may include **`backfillFromImport`** (`matched`, `assignmentsCreated`, `floatHoursCreated`, optional `floatHoursNote`). |
-| Project | `GET/PATCH/DELETE /api/projects/[id]` | Single project CRUD. **`[id]`** is either the project’s **primary key (CUID)** or its current **slug** (`resolveProject` in `app/api/projects/[id]/route.ts`). **`PATCH`** accepts optional **`slackChannelId`** (Slack channel `C…` or null) for notifications. **`PATCH`** and **`DELETE`** revalidate Next.js cache tags **`portfolio-metrics`**, **`projects-list`**, and **`project-detail`** (the project detail page uses `getCachedProjectBySlugOrId` in `lib/projectCache.ts` with a `project-detail` tag). **`PATCH`** accepts optional `cdaReportHoursOnly` (boolean): when `true`, CDA “Overall” status copy and CDA status reports omit budget-dollar columns (hours columns only). See *CDA report hours only* below. **Client note:** `components/ProjectSettingsTab.tsx` calls **`PATCH`**, **backfill-float**, and **sync-plan-from-float** with **`/api/projects/{projectId}`** (CUID) so autosave still resolves the row after a **name** change regenerates the slug; on **`PATCH`** success, if the response **`slug`** differs from the URL segment, the app **`router.replace`**s to `/projects/{newSlug}?tab=settings`. |
+| Project | `GET/PATCH/DELETE /api/projects/[id]` | Single project CRUD. **`[id]`** is either the project’s **primary key (CUID)** or its current **slug** (`resolveProject` in `app/api/projects/[id]/route.ts`). Responses include **`account`** when present (**`account.industryGroup`** for inherited industry taxonomy). **`PATCH`** accepts optional **`slackChannelId`** (Slack channel `C…` or null) for notifications. **`PATCH`** and **`DELETE`** revalidate Next.js cache tags **`portfolio-metrics`**, **`projects-list`**, and **`project-detail`** (the project detail page uses `getCachedProjectBySlugOrId` in `lib/projectCache.ts` with a `project-detail` tag). **`PATCH`** accepts optional `cdaReportHoursOnly` (boolean): when `true`, CDA “Overall” status copy and CDA status reports omit budget-dollar columns (hours columns only). See *CDA report hours only* below. **Client note:** `components/ProjectSettingsTab.tsx` calls **`PATCH`**, **backfill-float**, and **sync-plan-from-float** with **`/api/projects/{projectId}`** (CUID) so autosave still resolves the row after a **name** change regenerates the slug; on **`PATCH`** success, if the response **`slug`** differs from the URL segment, the app **`router.replace`**s to `/projects/{newSlug}?tab=settings`. |
 | Project | `POST /api/projects/[id]/slack/health-update`, `POST .../slack/resourcing-request`, `POST .../slack/resourcing-request/fulfill` | Slack integrations; see [Slack integration](#slack-integration). |
 | Project | `/api/projects/[id]/assignments` | Assignments for a project. |
 | Project | `/api/projects/[id]/resourcing` | Single endpoint for Resourcing tab (assignments, planned/actual/float hours, cell comments). |
@@ -296,11 +304,14 @@ API routes live under `app/api/`. This is a high-level overview for maintainers.
 | Admin | `GET/POST /api/admin/float-sync` | Float API sync: `GET` returns latest `FloatImportRun`; `POST` pulls tasks, time off, holidays, and reference data from Float and applies the same DB effects as `applyFloatImportDatabaseEffects` (Admin only). |
 | Admin | `POST /api/admin/backfill-float-all` | **Admin only.** Restores `FloatScheduledHours` for **all** projects from merged `FloatImportRun` history (`lib/backfillFloatFromImports.ts`), same rules as `POST /api/projects/[id]/backfill-float` per project. Returns JSON with counts (`upsertsTotal`, `projectsWithData`, `projectsSkipped`, `importRunCount`). Revalidates `project-resourcing`. UI: **Admin → Float sync** → **Restore hours from import history (all projects)**. If there are no `FloatImportRun` rows, responds with `ok: false` and an error message (HTTP 200). |
 | Admin | `GET /api/admin/float-holidays` | Lists Float public and team holidays for the query window (default like sync); Admin only; requires `FLOAT_API_TOKEN`. |
-| Admin | `/api/admin/roles`, `/api/admin/people`, `/api/admin/users` | CRUD for roles, people, app users (Admin only). **`PATCH /api/admin/users/[id]`** accepts optional **`slackUserId`**. |
+| Admin | `/api/admin/roles`, `/api/admin/people`, `/api/admin/users` | CRUD for roles, people, app users (Admin only). **`PATCH /api/admin/users/[id]`** accepts optional **`slackUserId`** and **`industryGroupId`** (nullable); **GET** responses include **`industryGroup`** when set. |
+| Admin | **`GET /api/admin/industry-groups`**, **`POST /api/admin/industry-groups`**, **`PATCH /api/admin/industry-groups/[id]`** | List/create/update **IndustryGroup** (rename, **`archived`** boolean → `archivedAt`). Responses include **`_count`** of linked accounts/users. |
 | Admin | `/api/admin/slack-config`, `/api/admin/slack-config/notify-users`, `/api/admin/slack-config/notify-users/[userId]` | Slack org config and resourcing notify list. |
-| Admin | `GET /api/admin/accounts`, `PATCH /api/admin/accounts/[id]` | Float-backed **Account** list; set **`slackChannelId`**. |
+| Admin | `GET /api/admin/accounts`, `PATCH /api/admin/accounts/[id]` | Float-backed **Account** list; set **`slackChannelId`** and/or **`industryGroupId`** (nullable). **GET** includes **`industryGroup`** when set. |
 
-**Admin Users UI** (`/admin/users`, `app/admin/users/page.tsx`): The user list is a `<table>` inside a card with **`overflow-x-auto`** so narrow viewports can scroll horizontally instead of clipping the **Actions** column. The main content area uses **`max-w-6xl`** (wider than the create-user form alone) so five columns fit more comfortably. The **Actions** column uses **`whitespace-nowrap`** and the common **`w-[1%]`** table pattern so the **Edit** control keeps a stable width; name, email, and role cells use **truncation** plus **`title`** attributes for full-string tooltips where helpful. User updates (including optional password hash refresh) go to **`PATCH /api/admin/users/[id]`** (`app/api/admin/users/[id]/route.ts`).
+**Admin Users UI** (`/admin/users`, `app/admin/users/page.tsx`): The user list is a `<table>` inside a card with **`overflow-x-auto`** so narrow viewports can scroll horizontally instead of clipping the **Actions** column. The main content area uses **`max-w-6xl`** so six columns fit more comfortably (**Industry group**, Slack user id, etc.). The **Actions** column uses **`whitespace-nowrap`** and the common **`w-[1%]`** table pattern so the **Edit** control keeps a stable width; name, email, and role cells use **truncation** plus **`title`** attributes for full-string tooltips where helpful. User updates (including optional password hash refresh and **`industryGroupId`**) go to **`PATCH /api/admin/users/[id]`** (`app/api/admin/users/[id]/route.ts`).
+
+**Admin Industry groups** (`/admin/industry-groups`, `app/admin/industry-groups/page.tsx`): Create groups; edit name/archive; quick Archive/Restore; table shows **`_count`** of linked accounts/users. **Admin Accounts** (`app/admin/accounts/page.tsx`): **Industry group** column + selector in edit dialog (includes current value if archived).
 
 All project and admin routes require an authenticated session; admin routes additionally require Admin permission.
 
@@ -371,7 +382,7 @@ The CDA **Budget** sub-tab card (`CDATab`) calls `computeCdaProjections({ contra
 
 ## Deployment
 
-- **Build** — The build script runs `prisma migrate deploy` then `next build`, so `DATABASE_URL` must be set for the build environment (e.g. Vercel Production and Preview if you deploy there). Pending migrations are applied at build time; seed does not run during build. Releases that add **Slack** tables (`Account`, `AppConfig`, `ResourcingRequest`, `ActualsNudgeLog`, `User.slackUserId`, etc.) require those migrations to run before the new routes are used.
+- **Build** — The build script runs `prisma migrate deploy` then `next build`, so `DATABASE_URL` must be set for the build environment (e.g. Vercel Production and Preview if you deploy there). Pending migrations are applied at build time; seed does not run during build. Releases that add **Slack** tables (`Account`, `AppConfig`, `ResourcingRequest`, `ActualsNudgeLog`, `User.slackUserId`, etc.) or **IndustryGroup** (`20260514160928_add_industry_group`) require those migrations to run before the new routes/UI are used.
 - **Migrations and seed** — After deploy, create the initial admin user via `npm run db:deploy` (with production `DATABASE_URL`) or the one-time seed API (`POST /api/seed` with Bearer token and `SEED_SECRET`; set `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` in production). Migrations are applied in **folder-name order** (lexicographic); new migrations must use timestamps that sort after any migrations they depend on (e.g. the `add_timeline_bar_color` migration must run after the migration that creates the `TimelineBar` table).
 
 For full steps (Vercel env vars, rate limiting, one-time seed), see the main **README** in the repository.
