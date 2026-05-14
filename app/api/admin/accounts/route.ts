@@ -11,7 +11,10 @@ export async function GET() {
 
   const accounts = await prisma.account.findMany({
     orderBy: { name: "asc" },
-    include: { _count: { select: { projects: true } } },
+    include: {
+      _count: { select: { projects: true } },
+      industryGroup: { select: { id: true, name: true, archivedAt: true } },
+    },
   });
   return NextResponse.json(accounts);
 }

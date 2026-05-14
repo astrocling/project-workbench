@@ -41,6 +41,12 @@ export function ProjectSettingsTab({
   const [floatLink, setFloatLink] = useState("");
   const [metricLink, setMetricLink] = useState("");
   const [slackChannelId, setSlackChannelId] = useState("");
+  const [linkedAccountId, setLinkedAccountId] = useState<string | null>(null);
+  const [clientIndustryGroup, setClientIndustryGroup] = useState<{
+    id: string;
+    name: string;
+    archivedAt: string | null;
+  } | null>(null);
   const [eligiblePeople, setEligiblePeople] = useState<{ id: string; name: string }[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -133,6 +139,12 @@ export function ProjectSettingsTab({
     metricLink?: string | null;
     slackChannelId?: string | null;
     projectKeyRoles?: Array<{ type: string; personId: string; person: { id: string; name: string } }>;
+    accountId?: string | null;
+    account?: {
+      id?: string;
+      industryGroup?: { id: string; name: string; archivedAt?: string | Date | null } | null;
+    } | null;
+    clientIndustryGroup?: { id: string; name: string; archivedAt: string | null } | null;
   }) {
     if (!p) return;
     setProjectId(p.id ?? "");
@@ -157,6 +169,20 @@ export function ProjectSettingsTab({
     setFloatLink(p.floatLink ?? "");
     setMetricLink(p.metricLink ?? "");
     setSlackChannelId(p.slackChannelId ?? "");
+    const igFromAccount = p.account?.industryGroup;
+    const resolvedIg =
+      p.clientIndustryGroup ??
+      (igFromAccount
+        ? {
+            id: igFromAccount.id,
+            name: igFromAccount.name,
+            archivedAt: igFromAccount.archivedAt
+              ? new Date(igFromAccount.archivedAt).toISOString()
+              : null,
+          }
+        : null);
+    setClientIndustryGroup(resolvedIg);
+    setLinkedAccountId(p.accountId ?? p.account?.id ?? null);
   }
 
   function applyEligiblePeople(people: { id: string; name: string }[], keyRoles: { type: string; personId: string; person: { id: string; name: string } }[]) {
@@ -342,6 +368,41 @@ export function ProjectSettingsTab({
                   required
                   className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
                 />
+              </div>
+              <div className="rounded-md border border-surface-200 dark:border-dark-border bg-surface-50 dark:bg-dark-raised px-3 py-2">
+                <p className="text-label-sm font-semibold text-surface-800 dark:text-surface-100">Industry group</p>
+                <p className="text-body-sm text-surface-600 dark:text-surface-300 mt-1">
+                  {linkedAccountId ? (
+                    clientIndustryGroup ? (
+                      <>
+                        {clientIndustryGroup.name}
+                        {clientIndustryGroup.archivedAt ? (
+                          <span className="text-surface-500 dark:text-surface-400"> (archived)</span>
+                        ) : null}
+                        <span className="block text-body-sm text-surface-500 dark:text-surface-400 mt-1">
+                          Inherited from the linked client account. Change it in{" "}
+                          <Link href="/admin/accounts" className="text-jblue-500 dark:text-jblue-400 font-medium hover:underline">
+                            Admin → Accounts
+                          </Link>
+                          .
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        Not set on this client account. Assign a group in{" "}
+                        <Link href="/admin/accounts" className="text-jblue-500 dark:text-jblue-400 font-medium hover:underline">
+                          Admin → Accounts
+                        </Link>
+                        .
+                      </>
+                    )
+                  ) : (
+                    <>
+                      No client account is linked yet (Float sync links projects to accounts). Once linked, the
+                      project uses that account&apos;s industry group.
+                    </>
+                  )}
+                </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>

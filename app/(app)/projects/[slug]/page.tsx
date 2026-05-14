@@ -251,6 +251,16 @@ export default async function ProjectDetailPage({
       personId: kr.personId,
       person: { id: kr.person.id, name: kr.person.name },
     })),
+    accountId: project.accountId ?? null,
+    clientIndustryGroup: project.account?.industryGroup
+      ? {
+          id: project.account.industryGroup.id,
+          name: project.account.industryGroup.name,
+          archivedAt: project.account.industryGroup.archivedAt
+            ? new Date(project.account.industryGroup.archivedAt as Date | string).toISOString()
+            : null,
+        }
+      : null,
   };
   const initialSettingsEligiblePeople = await getEligibleKeyRoles();
 

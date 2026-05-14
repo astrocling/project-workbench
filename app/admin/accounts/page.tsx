@@ -7,37 +7,63 @@ type AccountRow = {
   name: string;
   floatClientId: number | null;
   slackChannelId: string | null;
+  industryGroupId: string | null;
+  industryGroup: { id: string; name: string; archivedAt: string | null } | null;
   createdAt: string;
   updatedAt: string;
   _count: { projects: number };
 };
 
+type IndustryGroupOption = {
+  id: string;
+  name: string;
+  archivedAt: string | null;
+};
+
 export default function AdminAccountsPage() {
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
+  const [industryGroups, setIndustryGroups] = useState<IndustryGroupOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<AccountRow | null>(null);
   const [slackChannelId, setSlackChannelId] = useState("");
+  const [industryGroupId, setIndustryGroupId] = useState("");
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState("");
 
   useEffect(() => {
-    fetch("/api/admin/accounts")
-      .then(async (r) => {
-        const text = await r.text();
-        if (!text) return [];
-        try {
-          return JSON.parse(text) as AccountRow[];
-        } catch {
-          return [];
-        }
+    Promise.all([
+      fetch("/api/admin/accounts")
+        .then(async (r) => {
+          const text = await r.text();
+          if (!text) return [];
+          try {
+            return JSON.parse(text) as AccountRow[];
+          } catch {
+            return [];
+          }
+        }),
+      fetch("/api/admin/industry-groups")
+        .then(async (r) => {
+          const text = await r.text();
+          if (!text) return [];
+          try {
+            return JSON.parse(text) as IndustryGroupOption[];
+          } catch {
+            return [];
+          }
+        }),
+    ])
+      .then(([accts, groups]) => {
+        setAccounts(accts);
+        setIndustryGroups(groups);
       })
-      .then(setAccounts)
       .finally(() => setLoading(false));
   }, []);
 
   function openEdit(a: AccountRow) {
     setEditing(a);
     setSlackChannelId(a.slackChannelId ?? "");
+    setIndustryGroupId(a.industryGroupId ?? "");
     setEditError("");
   }
 
@@ -49,7 +75,10 @@ export default function AdminAccountsPage() {
     const res = await fetch(`/api/admin/accounts/${editing.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slackChannelId: slackChannelId.trim() || null }),
+      body: JSON.stringify({
+        slackChannelId: slackChannelId.trim() || null,
+        industryGroupId: industryGroupId.trim() || null,
+      }),
     });
     const text = await res.text();
     let data: { error?: string } & Partial<AccountRow> = {};
@@ -79,11 +108,12 @@ export default function AdminAccountsPage() {
       </div>
       <main className="p-8 max-w-5xl">
         <p className="text-body-md text-surface-600 dark:text-surface-300 mb-6">
-          Accounts are synced from Float. Configure Slack channel IDs to enable project health updates.
+          Accounts are synced from Float. Configure Slack channel IDs and industry groups — all projects linked to an account
+          inherit its industry group.
         </p>
 
         <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark overflow-x-auto">
-          <table className="w-full min-w-[720px] text-body-sm border-collapse">
+          <table className="w-full min-w-[900px] text-body-sm border-collapse">
             <thead>
               <tr className="bg-surface-50 dark:bg-dark-raised border-b border-surface-200 dark:border-dark-border">
                 <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
@@ -91,6 +121,9 @@ export default function AdminAccountsPage() {
                 </th>
                 <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold whitespace-nowrap">
                   Projects
+                </th>
+                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
+                  Industry group
                 </th>
                 <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">
                   Slack Channel ID
@@ -113,6 +146,18 @@ export default function AdminAccountsPage() {
                     {a.name}
                   </td>
                   <td className="px-4 py-3 text-surface-700 dark:text-surface-200 whitespace-nowrap">{a._count.projects}</td>
+                  <td className="px-4 py-3 text-surface-700 dark:text-surface-200 max-w-[12rem] truncate" title={a.industryGroup?.name ?? undefined}>
+                    {a.industryGroup?.name ? (
+                      <>
+                        {a.industryGroup.name}
+                        {a.industryGroup.archivedAt ? (
+                          <span className="text-surface-500 dark:text-surface-400"> (archived)</span>
+                        ) : null}
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-surface-700 dark:text-surface-200 font-mono text-body-sm max-w-[12rem] truncate" title={a.slackChannelId ?? undefined}>
                     {a.slackChannelId ?? "—"}
                   </td>
@@ -151,6 +196,27 @@ export default function AdminAccountsPage() {
                 </p>
               )}
               <form onSubmit={handleEditSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Industry group</label>
+                  <select
+                    value={industryGroupId}
+                    onChange={(e) => setIndustryGroupId(e.target.value)}
+                    className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+                  >
+                    <option value="">— None —</option>
+                    {industryGroups
+                      .filter((g) => !g.archivedAt || g.id === (editing.industryGroupId ?? ""))
+                      .map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.name}
+                          {g.archivedAt ? " (archived)" : ""}
+                        </option>
+                      ))}
+                  </select>
+                  <p className="mt-1 text-body-sm text-surface-500 dark:text-surface-400">
+                    Applies to all projects linked to this account after Float sync.
+                  </p>
+                </div>
                 <div>
                   <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">
                     Slack Channel ID

@@ -40,6 +40,12 @@ export default function AdminLayout({
             Roles
           </Link>
           <Link
+            href="/admin/industry-groups"
+            className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
+          >
+            Industry groups
+          </Link>
+          <Link
             href="/admin/people"
             className="text-body-sm text-jblue-500 dark:text-jblue-400 hover:text-jblue-700 dark:hover:text-jblue-200 font-medium"
           >

@@ -12,6 +12,12 @@ const PROJECT_DETAIL_INCLUDE = {
   budgetLines: true,
   plannedHours: true,
   actualHours: true,
+  account: {
+    select: {
+      id: true,
+      industryGroup: { select: { id: true, name: true, archivedAt: true } },
+    },
+  },
 } as const;
 
 export type CachedProject = Awaited<ReturnType<typeof getCachedProjectBySlugOrId>>;

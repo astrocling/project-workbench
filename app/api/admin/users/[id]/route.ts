@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { PermissionLevel, UserPositionRole } from "@prisma/client";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
+import { assertIndustryGroupAssignable } from "@/lib/industryGroupAssign";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
@@ -16,6 +17,7 @@ const updateSchema = z.object({
   password: z.string().min(6).optional(),
   slackUserId: z.string().optional().nullable(),
   personId: z.string().optional().nullable(),
+  industryGroupId: z.string().optional().nullable(),
 });
 
 export async function PATCH(
@@ -61,6 +63,13 @@ export async function PATCH(
     }
   }
 
+  const wantsIndustryGroupUpdate = Object.prototype.hasOwnProperty.call(body as object, "industryGroupId");
+  if (wantsIndustryGroupUpdate) {
+    const next = parsed.data.industryGroupId?.trim() || null;
+    const check = await assertIndustryGroupAssignable(prisma, next, existing.industryGroupId);
+    if (!check.ok) return NextResponse.json({ error: check.message }, { status: 400 });
+  }
+
   const data: {
     firstName?: string | null;
     lastName?: string | null;
@@ -68,6 +77,7 @@ export async function PATCH(
     role?: UserPositionRole | null;
     passwordHash?: string;
     slackUserId?: string | null;
+    industryGroupId?: string | null;
   } = {};
 
   if (parsed.data.firstName !== undefined) data.firstName = parsed.data.firstName || null;
@@ -81,8 +91,12 @@ export async function PATCH(
   if (parsed.data.password?.trim()) {
     data.passwordHash = await bcrypt.hash(parsed.data.password, 10);
   }
-  if (Object.prototype.hasOwnProperty.call(parsed.data, "slackUserId")) {
+  if (Object.prototype.hasOwnProperty.call(body as object, "slackUserId")) {
     data.slackUserId = parsed.data.slackUserId ?? null;
+  }
+  if (wantsIndustryGroupUpdate) {
+    const raw = parsed.data.industryGroupId;
+    data.industryGroupId = raw == null ? null : String(raw).trim() || null;
   }
 
   const wantsPersonUpdate = Object.prototype.hasOwnProperty.call(body as object, "personId");
@@ -129,6 +143,8 @@ export async function PATCH(
       permissions: true,
       role: true,
       slackUserId: true,
+      industryGroupId: true,
+      industryGroup: { select: { id: true, name: true, archivedAt: true } },
       createdAt: true,
       person: { select: { id: true, name: true } },
     },
@@ -136,10 +152,11 @@ export async function PATCH(
 
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-  const { person, ...rest } = user;
+  const { person, industryGroup, ...rest } = user;
   return NextResponse.json({
     ...rest,
     personId: person?.id ?? null,
     person,
+    industryGroup: industryGroup ?? null,
   });
 }

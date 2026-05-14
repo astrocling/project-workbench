@@ -15,6 +15,12 @@ async function resolveProject(idOrSlug: string) {
       assignments: { include: { person: true, role: true } },
       projectRoleRates: { include: { role: true } },
       projectKeyRoles: { include: { person: true } },
+      account: {
+        select: {
+          id: true,
+          industryGroup: { select: { id: true, name: true, archivedAt: true } },
+        },
+      },
     },
   });
   return project;
@@ -164,6 +170,12 @@ export async function PATCH(
       assignments: { include: { person: true, role: true } },
       projectRoleRates: { include: { role: true } },
       projectKeyRoles: { include: { person: true } },
+      account: {
+        select: {
+          id: true,
+          industryGroup: { select: { id: true, name: true, archivedAt: true } },
+        },
+      },
     },
   });
   revalidateTag("portfolio-metrics", "max");

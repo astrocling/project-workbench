@@ -47,6 +47,17 @@ enum GridCommentType {
   Actual
 }
 
+model IndustryGroup {
+  id         String    @id @default(cuid())
+  name       String    @unique
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  accounts Account[]
+  users    User[]
+}
+
 model User {
   id            String            @id @default(cuid())
   email         String            @unique
@@ -56,11 +67,15 @@ model User {
   permissions   PermissionLevel
   role          UserPositionRole?
   slackUserId   String?
+  industryGroupId String?
+  industryGroup   IndustryGroup?    @relation(fields: [industryGroupId], references: [id], onDelete: SetNull)
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
   person               Person?
   resourcingNotifyEntry ResourcingNotifyUser?
+
+  @@index([industryGroupId])
 
   resourcingRequests ResourcingRequest[] @relation("ResourcingRequestedBy")
   resolvedRequests   ResourcingRequest[] @relation("ResolvedRequests")
@@ -112,14 +127,18 @@ model Role {
 }
 
 model Account {
-  id             String   @id @default(cuid())
-  name           String   @unique
-  floatClientId  Int?     @unique
-  slackChannelId String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id               String          @id @default(cuid())
+  name             String          @unique
+  floatClientId    Int?            @unique
+  slackChannelId   String?
+  industryGroupId String?
+  industryGroup   IndustryGroup?  @relation(fields: [industryGroupId], references: [id], onDelete: SetNull)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   projects Project[]
+
+  @@index([industryGroupId])
 }
 
 model Project {

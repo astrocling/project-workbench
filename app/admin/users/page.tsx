@@ -24,7 +24,15 @@ type User = {
   role: UserRole | null;
   slackUserId: string | null;
   personId: string | null;
+  industryGroupId: string | null;
+  industryGroup: { id: string; name: string; archivedAt: string | null } | null;
   createdAt: string;
+};
+
+type IndustryGroupOption = {
+  id: string;
+  name: string;
+  archivedAt: string | null;
 };
 
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -36,6 +44,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [floatPeople, setFloatPeople] = useState<PersonOption[]>([]);
+  const [industryGroups, setIndustryGroups] = useState<IndustryGroupOption[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -53,6 +62,7 @@ export default function AdminUsersPage() {
     password: "",
     slackUserId: "",
     personId: "",
+    industryGroupId: "",
   });
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
@@ -79,11 +89,21 @@ export default function AdminUsersPage() {
           return [];
         }
       }),
+      fetch("/api/admin/industry-groups").then(async (r) => {
+        const text = await r.text();
+        if (!text) return [];
+        try {
+          return JSON.parse(text) as IndustryGroupOption[];
+        } catch {
+          return [];
+        }
+      }),
     ])
-      .then(([usersList, peopleList]) => {
+      .then(([usersList, peopleList, groupsList]) => {
         if (!cancelled) {
           setUsers(usersList);
           setFloatPeople(peopleList);
+          setIndustryGroups(groupsList);
         }
       })
       .finally(() => {
@@ -139,6 +159,7 @@ export default function AdminUsersPage() {
       password: "",
       slackUserId: u.slackUserId ?? "",
       personId: u.personId ?? "",
+      industryGroupId: u.industryGroupId ?? "",
     });
     setEditError("");
   }
@@ -159,6 +180,7 @@ export default function AdminUsersPage() {
         password: editForm.password.trim() || undefined,
         slackUserId: editForm.slackUserId.trim() || null,
         personId: editForm.personId.trim() || null,
+        industryGroupId: editForm.industryGroupId.trim() || null,
       }),
     });
     const text = await res.text();
@@ -278,6 +300,9 @@ export default function AdminUsersPage() {
                 <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold min-w-0">Email</th>
                 <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold whitespace-nowrap">Permissions</th>
                 <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold">Role</th>
+                <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold min-w-0 max-w-[8rem]">
+                  Industry group
+                </th>
                 <th className="text-left px-4 py-3 text-label-sm uppercase tracking-wider text-surface-500 dark:text-surface-400 font-semibold min-w-0">
                   Slack User ID
                 </th>
@@ -296,6 +321,16 @@ export default function AdminUsersPage() {
                   <td className="px-4 py-3 text-surface-700 dark:text-surface-200 whitespace-nowrap">{u.permissions === "Admin" ? "Super user" : "User"}</td>
                   <td className="px-4 py-3 text-surface-700 dark:text-surface-200 min-w-0 max-w-[10rem] truncate" title={u.role ? ROLE_LABELS[u.role] : undefined}>
                     {u.role ? ROLE_LABELS[u.role] : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-surface-700 dark:text-surface-200 min-w-0 max-w-[8rem] truncate" title={u.industryGroup?.name ?? undefined}>
+                    {u.industryGroup?.name ? (
+                      <>
+                        {u.industryGroup.name}
+                        {u.industryGroup.archivedAt ? <span className="text-surface-500"> (archived)</span> : null}
+                      </>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td className="px-4 py-3 text-surface-700 dark:text-surface-200 min-w-0 max-w-[10rem] truncate font-mono text-body-sm" title={u.slackUserId ?? undefined}>
                     {u.slackUserId ?? "—"}
@@ -381,6 +416,25 @@ export default function AdminUsersPage() {
                     placeholder="Optional"
                     className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
                   />
+                </div>
+                <div>
+                  <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Industry group</label>
+                  <select
+                    value={editForm.industryGroupId}
+                    onChange={(e) => setEditForm((f) => ({ ...f, industryGroupId: e.target.value }))}
+                    className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+                  >
+                    <option value="">— None —</option>
+                    {industryGroups
+                      .filter((g) => !g.archivedAt || g.id === (editingUser.industryGroupId ?? ""))
+                      .map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.name}
+                          {g.archivedAt ? " (archived)" : ""}
+                        </option>
+                      ))}
+                  </select>
+                  <p className="mt-1 text-body-sm text-surface-500 dark:text-surface-400">Optional; independent of client account groups.</p>
                 </div>
                 <div>
                   <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">Slack User ID</label>

@@ -22,6 +22,10 @@ export type EditProjectInitial = {
   metricLink: string | null;
   slackChannelId: string | null;
   projectKeyRoles: Array<{ type: string; personId: string; person: { id: string; name: string } }>;
+  /** Linked Float client account id, when known */
+  accountId: string | null;
+  /** Industry group from that account; projects inherit from the client account */
+  clientIndustryGroup: { id: string; name: string; archivedAt: string | null } | null;
 };
 
 type EditProjectDataContextValue = {

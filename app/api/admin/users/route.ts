@@ -23,15 +23,18 @@ export async function GET() {
       permissions: true,
       role: true,
       slackUserId: true,
+      industryGroupId: true,
+      industryGroup: { select: { id: true, name: true, archivedAt: true } },
       createdAt: true,
       person: { select: { id: true } },
     },
     orderBy: { email: "asc" },
   });
   return NextResponse.json(
-    users.map(({ person, ...u }) => ({
+    users.map(({ person, industryGroup, ...u }) => ({
       ...u,
       personId: person?.id ?? null,
+      industryGroup: industryGroup ?? null,
     }))
   );
 }
