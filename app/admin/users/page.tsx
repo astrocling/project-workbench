@@ -51,6 +51,8 @@ export default function AdminUsersPage() {
   const [lastName, setLastName] = useState("");
   const [permissions, setPermissions] = useState<"Admin" | "User">("User");
   const [role, setRole] = useState<UserRole | "">("");
+  const [createSlackUserId, setCreateSlackUserId] = useState("");
+  const [createPersonId, setCreatePersonId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -127,6 +129,8 @@ export default function AdminUsersPage() {
         lastName: lastName || undefined,
         permissions,
         role: role || undefined,
+        slackUserId: createSlackUserId.trim() || null,
+        personId: createPersonId.trim() || null,
       }),
     });
     const text = await res.text();
@@ -147,6 +151,8 @@ export default function AdminUsersPage() {
     setFirstName("");
     setLastName("");
     setRole("");
+    setCreateSlackUserId("");
+    setCreatePersonId("");
   }
 
   function openEdit(u: User) {
@@ -279,6 +285,38 @@ export default function AdminUsersPage() {
                 {(Object.entries(ROLE_LABELS) as [UserRole, string][]).map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">
+                Slack User ID
+              </label>
+              <input
+                type="text"
+                value={createSlackUserId}
+                onChange={(e) => setCreateSlackUserId(e.target.value)}
+                placeholder="Leave blank to clear"
+                className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+              />
+            </div>
+            <div>
+              <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100">
+                Float Person
+              </label>
+              <p className="mt-1 text-body-sm text-surface-600 dark:text-surface-400 mb-2">
+                Link this user to their Float person record for reliable @mentions and key role resolution.
+              </p>
+              <select
+                value={createPersonId}
+                onChange={(e) => setCreatePersonId(e.target.value)}
+                className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
+              >
+                <option value="">— Not linked —</option>
+                {floatPeople.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {personOptionLabel(p)}
                   </option>
                 ))}
               </select>

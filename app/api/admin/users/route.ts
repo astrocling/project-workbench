@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { PermissionLevel, UserPositionRole } from "@prisma/client";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
+import { applyUserPersonLinkInTransaction } from "@/lib/userPersonLink";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
@@ -46,6 +47,8 @@ const createSchema = z.object({
   lastName: z.string().optional(),
   permissions: z.enum(["Admin", "User"]),
   role: z.enum(POSITION_ROLES).optional(),
+  slackUserId: z.string().nullable().optional(),
+  personId: z.string().nullable().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -68,30 +71,72 @@ export async function POST(req: NextRequest) {
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 10);
-  const user = await prisma.user.create({
-    data: {
-      email: parsed.data.email,
-      passwordHash,
-      firstName: parsed.data.firstName ?? null,
-      lastName: parsed.data.lastName ?? null,
-      permissions: parsed.data.permissions === "Admin" ? PermissionLevel.Admin : PermissionLevel.User,
-      role: parsed.data.role ? (parsed.data.role as UserPositionRole) : null,
-    },
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      permissions: true,
-      role: true,
-      slackUserId: true,
-      createdAt: true,
-      person: { select: { id: true } },
-    },
+
+  const wantsSlack = Object.prototype.hasOwnProperty.call(body as object, "slackUserId");
+  let slackUserIdForCreate: string | null | undefined;
+  if (wantsSlack) {
+    slackUserIdForCreate =
+      parsed.data.slackUserId == null ? null : String(parsed.data.slackUserId).trim() || null;
+  }
+
+  const wantsPerson = Object.prototype.hasOwnProperty.call(body as object, "personId");
+  const trimmedPersonId =
+    wantsPerson && parsed.data.personId != null && String(parsed.data.personId).trim() !== ""
+      ? String(parsed.data.personId).trim()
+      : null;
+
+  if (trimmedPersonId) {
+    const target = await prisma.person.findUnique({
+      where: { id: trimmedPersonId },
+      select: { id: true },
+    });
+    if (!target) {
+      return NextResponse.json({ error: "Person not found" }, { status: 400 });
+    }
+  }
+
+  const user = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: {
+        email: parsed.data.email,
+        passwordHash,
+        firstName: parsed.data.firstName ?? null,
+        lastName: parsed.data.lastName ?? null,
+        permissions: parsed.data.permissions === "Admin" ? PermissionLevel.Admin : PermissionLevel.User,
+        role: parsed.data.role ? (parsed.data.role as UserPositionRole) : null,
+        ...(slackUserIdForCreate !== undefined ? { slackUserId: slackUserIdForCreate } : {}),
+      },
+      select: { id: true },
+    });
+    if (trimmedPersonId) {
+      await applyUserPersonLinkInTransaction(tx, created.id, trimmedPersonId);
+    }
+    return tx.user.findUnique({
+      where: { id: created.id },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        permissions: true,
+        role: true,
+        slackUserId: true,
+        industryGroupId: true,
+        industryGroup: { select: { id: true, name: true, archivedAt: true } },
+        createdAt: true,
+        person: { select: { id: true } },
+      },
+    });
   });
-  const { person, ...rest } = user;
+
+  if (!user) {
+    return NextResponse.json({ error: "Failed to create user" }, { status: 500 });
+  }
+
+  const { person, industryGroup, ...rest } = user;
   return NextResponse.json({
     ...rest,
     personId: person?.id ?? null,
+    industryGroup: industryGroup ?? null,
   });
 }

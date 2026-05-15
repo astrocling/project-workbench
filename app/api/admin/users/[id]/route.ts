@@ -4,6 +4,7 @@ import { PermissionLevel, UserPositionRole } from "@prisma/client";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { assertIndustryGroupAssignable } from "@/lib/industryGroupAssign";
+import { applyUserPersonLinkInTransaction } from "@/lib/userPersonLink";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
@@ -107,23 +108,7 @@ export async function PATCH(
 
   await prisma.$transaction(async (tx) => {
     if (wantsPersonUpdate) {
-      const pid = parsed.data.personId;
-      if (pid === null || pid === undefined || (typeof pid === "string" && pid.trim() === "")) {
-        await tx.person.updateMany({
-          where: { userId: id },
-          data: { userId: null },
-        });
-      } else if (typeof pid === "string" && pid.trim() !== "") {
-        const linkedPersonId = pid.trim();
-        await tx.person.updateMany({
-          where: { userId: id },
-          data: { userId: null },
-        });
-        await tx.person.updateMany({
-          where: { id: linkedPersonId },
-          data: { userId: id },
-        });
-      }
+      await applyUserPersonLinkInTransaction(tx, id, parsed.data.personId);
     }
     if (Object.keys(data).length > 0) {
       await tx.user.update({
