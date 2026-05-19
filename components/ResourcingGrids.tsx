@@ -26,7 +26,12 @@ function roundToQuarter(n: number): number {
   return Math.round(n * 4) / 4;
 }
 
-type Assignment = { personId: string; person: { name: string }; role: { name: string } };
+type Assignment = {
+  personId: string;
+  person: { name: string };
+  role: { name: string };
+  hiddenFromGrid?: boolean;
+};
 type PlannedRow = { projectId: string; personId: string; weekStartDate: string; hours: number };
 type ActualRow = { projectId: string; personId: string; weekStartDate: string; hours: number | null };
 type ActualMonthSplitRow = { projectId: string; personId: string; weekStartDate: string; monthKey: string; hours: number };
@@ -450,13 +455,10 @@ export function ResourcingGrids({
     }
   }, [projectId]);
 
-  const allPersonIdsForRollup = useMemo(() => {
-    const s = new Set<string>();
-    planned.forEach((p) => s.add(p.personId));
-    actual.forEach((p) => s.add(p.personId));
-    float.forEach((p) => s.add(p.personId));
-    return s;
-  }, [planned, actual, float]);
+  const allPersonIdsForRollup = useMemo(
+    () => new Set(assignments.map((a) => a.personId)),
+    [assignments]
+  );
 
   const hasAnyReady = useMemo(
     () => readyForFloat.some((r) => r.ready),
@@ -562,9 +564,11 @@ export function ResourcingGrids({
   const floatRowTotal = (personId: string) =>
     weeks.reduce((sum, w) => sum + getFloat(personId, formatWeekKey(w)), 0);
 
-  const sortedAssignments = [...assignments].sort((a, b) =>
-    (a.person.name || "").localeCompare(b.person.name || "", undefined, { sensitivity: "base" })
-  );
+  const sortedAssignments = [...assignments]
+    .filter((a) => !a.hiddenFromGrid)
+    .sort((a, b) =>
+      (a.person.name || "").localeCompare(b.person.name || "", undefined, { sensitivity: "base" })
+    );
   const hasAnySplitWeekColumn = weeks.some((w) => getMonthKeysForWeek(w).length === 2);
   const expandAllSplitWeeks = () => {
     const next = new Set<string>();
@@ -819,7 +823,7 @@ export function ResourcingGrids({
     setSyncingPlan(true);
     try {
       const editableWeeks = weeks.filter((w) => !isCompletedWeek(w, asOf));
-      const payload = assignments.flatMap((a) =>
+      const payload = sortedAssignments.flatMap((a) =>
         editableWeeks.map((w) => {
           const weekKey = formatWeekKey(w);
           return {
@@ -1647,7 +1651,7 @@ export function ResourcingGrids({
                   const peopleWithPto = [...byPerson.entries()]
                     .map(([pid, ents]) => {
                       const name =
-                        sortedAssignments.find((x) => x.personId === pid)?.person.name ?? pid;
+                        assignments.find((x) => x.personId === pid)?.person.name ?? pid;
                       return { personId: pid, name, entries: ents };
                     })
                     .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));

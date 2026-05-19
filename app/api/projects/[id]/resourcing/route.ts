@@ -43,9 +43,9 @@ export async function GET(
           actualsLowThresholdPercent: true,
           actualsHighThresholdPercent: true,
           assignments: {
-            where: { hiddenFromGrid: false },
             select: {
               personId: true,
+              hiddenFromGrid: true,
               person: { select: { name: true } },
               role: { select: { name: true } },
             },
@@ -73,8 +73,8 @@ export async function GET(
 
       if (!project) return null;
 
-      const visiblePersonIds = new Set(project.assignments.map((a) => a.personId));
-      const visiblePersonIdList = Array.from(visiblePersonIds);
+      const assignmentPersonIds = new Set(project.assignments.map((a) => a.personId));
+      const assignmentPersonIdList = Array.from(assignmentPersonIds);
 
       const [floatRows, readyForFloatRows, commentRows, monthSplitRows, ptoHolidayRows] =
         await Promise.all([
@@ -106,11 +106,11 @@ export async function GET(
               hours: true,
             },
           }),
-          visiblePersonIdList.length === 0
+          assignmentPersonIdList.length === 0
             ? Promise.resolve([])
             : prisma.pTOHolidayImpact.findMany({
                 where: {
-                  personId: { in: visiblePersonIdList },
+                  personId: { in: assignmentPersonIdList },
                   weekStartDate: { gte: from, lte: to },
                 },
                 select: {
@@ -138,7 +138,7 @@ export async function GET(
       > = {};
 
       for (const r of ptoHolidayRows) {
-        if (!visiblePersonIds.has(r.personId)) continue;
+        if (!assignmentPersonIds.has(r.personId)) continue;
         const apiType = r.type === "PTO" ? "PTO" : "HOLIDAY";
         // Holidays on Sat/Sun do not affect M–F resourcing; omit from the grid payload.
         if (apiType === "HOLIDAY" && !isUtcWeekdayDate(new Date(r.date))) continue;
@@ -183,7 +183,7 @@ export async function GET(
           hours: r.hours != null ? Number(r.hours) : null,
         })),
         monthSplits: monthSplitRows
-          .filter((r) => visiblePersonIds.has(r.personId))
+          .filter((r) => assignmentPersonIds.has(r.personId))
           .map((r) => ({
             projectId: r.projectId,
             personId: r.personId,
@@ -192,16 +192,16 @@ export async function GET(
             hours: Number(r.hours),
           })),
         floatHours: floatRows
-          .filter((r) => visiblePersonIds.has(r.personId))
+          .filter((r) => assignmentPersonIds.has(r.personId))
           .map((r) => ({
             projectId: r.projectId,
             personId: r.personId,
             weekStartDate: formatWeekKey(r.weekStartDate),
             hours: Number(r.hours),
           })),
-        readyForFloat: readyForFloatRows.filter((r) => visiblePersonIds.has(r.personId)),
+        readyForFloat: readyForFloatRows.filter((r) => assignmentPersonIds.has(r.personId)),
         cellComments: commentRows
-          .filter((r) => visiblePersonIds.has(r.personId))
+          .filter((r) => assignmentPersonIds.has(r.personId))
           .map((r) => ({
             projectId: r.projectId,
             personId: r.personId,

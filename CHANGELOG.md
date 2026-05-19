@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-05-19
+
+Patch release: **Resourcing** column totals include people **hidden from grid** (rows stay hidden); **Float sync** removes orphaned `FloatScheduledHours` when someone is removed from a project; **Account** self-service profile for **Slack user ID** and **Float person** link. **Deploy:** no new migrations; redeploy as usual. Run **Admin → Float sync** after deploy if you need orphan float rows cleaned up project-wide.
+
+### Added
+
+- **Account — profile (self-service)** — **Account** (`/account`) adds a **Profile** section: set optional **Slack User ID** and link your login to a **Float person** (`Person.userId`) from people not already linked to another user. APIs: **`GET/PATCH /api/account/profile`** (`app/api/account/profile/route.ts`); shared link helper **`lib/userPersonLink.ts`**. Admins can still set the same fields under **Admin → Users → Edit**.
+
+### Fixed
+
+- **Resourcing — column totals vs hidden rows** — People marked **hidden from grid** (**Settings → Assignments**) no longer appear as rows in Planned / Actual / Float, but their hours **still count** in each week’s **column totals** and variance rows. **`GET /api/projects/[id]/resourcing`** returns **all** assignments with **`hiddenFromGrid`**; hour payloads (float, month splits, PTO/holiday, comments) include every assigned person. The client builds rollup person ids from **`assignments`**, not from orphan hour rows (`components/ResourcingGrids.tsx`, `app/api/projects/[id]/resourcing/route.ts`).
+- **Float sync — orphaned float hours after removal** — When someone is removed from a Float project, **`applyFloatImportDatabaseEffects`** now deletes **all** `FloatScheduledHours` rows (any week) for **(projectId, personId)** pairs that have **no** `ProjectAssignment` on that project. This clears past-week stale rows that could survive the existing **future-only** cleanup when rows aged into completed weeks before deletion (`lib/floatImportApply.ts`).
+
+### Documentation
+
+- **CHANGELOG** — This release section.
+- **User Guide** — *Resourcing tab* (hidden-from-grid totals); *Dashboards and Account* (profile + person link); *Float sync* (orphan cleanup); release baseline **1.1.1**.
+- **Technical Reference** — *Resourcing API details* (assignments + rollup semantics); *Float sync behavior* (orphan-pair cleanup); API table **`GET/PATCH /api/account/profile`**; **`lib/userPersonLink.ts`**.
+- **README** — Documentation index and production release tag example updated to **v1.1.1**.
+
 ## [1.1.0] - 2026-05-14
 
 Minor release: **Industry groups** taxonomy on accounts and users (project inheritance via Float-linked **Account**), **Slack** integration (status health posts, resourcing change requests with fulfill flow, admin Slack/Accounts configuration, optional **Trigger.dev** missing-actuals nudges), **Jakala** sidebar branding and shell simplification (no layout-level `getDashboardContext`), and **status reports** blocked when project actuals are stale. **Deploy:** apply new Prisma migrations in order (`prisma migrate deploy`); set Slack-related env vars and Trigger worker secrets as documented in [docs/TECHNICAL.md](docs/TECHNICAL.md) and `.env.example`.
