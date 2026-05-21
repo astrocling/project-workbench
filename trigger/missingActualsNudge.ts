@@ -12,6 +12,7 @@ import {
   getMissingActualsProjects,
 } from "@/lib/missingActuals";
 import { prisma } from "@/lib/prisma";
+import { projectResourcingUrl } from "@/lib/workbenchUrls";
 
 type NudgeDay = "tuesday" | "wednesday" | "thursday";
 
@@ -43,14 +44,14 @@ function buildFallbackText(m: MissingActualsProject, headline: string): string {
 }
 
 function buildBlocks(m: MissingActualsProject, headline: string) {
-  const baseUrl = process.env.WORKBENCH_BASE_URL ?? "https://pw.theclingans.com";
   const peopleLines = m.missingPersonNames.map((n) => `• ${slackMrkdwnEscape(n)}`).join("\n");
+  const resourcingUrl = projectResourcingUrl(m.projectSlug);
   return [
     {
       type: "section" as const,
       text: {
         type: "mrkdwn" as const,
-        text: `*${slackMrkdwnEscape(headline)}*\n*<${baseUrl}/projects/${m.projectSlug}/resourcing|${slackMrkdwnEscape(m.projectName)}>* · _${slackMrkdwnEscape(m.weekLabel)}_`,
+        text: `*${slackMrkdwnEscape(headline)}*\n*<${resourcingUrl}|${slackMrkdwnEscape(m.projectName)}>* · _${slackMrkdwnEscape(m.weekLabel)}_`,
       },
     },
     {

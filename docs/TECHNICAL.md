@@ -32,6 +32,16 @@ Signed-in routes under `app/(app)/` use a shared chrome:
 - **`components/AppShell.tsx`** (client) — Collapsible sidebar + main column (sticky **Project Workbench** header with as-of date, scrollable main).
 - **`components/AppSidebar.tsx`** (client) — **Jakala** assets from **`public/brand/`** (`jakala-wordmark.png` / `jakala-wordmark-dark.png` when expanded, **`j512.png`** when collapsed). Expanded: larger wordmark beside the collapse control (header vertically centered in its block; wordmark **`object-left`** in the remaining width). **First nav row** when expanded: **`Hi <First name>`** (see `firstNameFromDisplay` — session **name** first token, else email local-part before `@`) plus Lucide **`Hand`**; row omitted when collapsed. Nav links, theme toggle, optional full **`userDisplayName`** in footer (expanded), **Account** / **Admin** / **Sign out**. Persisted collapse: **`localStorage`** key `project-workbench-sidebar-collapsed` via **`AppShell`**.
 
+### Browser tab icon (favicon)
+
+- **Source asset:** **`public/brand/j512.png`** (same compact mark as the collapsed sidebar).
+- **Next.js file conventions** (App Router metadata files in **`app/`**):
+  - **`app/favicon.ico`** — serves **`/favicon.ico`** (browsers request this path automatically; without it, Vercel/Next.js may show the default Vercel triangle).
+  - **`app/icon.png`** — primary PNG favicon route and **`<link rel="icon">`** tag.
+  - **`app/apple-icon.png`** — **`<link rel="apple-touch-icon">`** for home-screen bookmarks.
+- **Do not** rely on **`metadata.icons`** in **`app/layout.tsx`** alone for the tab icon; file-based icons are required so **`/favicon.ico`** resolves correctly.
+- **Updating the mark:** replace **`public/brand/j512.png`**, then regenerate/copy the three **`app/`** files from that PNG (e.g. **`npx png-to-ico public/brand/j512.png > app/favicon.ico`** plus copies to **`app/icon.png`** and **`app/apple-icon.png`**). Favicons are cached aggressively in browsers—use a hard refresh or incognito when verifying.
+
 ---
 
 ## Data model (overview)
@@ -187,6 +197,20 @@ Slack features use the Slack **Web API** (`chat.postMessage`, `conversations.ope
 | `PATCH /api/admin/accounts/[id]` | Admin | Set **`Account.slackChannelId`** and/or **`industryGroupId`**. See [Industry groups](#industry-groups) above. |
 
 `[id]` on project routes is **id or slug** (`getProjectId`).
+
+### Workbench links in Slack messages
+
+Project tabs use a **single page** at `/projects/[slug]` with the active tab selected by the **`tab`** query parameter (see `app/(app)/projects/[slug]/page.tsx` and `ProjectDetailTabs.tsx`). Slack messages must use that format—not a path segment such as `/projects/{slug}/resourcing`.
+
+| Message type | Workbench link | Float link |
+|--------------|----------------|------------|
+| **Resourcing request** (`POST .../slack/resourcing-request`) | `{WORKBENCH_BASE_URL}/projects/{slug}?tab=resourcing` | When **`Project.floatLink`** is set (**Settings → Links**): external **View in Float →** mrkdwn link. When unset: plain _Float not linked_ (no link). |
+| **Missing-actuals nudge** (`trigger/missingActualsNudge.ts`) | Same resourcing tab URL | — |
+| **Health update** (`POST .../slack/health-update`) | `{WORKBENCH_BASE_URL}/projects/{slug}/status-reports` (path-style; **known gap**—should use `?tab=status-reports` in a future fix) | — |
+
+**URL builder:** `lib/workbenchUrls.ts` — `getWorkbenchBaseUrl()`, `projectTabUrl(slug, tab)`, `projectResourcingUrl(slug)`. Used by resourcing-request and missing-actuals nudges so Slack links stay aligned with in-app tab routing.
+
+**Legacy Slack links:** Older messages used `/projects/{slug}/resourcing`. That path **redirects** to `?tab=resourcing` via `app/(app)/projects/[slug]/resourcing/page.tsx` so existing posts keep working without edits.
 
 ### Slack app setup (operators)
 

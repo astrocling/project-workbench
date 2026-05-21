@@ -11,6 +11,7 @@ import {
 } from "@/lib/resourcingSnapshotWindow";
 import { KeyRoleType, ResourcingRequestStatus } from "@prisma/client";
 import { z } from "zod";
+import { projectResourcingUrl } from "@/lib/workbenchUrls";
 
 const postSchema = z.object({
   note: z.string().max(500).optional(),
@@ -180,14 +181,13 @@ export async function POST(
     .map((kr) => kr.person);
 
   const requesterPlain = plainNameForFallback(requester);
-  const baseUrl = (process.env.WORKBENCH_BASE_URL ?? "https://pw.theclingans.com").replace(/\/$/, "");
-  const projectResourcingUrl = `${baseUrl}/projects/${project.slug}/resourcing`;
+  const resourcingUrl = projectResourcingUrl(project.slug);
   const projectLinkLabel = slackMrkdwnEscape(project.name);
   const floatLinkTrimmed = project.floatLink?.trim();
   const floatMrkdwn =
     floatLinkTrimmed && floatLinkTrimmed !== ""
       ? ` | *<${floatLinkTrimmed}|View in Float →>*`
-      : "";
+      : " | _Float not linked_";
   const peopleBullets = readyRows
     .map((r) => `• ${slackMrkdwnEscape(r.person.name)}`)
     .join("\n");
@@ -208,7 +208,7 @@ export async function POST(
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `${requesterBoldMrkdwn(requester)} has requested changes on *<${projectResourcingUrl}|${projectLinkLabel}>*${floatMrkdwn}`,
+        text: `${requesterBoldMrkdwn(requester)} has requested changes on *<${resourcingUrl}|${projectLinkLabel}>*${floatMrkdwn}`,
       },
     },
     {

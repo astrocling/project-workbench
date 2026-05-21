@@ -66,7 +66,7 @@ In Vercel, set these environment variables for your project (Project → Setting
 
 Redeploy after adding or changing environment variables.
 
-**Slack (optional):** To post **resourcing requests**, **status health updates**, and (with Trigger.dev) **missing-actuals nudges**, set **`SLACK_BOT_TOKEN`** in Vercel (same value as local if you use one bot). Set **`WORKBENCH_BASE_URL`** to your production URL so Slack messages link to the correct host. Channel IDs and notify lists are stored in the database (**Admin → Slack**, **Admin → Accounts**, project **Settings → Links**); see [docs/TECHNICAL.md](docs/TECHNICAL.md#slack-integration).
+**Slack (optional):** To post **resourcing requests**, **status health updates**, and (with Trigger.dev) **missing-actuals nudges**, set **`SLACK_BOT_TOKEN`** in Vercel (same value as local if you use one bot). Set **`WORKBENCH_BASE_URL`** to your production URL so Slack messages link to the correct host (resourcing and missing-actuals links use **`/projects/{slug}?tab=resourcing`**). Channel IDs and notify lists are stored in the database (**Admin → Slack**, **Admin → Accounts**, project **Settings → Links**); see [docs/TECHNICAL.md](docs/TECHNICAL.md#slack-integration).
 
 **Rate limiting (optional but recommended in production):** Login, seed, and admin Float sync are rate-limited when [Upstash Redis](https://upstash.com) is configured. Set **`UPSTASH_REDIS_REST_URL`** and **`UPSTASH_REDIS_REST_TOKEN`** in Vercel (from your [Upstash Console](https://console.upstash.com/redis)). Limits: login 10 attempts per 15 min per IP; seed 5 per hour per IP; Float sync 20 per 15 min per user. Without these env vars, rate limiting is skipped (e.g. local dev).
 
