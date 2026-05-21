@@ -75,7 +75,7 @@ The schema is defined in `prisma/schema.prisma`. Main entities:
 | **FloatImportRun** | Metadata for each Float import (timestamp, unknown roles, new people, project names, JSON for backfill and client mapping). |
 | **AppConfig** | Singleton row (`id: singleton`); **`resourcingChannelId`** — Slack channel for org-wide **resourcing request** posts. |
 | **ResourcingNotifyUser** | Users (by `userId`) who receive **@mentions** on resourcing request Slack messages (in addition to PM/PGM). |
-| **ResourcingRequest** | Resourcing change request: project, requester, optional note, JSON **`requestedPeople`** (with embedded Float hours snapshot), optional **`slackMessageTs`** / **`slackChannelId`** for thread replies, **`status`** (`OPEN` / `FILLED` / `VARIANCE_FLAGGED`). |
+| **ResourcingRequest** | Resourcing change request: project, requester, optional note, JSON **`requestedPeople`** (see [Resourcing fulfill variance](#resourcing-fulfill-variance) below), optional **`slackMessageTs`** / **`slackChannelId`** for thread replies, **`status`** (`OPEN` / `FILLED` / `VARIANCE_FLAGGED`). |
 | **ActualsNudgeLog** | Audit log for **missing-actuals** Slack sends (project, prior-week `weekStart`, `nudgeDay` 2/3/4, channel kind, Slack ids, snapshot of missing names, ok/error). |
 
 Weeks are always identified by **week start date** (Monday) in UTC. All hour tables use `(projectId, personId, weekStartDate)` (or equivalent for PTO) as the scope.
@@ -190,8 +190,8 @@ Slack features use the Slack **Web API** (`chat.postMessage`, `conversations.ope
 | Route | Auth | Purpose |
 |-------|------|---------|
 | `POST /api/projects/[id]/slack/health-update` | Session (User/Admin) | Post **latest saved** status report summary + optional note to **account** channel (`Account.slackChannelId` for the linked account). |
-| `POST /api/projects/[id]/slack/resourcing-request` | Session (User/Admin) | Create **`ResourcingRequest`**, post to resourcing channel with PM/PGM/notify mentions and Float snapshot for **Ready** people. |
-| `POST /api/projects/[id]/slack/resourcing-request/fulfill` | Session (User/Admin) | Run **`executeFloatApiSync`**, compare new Float hours to the request snapshot, reply in Slack thread, update request **`status`**. Intended for editors on the project (same as **Mark fulfilled** on the Resourcing tab). |
+| `POST /api/projects/[id]/slack/resourcing-request` | Session (User/Admin) | Create **`ResourcingRequest`**, post to resourcing channel with PM/PGM/notify mentions. Stores **`requestedPeople`** (Float **`hoursSnapshot`** per person in the sync window, **`requested: true`** when **Ready** was on, plus **`snapshotStartKey`** / **`snapshotEndKey`**). |
+| `POST /api/projects/[id]/slack/resourcing-request/fulfill` | Session (User/Admin) | Run **`executeFloatApiSync`**, post **Marked as fulfilled** in the request thread, then post a **variance** reply **only if** **`computeResourcingFulfillVariance`** (`lib/resourcingFulfillVariance.ts`) finds a mismatch (see [Resourcing fulfill variance](#resourcing-fulfill-variance)). Sets **`status`** to **`FILLED`**. Same as **Mark fulfilled** on the Resourcing tab. |
 | `GET/PATCH /api/admin/slack-config` | Admin | Read/update **`AppConfig.resourcingChannelId`**. |
 | `GET/PATCH /api/admin/slack-config/notify-users` | Admin | List or replace notify-user set. |
 | `PATCH /api/admin/slack-config/notify-users/[userId]` | Admin | Toggle one user’s notify membership. |
@@ -213,6 +213,45 @@ Project tabs use a **single page** at `/projects/[slug]` with the active tab sel
 **URL builder:** `lib/workbenchUrls.ts` — `getWorkbenchBaseUrl()`, `projectTabUrl(slug, tab)`, `projectResourcingUrl(slug)`. Used by resourcing-request and missing-actuals nudges so Slack links stay aligned with in-app tab routing.
 
 **Legacy Slack links:** Older messages used `/projects/{slug}/resourcing`. That path **redirects** to `?tab=resourcing` via `app/(app)/projects/[slug]/resourcing/page.tsx` so existing posts keep working without edits.
+
+### Resourcing fulfill variance
+
+When an editor runs **`POST .../slack/resourcing-request/fulfill`** (or **Mark fulfilled** in the UI), the server:
+
+1. Marks the open **`ResourcingRequest`** as **`FILLED`**, clears **Ready** flags, runs **`executeFloatApiSync`**, and posts **✅ Marked as fulfilled** in the Slack thread (reaction + thread reply when **`SLACK_BOT_TOKEN`** and message metadata exist).
+2. Loads current **Float** and **Planned** hours for the snapshot window and runs **`lib/resourcingFulfillVariance.ts`** (`computeResourcingFulfillVariance`).
+3. Posts a second thread message **only when** `hasVariance` is true.
+
+**`requestedPeople` JSON (create):** Preferred shape:
+
+```json
+{
+  "snapshotStartKey": "YYYY-MM-DD",
+  "snapshotEndKey": "YYYY-MM-DD",
+  "people": [
+    {
+      "personId": "...",
+      "name": "...",
+      "requested": true,
+      "hoursSnapshot": [{ "weekStartDate": "YYYY-MM-DD", "hours": 0 }]
+    }
+  ]
+}
+```
+
+Legacy requests may store a **bare array** of people (no window keys); fulfill falls back to **Monday-on-or-before-today UTC** for the window. **`hoursSnapshot`** is Float hours at request time for everyone in the Float window (plus **Ready** people with no Float rows yet).
+
+**Variance rules (week-by-week, tolerance `1e-9`):**
+
+| Who | Condition | Slack bucket |
+|-----|-----------|--------------|
+| **Ready** (`requested: true`) | Post-sync Float **matches** Planned at fulfill | No variance for that person |
+| **Ready** | Float ≠ Planned and Float **unchanged** vs request **`hoursSnapshot`** | *Requested — no Float changes detected* |
+| **Ready** | Float ≠ Planned and Float **changed** vs snapshot | *Requested — partial week updates* (includes full mismatch vs Planned when Float did move) |
+| **Non-Ready** | Float **unchanged** vs request **`hoursSnapshot`** | No variance (even if Float ≠ Planned) |
+| **Non-Ready** | Float **changed** vs request **`hoursSnapshot`** | *Unexpected Float changes (not requested)* with week deltas (`YYYY-MM-DD: 8h → 16h`) |
+
+**Implementation files:** `app/api/projects/[id]/slack/resourcing-request/route.ts` (create + snapshot), `app/api/projects/[id]/slack/resourcing-request/fulfill/route.ts` (fulfill + Slack), `lib/resourcingFulfillVariance.ts`, `lib/resourcingSnapshotWindow.ts`. Tests: `__tests__/lib/resourcingFulfillVariance.test.ts`.
 
 ### Slack app setup (operators)
 

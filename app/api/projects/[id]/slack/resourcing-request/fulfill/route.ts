@@ -10,6 +10,11 @@ import {
   mondayOnOrBeforeTodayUTC,
   utcDateKey,
 } from "@/lib/resourcingSnapshotWindow";
+import {
+  buildHoursByPerson,
+  computeResourcingFulfillVariance,
+  parseRequestedPeoplePayload,
+} from "@/lib/resourcingFulfillVariance";
 import { floatClientFromEnv } from "@/lib/float";
 import { executeFloatApiSync } from "@/lib/float/syncFloatImport";
 import { FloatApiError } from "@/lib/float/types";
@@ -26,7 +31,7 @@ function slackMrkdwnEscape(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function formatFilledTimestamp(iso: string): string {
+function formatFulfilledTimestamp(iso: string): string {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
   const mm = pad(d.getUTCMonth() + 1);
@@ -35,69 +40,6 @@ function formatFilledTimestamp(iso: string): string {
   const hh = pad(d.getUTCHours());
   const min = pad(d.getUTCMinutes());
   return `${mm}-${dd}-${yy} ${hh}:${min}Z`;
-}
-
-type NormalizedSnapshotPerson = {
-  personId: string;
-  name: string;
-  requested: boolean;
-  hoursSnapshot: { weekStartDate: string; hours: number }[];
-};
-
-function normalizeRequestedPeople(raw: unknown): NormalizedSnapshotPerson[] {
-  if (!Array.isArray(raw)) return [];
-  const out: NormalizedSnapshotPerson[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== "object") continue;
-    const o = item as Record<string, unknown>;
-    const personId = o.personId != null ? String(o.personId) : "";
-    const name = o.name != null ? String(o.name) : "";
-    if (!personId) continue;
-    const requested = o.requested === false ? false : true;
-    const snapRaw = o.hoursSnapshot;
-    const hoursSnapshot: { weekStartDate: string; hours: number }[] = [];
-    if (Array.isArray(snapRaw)) {
-      for (const row of snapRaw) {
-        if (!row || typeof row !== "object") continue;
-        const r = row as Record<string, unknown>;
-        const weekStartDate =
-          typeof r.weekStartDate === "string"
-            ? r.weekStartDate.slice(0, 10)
-            : String(r.weekStartDate ?? "");
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStartDate)) continue;
-        const hours = Number(r.hours);
-        if (!Number.isFinite(hours)) continue;
-        hoursSnapshot.push({ weekStartDate, hours });
-      }
-      hoursSnapshot.sort((a, b) => a.weekStartDate.localeCompare(b.weekStartDate));
-    }
-    out.push({ personId, name: name || personId, requested, hoursSnapshot });
-  }
-  return out;
-}
-
-function snapshotMapFromHoursSnapshot(
-  rows: { weekStartDate: string; hours: number }[]
-): Map<string, number> {
-  const m = new Map<string, number>();
-  for (const r of rows) {
-    m.set(r.weekStartDate.slice(0, 10), r.hours);
-  }
-  return m;
-}
-
-function weekVarianceStats(snap: Map<string, number>, cur: Map<string, number>) {
-  const keys = new Set([...snap.keys(), ...cur.keys()]);
-  let matchingWeeks = 0;
-  let differingWeeks = 0;
-  for (const k of keys) {
-    const va = snap.get(k) ?? 0;
-    const vb = cur.get(k) ?? 0;
-    if (Math.abs(va - vb) <= 1e-9) matchingWeeks += 1;
-    else differingWeeks += 1;
-  }
-  const equal = differingWeeks === 0;
-  return { equal, matchingWeeks, differingWeeks };
 }
 
 export async function POST(
@@ -201,7 +143,7 @@ export async function POST(
       ? `<@${resolver.slackUserId.trim()}>`
       : slackMrkdwnEscape(resolverPlain);
 
-  const filledBlockText = `*✅ Marked as filled* by ${resolverMention} on ${formatFilledTimestamp(resolvedAt.toISOString())}`;
+  const fulfilledBlockText = `*✅ Marked as fulfilled* by ${resolverMention} on ${formatFulfilledTimestamp(resolvedAt.toISOString())}`;
 
   if (botToken && channelId && messageTs) {
     await fetch("https://slack.com/api/reactions.add", {
@@ -226,13 +168,13 @@ export async function POST(
       body: JSON.stringify({
         channel: channelId,
         thread_ts: messageTs,
-        text: `✅ Marked as filled by ${resolverPlain}`,
+        text: `✅ Marked as fulfilled by ${resolverPlain}`,
         blocks: [
           {
             type: "section",
             text: {
               type: "mrkdwn",
-              text: filledBlockText,
+              text: fulfilledBlockText,
             },
           },
         ],
@@ -247,77 +189,79 @@ export async function POST(
     select: { endDate: true },
   });
 
+  const parsedPayload = parseRequestedPeoplePayload(request.requestedPeople);
   const snapshotMonday = mondayOnOrBeforeTodayUTC();
-  const snapshotStartKey = utcDateKey(snapshotMonday);
-  const snapshotEndKey = computeSnapshotWindowEndKey(
-    snapshotMonday,
-    projectRow?.endDate ? new Date(projectRow.endDate) : null
+  const snapshotStartKey =
+    parsedPayload.snapshotStartKey ?? utcDateKey(snapshotMonday);
+  const snapshotEndKey =
+    parsedPayload.snapshotEndKey ??
+    computeSnapshotWindowEndKey(
+      snapshotMonday,
+      projectRow?.endDate ? new Date(projectRow.endDate) : null
+    );
+
+  const [floatRows, plannedRows] = await Promise.all([
+    prisma.floatScheduledHours.findMany({
+      where: {
+        projectId,
+        weekStartDate: {
+          gte: dateKeyToUtcStart(snapshotStartKey),
+          lte: dateKeyToUtcStart(snapshotEndKey),
+        },
+      },
+      select: { personId: true, weekStartDate: true, hours: true },
+    }),
+    prisma.plannedHours.findMany({
+      where: {
+        projectId,
+        weekStartDate: {
+          gte: dateKeyToUtcStart(snapshotStartKey),
+          lte: dateKeyToUtcStart(snapshotEndKey),
+        },
+      },
+      select: { personId: true, weekStartDate: true, hours: true },
+    }),
+  ]);
+
+  const floatCurByPerson = buildHoursByPerson(
+    floatRows,
+    toDateKey,
+    snapshotStartKey,
+    snapshotEndKey
+  );
+  const plannedCurByPerson = buildHoursByPerson(
+    plannedRows,
+    toDateKey,
+    snapshotStartKey,
+    snapshotEndKey
   );
 
-  const normalizedPeople = normalizeRequestedPeople(request.requestedPeople);
+  const variance = computeResourcingFulfillVariance(
+    parsedPayload.people,
+    floatCurByPerson,
+    plannedCurByPerson
+  );
 
-  const currentRows = await prisma.floatScheduledHours.findMany({
-    where: {
-      projectId,
-      weekStartDate: {
-        gte: dateKeyToUtcStart(snapshotStartKey),
-        lte: dateKeyToUtcStart(snapshotEndKey),
-      },
-    },
-    select: { personId: true, weekStartDate: true, hours: true },
-  });
-
-  const currentFiltered = currentRows.filter((r) => {
-    const k = toDateKey(r.weekStartDate);
-    return k >= snapshotStartKey && k <= snapshotEndKey;
-  });
-
-  const currentByPerson = new Map<string, Map<string, number>>();
-  for (const r of currentFiltered) {
-    const inner = currentByPerson.get(r.personId) ?? new Map<string, number>();
-    inner.set(toDateKey(r.weekStartDate), Number(r.hours));
-    currentByPerson.set(r.personId, inner);
-  }
-
-  const notFilled: string[] = [];
-  const partiallyFilled: string[] = [];
-  const unexpectedChanges: string[] = [];
-
-  for (const p of normalizedPeople) {
-    const snapMap = snapshotMapFromHoursSnapshot(p.hoursSnapshot);
-    const curMap = currentByPerson.get(p.personId) ?? new Map<string, number>();
-    const stats = weekVarianceStats(snapMap, curMap);
-
-    if (p.requested) {
-      if (stats.equal) {
-        notFilled.push(p.name);
-      } else if (stats.matchingWeeks > 0 && stats.differingWeeks > 0) {
-        partiallyFilled.push(p.name);
-      }
-    } else if (!stats.equal) {
-      unexpectedChanges.push(p.name);
-    }
-  }
-
-  const hasVariance =
-    notFilled.length > 0 || partiallyFilled.length > 0 || unexpectedChanges.length > 0;
-
-  if (botToken && channelId && messageTs && hasVariance) {
+  if (botToken && channelId && messageTs && variance.hasVariance) {
     const lines: string[] = ["⚠️ *Resourcing variance (post-sync)*"];
-    if (notFilled.length > 0) {
+    if (variance.notFilled.length > 0) {
       lines.push(
-        `*Requested — no Float changes detected:*\n${notFilled.map((n) => `• ${slackMrkdwnEscape(n)}`).join("\n")}`
+        `*Requested — no Float changes detected:*\n${variance.notFilled.map((n) => `• ${slackMrkdwnEscape(n)}`).join("\n")}`
       );
     }
-    if (partiallyFilled.length > 0) {
+    if (variance.partiallyFilled.length > 0) {
       lines.push(
-        `*Requested — partial week updates:*\n${partiallyFilled.map((n) => `• ${slackMrkdwnEscape(n)}`).join("\n")}`
+        `*Requested — partial week updates:*\n${variance.partiallyFilled.map((n) => `• ${slackMrkdwnEscape(n)}`).join("\n")}`
       );
     }
-    if (unexpectedChanges.length > 0) {
-      lines.push(
-        `*Unexpected Float changes (not requested):*\n${unexpectedChanges.map((n) => `• ${slackMrkdwnEscape(n)}`).join("\n")}`
-      );
+    if (variance.unexpectedFloatChanges.length > 0) {
+      const bullets = variance.unexpectedFloatChanges
+        .map(
+          (e) =>
+            `• ${slackMrkdwnEscape(e.name)}${e.summary ? ` — ${slackMrkdwnEscape(e.summary)}` : ""}`
+        )
+        .join("\n");
+      lines.push(`*Unexpected Float changes (not requested):*\n${bullets}`);
     }
 
     await fetch("https://slack.com/api/chat.postMessage", {
@@ -329,7 +273,7 @@ export async function POST(
       body: JSON.stringify({
         channel: channelId,
         thread_ts: messageTs,
-        text: "Resourcing variance after fulfill",
+        text: "Resourcing variance after request fulfilled",
         blocks: [
           {
             type: "section",
@@ -348,9 +292,9 @@ export async function POST(
   return NextResponse.json({
     success: true,
     variance: {
-      notFilled,
-      partiallyFilled,
-      unexpectedChanges,
+      notFilled: variance.notFilled,
+      partiallyFilled: variance.partiallyFilled,
+      unexpectedFloatChanges: variance.unexpectedFloatChanges,
     },
   });
 }

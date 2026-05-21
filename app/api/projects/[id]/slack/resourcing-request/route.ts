@@ -341,7 +341,7 @@ export async function POST(
     }
   }
 
-  const requestedPeople: Array<{
+  const people: Array<{
     personId: string;
     name: string;
     requested: boolean;
@@ -349,7 +349,7 @@ export async function POST(
   }> = [];
 
   for (const personId of floatPersonIds) {
-    requestedPeople.push({
+    people.push({
       personId,
       name: nameByPersonId.get(personId) ?? personId,
       requested: readyIds.has(personId),
@@ -358,7 +358,7 @@ export async function POST(
   }
   for (const r of readyRows) {
     if (!floatPersonIds.has(r.person.id)) {
-      requestedPeople.push({
+      people.push({
         personId: r.person.id,
         name: r.person.name,
         requested: true,
@@ -366,6 +366,12 @@ export async function POST(
       });
     }
   }
+
+  const requestedPeople = {
+    snapshotStartKey,
+    snapshotEndKey,
+    people,
+  };
 
   const resourcingRequest = await prisma.resourcingRequest.create({
     data: {
