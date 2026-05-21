@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-05-21
+
+Patch release: **Slack** status health posts go to the linked **account** channel only (not the project channel); resourcing and missing-actuals Slack links use **`?tab=resourcing`** with a legacy redirect; **favicon** shows the Jakala mark. **Deploy:** no new migrations; redeploy as usual. Confirm each linked **Admin → Accounts** row has a **Slack channel** if editors use **Post to Slack**.
+
 ### Fixed
 
 - **Slack — status posts use account channel** — **Post to Slack** from Status Reports now posts to the linked **account** Slack channel only (**Admin → Accounts**), not the project channel in **Settings → Links**. Channel resolution lives in **`lib/slackChannels.ts`** (`resolveAccountSlackChannel`); **`POST /api/projects/[id]/slack/health-update`** returns a clear **400** when the project has no linked account or the account has no channel configured. The project **Slack Channel ID** field remains for **Tuesday/Wednesday** missing-actuals nudges only.
@@ -16,9 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
-- **CHANGELOG** — This unreleased section (status-post account channel fix).
+- **CHANGELOG** — This release section.
 - **Technical Reference** — *Slack integration* → channel routing table (health updates → account channel only); **`lib/slackChannels.ts`**; Workbench links in Slack messages (`?tab=resourcing`, Float linked vs not linked, legacy redirect); *App shell* → browser tab / favicon assets and file conventions.
-- **User Guide** — *Post to Slack* (account channel requirement); *Settings* / *Admin → Accounts* channel purposes; *Troubleshooting* (Slack health post errors); *Resourcing tab* → Slack message links and Float link behavior; *Sidebar* (tab icon); *Troubleshooting* (stale favicon cache).
+- **User Guide** — *Post to Slack* (account channel requirement); *Settings* / *Admin → Accounts* channel purposes; *Troubleshooting* (Slack health post errors); *Resourcing tab* → Slack message links and Float link behavior; *Sidebar* (tab icon); *Troubleshooting* (stale favicon cache); release baseline **1.1.2**.
+- **README** — Documentation index and production release tag example updated to **v1.1.2**.
 
 ## [1.1.1] - 2026-05-19
 
