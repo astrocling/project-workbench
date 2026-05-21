@@ -112,6 +112,28 @@ Workbench weeks run **Monday–Sunday**. When a week crosses from one calendar m
 - **Clearing a month-half**: If you **clear** one of the inputs (leave it empty and move focus away), that month’s entry is **removed**—it is not saved as **0** hours. Use **0** only when you intentionally mean zero hours for that month. The week’s rolled-up total updates from whatever month parts remain.
 - **Collapsing**: When both month parts are filled, you may see a single total for the week with an option to expand and edit the two parts again (depending on layout state).
 
+### Actuals Stale (amber Actual cells)
+
+Completed weeks (not the current week) where someone had **Planned hours > 0** but **Actual** is still blank show an **amber** background on that cell in the **Actual** grid. The project header may also show an **Actuals Stale** pill when any completed week is in this state.
+
+- **Blank vs zero**: An empty Actual cell means **missing** actuals. Saving **0** hours means you intentionally entered zero for that week (or month-half in a split week)—that is **not** stale and the cell is not amber.
+- **Planned, not Float**: Stale highlighting uses **Planned** hours as the allocation signal, not the **Float** column. Float can differ from Planned without triggering stale Actual styling.
+- **Split weeks**: For weeks that span two calendar months, amber follows the same per-month rules described above (a due month-half with no saved entry is stale; a saved **0** for that month-half is not).
+
+These rules also drive **automated missing-actuals Slack nudges** (below) for the **prior UTC week** only.
+
+### Automated missing-actuals Slack nudges
+
+When Trigger.dev is configured, Workbench sends weekly Slack reminders about **gaps in the prior UTC week** (Monday–Sunday immediately before the current week). A person is listed only when that week is **stale on the Resourcing Actual grid** under the rules above (**Planned > 0**, Actual **blank**, split-week month-halves respected). **Float scheduled hours alone do not trigger a nudge.**
+
+| Day (UTC) | Where the message goes |
+|-----------|-------------------------|
+| **Tuesday 15:00** | **Direct message** each **PM** who has a **Slack user ID** on their Workbench user (Admin → Users or **Account → Profile**). PMs without a Slack user ID: one post in the **project** Slack channel if **Settings → Links** has a **Slack channel ID**. |
+| **Wednesday 15:00** | **Project** Slack channel only (**Settings → Links**). Includes extra reminder copy. Skipped if no project channel is set. |
+| **Thursday 15:00** | **Account** Slack channel (**Admin → Accounts**) when the project is linked to an account with a channel. Skipped otherwise. |
+
+Each message links to the project **Resourcing** tab and lists people still missing actuals for that week. Requires **`SLACK_BOT_TOKEN`** on the Trigger worker and channel/user IDs configured as above. See [Technical Reference](TECHNICAL.md#missing-actuals-slack-nudges-triggerdev) for implementation details.
+
 ---
 
 ## PTO tab
@@ -162,7 +184,7 @@ The monthly CDA tables (month-by-month planned and actuals) are unchanged; only 
 
 The Status Reports tab is where you create and maintain status reports and export them as PDFs.
 
-- **Stale actuals block new reports**: You cannot **save a new** status report if the project still has **missing actuals** for any **completed** week where someone had **planned hours** but **no actual hours** entered (same idea as the **Actuals** column on PM/PGM/CAD dashboards). Update the **Resourcing** tab first; then create the report.
+- **Stale actuals block new reports**: You cannot **save a new** status report if the project still has **missing actuals** for any **completed** week where someone had **planned hours** but **Actual is still blank** (same rules as amber cells on the Resourcing tab—explicit **0** hours do not count as missing). Update the **Resourcing** tab first; then create the report.
 - **Preview and PDF match**: The in-app preview and the exported PDF use the same layout and styling. **Download PDF** captures what you see in the preview (not a separate server layout).
 - **Two-page PDF when there are meeting notes**: The 16:9 status slide is page 1. If the report has **meeting notes**, they appear on **page 2** at the same width as the slide, with the **Meeting Notes** heading, divider, body (including links), and footer—matching the preview block below the slide.
 - **Bigger, presentation-friendly default size**: The preview is auto-scaled larger (while still fitting your screen), and the downloaded PDF is generated at a larger default page size so you can present at 100% zoom without squinting.
@@ -338,7 +360,7 @@ The **Projects** table lists every active project in scope for that role. Column
 | **1-wk recovery** | Revenue recovery % for the **most recent completed week** only—the same week labeled on the portfolio **This week** recovery card. |
 | **4-wk recovery** | Revenue recovery % across the **rolling previous four completed weeks** (sum of actual vs forecast dollars for those weeks). |
 | **Request** | Whether an **open request** is active: **Ready** is on in the project Resourcing **Planned** grid for at least one person who is **not** hidden from the grid (amber dot = open, muted = none). Sort to group projects with open requests. |
-| **Actuals** | Whether weekly actuals look up to date, one week behind, or more than one week behind (traffic-light), based on **rolled-up weekly totals** vs planned for completed weeks. For **split-month** weeks, totals come from the sum of the two month parts once saved. The **Resourcing** Actual grid uses stricter per-month rules for **cell** highlighting on those weeks. |
+| **Actuals** | Whether weekly actuals look up to date, one week behind, or more than one week behind (traffic-light), based on **rolled-up weekly totals** vs planned for completed weeks. For **split-month** weeks, totals come from the sum of the two month parts once saved. The **Resourcing** Actual grid uses stricter per-month rules for **cell** highlighting on those weeks (amber = blank Actual where Planned > 0; saved **0** is not stale). Automated **missing-actuals Slack nudges** use the same Resourcing stale rules for the **prior UTC week** only. |
 | **Status** | Overall RAG from the latest status report when the report is recent; a blue indicator if a report exists but is older than two weeks; gray if there is no report. |
 
 Click any column header to **sort** (toggle ascending/descending). You can filter the table by **client** using the client dropdown when your portfolio spans multiple clients.

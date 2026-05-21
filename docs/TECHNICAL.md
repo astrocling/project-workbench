@@ -153,7 +153,7 @@ Optional **background** runs use the same core pipeline as `POST /api/admin/floa
 | `missing-actuals-nudge-wednesday` | `0 15 * * 3` | Post to **`Project.slackChannelId`** only (skips if unset); includes an extra reminder line in the blocks. |
 | `missing-actuals-nudge-thursday` | `0 15 * * 4` | Post to **`Account.slackChannelId`** when the project has **`accountId`** and the account has a channel; otherwise skip. |
 
-**Qualifying projects** (`lib/missingActuals.ts` → `getMissingActualsProjects`): **prior full UTC week** (Mon–Sun immediately before the current week) where, for at least one `(project, person, week)` row, **`FloatScheduledHours.hours > 0`** and **`ActualHours`** is missing **or** hours are **0**. This is **not** the same rule as **status report create** blocking (which uses **planned vs actual** on completed weeks via `projectHasMissingActuals` / `computeBudgetRollups`).
+**Qualifying projects** (`lib/missingActuals.ts` → `getMissingActualsProjects`, `personWeekIsActualsStale`): **prior full UTC week** (Mon–Sun immediately before the current week) where, for at least one `(project, person, week)` row, **`PlannedHours.hours > 0`** and actuals are **stale** using the same rules as the Resourcing **Actual** grid: **`hasMissingActuals`** (non-split weeks: `actualHours === null`, not `0`) and **`hasMissingActualsSplitWeek`** with **`ActualHoursMonthSplit`** row flags (split weeks). **Float scheduled hours are not used** for nudge selection. Tests: `__tests__/lib/missingActuals.test.ts`.
 
 **Worker env:** **`SLACK_BOT_TOKEN`**, **`DATABASE_URL`**, optional **`WORKBENCH_BASE_URL`** (default in code: production-style URL; override for staging). If the token is missing, tasks no-op with a log warning.
 

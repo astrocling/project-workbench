@@ -10,15 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Slack — missing-actuals nudge selection** — Tue/Wed/Thu nudges now use the same **Actuals Stale** rules as the Resourcing tab: **`PlannedHours > 0`**, **`actualHours === null`** (explicit **0** is not stale), and split-week checks via **`hasMissingActualsSplitWeek`**. Previously nudges used **Float scheduled hours** and treated **0** actual hours as missing. Implementation: **`lib/missingActuals.ts`** (`personWeekIsActualsStale`, `getMissingActualsProjects`). Tests: **`__tests__/lib/missingActuals.test.ts`**.
 - **Slack — status-reports tab links** — Health-update Slack messages (**Post to Slack** from Status Reports) now link to **`/projects/{slug}?tab=status-reports`** (matching in-app tab routing) instead of the non-existent **`/projects/{slug}/status-reports`** path. Shared helper **`projectStatusReportsUrl()`** in **`lib/workbenchUrls.ts`** (alongside **`projectResourcingUrl()`** for resourcing and missing-actuals nudges).
 - **Status reports — meeting notes PDF export** — **Download PDF** (client-side capture in **`lib/statusReportPdfCapture.ts`**) could render the meeting-notes page as a narrow unreadable strip: html2canvas captured the notes block at the wrong aspect ratio inside wide preview modals, and jsPDF **`addPage(..., "portrait")`** swapped page dimensions when width exceeded height while **`addImage`** still used the unswapped size. Capture now pins the notes container to **720px** (matching the slide), passes explicit html2canvas dimensions, omits portrait orientation on the custom notes page, and aligns page and image size via **`computeNotesPageSize()`**. **`StatusReportView`** sets a fixed **720px** width on the meeting-notes wrapper. Tests: **`__tests__/lib/statusReportPdfCapture.test.ts`**.
 
 ### Documentation
 
 - **CHANGELOG** — This unreleased entry.
-- **Technical Reference** — *Workbench links in Slack messages* → health update uses **`?tab=status-reports`** and **`projectStatusReportsUrl()`**; *Status report rendering* → meeting notes PDF capture (two-page export, **`computeNotesPageSize`**).
-- **User Guide** — *Post to Slack* → **View full report →** deep link format; *Status Reports* → meeting notes on a second PDF page and export behavior.
-- **README** — Slack **`WORKBENCH_BASE_URL`** note covers both resourcing and status-reports tab links; Technical Reference blurb mentions meeting-notes PDF capture fix.
+- **Technical Reference** — *Missing-actuals Slack nudges* → selection uses **Planned** + Resourcing stale rules (`hasMissingActuals` / `hasMissingActualsSplitWeek`), not Float; *Workbench links in Slack messages* → health update uses **`?tab=status-reports`** and **`projectStatusReportsUrl()`**; *Status report rendering* → meeting notes PDF capture (two-page export, **`computeNotesPageSize`**).
+- **User Guide** — *Resourcing tab* → **Actuals Stale** (amber cells), **Automated missing-actuals Slack nudges**; *Status Reports* → stale blocking clarifies blank vs **0** actuals; *Post to Slack* → **View full report →** deep link format; meeting notes on a second PDF page and export behavior.
+- **README** — Trigger.dev nudge paragraph describes prior-week scope and Planned/stale selection; Slack **`WORKBENCH_BASE_URL`** note covers resourcing and status-reports tab links.
 - **`.cursor/rules/status-report.mdc`** — Meeting notes PDF capture constraints for **`statusReportPdfCapture.ts`**.
 
 ## [1.1.3] - 2026-05-21

@@ -1,7 +1,13 @@
-import { KeyRoleType, Prisma } from "@prisma/client";
+import { KeyRoleType } from "@prisma/client";
 
+import {
+  hasMissingActuals,
+  hasMissingActualsSplitWeek,
+} from "@/lib/budgetCalculations";
+import { getMonthKeysForWeek } from "@/lib/monthUtils";
 import { prisma } from "@/lib/prisma";
 import { addUtcDays, dateKeyToUtcStart, utcDateKey } from "@/lib/resourcingSnapshotWindow";
+import { getAsOfDate } from "@/lib/weekUtils";
 
 const MONTHS = [
   "Jan",
@@ -23,7 +29,7 @@ export type KeyRoleContact = {
   name: string;
 };
 
-/** One project with people who had Float scheduled hours but no substantive actuals for the prior UTC week. */
+/** One project with people who had planned hours but stale actuals for the prior UTC week. */
 export type MissingActualsProject = {
   projectId: string;
   projectSlug: string;
@@ -38,6 +44,14 @@ export type MissingActualsProject = {
   projectManagers: KeyRoleContact[];
   programManagers: KeyRoleContact[];
   missingPersonNames: string[];
+};
+
+export type PersonWeekActualsInput = {
+  weekStartDate: Date;
+  plannedHours: number;
+  actualHours: number | null;
+  /** monthKey -> hours for each ActualHoursMonthSplit row present */
+  monthSplitByKey: Map<string, number>;
 };
 
 function thisWeekMondayUtc(): Date {
@@ -82,9 +96,43 @@ function weekKey(d: Date): string {
   return d.toISOString().split("T")[0]!;
 }
 
-function actualHoursMissing(hours: Prisma.Decimal | null | undefined): boolean {
-  if (hours == null) return true;
-  return new Prisma.Decimal(hours).equals(0);
+function compositeKey(projectId: string, personId: string, weekStartDate: Date): string {
+  return `${projectId}|${personId}|${weekKey(weekStartDate)}`;
+}
+
+/**
+ * Whether a person-week should show as stale on Resourcing (same rules as amber Actual cells).
+ */
+export function personWeekIsActualsStale(
+  input: PersonWeekActualsInput,
+  asOf?: Date,
+  now?: Date
+): boolean {
+  const { weekStartDate, plannedHours, actualHours, monthSplitByKey } = input;
+  if (plannedHours <= 0) return false;
+
+  const monthKeys = getMonthKeysForWeek(weekStartDate);
+  if (monthKeys.length === 1) {
+    return hasMissingActuals(weekStartDate, plannedHours, actualHours, asOf, now);
+  }
+
+  const [mk1, mk2] = monthKeys as [string, string];
+  const hasRowFirst = monthSplitByKey.has(mk1);
+  const hasRowSecond = monthSplitByKey.has(mk2);
+  const val1 = hasRowFirst ? monthSplitByKey.get(mk1)! : null;
+  const val2 = hasRowSecond ? monthSplitByKey.get(mk2)! : null;
+
+  return hasMissingActualsSplitWeek(
+    weekStartDate,
+    plannedHours,
+    val1,
+    val2,
+    mk1,
+    mk2,
+    asOf,
+    now,
+    { hasRowFirst, hasRowSecond }
+  );
 }
 
 function keyRoleContactsFromRoles(
@@ -116,53 +164,89 @@ function keyRoleContactsFromRoles(
 export async function getMissingActualsProjects(): Promise<MissingActualsProject[]> {
   const { start, end } = getPreviousWeekRange();
   const weekLabel = formatWeekLabel(start, end);
-  const weekStartGte = dateKeyToUtcStart(start);
-  const weekStartLte = dateKeyToUtcStart(end);
+  const weekStartDate = dateKeyToUtcStart(start);
+  const asOf = getAsOfDate();
+  const now = new Date();
 
-  const floatRows = await prisma.floatScheduledHours.findMany({
+  const plannedRows = await prisma.plannedHours.findMany({
     where: {
       hours: { gt: 0 },
-      weekStartDate: { gte: weekStartGte, lte: weekStartLte },
+      weekStartDate,
       project: { status: "Active" },
     },
     select: {
       projectId: true,
       personId: true,
       weekStartDate: true,
+      hours: true,
       person: { select: { name: true } },
     },
   });
 
-  if (floatRows.length === 0) return [];
+  if (plannedRows.length === 0) return [];
 
-  const orKeys = floatRows.map((r) => ({
+  const orKeys = plannedRows.map((r) => ({
     projectId: r.projectId,
     personId: r.personId,
     weekStartDate: r.weekStartDate,
   }));
 
-  const actualRows = await prisma.actualHours.findMany({
-    where: { OR: orKeys },
-    select: { projectId: true, personId: true, weekStartDate: true, hours: true },
-  });
+  const [actualRows, splitRows] = await Promise.all([
+    prisma.actualHours.findMany({
+      where: { OR: orKeys },
+      select: { projectId: true, personId: true, weekStartDate: true, hours: true },
+    }),
+    prisma.actualHoursMonthSplit.findMany({
+      where: { OR: orKeys },
+      select: {
+        projectId: true,
+        personId: true,
+        weekStartDate: true,
+        monthKey: true,
+        hours: true,
+      },
+    }),
+  ]);
 
   const actualByComposite = new Map<string, (typeof actualRows)[0]>();
   for (const a of actualRows) {
-    const k = `${a.projectId}|${a.personId}|${weekKey(a.weekStartDate)}`;
-    actualByComposite.set(k, a);
+    actualByComposite.set(compositeKey(a.projectId, a.personId, a.weekStartDate), a);
+  }
+
+  const splitsByComposite = new Map<string, Map<string, number>>();
+  for (const s of splitRows) {
+    const k = compositeKey(s.projectId, s.personId, s.weekStartDate);
+    const monthMap = splitsByComposite.get(k) ?? new Map<string, number>();
+    monthMap.set(s.monthKey, Number(s.hours));
+    splitsByComposite.set(k, monthMap);
   }
 
   type MissingRow = { projectId: string; personId: string; personName: string };
   const missing: MissingRow[] = [];
 
-  for (const f of floatRows) {
-    const k = `${f.projectId}|${f.personId}|${weekKey(f.weekStartDate)}`;
-    const a = actualByComposite.get(k);
-    if (!a || actualHoursMissing(a.hours)) {
+  for (const planned of plannedRows) {
+    const k = compositeKey(planned.projectId, planned.personId, planned.weekStartDate);
+    const actual = actualByComposite.get(k);
+    const actualHours = actual?.hours != null ? Number(actual.hours) : null;
+    const plannedHours = Number(planned.hours);
+    const monthSplitByKey = splitsByComposite.get(k) ?? new Map<string, number>();
+
+    if (
+      personWeekIsActualsStale(
+        {
+          weekStartDate: planned.weekStartDate,
+          plannedHours,
+          actualHours,
+          monthSplitByKey,
+        },
+        asOf,
+        now
+      )
+    ) {
       missing.push({
-        projectId: f.projectId,
-        personId: f.personId,
-        personName: f.person.name,
+        projectId: planned.projectId,
+        personId: planned.personId,
+        personName: planned.person.name,
       });
     }
   }
