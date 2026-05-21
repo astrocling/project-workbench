@@ -163,7 +163,8 @@ The monthly CDA tables (month-by-month planned and actuals) are unchanged; only 
 The Status Reports tab is where you create and maintain status reports and export them as PDFs.
 
 - **Stale actuals block new reports**: You cannot **save a new** status report if the project still has **missing actuals** for any **completed** week where someone had **planned hours** but **no actual hours** entered (same idea as the **Actuals** column on PM/PGM/CAD dashboards). Update the **Resourcing** tab first; then create the report.
-- **Preview and PDF match**: The in-app preview and the exported PDF use the same layout and styling.
+- **Preview and PDF match**: The in-app preview and the exported PDF use the same layout and styling. **Download PDF** captures what you see in the preview (not a separate server layout).
+- **Two-page PDF when there are meeting notes**: The 16:9 status slide is page 1. If the report has **meeting notes**, they appear on **page 2** at the same width as the slide, with the **Meeting Notes** heading, divider, body (including links), and footer—matching the preview block below the slide.
 - **Bigger, presentation-friendly default size**: The preview is auto-scaled larger (while still fitting your screen), and the downloaded PDF is generated at a larger default page size so you can present at 100% zoom without squinting.
 - **Typography**: Status report fonts were updated for readability; the preview and exported PDF use the same typography.
 
@@ -174,6 +175,8 @@ If your team has connected Slack, a **Post to Slack** control appears near the s
 **Channel selection:** The project must be linked to a Float **account** (via Float sync), and that account must have a **Slack Channel ID** set under **Admin → Accounts**. The project-level **Slack Channel ID** in **Settings → Links** is **not** used for status posts—it is only for automated **missing-actuals** nudges (Tuesday fallback and Wednesday). If the account or channel is missing, you’ll get an error explaining what to configure.
 
 **Mentions:** When PM/PGM (and linked **User** records) have **Slack user IDs** stored in **Admin → Users**, they can be @-mentioned in the posted message.
+
+**Workbench link:** The message includes **View full report →**, which opens this project’s **Status Reports** tab in Workbench (`/projects/{slug}?tab=status-reports`). The server builds that URL from **`WORKBENCH_BASE_URL`** (same pattern as resourcing-request links to **`?tab=resourcing`**).
 
 This action does not replace saving a report in Workbench; it only mirrors the latest saved snapshot to Slack.
 
@@ -186,7 +189,7 @@ When you click **Save** (new report) or **Update** (while editing), Workbench sa
 When you **save a new** status report, Workbench stores a **snapshot** with the reporting period, budget (or CDA) figures, and—for Standard and Milestones variations—the **timeline** (bars and markers) as they were **at that moment**. Preview, the HTML view, and PDF export all read from that snapshot so later changes to resourcing, budget, or the **Timeline** tab do not change older reports.
 
 - **What you can still edit** on an existing report: narrative fields (completed / upcoming / risks / meeting notes), RAG values and explanations, and **variation** where the form allows it.
-- **Meeting notes with formatting**: If you paste content that includes **HTML** from another tool, the preview, HTML view, and PDF keep **allowed** formatting (paragraphs, lists, links, basic styles) and drop unsafe markup automatically.
+- **Meeting notes with formatting**: If you paste content that includes **HTML** from another tool, the preview, HTML view, and **Download PDF** keep **allowed** formatting (paragraphs, lists, links, basic styles) and drop unsafe markup automatically. Plain-text notes support line breaks and clickable URLs (paste `https://…` or use `[label](url)`). If client-side PDF generation fails, the preview offers **Download PDF (server)** as a fallback; that path may not preserve HTML formatting in meeting notes.
 - **What stays locked** unless you use **Refresh timeline** (below): **report date**, **reporting period**, **previous months on timeline** (the 1–4 month window chosen at create time), budget/CDA snapshot, and—by default—the **timeline** bars and markers.
 
 ### Refresh timeline (Standard and Milestones, editors only)
