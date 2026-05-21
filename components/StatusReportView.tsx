@@ -715,7 +715,8 @@ export function StatusReportView({
       {report.meetingNotes && report.meetingNotes.trim() && (
         <div
           ref={meetingNotesRef}
-          className="w-full max-w-[720px] mx-auto mt-8 pt-9 px-9 pb-11 text-[10px] overflow-visible min-h-0"
+          className="mx-auto mt-8 pt-9 px-9 pb-11 text-[10px] overflow-visible min-h-0"
+          style={{ width: slideWidth, maxWidth: slideWidth }}
         >
           <h2 className="text-sm font-bold uppercase mb-0.5" style={{ color: BIO_TITLE_COLOR }}>Meeting Notes</h2>
           <div className="h-px mb-3" style={{ backgroundColor: BIO_TITLE_COLOR }} />

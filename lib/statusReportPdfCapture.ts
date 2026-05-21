@@ -12,6 +12,18 @@ const MAX_NOTES_PAGE_HEIGHT_PT = 900;
 
 const DEFAULT_EXPORT_SCALE = 1.5;
 
+/** PDF page size (pt) for meeting-notes page from captured canvas pixels and export scale. */
+export function computeNotesPageSize(
+  canvasWidth: number,
+  canvasHeight: number,
+  exportScale: number
+): { pageW: number; pageH: number } {
+  const pageW = NOTES_PAGE_WIDTH_PT * exportScale;
+  const scaledMaxNotesHeight = MAX_NOTES_PAGE_HEIGHT_PT * exportScale;
+  const pageH = Math.min((canvasHeight / canvasWidth) * pageW, scaledMaxNotesHeight);
+  return { pageW, pageH };
+}
+
 const CAPTURE_OPTS = {
   scale: 2,
   useCORS: true,
@@ -66,6 +78,13 @@ export async function captureStatusReportToPdf(
   const slideHadCaptureAttr = slideElement.hasAttribute("data-capturing");
   slideElement.setAttribute("data-capturing", "true");
 
+  const notesTarget = meetingNotesElement ?? null;
+  const origNotesWidth = notesTarget?.style.width ?? "";
+  const origNotesMaxWidth = notesTarget?.style.maxWidth ?? "";
+  const origNotesTransform = notesTarget?.style.transform ?? "";
+  const origNotesTransformOrigin = notesTarget?.style.transformOrigin ?? "";
+  const origNotesOverflow = notesTarget?.style.overflow ?? "";
+
   try {
     // html2canvas-pro supports oklch (Tailwind v4); load on demand to avoid SSR issues
     const [html2canvas, { jsPDF }] = await Promise.all([
@@ -104,25 +123,35 @@ export async function captureStatusReportToPdf(
       SLIDE_HEIGHT_PT * exportScale
     );
 
-    if (meetingNotesElement && meetingNotesElement.offsetParent !== null) {
-      meetingNotesElement.scrollIntoView({ behavior: "instant", block: "start" });
+    if (notesTarget && notesTarget.offsetParent !== null) {
+      notesTarget.style.width = `${NOTES_PAGE_WIDTH_PT}px`;
+      notesTarget.style.maxWidth = `${NOTES_PAGE_WIDTH_PT}px`;
+      notesTarget.style.transform = "none";
+      notesTarget.style.transformOrigin = "top left";
+      notesTarget.style.overflow = "visible";
+
+      notesTarget.scrollIntoView({ behavior: "instant", block: "start" });
       await new Promise((r) => requestAnimationFrame(r));
-      const notesCanvas = await html2canvas(meetingNotesElement, CAPTURE_OPTS);
-      const scaledNotesWidth = NOTES_PAGE_WIDTH_PT * exportScale;
-      const scaledMaxNotesHeight = MAX_NOTES_PAGE_HEIGHT_PT * exportScale;
-      const notesHeight = Math.min(
-        (notesCanvas.height / notesCanvas.width) * scaledNotesWidth,
-        scaledMaxNotesHeight
+
+      const captureWidth = notesTarget.offsetWidth || NOTES_PAGE_WIDTH_PT;
+      const captureHeight = notesTarget.scrollHeight || notesTarget.offsetHeight;
+      const notesCanvas = await html2canvas(notesTarget, {
+        ...CAPTURE_OPTS,
+        width: captureWidth,
+        height: captureHeight,
+        windowWidth: captureWidth,
+        windowHeight: captureHeight,
+      });
+
+      const { pageW, pageH } = computeNotesPageSize(
+        notesCanvas.width,
+        notesCanvas.height,
+        exportScale
       );
-      pdf.addPage([scaledNotesWidth, notesHeight], "portrait");
-      pdf.addImage(
-        notesCanvas.toDataURL("image/png"),
-        "PNG",
-        0,
-        0,
-        scaledNotesWidth,
-        notesHeight
-      );
+
+      // Custom [width, height] only — "portrait" swaps dimensions when width > height.
+      pdf.addPage([pageW, pageH]);
+      pdf.addImage(notesCanvas.toDataURL("image/png"), "PNG", 0, 0, pageW, pageH);
     }
 
     pdf.save(filename);
@@ -133,6 +162,13 @@ export async function captureStatusReportToPdf(
     slideTarget.style.transform = origTransform;
     slideTarget.style.transformOrigin = origTransformOrigin;
     slideTarget.style.overflow = origOverflow;
+    if (notesTarget) {
+      notesTarget.style.width = origNotesWidth;
+      notesTarget.style.maxWidth = origNotesMaxWidth;
+      notesTarget.style.transform = origNotesTransform;
+      notesTarget.style.transformOrigin = origNotesTransformOrigin;
+      notesTarget.style.overflow = origNotesOverflow;
+    }
     if (!slideHadCaptureAttr) {
       slideElement.removeAttribute("data-capturing");
     }
