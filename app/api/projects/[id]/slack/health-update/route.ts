@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
+import { resolveAccountSlackChannel } from "@/lib/slackChannels";
 import { getProjectId } from "@/lib/slug";
 import { isStatusReportSnapshot } from "@/lib/statusReportPdfData";
 import { z } from "zod";
@@ -111,23 +112,17 @@ export async function POST(
       id: true,
       name: true,
       slug: true,
-      slackChannelId: true,
+      accountId: true,
       account: { select: { slackChannelId: true } },
     },
   });
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const channelId =
-    project.slackChannelId?.trim() || project.account?.slackChannelId?.trim() || null;
-  if (!channelId) {
-    return NextResponse.json(
-      {
-        error:
-          "No Slack channel configured for this project. Set one in Settings → Links or in Admin → Accounts.",
-      },
-      { status: 400 }
-    );
+  const channelResult = resolveAccountSlackChannel(project);
+  if (!channelResult.ok) {
+    return NextResponse.json({ error: channelResult.error }, { status: 400 });
   }
+  const channelId = channelResult.channelId;
 
   const report = await prisma.statusReport.findFirst({
     where: { projectId },

@@ -503,7 +503,7 @@ export function ProjectSettingsTab({
                     className="mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400"
                   />
                   <p className="text-body-sm text-surface-500 dark:text-surface-400 mt-0.5">
-                    The Slack channel ID (e.g. C0123456789) for project notifications.
+                    The Slack channel ID (e.g. C0123456789) for missing-actuals nudges (Tuesday fallback, Wednesday).
                   </p>
                 </div>
               </div>

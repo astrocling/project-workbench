@@ -10,14 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Slack — status posts use account channel** — **Post to Slack** from Status Reports now posts to the linked **account** Slack channel only (**Admin → Accounts**), not the project channel in **Settings → Links**. Channel resolution lives in **`lib/slackChannels.ts`** (`resolveAccountSlackChannel`); **`POST /api/projects/[id]/slack/health-update`** returns a clear **400** when the project has no linked account or the account has no channel configured. The project **Slack Channel ID** field remains for **Tuesday/Wednesday** missing-actuals nudges only.
 - **Slack — resourcing tab links** — Resourcing-request and missing-actuals Slack messages now link to **`/projects/{slug}?tab=resourcing`** (matching in-app tab routing) instead of the non-existent **`/projects/{slug}/resourcing`** path. Shared URL helpers in **`lib/workbenchUrls.ts`**. Legacy **`/projects/{slug}/resourcing`** URLs redirect to the correct tab. Resourcing requests without a **Float link** (**Settings → Links**) show plain _Float not linked_ in Slack instead of omitting Float context entirely.
 - **Browser tab icon (favicon)** — The tab icon now shows the Jakala **`j512`** mark instead of the default Vercel triangle. Browsers request **`/favicon.ico`** independently of HTML metadata; the app now uses Next.js file-based app icons (**`app/favicon.ico`**, **`app/icon.png`**, **`app/apple-icon.png`**) derived from **`public/brand/j512.png`**. Removed redundant **`metadata.icons`** from **`app/layout.tsx`**.
 
 ### Documentation
 
-- **CHANGELOG** — This unreleased section.
-- **Technical Reference** — *Slack integration* → Workbench links in Slack messages (`?tab=resourcing`, Float linked vs not linked, legacy redirect); *App shell* → browser tab / favicon assets and file conventions.
-- **User Guide** — *Resourcing tab* → Slack message links and Float link behavior; *Sidebar* (tab icon); *Troubleshooting* (stale favicon cache).
+- **CHANGELOG** — This unreleased section (status-post account channel fix).
+- **Technical Reference** — *Slack integration* → channel routing table (health updates → account channel only); **`lib/slackChannels.ts`**; Workbench links in Slack messages (`?tab=resourcing`, Float linked vs not linked, legacy redirect); *App shell* → browser tab / favicon assets and file conventions.
+- **User Guide** — *Post to Slack* (account channel requirement); *Settings* / *Admin → Accounts* channel purposes; *Troubleshooting* (Slack health post errors); *Resourcing tab* → Slack message links and Float link behavior; *Sidebar* (tab icon); *Troubleshooting* (stale favicon cache).
 
 ## [1.1.1] - 2026-05-19
 

@@ -1775,7 +1775,7 @@ export function StatusReportsTab({
               Post Status Update to Slack
             </h2>
             <p className="text-body-sm text-surface-600 dark:text-surface-300 mb-4">
-              The most recent status report will be posted to the configured Slack channel for this project.
+              The most recent status report will be posted to the linked account's Slack channel (Admin → Accounts).
             </p>
             {reports[0] && (
               <div className="rounded-md border border-surface-200 dark:border-dark-border bg-surface-50 dark:bg-dark-raised p-3 mb-4 space-y-2">
