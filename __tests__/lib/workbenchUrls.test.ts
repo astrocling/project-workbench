@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   getWorkbenchBaseUrl,
   projectResourcingUrl,
+  projectStatusReportsUrl,
   projectTabUrl,
 } from "@/lib/workbenchUrls";
 
@@ -42,6 +43,15 @@ describe("workbenchUrls", () => {
       process.env.WORKBENCH_BASE_URL = "https://pw.example.com";
       expect(projectResourcingUrl("acme-campaign")).toBe(
         "https://pw.example.com/projects/acme-campaign?tab=resourcing"
+      );
+    });
+  });
+
+  describe("projectStatusReportsUrl", () => {
+    it("builds status-reports tab deep links", () => {
+      process.env.WORKBENCH_BASE_URL = "https://pw.example.com";
+      expect(projectStatusReportsUrl("acme-campaign")).toBe(
+        "https://pw.example.com/projects/acme-campaign?tab=status-reports"
       );
     });
   });

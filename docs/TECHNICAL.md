@@ -208,9 +208,9 @@ Project tabs use a **single page** at `/projects/[slug]` with the active tab sel
 |--------------|----------------|------------|
 | **Resourcing request** (`POST .../slack/resourcing-request`) | `{WORKBENCH_BASE_URL}/projects/{slug}?tab=resourcing` | When **`Project.floatLink`** is set (**Settings → Links**): external **View in Float →** mrkdwn link. When unset: plain _Float not linked_ (no link). |
 | **Missing-actuals nudge** (`trigger/missingActualsNudge.ts`) | Same resourcing tab URL | — |
-| **Health update** (`POST .../slack/health-update`) | `{WORKBENCH_BASE_URL}/projects/{slug}/status-reports` (path-style; **known gap**—should use `?tab=status-reports` in a future fix) | — |
+| **Health update** (`POST .../slack/health-update`) | `{WORKBENCH_BASE_URL}/projects/{slug}?tab=status-reports` | — |
 
-**URL builder:** `lib/workbenchUrls.ts` — `getWorkbenchBaseUrl()`, `projectTabUrl(slug, tab)`, `projectResourcingUrl(slug)`. Used by resourcing-request and missing-actuals nudges so Slack links stay aligned with in-app tab routing.
+**URL builder:** `lib/workbenchUrls.ts` — `getWorkbenchBaseUrl()`, `projectTabUrl(slug, tab)`, `projectResourcingUrl(slug)`, `projectStatusReportsUrl(slug)`. Used by Slack message routes so links stay aligned with in-app tab routing.
 
 **Legacy Slack links:** Older messages used `/projects/{slug}/resourcing`. That path **redirects** to `?tab=resourcing` via `app/(app)/projects/[slug]/resourcing/page.tsx` so existing posts keep working without edits.
 

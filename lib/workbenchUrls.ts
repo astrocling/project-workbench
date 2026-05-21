@@ -12,3 +12,7 @@ export function projectTabUrl(slug: string, tab: string): string {
 export function projectResourcingUrl(slug: string): string {
   return projectTabUrl(slug, "resourcing");
 }
+
+export function projectStatusReportsUrl(slug: string): string {
+  return projectTabUrl(slug, "status-reports");
+}

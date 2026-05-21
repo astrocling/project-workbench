@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { resolveAccountSlackChannel } from "@/lib/slackChannels";
 import { getProjectId } from "@/lib/slug";
+import { projectStatusReportsUrl } from "@/lib/workbenchUrls";
 import { isStatusReportSnapshot } from "@/lib/statusReportPdfData";
 import { z } from "zod";
 
@@ -254,11 +255,7 @@ export async function POST(
 
   const roleMentions = [pmMention, pgmMention, cadMention].filter(Boolean).join(" ");
 
-  const baseUrl = (process.env.WORKBENCH_BASE_URL ?? "https://pw.theclingans.com").replace(
-    /\/$/,
-    ""
-  );
-  const reportUrl = `${baseUrl}/projects/${project.slug}/status-reports`;
+  const reportUrl = projectStatusReportsUrl(project.slug);
   const pmPosterMention = pmMentionText(poster);
   const posterLine =
     roleMentions.length > 0
