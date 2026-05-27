@@ -1,3 +1,58 @@
+This file is a merged representation of a subset of the codebase, containing specifically included files, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Only files matching these patterns are included: components/StatusReportView.tsx, components/pdf/StatusReportDocument.tsx, lib/statusReportPdfData.ts
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+components/
+  pdf/
+    StatusReportDocument.tsx
+  StatusReportView.tsx
+lib/
+  statusReportPdfData.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="components/pdf/StatusReportDocument.tsx">
 import React from "react";
 import {
   Document,
@@ -851,7 +906,7 @@ export type StatusReportPDFData = {
   panels?: ReportPanel[];
 };
 
-const MODULAR_METRIC_LABELS: Record<string, string> = {
+const SPRINT_METRIC_LABELS: Record<string, string> = {
   planned: "Story Points Planned",
   completed: "Story Points Completed",
   inProgress: "Story Points In Progress",
@@ -1696,7 +1751,7 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
             </View>
           )}
 
-          {report.variation === "Modular" && (() => {
+          {report.variation === "Sprint" && (() => {
             const panels = data.panels ?? [];
             if (panels.length === 0) {
               return (
@@ -1775,7 +1830,7 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
                         <View key={rowIndex} style={[styles.tableRow, { borderBottomWidth: 0 }]}>
                           <View style={[styles.bottomQuarterCell, styles.srBorder, labelStyle, { flex: 1.5 }]}>
                             <Text style={[labelStyle, { fontSize: 7 }]}>
-                              {MODULAR_METRIC_LABELS[row.metric] ?? row.metric}
+                              {SPRINT_METRIC_LABELS[row.metric] ?? row.metric}
                             </Text>
                           </View>
                           {row.values.map((v, j) => (
@@ -1824,3 +1879,1269 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
     </Document>
   );
 }
+</file>
+
+<file path="components/StatusReportView.tsx">
+"use client";
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { BRAND_COLORS } from "@/lib/brandColors";
+import { parseLinkSegments } from "@/lib/statusReportLinks";
+import {
+  isMeetingNotesHtml,
+  sanitizeMeetingNotesHtml,
+} from "@/lib/meetingNotesHtml";
+import {
+  type StatusReportPDFData,
+  type RagStatus,
+  cdaOverallHoursPlanned,
+  cdaOverallHoursRemaining,
+  cdaContractHoursCompletePercent,
+} from "@/components/pdf/StatusReportDocument";
+import type {
+  DonutKpiData,
+  SprintScheduleData,
+  StoryPointsMetricsData,
+} from "@/lib/reportPanels";
+import { getWeeksInMonthsForRange } from "@/lib/monthUtils";
+
+// Mirror PDF layout: 16:9 slide, same colors and structure
+const BIO_TITLE_COLOR = "#220088";
+const BIO_LABEL_COLOR = "#220088";
+const BIO_VALUE_COLOR = "#000000";
+const BIO_BLOCK_BG = "#F5F5F5";
+const FOOTER_LINE_COLOR = "#474797";
+const FOOTER_BRAND_COLOR = "#474797";
+const FOOTER_MUTED_COLOR = "#6b7280";
+const TIMELINE_MONTH_BG = "#040966";
+const TIMELINE_BAR_BG = "#1941FA";
+const TIMELINE_REPORT_DATE = "#FF2020";
+const TIMELINE_ROW_BORDER = "#d1d5db";
+const TIMELINE_MONTH_DIVIDER = "#9ca3af";
+const RAG_COLORS: Record<RagStatus, string> = {
+  Red: "#dc2626",
+  Amber: "#f59e0b",
+  Green: "#22c55e",
+};
+
+function formatDollars(n: number): string {
+  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+function formatReportNum(n: number): string {
+  return n.toFixed(2);
+}
+function formatMonthDay(isoDate: string): string {
+  const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) return "—";
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  return `${String(m).padStart(2, "0")}/${String(day).padStart(2, "0")}`;
+}
+function getMonthFullName(monthKey: string): string {
+  const [y, m] = monthKey.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleString("en-US", { month: "long" });
+}
+function getMonthsForTimeline(startDate: string, endDate: string): string[] {
+  const months: string[] = [];
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const current = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+  const endMonth = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
+  while (current <= endMonth) {
+    months.push(`${current.getUTCFullYear()}-${String(current.getUTCMonth() + 1).padStart(2, "0")}`);
+    current.setUTCMonth(current.getUTCMonth() + 1);
+  }
+  return months;
+}
+function bulletLines(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function isHtmlContent(text: string): boolean {
+  return text.trimStart().startsWith("<");
+}
+
+const SPRINT_METRIC_LABELS: Record<string, string> = {
+  planned: "Story Points Planned",
+  completed: "Story Points Completed",
+  inProgress: "Story Points In Progress",
+  carryOver: "Carry Over To Next",
+};
+
+function NarrativeColumnContent({ text }: { text: string }) {
+  if (isHtmlContent(text)) {
+    return (
+      <div
+        className="text-[7px] leading-[1.15] [&_ul]:list-disc [&_ul]:pl-3 [&_li]:my-px [&_strong]:font-bold [&_b]:font-bold [&_a]:text-jblue-600 [&_a]:underline [&_p]:mb-px [&_p:last-child]:mb-0"
+        dangerouslySetInnerHTML={{ __html: sanitizeMeetingNotesHtml(text) }}
+      />
+    );
+  }
+  return (
+    <>
+      {bulletLines(text)
+        .slice(0, 7)
+        .map((line, i) => (
+          <p key={i} className="text-[7px] leading-[1.15]">
+            • <TextWithLinks line={line} />
+          </p>
+        ))}
+    </>
+  );
+}
+function getKeyRoleNames(data: StatusReportPDFData): { cad: string; pm: string; pgm: string; keyStaff: string } {
+  const roles = data.project.projectKeyRoles || [];
+  const cad = roles.find((r) => r.type === "CAD")?.person?.name ?? "";
+  const pm = roles.filter((r) => r.type === "PM").map((r) => r.person?.name).filter(Boolean).join(", ") ?? "";
+  const pgm = roles.find((r) => r.type === "PGM")?.person?.name ?? "";
+  const keyStaff = data.project.keyStaffName ?? "";
+  return { cad, pm, pgm, keyStaff };
+}
+
+function TextWithLinks({ line }: { line: string }) {
+  const segments = parseLinkSegments(line);
+  return (
+    <>
+      {segments.map((seg, i) =>
+        seg.type === "link" ? (
+          <a key={i} href={seg.href} target="_blank" rel="noopener noreferrer" className="text-jblue-600 underline">
+            {seg.content}
+          </a>
+        ) : (
+          seg.content
+        )
+      )}
+    </>
+  );
+}
+
+function RagStatusBlock({ data }: { data: StatusReportPDFData }) {
+  const { report } = data;
+  const rows: Array<{ label: string; status: RagStatus | null | undefined; explanation: string | null | undefined }> = [
+    { label: "Overall", status: report.ragOverall, explanation: report.ragOverallExplanation },
+    { label: "Scope", status: report.ragScope, explanation: report.ragScopeExplanation },
+    { label: "Schedule", status: report.ragSchedule, explanation: report.ragScheduleExplanation },
+    { label: "Budget", status: report.ragBudget, explanation: report.ragBudgetExplanation },
+  ];
+  return (
+    <div className="w-full flex flex-col">
+      <div className="flex flex-row bg-[#220088] min-h-[16px]">
+        <div className="w-[72px] py-0.5 px-1 flex-shrink-0">
+          <span className="text-[9px] font-bold text-white">Project Status</span>
+        </div>
+        <div className="w-6 flex-shrink-0" />
+        <div className="flex-1 min-w-0 py-0.5 px-1">
+          <span className="text-[9px] font-bold text-white">Explanation</span>
+        </div>
+      </div>
+      {rows.map((row, i) => (
+        <div
+          key={row.label}
+          className={`flex flex-row items-center border-b border-gray-200 min-h-[14px] ${i % 2 === 1 ? "bg-white" : "bg-[#F5F5F5]"}`}
+        >
+          <div className="w-[72px] py-0.5 px-1 flex-shrink-0">
+            <span className="text-[7px] font-bold" style={{ color: BIO_LABEL_COLOR }}>
+              {row.label}
+            </span>
+          </div>
+          <div className="w-6 flex items-center justify-center flex-shrink-0 py-0.5">
+            {row.status ? (
+              <span
+                className="inline-block w-[18px] h-2 rounded-full"
+                style={{ backgroundColor: RAG_COLORS[row.status as RagStatus] }}
+              />
+            ) : null}
+          </div>
+          <div className="flex-1 min-w-0 py-0.5 px-1 text-[7px]" style={{ color: BIO_VALUE_COLOR }}>
+            {row.explanation?.trim() ? <TextWithLinks line={row.explanation.trim()} /> : "—"}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BudgetBurnDonut({
+  burnPercent,
+  compact = false,
+  label = "Budget burn ($)",
+}: {
+  burnPercent: number | null;
+  compact?: boolean;
+  label?: string;
+}) {
+  const size = compact ? 36 : 48;
+  const r = compact ? 13 : 18;
+  const stroke = compact ? 5 : 7;
+  const clamped = burnPercent == null ? 0 : Math.min(100, Math.max(0, burnPercent));
+  const circumference = 2 * Math.PI * r;
+  const filled = (clamped / 100) * circumference;
+  const gap = circumference - filled;
+  const percentText = burnPercent != null ? `${burnPercent.toFixed(0)}%` : "—";
+  const textSize = compact ? "text-[8px]" : "text-[10px]";
+  return (
+    <div className="flex flex-col items-center justify-center flex-shrink-0">
+      <div className="relative inline-block" style={{ width: size, height: size }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="block">
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke="#9ca3af"
+            strokeWidth={stroke}
+          />
+          {clamped > 0 && (
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              stroke="#1941FA"
+              strokeWidth={stroke}
+              strokeDasharray={`${filled} ${gap}`}
+              strokeLinecap="round"
+              transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            />
+          )}
+        </svg>
+        <span
+          className={`absolute inset-0 flex items-center justify-center font-bold ${textSize} pointer-events-none`}
+          style={{ color: "#060066" }}
+        >
+          {percentText}
+        </span>
+      </div>
+      <span className="text-[6px] uppercase tracking-wide text-gray-500 mt-0.5 text-center">{label}</span>
+    </div>
+  );
+}
+
+function TimelineBlock({
+  timeline,
+  reportDate,
+}: {
+  timeline: NonNullable<StatusReportPDFData["timeline"]>;
+  reportDate?: string;
+}) {
+  const startMs = new Date(timeline.startDate).getTime();
+  const endMs = new Date(timeline.endDate).getTime();
+  const totalMs = endMs - startMs || 1;
+  const positionPercent = (dateStr: string) =>
+    Math.max(0, Math.min(100, ((new Date(dateStr).getTime() - startMs) / totalMs) * 100));
+  const widthPercent = (startStr: string, endStr: string) =>
+    Math.max(0, Math.min(100, ((new Date(endStr).getTime() - new Date(startStr).getTime()) / totalMs) * 100));
+  const months = getMonthsForTimeline(timeline.startDate, timeline.endDate);
+  type Bar = (typeof timeline.bars)[number];
+  const barsByRow: Bar[][] = [[], [], [], []];
+  for (const bar of timeline.bars) {
+    if (bar.rowIndex >= 1 && bar.rowIndex <= 4) barsByRow[bar.rowIndex - 1].push(bar);
+  }
+  const startYmd = timeline.startDate.slice(0, 10);
+  const endYmd = timeline.endDate.slice(0, 10);
+  const reportDateInRange = reportDate && reportDate >= startYmd && reportDate <= endYmd;
+  const reportDatePercent = reportDateInRange ? positionPercent(reportDate) : null;
+
+  const { weeksInMonths, monthBoundaryPositions } = getWeeksInMonthsForRange(
+    months,
+    startMs,
+    endMs
+  );
+
+  /** Clip each bar to the visible range so position/width match the axis. */
+  function getVisibleBarSegments(rowBars: Bar[]) {
+    const clipped: { bar: Bar; visibleStart: string; visibleEnd: string }[] = [];
+    for (const bar of rowBars) {
+      const visibleStart = bar.startDate > startYmd ? bar.startDate : startYmd;
+      const visibleEnd = bar.endDate < endYmd ? bar.endDate : endYmd;
+      if (visibleStart < visibleEnd) {
+        clipped.push({ bar, visibleStart, visibleEnd });
+      }
+    }
+    return clipped;
+  }
+
+  const ROW_HEIGHT_PX = 20;
+
+  return (
+    <div className="mt-1 w-full border border-[#d1d5db] relative">
+      {reportDatePercent != null && (
+        <div className="relative h-2 w-full">
+          <span
+            className="absolute text-[5px] font-bold whitespace-nowrap"
+            style={{ left: `calc(${reportDatePercent}% - 18px)`, color: TIMELINE_REPORT_DATE }}
+          >
+            Report date
+          </span>
+        </div>
+      )}
+      <div
+        className="grid gap-0 w-full"
+        style={{
+          backgroundColor: TIMELINE_MONTH_BG,
+          gridTemplateColumns: weeksInMonths.map((w) => `${w}fr`).join(" "),
+        }}
+      >
+        {months.map((monthKey) => (
+          <div key={monthKey} className="py-0.5 px-0.5 text-center">
+            <span className="text-[6px] font-bold text-white uppercase">
+              {getMonthFullName(monthKey).toUpperCase()}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="relative">
+        {reportDatePercent != null && (
+          <div
+            className="absolute top-0 bottom-0 w-0.5 -ml-px"
+            style={{ left: `${reportDatePercent}%`, backgroundColor: TIMELINE_REPORT_DATE, height: 80 }}
+          />
+        )}
+        {[0, 1, 2, 3].map((rowIdx) => {
+          const rowBars = barsByRow[rowIdx] ?? [];
+          const clipped = getVisibleBarSegments(rowBars);
+          return (
+            <div
+              key={rowIdx}
+              className="border-b border-[#d1d5db] relative"
+              style={{ minHeight: ROW_HEIGHT_PX }}
+            >
+              <div className="absolute inset-0 pointer-events-none">
+                {monthBoundaryPositions.map((leftPct, i) => (
+                  <div
+                    key={i}
+                    className="absolute top-0 bottom-0 w-px -ml-px"
+                    style={{ left: `${leftPct}%`, backgroundColor: TIMELINE_MONTH_DIVIDER }}
+                  />
+                ))}
+              </div>
+              <div className="absolute inset-0">
+                {clipped.map(({ bar, visibleStart, visibleEnd }, i) => (
+                  <div
+                    key={`bar-${i}`}
+                    className="absolute top-1 bottom-1 rounded-sm flex items-center px-1 opacity-[0.82] overflow-hidden min-w-0"
+                    style={{
+                      left: `${positionPercent(visibleStart)}%`,
+                      width: `${widthPercent(visibleStart, visibleEnd)}%`,
+                      backgroundColor: bar.color ?? TIMELINE_BAR_BG,
+                    }}
+                  >
+                    <span className="text-[5px] text-white font-semibold truncate block min-w-0">{bar.label}</span>
+                  </div>
+                ))}
+              </div>
+              {timeline.markers
+                .filter((m) => (m.rowIndex ?? 1) === rowIdx + 1)
+                .map((m, i) => (
+                  <div
+                    key={`m-${i}`}
+                    className="absolute flex flex-col items-center min-w-[11px]"
+                    style={{ left: `calc(${positionPercent(m.date)}% - 5.5px)` }}
+                  >
+                    <div
+                      className="w-[11px] h-[11px] rounded-full border-2 border-[#FF2020] flex-shrink-0"
+                      style={{ borderColor: TIMELINE_REPORT_DATE }}
+                    />
+                    <span className="text-[5px] font-medium text-gray-600 bg-gray-100 px-0.5 rounded max-w-[52px] truncate">
+                      {m.label}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const MAX_MILESTONES_ON_PDF = 6;
+function milestonesForExport<T extends { completed: boolean }>(milestones: T[]): T[] {
+  return [...milestones]
+    .sort((a, b) => Number(a.completed) - Number(b.completed))
+    .slice(0, MAX_MILESTONES_ON_PDF);
+}
+
+export type StatusReportViewRefs = {
+  slideRef?: React.RefObject<HTMLDivElement | null>;
+  meetingNotesRef?: React.RefObject<HTMLDivElement | null>;
+};
+
+export function StatusReportView({
+  data,
+  slideRef,
+  meetingNotesRef,
+}: {
+  data: StatusReportPDFData;
+} & StatusReportViewRefs) {
+  const { report, project, period, today } = data;
+  const { cad, pm, pgm, keyStaff } = getKeyRoleNames(data);
+  const bioTitle = project.name.toUpperCase();
+
+  const slideWidth = 720;
+  const slideHeight = slideWidth * (9 / 16); // 16:9 aspect
+  const previewScaleMax = 1.5;
+  const previewScaleMin = 1.0;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const el = containerRef.current;
+
+    const update = () => setContainerWidth(el.getBoundingClientRect().width);
+    update();
+
+    const ro = new ResizeObserver(() => update());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Visual-only scale for the in-app preview (PDF export captures at its own scale).
+  const slideScale = useMemo(() => {
+    if (!containerWidth) return previewScaleMax;
+    // Leave a little breathing room so we don't kiss the edges.
+    const available = Math.max(0, containerWidth - 24);
+    const fit = available / slideWidth;
+    return Math.min(previewScaleMax, Math.max(previewScaleMin, fit));
+  }, [containerWidth]);
+
+  const scaledHeight = slideHeight * slideScale;
+
+  return (
+    <div
+      className="status-report-view bg-white text-black font-sans overflow-visible"
+      style={{ fontFamily: "var(--font-raleway), sans-serif" }}
+    >
+      {/* Main slide — 16:9 aspect; scaled up for readability, spacing unchanged */}
+      <div
+        ref={containerRef}
+        className="w-full overflow-x-auto"
+      >
+        {/* Important: don't apply maxWidth here; transforms don't affect layout sizing and can cause visual overflow. */}
+        <div className="w-fit" style={{ width: slideWidth * slideScale, minHeight: scaledHeight, marginInline: "auto" }}>
+          <div
+            ref={slideRef}
+            className="status-report-slide relative border border-gray-200 origin-top"
+            style={{
+              width: 720,
+              aspectRatio: "16/9",
+              minHeight: 360,
+              transform: `scale(${slideScale})`,
+              // Important: scaling from center causes the left edge to go negative and get clipped.
+              // Scale from top-left so it expands rightward and stays fully visible in the scroll container.
+              transformOrigin: "top left",
+            }}
+          >
+        <div className="h-full flex flex-col pt-6 px-6 pb-8 text-[9px]">
+          <div className="flex flex-row items-start gap-3 mb-1.5">
+            {/* Left: biographical block — extra flex so labels/values have room and wrap less */}
+            <div className="min-w-0 flex-[1.35]">
+              <div className="w-full min-w-0">
+                <h2
+                  className="text-[9px] font-bold uppercase mb-0.5"
+                  style={{ color: BIO_TITLE_COLOR }}
+                >
+                  {bioTitle}
+                </h2>
+                <div className="h-px mb-1" style={{ backgroundColor: BIO_TITLE_COLOR }} />
+                <div className="flex flex-row gap-1" style={{ backgroundColor: BIO_BLOCK_BG }}>
+                  <div className="flex-1 min-w-0 p-1 flex flex-col gap-0.5">
+                    <div className="flex flex-row items-baseline gap-1 min-w-0">
+                      <span className="text-[7px] font-bold shrink-0 whitespace-nowrap" style={{ color: BIO_LABEL_COLOR }}>Account Director:</span>
+                      <span className="text-[7px] min-w-0 break-words" style={{ color: BIO_VALUE_COLOR }}>{cad || "—"}</span>
+                    </div>
+                    <div className="flex flex-row items-baseline gap-1 min-w-0">
+                      <span className="text-[7px] font-bold shrink-0 whitespace-nowrap" style={{ color: BIO_LABEL_COLOR }}>Project Manager:</span>
+                      <span className="text-[7px] min-w-0 break-words" style={{ color: BIO_VALUE_COLOR }}>{pm || "—"}</span>
+                    </div>
+                    <div className="flex flex-row items-baseline gap-1 min-w-0">
+                      <span className="text-[7px] font-bold shrink-0 whitespace-nowrap" style={{ color: BIO_LABEL_COLOR }}>Program Manager:</span>
+                      <span className="text-[7px] min-w-0 break-words" style={{ color: BIO_VALUE_COLOR }}>{pgm || "—"}</span>
+                    </div>
+                    <div className="flex flex-row items-baseline gap-1 min-w-0">
+                      <span className="text-[7px] font-bold shrink-0 whitespace-nowrap" style={{ color: BIO_LABEL_COLOR }}>Team Member:</span>
+                      <span className="text-[7px] min-w-0 break-words" style={{ color: BIO_VALUE_COLOR }}>{keyStaff || "—"}</span>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0 p-1 flex flex-col gap-0.5">
+                    <div className="flex flex-row items-baseline gap-1 min-w-0">
+                      <span className="text-[7px] font-bold shrink-0 whitespace-nowrap" style={{ color: BIO_LABEL_COLOR }}>Today&apos;s Date:</span>
+                      <span className="text-[7px] min-w-0 break-words" style={{ color: BIO_VALUE_COLOR }}>{today}</span>
+                    </div>
+                    <div className="flex flex-row items-baseline gap-1 min-w-0">
+                      <span className="text-[7px] font-bold shrink-0 whitespace-nowrap" style={{ color: BIO_LABEL_COLOR }}>Client Sponsor:</span>
+                      <span className="text-[7px] min-w-0 break-words" style={{ color: BIO_VALUE_COLOR }}>{project.clientSponsor || "—"}</span>
+                    </div>
+                    <div className="flex flex-row items-baseline gap-1 min-w-0">
+                      <span className="text-[7px] font-bold shrink-0 whitespace-nowrap" style={{ color: BIO_LABEL_COLOR }}>Client Sponsor:</span>
+                      <span className="text-[7px] min-w-0 break-words" style={{ color: BIO_VALUE_COLOR }}>{project.clientSponsor2 || "—"}</span>
+                    </div>
+                    <div className="flex flex-row items-baseline gap-1 min-w-0">
+                      <span className="text-[7px] font-bold shrink-0 whitespace-nowrap" style={{ color: BIO_LABEL_COLOR }}>Other Contact:</span>
+                      <span className="text-[7px] min-w-0 break-words" style={{ color: BIO_VALUE_COLOR }}>{project.otherContact || "—"}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-row items-baseline gap-1 mt-0.5 min-w-0">
+                  <span className="text-[7px] italic shrink-0 whitespace-nowrap" style={{ color: BIO_LABEL_COLOR }}>Period:</span>
+                  <span className="text-[7px] italic min-w-0 break-words" style={{ color: BIO_VALUE_COLOR }}>{period}</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex-1 min-w-0">
+              <RagStatusBlock data={data} />
+            </div>
+          </div>
+
+          {/* Three columns: completed / upcoming / risks — tight spacing to fit 7 items */}
+          <div className="flex flex-row gap-3 mb-0 flex-1 min-h-0">
+            <div className="flex-1 min-w-0 flex flex-col min-h-0">
+              <h3 className="text-[9px] font-bold mb-0.5 shrink-0" style={{ color: "#060066" }}>Completed Activities</h3>
+              <div className="flex-1 min-h-0 flex flex-col gap-px">
+                <NarrativeColumnContent text={report.completedActivities} />
+              </div>
+            </div>
+            <div className="flex-1 min-w-0 flex flex-col min-h-0">
+              <h3 className="text-[9px] font-bold mb-0.5 shrink-0" style={{ color: "#060066" }}>Upcoming Activities</h3>
+              <div className="flex-1 min-h-0 flex flex-col gap-px">
+                <NarrativeColumnContent text={report.upcomingActivities} />
+              </div>
+            </div>
+            <div className="flex-1 min-w-0 flex flex-col min-h-0">
+              <h3 className="text-[9px] font-bold mb-0.5 shrink-0" style={{ color: "#060066" }}>Risks / Issues / Decisions</h3>
+              <div className="flex-1 min-h-0 flex flex-col gap-px">
+                <NarrativeColumnContent text={report.risksIssuesDecisions} />
+              </div>
+            </div>
+          </div>
+
+          {/* Timeline (non-CDA with bars) */}
+          {report.variation !== "CDA" && data.timeline && data.timeline.bars.length > 0 && (
+            <div className="mt-2 flex-shrink-0">
+              <TimelineBlock timeline={data.timeline} reportDate={data.report.reportDate} />
+            </div>
+          )}
+
+          {/* Budget section — pinned above footer; CDA layout tightened to leave room for 7 activity items */}
+          <div className="mt-1 flex-shrink-0">
+            {report.variation === "CDA" && data.cda && (() => {
+              const reportMonthKey = data.report.reportDate.slice(0, 7);
+              const currentMonthRow = data.cda.rows.find((r) => r.monthKey === reportMonthKey);
+              const hoursOnly = data.cdaReportHoursOnly === true;
+              const contractBudgetBurnPercent =
+                data.cda.overallBudget && data.cda.overallBudget.totalDollars > 0
+                  ? Math.min(100, Math.max(0, (data.cda.overallBudget.actualDollars / data.cda.overallBudget.totalDollars) * 100))
+                  : null;
+              const contractHoursCompletePercent = cdaContractHoursCompletePercent(data);
+              const overallFirstDonutPercent = hoursOnly ? contractHoursCompletePercent : contractBudgetBurnPercent;
+              const currentMonthPercent =
+                currentMonthRow && currentMonthRow.planned > 0
+                  ? Math.min(100, Math.max(0, (currentMonthRow.mtdActuals / currentMonthRow.planned) * 100))
+                  : null;
+              const monthRemaining = currentMonthRow ? currentMonthRow.planned - currentMonthRow.mtdActuals : null;
+              const currentMonthFull = getMonthFullName(reportMonthKey);
+              return (
+                <div className="flex flex-row items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    {data.cda.milestones && data.cda.milestones.length > 0 ? (
+                      <div className="border border-gray-200">
+                        <div className="bg-white text-center py-0.5 px-0.5 text-[7px] font-semibold" style={{ color: BRAND_COLORS.onWhite }}>
+                          Milestones
+                        </div>
+                        <div className="flex flex-row text-[6px] font-semibold" style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}>
+                          <div className="flex-[1.2] py-0.5 px-0.5">Phase</div>
+                          <div className="flex-[1.4] py-0.5 px-0.5">DEV</div>
+                          <div className="flex-[1.4] py-0.5 px-0.5">UAT</div>
+                          <div className="flex-[0.8] py-0.5 px-0.5">Deploy</div>
+                        </div>
+                        {milestonesForExport(data.cda.milestones).map((m, index) => {
+                          const alt = index % 2 === 1;
+                          return (
+                            <div
+                              key={m.id}
+                              className={`flex flex-row text-[6px] ${alt ? "bg-gray-100" : "bg-white"}`}
+                            >
+                              <div className="flex-[1.2] py-0.5 px-0.5 font-semibold border border-gray-200">
+                                <span className={m.completed ? "line-through" : ""}>{m.phase}</span>
+                              </div>
+                              <div className={`flex-[1.4] py-0.5 px-0.5 border border-gray-200 text-right ${m.completed ? "line-through" : ""}`}>
+                                {formatMonthDay(m.devStartDate)}–{formatMonthDay(m.devEndDate)}
+                              </div>
+                              <div className={`flex-[1.4] py-0.5 px-0.5 border border-gray-200 text-right ${m.completed ? "line-through" : ""}`}>
+                                {formatMonthDay(m.uatStartDate)}–{formatMonthDay(m.uatEndDate)}
+                              </div>
+                              <div className={`flex-[0.8] py-0.5 px-0.5 border border-gray-200 text-right ${m.completed ? "line-through" : ""}`}>
+                                {formatMonthDay(m.deployDate)}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="border border-gray-200">
+                        <div className="bg-white text-center py-0.5 px-0.5 text-[7px] font-semibold">Milestones</div>
+                        <div className="text-[6px] font-semibold py-0.5 px-0.5 border border-gray-200">No milestones.</div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                    <div className="flex flex-row items-center gap-1.5">
+                      <div className="flex-1 min-w-0 border border-gray-200">
+                        <div className="text-center py-0.5 px-0.5 text-[7px] font-semibold">Overall</div>
+                        <div className="flex flex-row text-[6px] font-semibold" style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}>
+                          <div className="flex-[1.5] py-0.5 px-0.5">Total Project</div>
+                          <div className="flex-1 py-0.5 px-0.5">Planned</div>
+                          <div className="flex-1 py-0.5 px-0.5">Actuals</div>
+                          <div className="flex-1 py-0.5 px-0.5">Remaining</div>
+                        </div>
+                        {!hoursOnly && (
+                        <div className="flex flex-row text-[6px] font-semibold border-t border-gray-200">
+                          <div className="flex-[1.5] py-0.5 px-0.5">Budget ($)</div>
+                          <div className="flex-1 py-0.5 px-0.5 text-right" style={{ backgroundColor: BRAND_COLORS.overallBudget, color: BRAND_COLORS.onHeader }}>
+                            {data.cda.overallBudget ? formatDollars(data.cda.overallBudget.totalDollars) : "—"}
+                          </div>
+                          <div className="flex-1 py-0.5 px-0.5 text-right" style={{ color: BRAND_COLORS.onWhite }}>{data.cda.overallBudget ? formatDollars(-data.cda.overallBudget.actualDollars) : "—"}</div>
+                          <div className="flex-1 py-0.5 px-0.5 text-right" style={{ backgroundColor: BRAND_COLORS.overallBudget, color: BRAND_COLORS.onHeader }}>
+                            {data.cda.overallBudget ? formatDollars(data.cda.overallBudget.totalDollars - data.cda.overallBudget.actualDollars) : "—"}
+                          </div>
+                        </div>
+                        )}
+                        <div className="flex flex-row text-[6px] font-semibold border-t border-gray-200">
+                          <div className="flex-[1.5] py-0.5 px-0.5">Hours</div>
+                          <div className="flex-1 py-0.5 px-0.5 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(cdaOverallHoursPlanned(data))}</div>
+                          <div className="flex-1 py-0.5 px-0.5 text-right" style={{ color: BRAND_COLORS.onWhite }}>{formatReportNum(-data.cda.totalMtdActuals)}</div>
+                          <div className="flex-1 py-0.5 px-0.5 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(cdaOverallHoursRemaining(data))}</div>
+                        </div>
+                      </div>
+                      <BudgetBurnDonut
+                        burnPercent={overallFirstDonutPercent}
+                        compact
+                        label={hoursOnly ? "Contract Hours Complete" : "Total Budget"}
+                      />
+                    </div>
+                    <div className="flex flex-row items-center gap-1.5">
+                      <div className="flex-1 min-w-0 border border-gray-200">
+                        <div className="text-center py-0.5 px-0.5 text-[7px] font-semibold">{currentMonthFull}</div>
+                        <div className="flex flex-row text-[6px] font-semibold" style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}>
+                          <div className="flex-[1.5] py-0.5 px-0.5">Current Month</div>
+                          <div className="flex-1 py-0.5 px-0.5">Planned</div>
+                          <div className="flex-1 py-0.5 px-0.5">Actuals</div>
+                          <div className="flex-1 py-0.5 px-0.5">Remaining</div>
+                        </div>
+                        <div className="flex flex-row text-[6px] font-semibold border-t border-gray-200">
+                          <div className="flex-[1.5] py-0.5 px-0.5">Hours</div>
+                          <div className="flex-1 py-0.5 px-0.5 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{currentMonthRow ? formatReportNum(currentMonthRow.planned) : "—"}</div>
+                          <div className="flex-1 py-0.5 px-0.5 text-right" style={{ color: BRAND_COLORS.onWhite }}>{currentMonthRow ? formatReportNum(currentMonthRow.mtdActuals) : "—"}</div>
+                          <div className="flex-1 py-0.5 px-0.5 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{monthRemaining != null ? formatReportNum(monthRemaining) : "—"}</div>
+                        </div>
+                      </div>
+                      <BudgetBurnDonut burnPercent={currentMonthPercent} compact label={`${currentMonthFull} Hours`} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {report.variation === "Standard" && data.budget && data.showBudget !== false && (
+              <div className="flex flex-row items-start gap-2">
+                <div className="flex-1 min-w-0 border border-gray-200">
+                  <div className="flex flex-row text-[8px] font-semibold" style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}>
+                    <div className="flex-[0.5] py-0.5 px-1"></div>
+                    <div className="flex-1 py-0.5 px-1">Est. Budget</div>
+                    <div className="flex-1 py-0.5 px-1">$ Spent</div>
+                    <div className="flex-1 py-0.5 px-1">$ Remaining</div>
+                    <div className="flex-1 py-0.5 px-1">Budgeted Hrs</div>
+                    <div className="flex-1 py-0.5 px-1">Actual Hrs</div>
+                    <div className="flex-1 py-0.5 px-1">Hrs Remaining</div>
+                  </div>
+                  <div className="flex flex-row text-[8px] border-t border-gray-200">
+                    <div className="flex-[0.5] py-0.5 px-1 font-semibold">HIGH</div>
+                    <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.overallBudget, color: BRAND_COLORS.onHeader }}>{formatDollars(data.budget.estBudgetHigh)}</div>
+                    <div className="flex-1 py-0.5 px-1 text-right">{formatDollars(-data.budget.spentDollars)}</div>
+                    <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.overallBudget, color: BRAND_COLORS.onHeader }}>{formatDollars(data.budget.remainingDollarsHigh)}</div>
+                    <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(data.budget.budgetedHoursHigh)}</div>
+                    <div className="flex-1 py-0.5 px-1 text-right">{formatReportNum(-data.budget.actualHours)}</div>
+                    <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(data.budget.remainingHoursHigh)}</div>
+                  </div>
+                  <div className="flex flex-row text-[8px] border-t border-gray-200">
+                    <div className="flex-[0.5] py-0.5 px-1 font-semibold">LOW</div>
+                    <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.overallBudget, color: BRAND_COLORS.onHeader }}>{formatDollars(data.budget.estBudgetLow)}</div>
+                    <div className="flex-1 py-0.5 px-1 text-right">{formatDollars(-data.budget.spentDollars)}</div>
+                    <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.overallBudget, color: BRAND_COLORS.onHeader }}>{formatDollars(data.budget.remainingDollarsLow)}</div>
+                    <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(data.budget.budgetedHoursLow)}</div>
+                    <div className="flex-1 py-0.5 px-1 text-right">{formatReportNum(-data.budget.actualHours)}</div>
+                    <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(data.budget.remainingHoursLow)}</div>
+                  </div>
+                </div>
+                <BudgetBurnDonut burnPercent={data.budget.burnPercentHigh} compact />
+              </div>
+            )}
+
+            {report.variation === "Milestones" && (
+              <div className="flex flex-row items-start gap-2">
+                <div className="flex-1 min-w-0 border border-gray-200">
+                  <div className="flex flex-row text-[8px] font-semibold" style={{ backgroundColor: "#060066", color: "#fff" }}>
+                    <div className="flex-1 py-1 px-1">Date</div>
+                    <div className="flex-[2] py-1 px-1">Description</div>
+                    <div className="flex-1 py-1 px-1">Status</div>
+                  </div>
+                  <div className="py-1 px-1 text-[8px]">— Milestone data (future phase) —</div>
+                </div>
+                {data.budget && <BudgetBurnDonut burnPercent={data.budget.burnPercentHigh} compact />}
+              </div>
+            )}
+
+            {report.variation === "Sprint" && (() => {
+              const panels = data.panels ?? [];
+              if (panels.length === 0) {
+                return <div className="text-[7px] text-gray-400 py-1">No panel data.</div>;
+              }
+              const schedulePanelData = panels.find((p) => p.type === "sprintSchedule")?.data as
+                | SprintScheduleData
+                | undefined;
+              const metricsPanelData = panels.find((p) => p.type === "storyPointMetrics")?.data as
+                | StoryPointsMetricsData
+                | undefined;
+              const donutPanels = panels
+                .filter((p) => p.type === "donutKpi")
+                .map((p) => p.data as DonutKpiData);
+              return (
+                <div className="flex flex-row items-start gap-2">
+                  {schedulePanelData && schedulePanelData.rows.length > 0 && (
+                    <div className="flex-1 min-w-0 border border-gray-200">
+                      <div
+                        className="text-[7px] font-semibold py-0.5 px-1 text-center"
+                        style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
+                      >
+                        Sprint Schedule
+                      </div>
+                      {schedulePanelData.rows.map((row, i) => (
+                        <div
+                          key={i}
+                          className="flex flex-row text-[6px] border-t border-gray-200"
+                          style={{ backgroundColor: i % 2 === 0 ? "#ffffff" : "#f3f4f6" }}
+                        >
+                          <div className="w-16 flex-shrink-0 py-0.5 px-1 font-semibold">{row.dateRange}</div>
+                          <div className="flex-1 py-0.5 px-1">{row.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {metricsPanelData && metricsPanelData.systems.length > 0 && (
+                    <div className="flex-1 min-w-0 border border-gray-200">
+                      <div
+                        className="text-[7px] font-semibold py-0.5 px-1 text-center"
+                        style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
+                      >
+                        Key Metrics
+                      </div>
+                      <div
+                        className="flex flex-row text-[6px] font-semibold border-t border-gray-200"
+                        style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
+                      >
+                        <div className="flex-[1.5] py-0.5 px-1" />
+                        {metricsPanelData.systems.map((sys, i) => (
+                          <div key={i} className="flex-1 py-0.5 px-1 text-center">
+                            {sys.name}
+                          </div>
+                        ))}
+                      </div>
+                      {metricsPanelData.rows.map((row, i) => (
+                        <div
+                          key={i}
+                          className="flex flex-row text-[6px] border-t border-gray-200"
+                          style={{ backgroundColor: i % 2 === 0 ? "#ffffff" : "#f3f4f6" }}
+                        >
+                          <div className="flex-[1.5] py-0.5 px-1 font-semibold">
+                            {SPRINT_METRIC_LABELS[row.metric] ?? row.metric}
+                          </div>
+                          {row.values.map((v, j) => (
+                            <div key={j} className="flex-1 py-0.5 px-1 text-center tabular-nums">
+                              {v}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {donutPanels.length > 0 && (
+                    <div className="flex flex-col gap-1 flex-shrink-0">
+                      {donutPanels.map((kpi, i) => (
+                        <BudgetBurnDonut
+                          key={i}
+                          burnPercent={kpi.manualValue ?? 0}
+                          compact
+                          label={kpi.label}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div
+          className="absolute left-6 right-6 bottom-1.5 h-[14px] border-t flex flex-row items-center pt-0.5"
+          style={{ borderColor: FOOTER_LINE_COLOR }}
+        >
+          <div className="flex-1">
+            <span className="text-[10px] font-bold" style={{ color: FOOTER_BRAND_COLOR }}>JAKALA</span>
+          </div>
+          <div className="flex-1 text-center text-[9px]" style={{ color: FOOTER_MUTED_COLOR }}>Company Confidential</div>
+          <div className="flex-1 flex flex-row items-center justify-end gap-2">
+            <div className="w-px h-3 bg-gray-300" />
+            <span className="text-[9px]" style={{ color: FOOTER_MUTED_COLOR }}>{new Date().getFullYear()}</span>
+          </div>
+        </div>
+      </div>
+        </div>
+      </div>
+
+      {/* Meeting notes — no overflow/max-height so full content is visible and PDF capture gets everything */}
+      {report.meetingNotes && report.meetingNotes.trim() && (
+        <div
+          ref={meetingNotesRef}
+          className="mx-auto mt-8 pt-9 px-9 pb-11 text-[10px] overflow-visible min-h-0"
+          style={{ width: slideWidth, maxWidth: slideWidth }}
+        >
+          <h2 className="text-sm font-bold uppercase mb-0.5" style={{ color: BIO_TITLE_COLOR }}>Meeting Notes</h2>
+          <div className="h-px mb-3" style={{ backgroundColor: BIO_TITLE_COLOR }} />
+          {isMeetingNotesHtml(report.meetingNotes) ? (
+            <div
+              className="meeting-notes-html overflow-visible [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_li]:my-0.5 [&_strong]:font-bold [&_b]:font-bold [&_a]:text-jblue-600 [&_a]:underline [&_p]:mb-2 [&_p:last-child]:mb-0"
+              style={{ fontFamily: "inherit" }}
+              dangerouslySetInnerHTML={{
+                __html: sanitizeMeetingNotesHtml(report.meetingNotes),
+              }}
+            />
+          ) : (
+            <>
+              {bulletLines(report.meetingNotes).map((line, i) => (
+                <p key={i} className="mb-1.5 leading-snug">
+                  <TextWithLinks line={line} />
+                </p>
+              ))}
+            </>
+          )}
+          <div className="mt-4 pt-2 border-t flex flex-row items-center" style={{ borderColor: FOOTER_LINE_COLOR }}>
+            <span className="text-[10px] font-bold" style={{ color: FOOTER_BRAND_COLOR }}>JAKALA</span>
+            <span className="flex-1 text-center text-[9px]" style={{ color: FOOTER_MUTED_COLOR }}>Company Confidential</span>
+            <span className="text-[9px]" style={{ color: FOOTER_MUTED_COLOR }}>{new Date().getFullYear()}</span>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+</file>
+
+<file path="lib/statusReportPdfData.ts">
+import { unstable_cache } from "next/cache";
+import { prisma } from "@/lib/prisma";
+import { computeBudgetRollups } from "@/lib/budgetCalculations";
+import { buildCdaRowsForProject } from "@/lib/cdaMtdFromResourcing";
+import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument";
+import type { ReportPanel } from "@/lib/reportPanels";
+
+const CACHE_KEY = "status-report-pdf-data";
+const CACHE_REVALIDATE = 60;
+
+/**
+ * Returns status report PDF/view data with Next.js cache (60s revalidate, tag per report).
+ * Use for view page, share page, and pdf/data API so they share one cached build per report.
+ * For report create (snapshot build) call buildStatusReportPdfData directly so cache is not used.
+ */
+export async function getCachedStatusReportPdfData(
+  projectId: string,
+  reportId: string
+): Promise<StatusReportPDFData | null> {
+  return unstable_cache(
+    () => buildStatusReportPdfData(projectId, reportId),
+    [CACHE_KEY, reportId],
+    { revalidate: CACHE_REVALIDATE, tags: [`status-report-${reportId}`] }
+  )();
+}
+
+/** Snapshot of period, budget, CDA, and timeline at report creation so they stay locked when project is edited. */
+export type StatusReportSnapshot = {
+  period: string;
+  today: string;
+  budget?: StatusReportPDFData["budget"];
+  cda?: StatusReportPDFData["cda"];
+  timeline?: StatusReportPDFData["timeline"];
+  /** Number of months before report date to show on timeline (1–4). */
+  timelinePreviousMonths?: number;
+  /** Locked at report creation: hide CDA budget dollars on Overall table. */
+  cdaReportHoursOnly?: boolean;
+  /** When false, Standard report omits bottom budget table and burn chart. Default true. */
+  showBudget?: boolean;
+};
+
+/** Resolves whether Standard report budget block is visible (default true). */
+export function resolveShowBudget(snapshot: StatusReportSnapshot | null): boolean {
+  if (snapshot != null && typeof snapshot.showBudget === "boolean") {
+    return snapshot.showBudget;
+  }
+  return true;
+}
+
+export function isStatusReportSnapshot(obj: unknown): obj is StatusReportSnapshot {
+  return (
+    typeof obj === "object" &&
+    obj != null &&
+    "period" in obj &&
+    typeof (obj as StatusReportSnapshot).period === "string" &&
+    "today" in obj &&
+    typeof (obj as StatusReportSnapshot).today === "string"
+  );
+}
+
+export type BuildStatusReportPdfDataOptions = {
+  /** Number of months before report date to show on timeline (1–4). Used when creating a new report before snapshot exists. */
+  timelinePreviousMonths?: number;
+  /** When true, ignore snapshot.timeline and rebuild timeline from current project bars/markers. */
+  rebuildTimelineFromProject?: boolean;
+};
+
+export async function buildStatusReportPdfData(
+  projectId: string,
+  reportId: string,
+  options?: BuildStatusReportPdfDataOptions
+): Promise<StatusReportPDFData | null> {
+  const report = await prisma.statusReport.findFirst({
+    where: { id: reportId, projectId },
+  });
+  if (!report) return null;
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    include: {
+      budgetLines: true,
+      assignments: { include: { role: true, person: true } },
+      plannedHours: true,
+      actualHours: true,
+      actualHoursMonthSplits: true,
+      projectKeyRoles: { include: { person: true } },
+      cdaMonths: true,
+      cdaMilestones: true,
+      timelineBars: true,
+      timelineMarkers: true,
+    },
+  });
+  if (!project) return null;
+
+  const snapshot = isStatusReportSnapshot(report.snapshot) ? report.snapshot : null;
+
+  let period: string;
+  let today: string;
+  if (snapshot) {
+    period = snapshot.period;
+    today = snapshot.today;
+  } else {
+    const reportDate = new Date(report.reportDate);
+    reportDate.setHours(0, 0, 0, 0);
+    today = reportDate.toLocaleDateString("en-US", { dateStyle: "medium" });
+    const dayOfWeek = reportDate.getDay();
+    const daysToThisMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const thisMonday = new Date(reportDate);
+    thisMonday.setDate(reportDate.getDate() - daysToThisMonday);
+    const prevMonday = new Date(thisMonday);
+    prevMonday.setDate(thisMonday.getDate() - 7);
+    const prevFriday = new Date(prevMonday);
+    prevFriday.setDate(prevMonday.getDate() + 4);
+    period = `${prevMonday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} – ${prevFriday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+  }
+
+  let budget: StatusReportPDFData["budget"] | undefined;
+  let cda: StatusReportPDFData["cda"] | undefined;
+  let timeline: StatusReportPDFData["timeline"] | undefined;
+
+  if (snapshot?.budget !== undefined) {
+    budget = snapshot.budget;
+  }
+  if (snapshot?.cda !== undefined) {
+    cda = snapshot.cda;
+  }
+  if (snapshot?.timeline !== undefined && !options?.rebuildTimelineFromProject) {
+    timeline = snapshot.timeline;
+    // Always apply "months before" from snapshot so the displayed range is correct
+    const prevMonths =
+      typeof snapshot.timelinePreviousMonths === "number" &&
+      snapshot.timelinePreviousMonths >= 1 &&
+      snapshot.timelinePreviousMonths <= 4
+        ? snapshot.timelinePreviousMonths
+        : null;
+    if (prevMonths != null) {
+      const reportDate = new Date(report.reportDate);
+      const minStartDate = new Date(
+        Date.UTC(
+          reportDate.getUTCFullYear(),
+          reportDate.getUTCMonth() - prevMonths,
+          1
+        )
+      );
+      const minStartStr = minStartDate.toISOString().slice(0, 10);
+      const projectStartStr = project.startDate.toISOString().slice(0, 10);
+      const effectiveStartStr =
+        projectStartStr < minStartStr ? minStartStr : projectStartStr;
+      timeline = { ...timeline, startDate: effectiveStartStr };
+    }
+    // Ensure bar colors are present (snapshots created before color existed may lack them)
+    if (timeline && (project.timelineBars ?? []).length > 0) {
+      const barKey = (b: { rowIndex: number; label: string; startDate: string; endDate: string }) =>
+        `${b.rowIndex}|${b.label}|${b.startDate}|${b.endDate}`;
+      const colorByKey = new Map(
+        project.timelineBars!.map((b) => [
+          barKey({
+            rowIndex: b.rowIndex,
+            label: b.label,
+            startDate: b.startDate.toISOString().slice(0, 10),
+            endDate: b.endDate.toISOString().slice(0, 10),
+          }),
+          b.color ?? null,
+        ])
+      );
+      timeline = {
+        ...timeline,
+        bars: timeline.bars.map((bar) => ({
+          ...bar,
+          color: bar.color ?? colorByKey.get(barKey(bar)) ?? null,
+        })),
+      };
+    }
+  }
+
+  if (budget === undefined || (report.variation === "CDA" && cda === undefined)) {
+    const singleRate =
+      project.useSingleRate && project.singleBillRate != null
+        ? Number(project.singleBillRate)
+        : null;
+    const rateByRole = new Map<string, number>();
+    const roleIdsNeedingRate = new Set<string>();
+    for (const a of project.assignments) {
+      const override = a.billRateOverride ? Number(a.billRateOverride) : null;
+      if (override != null) {
+        rateByRole.set(`${a.personId}-${a.roleId}`, override);
+      } else if (singleRate != null) {
+        rateByRole.set(`${a.personId}-${a.roleId}`, singleRate);
+      } else {
+        roleIdsNeedingRate.add(a.roleId);
+      }
+    }
+    if (roleIdsNeedingRate.size > 0) {
+      const rates = await prisma.projectRoleRate.findMany({
+        where: { projectId, roleId: { in: [...roleIdsNeedingRate] } },
+        select: { roleId: true, billRate: true },
+      });
+      const rateByRoleId = new Map(rates.map((r) => [r.roleId, Number(r.billRate)]));
+      for (const a of project.assignments) {
+        if (!rateByRole.has(`${a.personId}-${a.roleId}`)) {
+          rateByRole.set(`${a.personId}-${a.roleId}`, rateByRoleId.get(a.roleId) ?? 0);
+        }
+      }
+    }
+
+    const { getAllWeeks } = await import("@/lib/weekUtils");
+    const end = project.endDate ?? new Date();
+    const allWeeks = getAllWeeks(project.startDate, end);
+    const weeklyRows: Array<{
+      weekStartDate: Date;
+      plannedHours: number;
+      actualHours: number | null;
+      rate: number;
+    }> = [];
+
+    for (const a of project.assignments) {
+      const rate = rateByRole.get(`${a.personId}-${a.roleId}`) ?? 0;
+      for (const weekDate of allWeeks) {
+        const wk = weekDate.toISOString().slice(0, 10);
+        const planned = project.plannedHours.find(
+          (ph) =>
+            ph.personId === a.personId &&
+            ph.weekStartDate.toISOString().slice(0, 10) === wk
+        );
+        const actual = project.actualHours.find(
+          (ah) =>
+            ah.personId === a.personId &&
+            ah.weekStartDate.toISOString().slice(0, 10) === wk
+        );
+        weeklyRows.push({
+          weekStartDate: new Date(weekDate),
+          plannedHours: planned ? Number(planned.hours) : 0,
+          actualHours: actual?.hours != null ? Number(actual.hours) : null,
+          rate,
+        });
+      }
+    }
+
+    const budgetLines = project.budgetLines.map((bl) => ({
+      lowHours: Number(bl.lowHours),
+      highHours: Number(bl.highHours),
+      lowDollars: Number(bl.lowDollars),
+      highDollars: Number(bl.highDollars),
+    }));
+
+    const rollups = computeBudgetRollups(
+      project.startDate,
+      project.endDate,
+      weeklyRows,
+      budgetLines
+    );
+
+    const estBudgetHigh = project.budgetLines.reduce((s, bl) => s + Number(bl.highDollars), 0);
+    const estBudgetLow = project.budgetLines.reduce((s, bl) => s + Number(bl.lowDollars), 0);
+    const budgetedHoursHigh = project.budgetLines.reduce((s, bl) => s + Number(bl.highHours), 0);
+    const budgetedHoursLow = project.budgetLines.reduce((s, bl) => s + Number(bl.lowHours), 0);
+    if (budget === undefined) {
+      budget = {
+        estBudgetHigh,
+        estBudgetLow,
+        spentDollars: rollups.actualDollarsToDate,
+        remainingDollarsHigh: rollups.remainingDollarsHigh,
+        remainingDollarsLow: rollups.remainingDollarsLow,
+        budgetedHoursHigh,
+        budgetedHoursLow,
+        actualHours: rollups.actualHoursToDate,
+        remainingHoursHigh: rollups.remainingHoursHigh,
+        remainingHoursLow: rollups.remainingHoursLow,
+        burnPercentHigh: rollups.burnPercentHighDollars,
+      };
+    }
+
+    if (report.variation === "CDA" && cda === undefined) {
+      const rows = buildCdaRowsForProject({
+        startDate: project.startDate,
+        endDate: project.endDate,
+        cdaMonths: project.cdaMonths ?? [],
+        actualHours: project.actualHours ?? [],
+        actualHoursMonthSplits: project.actualHoursMonthSplits ?? [],
+      });
+      const totalPlanned = rows.reduce((s, r) => s + r.planned, 0);
+      const totalMtdActuals = rows.reduce((s, r) => s + r.mtdActuals, 0);
+      const toIso = (d: Date | null) =>
+        d ? d.toISOString().slice(0, 10) : "";
+      const milestones = (project.cdaMilestones ?? [])
+        .sort((a, b) => {
+          const ta = a.devStartDate
+            ? new Date(a.devStartDate).getTime()
+            : Number.MAX_SAFE_INTEGER;
+          const tb = b.devStartDate
+            ? new Date(b.devStartDate).getTime()
+            : Number.MAX_SAFE_INTEGER;
+          return ta - tb;
+        })
+        .map((m) => ({
+          id: m.id,
+          phase: m.phase,
+          devStartDate: toIso(m.devStartDate),
+          devEndDate: toIso(m.devEndDate),
+          uatStartDate: toIso(m.uatStartDate),
+          uatEndDate: toIso(m.uatEndDate),
+          deployDate: toIso(m.deployDate),
+          completed: m.completed,
+        }));
+      cda = {
+        rows,
+        overallBudget: { totalDollars: estBudgetHigh, actualDollars: rollups.actualDollarsToDate },
+        totalPlanned,
+        totalMtdActuals,
+        totalRemaining: totalPlanned - totalMtdActuals,
+        milestones,
+      };
+    }
+  }
+
+  if (timeline === undefined && project.endDate != null) {
+    const startStr = project.startDate.toISOString().slice(0, 10);
+    const endStr = project.endDate.toISOString().slice(0, 10);
+    // On status report, limit how many months before the report date are shown (1–4)
+    const previousMonths = Math.min(
+      4,
+      Math.max(1, options?.timelinePreviousMonths ?? snapshot?.timelinePreviousMonths ?? 1)
+    );
+    const reportDate = new Date(report.reportDate);
+    const minStartDate = new Date(Date.UTC(reportDate.getUTCFullYear(), reportDate.getUTCMonth() - previousMonths, 1));
+    const minStartStr = minStartDate.toISOString().slice(0, 10);
+    const effectiveStartStr = startStr < minStartStr ? minStartStr : startStr;
+    const bars = (project.timelineBars ?? [])
+      .sort((a, b) => a.rowIndex - b.rowIndex || a.startDate.getTime() - b.startDate.getTime())
+      .map((b) => ({
+        rowIndex: b.rowIndex,
+        label: b.label,
+        startDate: b.startDate.toISOString().slice(0, 10),
+        endDate: b.endDate.toISOString().slice(0, 10),
+        color: b.color ?? null,
+      }));
+    const markers = (project.timelineMarkers ?? [])
+      .sort((a, b) => a.date.getTime() - b.date.getTime())
+      .map((m) => ({
+        label: m.label,
+        date: m.date.toISOString().slice(0, 10),
+        shape: m.shape,
+        rowIndex: m.rowIndex,
+      }));
+    timeline = { startDate: effectiveStartStr, endDate: endStr, bars, markers };
+  }
+
+  let cdaReportHoursOnly = false;
+  if (snapshot != null) {
+    cdaReportHoursOnly =
+      typeof snapshot.cdaReportHoursOnly === "boolean"
+        ? snapshot.cdaReportHoursOnly
+        : false;
+  } else {
+    cdaReportHoursOnly = project.cdaReportHoursOnly ?? false;
+  }
+
+  const showBudget = resolveShowBudget(snapshot);
+
+  return {
+    report: {
+      reportDate: report.reportDate.toISOString().slice(0, 10),
+      variation: report.variation,
+      completedActivities: report.completedActivities,
+      upcomingActivities: report.upcomingActivities,
+      risksIssuesDecisions: report.risksIssuesDecisions,
+      meetingNotes: report.meetingNotes,
+      ragOverall: report.ragOverall,
+      ragScope: report.ragScope,
+      ragSchedule: report.ragSchedule,
+      ragBudget: report.ragBudget,
+      ragOverallExplanation: report.ragOverallExplanation,
+      ragScopeExplanation: report.ragScopeExplanation,
+      ragScheduleExplanation: report.ragScheduleExplanation,
+      ragBudgetExplanation: report.ragBudgetExplanation,
+    },
+    project: {
+      name: project.name,
+      clientName: project.clientName,
+      clientSponsor: project.clientSponsor,
+      clientSponsor2: project.clientSponsor2,
+      otherContact: project.otherContact,
+      keyStaffName: project.keyStaffName,
+      projectKeyRoles: project.projectKeyRoles.map((kr) => ({
+        type: kr.type,
+        person: { name: kr.person.name },
+      })),
+    },
+    period,
+    today,
+    budget: report.variation === "Standard" || report.variation === "Milestones" ? budget : undefined,
+    cda,
+    timeline,
+    cdaReportHoursOnly,
+    showBudget,
+    panels: Array.isArray(report.panels) ? (report.panels as ReportPanel[]) : undefined,
+  };
+}
+</file>
+
+</files>

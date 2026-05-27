@@ -7,9 +7,10 @@ import { getProjectId } from "@/lib/slug";
 import { projectHasMissingActuals } from "@/lib/projectActualsStale";
 import { buildStatusReportPdfData } from "@/lib/statusReportPdfData";
 import type { StatusReportSnapshot } from "@/lib/statusReportPdfData";
+import { MODULAR_DEFAULT_PANELS, type ReportPanel } from "@/lib/reportPanels";
 import { z } from "zod";
 
-const variationEnum = z.enum(["Standard", "Milestones", "CDA"]);
+const variationEnum = z.enum(["Standard", "Milestones", "CDA", "Modular"]);
 const ragEnum = z.enum(["Red", "Amber", "Green"]);
 
 const createSchema = z.object({
@@ -31,6 +32,7 @@ const createSchema = z.object({
   ragBudgetExplanation: z.string().nullable().optional(),
   /** When false, Standard report omits bottom budget table and burn chart. Default true. */
   showBudget: z.boolean().default(true),
+  panels: z.array(z.any()).optional(),
 });
 
 export async function GET(
@@ -101,6 +103,7 @@ export async function GET(
     ragScheduleExplanation: true,
     ragBudgetExplanation: true,
     snapshot: true,
+    panels: true,
   } as const;
 
   if (pageParam != null && limitParam != null) {
@@ -156,7 +159,7 @@ export async function POST(
   reportDate.setUTCHours(0, 0, 0, 0);
 
   const missingActuals = await projectHasMissingActuals(id);
-  if (missingActuals) {
+  if (missingActuals && parsed.data.variation !== "Modular") {
     return NextResponse.json(
       {
         error:
@@ -170,7 +173,7 @@ export async function POST(
     data: {
       projectId: id,
       reportDate,
-      variation: parsed.data.variation as "Standard" | "Milestones" | "CDA",
+      variation: parsed.data.variation as "Standard" | "Milestones" | "CDA" | "Modular",
       completedActivities: parsed.data.completedActivities,
       upcomingActivities: parsed.data.upcomingActivities,
       risksIssuesDecisions: parsed.data.risksIssuesDecisions,
@@ -183,28 +186,55 @@ export async function POST(
       ragScopeExplanation: parsed.data.ragScopeExplanation ?? null,
       ragScheduleExplanation: parsed.data.ragScheduleExplanation ?? null,
       ragBudgetExplanation: parsed.data.ragBudgetExplanation ?? null,
+      panels: ((parsed.data.panels as ReportPanel[] | undefined) ??
+        (parsed.data.variation === "Modular" ? MODULAR_DEFAULT_PANELS : undefined)) as
+        | Prisma.InputJsonValue
+        | undefined,
     },
   });
 
-  // Lock period, budget, milestones, and timeline to creation time so they don't change when project is edited
-  const pdfData = await buildStatusReportPdfData(id, report.id, {
-    timelinePreviousMonths: parsed.data.timelinePreviousMonths,
-  });
-  if (pdfData) {
+  if (parsed.data.variation === "Modular") {
+    const forPeriod = new Date(report.reportDate);
+    forPeriod.setHours(0, 0, 0, 0);
+    const todayStr = forPeriod.toLocaleDateString("en-US", { dateStyle: "medium" });
+    const dayOfWeek = forPeriod.getDay();
+    const daysToThisMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const thisMonday = new Date(forPeriod);
+    thisMonday.setDate(forPeriod.getDate() - daysToThisMonday);
+    const prevMonday = new Date(thisMonday);
+    prevMonday.setDate(thisMonday.getDate() - 7);
+    const prevFriday = new Date(prevMonday);
+    prevFriday.setDate(prevMonday.getDate() + 4);
+    const periodStr = `${prevMonday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} – ${prevFriday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
     const snapshot: StatusReportSnapshot = {
-      period: pdfData.period,
-      today: pdfData.today,
-      budget: pdfData.budget,
-      cda: pdfData.cda,
-      timeline: pdfData.timeline,
-      timelinePreviousMonths: parsed.data.timelinePreviousMonths,
-      cdaReportHoursOnly: pdfData.cdaReportHoursOnly,
-      showBudget: parsed.data.showBudget,
+      period: periodStr,
+      today: todayStr,
     };
     await prisma.statusReport.update({
       where: { id: report.id },
       data: { snapshot: snapshot as Prisma.InputJsonValue },
     });
+  } else {
+    // Lock period, budget, milestones, and timeline to creation time so they don't change when project is edited
+    const pdfData = await buildStatusReportPdfData(id, report.id, {
+      timelinePreviousMonths: parsed.data.timelinePreviousMonths,
+    });
+    if (pdfData) {
+      const snapshot: StatusReportSnapshot = {
+        period: pdfData.period,
+        today: pdfData.today,
+        budget: pdfData.budget,
+        cda: pdfData.cda,
+        timeline: pdfData.timeline,
+        timelinePreviousMonths: parsed.data.timelinePreviousMonths,
+        cdaReportHoursOnly: pdfData.cdaReportHoursOnly,
+        showBudget: parsed.data.showBudget,
+      };
+      await prisma.statusReport.update({
+        where: { id: report.id },
+        data: { snapshot: snapshot as Prisma.InputJsonValue },
+      });
+    }
   }
 
   const updated = await prisma.statusReport.findUnique({

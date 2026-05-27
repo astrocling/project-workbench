@@ -9,7 +9,7 @@ import { deleteCachedPdf } from "@/lib/statusReportPdfCache";
 import { isStatusReportSnapshot, type StatusReportSnapshot } from "@/lib/statusReportPdfData";
 import { z } from "zod";
 
-const variationEnum = z.enum(["Standard", "Milestones", "CDA"]);
+const variationEnum = z.enum(["Standard", "Milestones", "CDA", "Modular"]);
 const ragEnum = z.enum(["Red", "Amber", "Green"]);
 
 // reportDate is intentionally omitted so reporting period stays locked when editing
@@ -29,6 +29,7 @@ const patchSchema = z.object({
   ragBudgetExplanation: z.string().nullable().optional(),
   /** When false, Standard report omits bottom budget table and burn chart. */
   showBudget: z.boolean().optional(),
+  panels: z.array(z.any()).optional(),
 });
 
 export async function GET(
@@ -80,7 +81,8 @@ export async function PATCH(
   }
 
   type UpdateData = {
-    variation?: "Standard" | "Milestones" | "CDA";
+    variation?: "Standard" | "Milestones" | "CDA" | "Modular";
+    panels?: Prisma.InputJsonValue;
     completedActivities?: string;
     upcomingActivities?: string;
     risksIssuesDecisions?: string;
@@ -95,7 +97,8 @@ export async function PATCH(
     ragBudgetExplanation?: string | null;
   };
   const data: UpdateData = {};
-  if (parsed.data.variation != null) data.variation = parsed.data.variation as "Standard" | "Milestones" | "CDA";
+  if (parsed.data.variation != null) data.variation = parsed.data.variation as "Standard" | "Milestones" | "CDA" | "Modular";
+  if (parsed.data.panels != null) data.panels = parsed.data.panels as Prisma.InputJsonValue;
   if (parsed.data.completedActivities != null) data.completedActivities = parsed.data.completedActivities;
   if (parsed.data.upcomingActivities != null) data.upcomingActivities = parsed.data.upcomingActivities;
   if (parsed.data.risksIssuesDecisions != null) data.risksIssuesDecisions = parsed.data.risksIssuesDecisions;

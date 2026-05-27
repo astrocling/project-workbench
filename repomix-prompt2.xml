@@ -1,3 +1,726 @@
+This file is a merged representation of a subset of the codebase, containing specifically included files, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Only files matching these patterns are included: components/StatusReportsTab.tsx, components/RichTextEditor.tsx, lib/reportPanels.ts, app/api/projects/[id]/status-reports/route.ts, app/api/projects/[id]/status-reports/[reportId]/route.ts
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+app/
+  api/
+    projects/
+      [id]/
+        status-reports/
+          [reportId]/
+            route.ts
+          route.ts
+components/
+  RichTextEditor.tsx
+  StatusReportsTab.tsx
+lib/
+  reportPanels.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="components/RichTextEditor.tsx">
+"use client";
+
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Link from "@tiptap/extension-link";
+import { useEffect, useCallback } from "react";
+
+type RichTextEditorProps = {
+  value: string;
+  onChange: (html: string) => void;
+  placeholder?: string;
+  className?: string;
+};
+
+function toEditorContent(value: string): string {
+  if (!value) return "";
+  if (value.startsWith("<")) return value;
+  const escaped = value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  return `<p>${escaped.replace(/\n/g, "<br>")}</p>`;
+}
+
+const toolbarButtonClass =
+  "inline-flex h-8 w-8 items-center justify-center rounded-md text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-dark-raised disabled:opacity-40 disabled:pointer-events-none transition-colors";
+
+const toolbarButtonActiveClass =
+  "bg-jblue-500/10 text-jblue-700 dark:text-jblue-400";
+
+const editorClassName =
+  "min-h-24 px-3 py-2 text-body-sm text-surface-800 dark:text-surface-100 focus:outline-none [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1 [&_p]:my-1 [&_a]:text-jblue-600 [&_a]:underline dark:[&_a]:text-jblue-400";
+
+export function RichTextEditor({
+  value,
+  onChange,
+  placeholder,
+  className = "",
+}: RichTextEditorProps) {
+  const editor = useEditor({
+    immediatelyRender: false,
+    extensions: [
+      StarterKit.configure({
+        blockquote: false,
+        code: false,
+        codeBlock: false,
+        heading: false,
+        horizontalRule: false,
+        orderedList: false,
+        strike: false,
+        italic: false,
+      }),
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+      }),
+    ],
+    content: toEditorContent(value),
+    onUpdate: ({ editor: ed }) => {
+      onChange(ed.getHTML());
+    },
+    editorProps: {
+      attributes: {
+        class: editorClassName,
+      },
+    },
+  });
+
+  useEffect(() => {
+    if (!editor) return;
+    const current = editor.getHTML();
+    const next = toEditorContent(value);
+    if (next !== current) {
+      editor.commands.setContent(next, { emitUpdate: false });
+    }
+  }, [editor, value]);
+
+  const setLink = useCallback(() => {
+    if (!editor) return;
+    const previousUrl = editor.getAttributes("link").href as string | undefined;
+    const url = window.prompt("Enter URL", previousUrl ?? "https://");
+    if (url === null) return;
+    if (url === "") {
+      editor.chain().focus().extendMarkRange("link").unsetLink().run();
+      return;
+    }
+    editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+  }, [editor]);
+
+  if (!editor) {
+    return (
+      <div
+        className={`rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised ${className}`}
+      >
+        <div className="min-h-24 px-3 py-2 text-body-sm text-surface-400 dark:text-surface-500">
+          {placeholder}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised overflow-hidden ${className}`}
+    >
+      <div className="flex items-center gap-0.5 border-b border-surface-200 dark:border-dark-border px-2 py-1">
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          disabled={!editor.can().chain().focus().toggleBold().run()}
+          className={`${toolbarButtonClass} font-bold ${
+            editor.isActive("bold") ? toolbarButtonActiveClass : ""
+          }`}
+          aria-label="Bold"
+          title="Bold"
+        >
+          B
+        </button>
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          className={`${toolbarButtonClass} ${
+            editor.isActive("bulletList") ? toolbarButtonActiveClass : ""
+          }`}
+          aria-label="Bullet list"
+          title="Bullet list"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <line x1="8" y1="6" x2="21" y2="6" />
+            <line x1="8" y1="12" x2="21" y2="12" />
+            <line x1="8" y1="18" x2="21" y2="18" />
+            <circle cx="4" cy="6" r="1" fill="currentColor" />
+            <circle cx="4" cy="12" r="1" fill="currentColor" />
+            <circle cx="4" cy="18" r="1" fill="currentColor" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={setLink}
+          className={`${toolbarButtonClass} ${
+            editor.isActive("link") ? toolbarButtonActiveClass : ""
+          }`}
+          aria-label="Link"
+          title="Link"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+          </svg>
+        </button>
+      </div>
+      <div className="relative">
+        {placeholder && editor.isEmpty && (
+          <p className="pointer-events-none absolute left-3 top-2 text-body-sm text-surface-400 dark:text-surface-500">
+            {placeholder}
+          </p>
+        )}
+        <EditorContent editor={editor} />
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="lib/reportPanels.ts">
+export type PanelCategory = "data-owned" | "feature-linked";
+
+export type SprintScheduleRow = {
+  dateRange: string; // e.g. "4/28 – 5/15"
+  label: string; // e.g. "Development / Internal QA"
+};
+
+export type StoryPointsSystem = {
+  name: string; // free text, e.g. "OneSource", "1CTX"
+};
+
+export type StoryPointsRow = {
+  metric: "planned" | "completed" | "inProgress" | "carryOver";
+  values: number[]; // one per system, aligned to StoryPointsSystem[]
+};
+
+export type DonutKpiSize = "large" | "small";
+
+export type DonutKpiSource =
+  | "budgetBurnPct"
+  | "hoursUtilization"
+  | "manual";
+
+export type DonutKpiData = {
+  source: DonutKpiSource;
+  manualValue?: number; // 0–100, required when source === 'manual'
+  label: string;
+  size: DonutKpiSize;
+};
+
+export type SprintScheduleData = {
+  rows: SprintScheduleRow[];
+};
+
+export type StoryPointsMetricsData = {
+  systems: StoryPointsSystem[]; // defines column headers; max 4
+  rows: StoryPointsRow[];
+};
+
+export type ReportPanel =
+  | { type: "sprintSchedule"; order: number; data: SprintScheduleData }
+  | { type: "storyPointMetrics"; order: number; data: StoryPointsMetricsData }
+  | { type: "donutKpi"; order: number; data: DonutKpiData }
+  | { type: "ganttTimeline"; order: number; data: Record<string, never> }
+  | { type: "milestones"; order: number; data: Record<string, never> }
+  | { type: "budgetFinancials"; order: number; data: Record<string, never> };
+
+export type PanelType = ReportPanel["type"];
+
+export const PANEL_META: Record<
+  PanelType,
+  { label: string; category: PanelCategory }
+> = {
+  sprintSchedule: { label: "Sprint Schedule", category: "data-owned" },
+  storyPointMetrics: { label: "Story Point Metrics", category: "data-owned" },
+  donutKpi: { label: "Donut KPI", category: "data-owned" },
+  ganttTimeline: { label: "Timeline", category: "feature-linked" },
+  milestones: { label: "Milestones", category: "feature-linked" },
+  budgetFinancials: { label: "Budget & Financials", category: "feature-linked" },
+};
+
+export const SPRINT_DEFAULT_PANELS: ReportPanel[] = [
+  { type: "sprintSchedule", order: 0, data: { rows: [] } },
+  { type: "storyPointMetrics", order: 1, data: { systems: [], rows: [] } },
+  {
+    type: "donutKpi",
+    order: 2,
+    data: {
+      source: "manual",
+      manualValue: 0,
+      label: "Utilization Rate",
+      size: "large",
+    },
+  },
+  {
+    type: "donutKpi",
+    order: 3,
+    data: {
+      source: "manual",
+      manualValue: 0,
+      label: "Average Velocity",
+      size: "large",
+    },
+  },
+];
+</file>
+
+<file path="app/api/projects/[id]/status-reports/[reportId]/route.ts">
+import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth.config";
+import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
+import { getProjectId } from "@/lib/slug";
+import { deleteCachedPdf } from "@/lib/statusReportPdfCache";
+import { isStatusReportSnapshot, type StatusReportSnapshot } from "@/lib/statusReportPdfData";
+import { z } from "zod";
+
+const variationEnum = z.enum(["Standard", "Milestones", "CDA"]);
+const ragEnum = z.enum(["Red", "Amber", "Green"]);
+
+// reportDate is intentionally omitted so reporting period stays locked when editing
+const patchSchema = z.object({
+  variation: variationEnum.optional(),
+  completedActivities: z.string().optional(),
+  upcomingActivities: z.string().optional(),
+  risksIssuesDecisions: z.string().optional(),
+  meetingNotes: z.string().nullable().optional(),
+  ragOverall: ragEnum.nullable().optional(),
+  ragScope: ragEnum.nullable().optional(),
+  ragSchedule: ragEnum.nullable().optional(),
+  ragBudget: ragEnum.nullable().optional(),
+  ragOverallExplanation: z.string().nullable().optional(),
+  ragScopeExplanation: z.string().nullable().optional(),
+  ragScheduleExplanation: z.string().nullable().optional(),
+  ragBudgetExplanation: z.string().nullable().optional(),
+  /** When false, Standard report omits bottom budget table and burn chart. */
+  showBudget: z.boolean().optional(),
+});
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string; reportId: string }> }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id: idOrSlug, reportId } = await params;
+  const projectId = await getProjectId(idOrSlug);
+  if (!projectId) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const report = await prisma.statusReport.findFirst({
+    where: { id: reportId, projectId },
+    include: { project: true },
+  });
+  if (!report) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json(report);
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string; reportId: string }> }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const permissions = (session.user as { permissions?: string }).permissions;
+  if (permissions !== "Admin" && permissions !== "User") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id: idOrSlug, reportId } = await params;
+  const projectId = await getProjectId(idOrSlug);
+  if (!projectId) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const existing = await prisma.statusReport.findFirst({
+    where: { id: reportId, projectId },
+  });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const body = await req.json();
+  const parsed = patchSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.message ?? "Validation failed" },
+      { status: 400 }
+    );
+  }
+
+  type UpdateData = {
+    variation?: "Standard" | "Milestones" | "CDA";
+    completedActivities?: string;
+    upcomingActivities?: string;
+    risksIssuesDecisions?: string;
+    meetingNotes?: string | null;
+    ragOverall?: "Red" | "Amber" | "Green" | null;
+    ragScope?: "Red" | "Amber" | "Green" | null;
+    ragSchedule?: "Red" | "Amber" | "Green" | null;
+    ragBudget?: "Red" | "Amber" | "Green" | null;
+    ragOverallExplanation?: string | null;
+    ragScopeExplanation?: string | null;
+    ragScheduleExplanation?: string | null;
+    ragBudgetExplanation?: string | null;
+  };
+  const data: UpdateData = {};
+  if (parsed.data.variation != null) data.variation = parsed.data.variation as "Standard" | "Milestones" | "CDA";
+  if (parsed.data.completedActivities != null) data.completedActivities = parsed.data.completedActivities;
+  if (parsed.data.upcomingActivities != null) data.upcomingActivities = parsed.data.upcomingActivities;
+  if (parsed.data.risksIssuesDecisions != null) data.risksIssuesDecisions = parsed.data.risksIssuesDecisions;
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "meetingNotes")) data.meetingNotes = parsed.data.meetingNotes ?? null;
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "ragOverall")) data.ragOverall = parsed.data.ragOverall ?? null;
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "ragScope")) data.ragScope = parsed.data.ragScope ?? null;
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "ragSchedule")) data.ragSchedule = parsed.data.ragSchedule ?? null;
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "ragBudget")) data.ragBudget = parsed.data.ragBudget ?? null;
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "ragOverallExplanation")) data.ragOverallExplanation = parsed.data.ragOverallExplanation ?? null;
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "ragScopeExplanation")) data.ragScopeExplanation = parsed.data.ragScopeExplanation ?? null;
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "ragScheduleExplanation")) data.ragScheduleExplanation = parsed.data.ragScheduleExplanation ?? null;
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "ragBudgetExplanation")) data.ragBudgetExplanation = parsed.data.ragBudgetExplanation ?? null;
+
+  let snapshotUpdate: Prisma.InputJsonValue | undefined;
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "showBudget")) {
+    const showBudget = parsed.data.showBudget ?? true;
+    if (isStatusReportSnapshot(existing.snapshot)) {
+      snapshotUpdate = {
+        ...existing.snapshot,
+        showBudget,
+      } as Prisma.InputJsonValue;
+    } else {
+      const minimal: StatusReportSnapshot = {
+        period: "",
+        today: "",
+        showBudget,
+      };
+      snapshotUpdate = minimal as Prisma.InputJsonValue;
+    }
+  }
+
+  const report = await prisma.statusReport.update({
+    where: { id: reportId },
+    data: {
+      ...data,
+      ...(snapshotUpdate !== undefined ? { snapshot: snapshotUpdate } : {}),
+    },
+  });
+  await deleteCachedPdf(reportId);
+  revalidateTag(`status-report-${reportId}`, "default");
+  return NextResponse.json(report);
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string; reportId: string }> }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const permissions = (session.user as { permissions?: string }).permissions;
+  if (permissions !== "Admin" && permissions !== "User") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id: idOrSlug, reportId } = await params;
+  const projectId = await getProjectId(idOrSlug);
+  if (!projectId) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const existing = await prisma.statusReport.findFirst({
+    where: { id: reportId, projectId },
+  });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  await prisma.statusReport.delete({ where: { id: reportId } });
+  await deleteCachedPdf(reportId);
+  revalidateTag(`status-report-${reportId}`, "default");
+  return new NextResponse(null, { status: 204 });
+}
+</file>
+
+<file path="app/api/projects/[id]/status-reports/route.ts">
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth.config";
+import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
+import { getProjectId } from "@/lib/slug";
+import { projectHasMissingActuals } from "@/lib/projectActualsStale";
+import { buildStatusReportPdfData } from "@/lib/statusReportPdfData";
+import type { StatusReportSnapshot } from "@/lib/statusReportPdfData";
+import { z } from "zod";
+
+const variationEnum = z.enum(["Standard", "Milestones", "CDA"]);
+const ragEnum = z.enum(["Red", "Amber", "Green"]);
+
+const createSchema = z.object({
+  reportDate: z.string().refine((s) => !isNaN(Date.parse(s)), "Invalid date"),
+  variation: variationEnum.default("Standard"),
+  /** Number of months before report date to show on timeline (1–4). Default 1. */
+  timelinePreviousMonths: z.number().int().min(1).max(4).default(1),
+  completedActivities: z.string(),
+  upcomingActivities: z.string(),
+  risksIssuesDecisions: z.string(),
+  meetingNotes: z.string().nullable().optional(),
+  ragOverall: ragEnum.nullable().optional(),
+  ragScope: ragEnum.nullable().optional(),
+  ragSchedule: ragEnum.nullable().optional(),
+  ragBudget: ragEnum.nullable().optional(),
+  ragOverallExplanation: z.string().nullable().optional(),
+  ragScopeExplanation: z.string().nullable().optional(),
+  ragScheduleExplanation: z.string().nullable().optional(),
+  ragBudgetExplanation: z.string().nullable().optional(),
+  /** When false, Standard report omits bottom budget table and burn chart. Default true. */
+  showBudget: z.boolean().default(true),
+});
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id: idOrSlug } = await params;
+  const id = await getProjectId(idOrSlug);
+  if (!id) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const { searchParams } = new URL(req.url);
+  const previousFor = searchParams.get("previousFor");
+  if (previousFor) {
+    const limit = new Date(previousFor);
+    if (isNaN(limit.getTime())) {
+      return NextResponse.json({ error: "Invalid previousFor date" }, { status: 400 });
+    }
+    const report = await prisma.statusReport.findFirst({
+      where: {
+        projectId: id,
+        reportDate: { lte: limit },
+      },
+      orderBy: { reportDate: "desc" },
+      select: {
+        id: true,
+        reportDate: true,
+        variation: true,
+        completedActivities: true,
+        upcomingActivities: true,
+        risksIssuesDecisions: true,
+        meetingNotes: true,
+        ragOverall: true,
+        ragScope: true,
+        ragSchedule: true,
+        ragBudget: true,
+        ragOverallExplanation: true,
+        ragScopeExplanation: true,
+        ragScheduleExplanation: true,
+        ragBudgetExplanation: true,
+        snapshot: true,
+      },
+    });
+    return NextResponse.json(report ?? null);
+  }
+
+  const pageParam = searchParams.get("page");
+  const limitParam = searchParams.get("limit");
+
+  const listSelect = {
+    id: true,
+    reportDate: true,
+    variation: true,
+    updatedAt: true,
+    createdAt: true,
+    completedActivities: true,
+    upcomingActivities: true,
+    risksIssuesDecisions: true,
+    meetingNotes: true,
+    ragOverall: true,
+    ragScope: true,
+    ragSchedule: true,
+    ragBudget: true,
+    ragOverallExplanation: true,
+    ragScopeExplanation: true,
+    ragScheduleExplanation: true,
+    ragBudgetExplanation: true,
+    snapshot: true,
+  } as const;
+
+  if (pageParam != null && limitParam != null) {
+    const page = Math.max(1, parseInt(pageParam, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(limitParam, 10) || 10));
+    const skip = (page - 1) * limit;
+    const [reports, total] = await Promise.all([
+      prisma.statusReport.findMany({
+        where: { projectId: id },
+        orderBy: { reportDate: "desc" },
+        select: listSelect,
+        skip,
+        take: limit,
+      }),
+      prisma.statusReport.count({ where: { projectId: id } }),
+    ]);
+    return NextResponse.json({ reports, total });
+  }
+
+  const reports = await prisma.statusReport.findMany({
+    where: { projectId: id },
+    orderBy: { reportDate: "desc" },
+    select: listSelect,
+  });
+  return NextResponse.json(reports);
+}
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const permissions = (session.user as { permissions?: string }).permissions;
+  if (permissions !== "Admin" && permissions !== "User") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id: idOrSlug } = await params;
+  const id = await getProjectId(idOrSlug);
+  if (!id) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const body = await req.json();
+  const parsed = createSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.message ?? "Validation failed" },
+      { status: 400 }
+    );
+  }
+
+  const reportDate = new Date(parsed.data.reportDate);
+  reportDate.setUTCHours(0, 0, 0, 0);
+
+  const missingActuals = await projectHasMissingActuals(id);
+  if (missingActuals) {
+    return NextResponse.json(
+      {
+        error:
+          "Actuals are stale. Update hours in the Resourcing tab before creating a new status report.",
+      },
+      { status: 400 }
+    );
+  }
+
+  const report = await prisma.statusReport.create({
+    data: {
+      projectId: id,
+      reportDate,
+      variation: parsed.data.variation as "Standard" | "Milestones" | "CDA",
+      completedActivities: parsed.data.completedActivities,
+      upcomingActivities: parsed.data.upcomingActivities,
+      risksIssuesDecisions: parsed.data.risksIssuesDecisions,
+      meetingNotes: parsed.data.meetingNotes ?? null,
+      ragOverall: parsed.data.ragOverall ?? null,
+      ragScope: parsed.data.ragScope ?? null,
+      ragSchedule: parsed.data.ragSchedule ?? null,
+      ragBudget: parsed.data.ragBudget ?? null,
+      ragOverallExplanation: parsed.data.ragOverallExplanation ?? null,
+      ragScopeExplanation: parsed.data.ragScopeExplanation ?? null,
+      ragScheduleExplanation: parsed.data.ragScheduleExplanation ?? null,
+      ragBudgetExplanation: parsed.data.ragBudgetExplanation ?? null,
+    },
+  });
+
+  // Lock period, budget, milestones, and timeline to creation time so they don't change when project is edited
+  const pdfData = await buildStatusReportPdfData(id, report.id, {
+    timelinePreviousMonths: parsed.data.timelinePreviousMonths,
+  });
+  if (pdfData) {
+    const snapshot: StatusReportSnapshot = {
+      period: pdfData.period,
+      today: pdfData.today,
+      budget: pdfData.budget,
+      cda: pdfData.cda,
+      timeline: pdfData.timeline,
+      timelinePreviousMonths: parsed.data.timelinePreviousMonths,
+      cdaReportHoursOnly: pdfData.cdaReportHoursOnly,
+      showBudget: parsed.data.showBudget,
+    };
+    await prisma.statusReport.update({
+      where: { id: report.id },
+      data: { snapshot: snapshot as Prisma.InputJsonValue },
+    });
+  }
+
+  const updated = await prisma.statusReport.findUnique({
+    where: { id: report.id },
+  });
+  return NextResponse.json(updated ?? report);
+}
+</file>
+
+<file path="components/StatusReportsTab.tsx">
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -17,22 +740,13 @@ import { BRAND_COLORS } from "@/lib/brandColors";
 import { StatusReportPreview } from "@/components/StatusReportPreview";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { Toggle } from "@/components/Toggle";
-import {
-  type ReportPanel,
-  type SprintScheduleRow,
-  type StoryPointsRow,
-  MODULAR_DEFAULT_PANELS,
-} from "@/lib/reportPanels";
 
 type RagValue = "Red" | "Amber" | "Green";
-
-type FormVariation = "Standard" | "Milestones" | "CDA" | "Modular";
 
 type StatusReportRecord = {
   id: string;
   reportDate: string;
   variation: string;
-  panels?: unknown;
   updatedAt?: string;
   completedActivities: string;
   upcomingActivities: string;
@@ -291,33 +1005,7 @@ const VARIATIONS = [
   { value: "CDA", label: "CDA (Monthly/Project CDA Budgets)" },
   { value: "Standard", label: "Standard (Timeline/Project Budget)" },
   { value: "Milestones", label: "Milestones (Fixed Fee No Budget)" },
-  { value: "Modular", label: "Modular (Story Points / Velocity)" },
 ] as const;
-
-const STORY_POINT_METRICS: { label: string; metric: StoryPointsRow["metric"] }[] = [
-  { label: "Planned", metric: "planned" },
-  { label: "Completed", metric: "completed" },
-  { label: "In Progress", metric: "inProgress" },
-  { label: "Carry Over", metric: "carryOver" },
-];
-
-const FORM_INPUT_CLASS =
-  "block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted";
-
-function storyPointRowsForDisplay(
-  rows: StoryPointsRow[],
-  systemCount: number
-): StoryPointsRow[] {
-  return STORY_POINT_METRICS.map(({ metric }) => {
-    const existing = rows.find((r) => r.metric === metric);
-    if (existing) {
-      const values = [...existing.values];
-      while (values.length < systemCount) values.push(0);
-      return { metric, values: values.slice(0, systemCount) };
-    }
-    return { metric, values: Array(systemCount).fill(0) };
-  });
-}
 
 type InitialBudgetData = {
   budgetLines: BudgetLine[];
@@ -359,8 +1047,7 @@ export function StatusReportsTab({
   const [showForm, setShowForm] = useState(false);
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [formReportDate, setFormReportDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [formVariation, setFormVariation] = useState<FormVariation>("Standard");
-  const [formPanels, setFormPanels] = useState<ReportPanel[]>(MODULAR_DEFAULT_PANELS);
+  const [formVariation, setFormVariation] = useState<"Standard" | "Milestones" | "CDA">("Standard");
   const [formShowBudget, setFormShowBudget] = useState(true);
   const [formTimelinePreviousMonths, setFormTimelinePreviousMonths] = useState<number>(1);
   const [formCompleted, setFormCompleted] = useState("");
@@ -497,9 +1184,7 @@ export function StatusReportsTab({
       .then((prev: StatusReportRecord | null) => {
         setEditingReportId(null);
         setFormReportDate(today);
-        const newVariation: FormVariation = cdaEnabled ? "CDA" : "Standard";
-        setFormVariation(newVariation);
-        setFormPanels(MODULAR_DEFAULT_PANELS);
+        setFormVariation(cdaEnabled ? "CDA" : "Standard");
         setFormShowBudget(true);
         if (prev) {
           applyPreviousReport(prev);
@@ -524,9 +1209,7 @@ export function StatusReportsTab({
       .catch(() => {
         setEditingReportId(null);
         setFormReportDate(today);
-        const newVariation: FormVariation = cdaEnabled ? "CDA" : "Standard";
-        setFormVariation(newVariation);
-        setFormPanels(MODULAR_DEFAULT_PANELS);
+        setFormVariation(cdaEnabled ? "CDA" : "Standard");
         setFormShowBudget(true);
         setFormTimelinePreviousMonths(1);
         setFormCompleted("");
@@ -552,8 +1235,7 @@ export function StatusReportsTab({
     setTimelineRefreshSuccess(null);
     setEditingReportId(r.id);
     setFormReportDate(r.reportDate.slice(0, 10));
-    setFormVariation((r.variation as FormVariation) || "Standard");
-    setFormPanels(Array.isArray(r.panels) ? (r.panels as ReportPanel[]) : MODULAR_DEFAULT_PANELS);
+    setFormVariation((r.variation as "Standard" | "Milestones" | "CDA") || "Standard");
     setFormShowBudget(
       typeof r.snapshot?.showBudget === "boolean" ? r.snapshot.showBudget : true
     );
@@ -601,7 +1283,6 @@ export function StatusReportsTab({
       ...(!editingReportId && { timelinePreviousMonths: formTimelinePreviousMonths }),
       variation: formVariation,
       ...(formVariation === "Standard" && { showBudget: formShowBudget }),
-      ...(formVariation === "Modular" && { panels: formPanels }),
       completedActivities: formCompleted,
       upcomingActivities: formUpcoming,
       risksIssuesDecisions: formRisks,
@@ -648,7 +1329,7 @@ export function StatusReportsTab({
     } finally {
       setFormSaving(false);
     }
-  }, [projectId, editingReportId, reportsPage, rollups, formReportDate, formVariation, formPanels, formShowBudget, formTimelinePreviousMonths, formCompleted, formUpcoming, formRisks, formMeetingNotes, formRagOverall, formRagScope, formRagSchedule, formRagBudget, formRagOverallExplanation, formRagScopeExplanation, formRagScheduleExplanation, formRagBudgetExplanation, loadReports]);
+  }, [projectId, editingReportId, reportsPage, rollups, formReportDate, formVariation, formTimelinePreviousMonths, formCompleted, formUpcoming, formRisks, formMeetingNotes, formRagOverall, formRagScope, formRagSchedule, formRagBudget, formRagOverallExplanation, formRagScopeExplanation, formRagScheduleExplanation, formRagBudgetExplanation, loadReports]);
 
   const submitSlackHealthUpdate = useCallback(async () => {
     setSlackError("");
@@ -1211,18 +1892,18 @@ export function StatusReportsTab({
               <select
                 value={formVariation}
                 onChange={(e) => {
-                  const next = e.target.value as FormVariation;
+                  const next = e.target.value as "Standard" | "Milestones" | "CDA";
                   setFormVariation(next);
                   if (next === "Standard" && !editingReportId) {
                     setFormShowBudget(true);
                   }
-                  if (next === "Modular" && !editingReportId) {
-                    setFormPanels(MODULAR_DEFAULT_PANELS);
-                  }
                 }}
                 className="block w-full max-w-xs h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
               >
-                {VARIATIONS.map((v) => (
+                {formVariation === "Milestones" && (
+                  <option value="Milestones" disabled>Milestones (Fixed Fee No Budget) — not yet available</option>
+                )}
+                {VARIATIONS.filter((v) => v.value !== "Milestones").map((v) => (
                   <option key={v.value} value={v.value}>{v.label}</option>
                 ))}
               </select>
@@ -1278,325 +1959,6 @@ export function StatusReportsTab({
                 )}
               </div>
             )}
-            {formVariation === "Modular" && (() => {
-              const sprintSchedulePanel = formPanels.find(
-                (p): p is Extract<ReportPanel, { type: "sprintSchedule" }> =>
-                  p.type === "sprintSchedule"
-              );
-              const storyPointPanel = formPanels.find(
-                (p): p is Extract<ReportPanel, { type: "storyPointMetrics" }> =>
-                  p.type === "storyPointMetrics"
-              );
-              const donutPanels = formPanels.filter(
-                (p): p is Extract<ReportPanel, { type: "donutKpi" }> => p.type === "donutKpi"
-              );
-              const scheduleRows = sprintSchedulePanel?.data.rows ?? [];
-              const systems = storyPointPanel?.data.systems ?? [];
-              const storyRows = storyPointRowsForDisplay(
-                storyPointPanel?.data.rows ?? [],
-                systems.length
-              );
-
-              const updateSprintSchedule = (rows: SprintScheduleRow[]) => {
-                setFormPanels((panels) =>
-                  panels.map((p) =>
-                    p.type === "sprintSchedule" ? { ...p, data: { rows } } : p
-                  )
-                );
-              };
-
-              const updateStoryPointMetrics = (
-                nextSystems: { name: string }[],
-                nextRows: StoryPointsRow[]
-              ) => {
-                setFormPanels((panels) =>
-                  panels.map((p) =>
-                    p.type === "storyPointMetrics"
-                      ? { ...p, data: { systems: nextSystems, rows: nextRows } }
-                      : p
-                  )
-                );
-              };
-
-              const updateDonutKpi = (order: number, data: Extract<ReportPanel, { type: "donutKpi" }>["data"]) => {
-                setFormPanels((panels) =>
-                  panels.map((p) =>
-                    p.type === "donutKpi" && p.order === order ? { ...p, data } : p
-                  )
-                );
-              };
-
-              return (
-                <div className="space-y-6 rounded-lg border border-surface-200 dark:border-dark-border p-4 bg-surface-50/50 dark:bg-dark-raised/30">
-                  <div className="space-y-3">
-                    <h4 className="text-body-sm font-semibold text-surface-800 dark:text-surface-100">
-                      Sprint Schedule
-                    </h4>
-                    {scheduleRows.length === 0 ? (
-                      <p className="text-body-sm text-surface-500 dark:text-surface-400">
-                        No schedule rows yet. Add a row to define sprint phases.
-                      </p>
-                    ) : (
-                      <div className="overflow-x-auto rounded-md border border-surface-200 dark:border-dark-border">
-                        <table className="w-full text-body-sm">
-                          <thead>
-                            <tr className="border-b border-surface-200 dark:border-dark-border bg-surface-100 dark:bg-dark-raised">
-                              <th className="text-left py-2 px-3 font-semibold text-surface-800 dark:text-surface-100">
-                                Date range
-                              </th>
-                              <th className="text-left py-2 px-3 font-semibold text-surface-800 dark:text-surface-100">
-                                Label
-                              </th>
-                              <th className="w-10 py-2 px-2" aria-label="Remove row" />
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {scheduleRows.map((row, rowIndex) => (
-                              <tr
-                                key={rowIndex}
-                                className="border-b border-surface-100 dark:border-dark-border last:border-0"
-                              >
-                                <td className="py-2 px-3">
-                                  <input
-                                    type="text"
-                                    value={row.dateRange}
-                                    onChange={(e) => {
-                                      const next = scheduleRows.map((r, i) =>
-                                        i === rowIndex ? { ...r, dateRange: e.target.value } : r
-                                      );
-                                      updateSprintSchedule(next);
-                                    }}
-                                    placeholder="4/28 – 5/15"
-                                    className={FORM_INPUT_CLASS}
-                                  />
-                                </td>
-                                <td className="py-2 px-3">
-                                  <input
-                                    type="text"
-                                    value={row.label}
-                                    onChange={(e) => {
-                                      const next = scheduleRows.map((r, i) =>
-                                        i === rowIndex ? { ...r, label: e.target.value } : r
-                                      );
-                                      updateSprintSchedule(next);
-                                    }}
-                                    placeholder="Development / Internal QA"
-                                    className={FORM_INPUT_CLASS}
-                                  />
-                                </td>
-                                <td className="py-2 px-2 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      updateSprintSchedule(
-                                        scheduleRows.filter((_, i) => i !== rowIndex)
-                                      )
-                                    }
-                                    className="inline-flex items-center justify-center h-8 w-8 rounded border border-surface-300 dark:border-dark-muted text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-dark-border focus:outline-none focus:ring-1 focus:ring-jblue-400"
-                                    aria-label="Remove row"
-                                  >
-                                    ×
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateSprintSchedule([
-                          ...scheduleRows,
-                          { dateRange: "", label: "" },
-                        ])
-                      }
-                      className="inline-flex items-center justify-center h-8 px-3 rounded text-label-sm border border-jblue-500 text-jblue-600 dark:text-jblue-400 font-medium hover:bg-jblue-50 dark:hover:bg-jblue-950 focus:outline-none focus:ring-1 focus:ring-jblue-400"
-                    >
-                      Add row
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    <h4 className="text-body-sm font-semibold text-surface-800 dark:text-surface-100">
-                      Story Points
-                    </h4>
-                    <div>
-                      <p className="text-label-sm font-semibold text-surface-700 dark:text-surface-200 mb-2">
-                        Systems
-                      </p>
-                      <div className="flex flex-wrap gap-2 items-start">
-                        {systems.map((sys, sysIndex) => (
-                          <div key={sysIndex} className="flex items-center gap-1 min-w-[8rem] max-w-[12rem]">
-                            <input
-                              type="text"
-                              value={sys.name}
-                              onChange={(e) => {
-                                const nextSystems = systems.map((s, i) =>
-                                  i === sysIndex ? { name: e.target.value } : s
-                                );
-                                updateStoryPointMetrics(nextSystems, storyRows);
-                              }}
-                              placeholder="System name"
-                              className={FORM_INPUT_CLASS}
-                              aria-label={`System ${sysIndex + 1} name`}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const nextSystems = systems.filter((_, i) => i !== sysIndex);
-                                const nextRows = storyRows.map((r) => ({
-                                  metric: r.metric,
-                                  values: r.values.filter((_, i) => i !== sysIndex),
-                                }));
-                                updateStoryPointMetrics(nextSystems, nextRows);
-                              }}
-                              className="shrink-0 inline-flex items-center justify-center h-8 w-8 rounded border border-surface-300 dark:border-dark-muted text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-dark-border"
-                              aria-label={`Remove system ${sysIndex + 1}`}
-                            >
-                              ×
-                            </button>
-                          </div>
-                        ))}
-                        {systems.length < 4 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const nextSystems = [...systems, { name: "" }];
-                              const nextRows = storyRows.map((r) => ({
-                                metric: r.metric,
-                                values: [...r.values, 0],
-                              }));
-                              updateStoryPointMetrics(nextSystems, nextRows);
-                            }}
-                            className="inline-flex items-center justify-center h-8 px-3 rounded text-label-sm border border-jblue-500 text-jblue-600 dark:text-jblue-400 font-medium hover:bg-jblue-50 dark:hover:bg-jblue-950"
-                          >
-                            Add system
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    {systems.length > 0 && (
-                      <div className="overflow-x-auto rounded-md border border-surface-200 dark:border-dark-border">
-                        <table className="w-full text-body-sm">
-                          <thead>
-                            <tr className="border-b border-surface-200 dark:border-dark-border bg-surface-100 dark:bg-dark-raised">
-                              <th className="text-left py-2 px-3 font-semibold text-surface-800 dark:text-surface-100 w-32">
-                                Metric
-                              </th>
-                              {systems.map((sys, sysIndex) => (
-                                <th
-                                  key={sysIndex}
-                                  className="text-right py-2 px-3 font-semibold text-surface-800 dark:text-surface-100 min-w-[5rem]"
-                                >
-                                  {sys.name.trim() || `System ${sysIndex + 1}`}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {storyRows.map((row) => {
-                              const metricLabel =
-                                STORY_POINT_METRICS.find((m) => m.metric === row.metric)?.label ??
-                                row.metric;
-                              return (
-                                <tr
-                                  key={row.metric}
-                                  className="border-b border-surface-100 dark:border-dark-border last:border-0"
-                                >
-                                  <td className="py-2 px-3 font-medium text-surface-700 dark:text-surface-200">
-                                    {metricLabel}
-                                  </td>
-                                  {row.values.map((val, sysIndex) => (
-                                    <td key={sysIndex} className="py-2 px-3">
-                                      <input
-                                        type="number"
-                                        min={0}
-                                        step={1}
-                                        value={val}
-                                        onChange={(e) => {
-                                          const num = Number(e.target.value);
-                                          const safe = Number.isFinite(num) ? Math.max(0, num) : 0;
-                                          const nextRows = storyRows.map((r) =>
-                                            r.metric === row.metric
-                                              ? {
-                                                  metric: r.metric,
-                                                  values: r.values.map((v, i) =>
-                                                    i === sysIndex ? safe : v
-                                                  ),
-                                                }
-                                              : r
-                                          );
-                                          updateStoryPointMetrics(systems, nextRows);
-                                        }}
-                                        className={`${FORM_INPUT_CLASS} text-right tabular-nums`}
-                                        aria-label={`${metricLabel} for ${systems[sysIndex]?.name || `system ${sysIndex + 1}`}`}
-                                      />
-                                    </td>
-                                  ))}
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-
-                  {donutPanels.length > 0 && (
-                    <div className="space-y-2">
-                        {donutPanels.map((panel) => (
-                          <div
-                            key={panel.order}
-                            className="flex flex-wrap items-center gap-3 rounded-md border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface p-3"
-                          >
-                            <input
-                              type="text"
-                              value={panel.data.label}
-                              onChange={(e) =>
-                                updateDonutKpi(panel.order, {
-                                  ...panel.data,
-                                  label: e.target.value,
-                                })
-                              }
-                              placeholder="Label"
-                              className={`${FORM_INPUT_CLASS} flex-1 min-w-[10rem]`}
-                              aria-label="KPI label"
-                            />
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="number"
-                                min={0}
-                                max={100}
-                                step={1}
-                                value={panel.data.manualValue ?? 0}
-                                onChange={(e) => {
-                                  const num = Number(e.target.value);
-                                  const safe = Number.isFinite(num)
-                                    ? Math.min(100, Math.max(0, num))
-                                    : 0;
-                                  updateDonutKpi(panel.order, {
-                                    ...panel.data,
-                                    source: "manual",
-                                    size: "large",
-                                    manualValue: safe,
-                                  });
-                                }}
-                                className={`${FORM_INPUT_CLASS} w-20 text-right tabular-nums`}
-                                aria-label={`${panel.data.label} percent`}
-                              />
-                              <span className="text-body-sm text-surface-600 dark:text-surface-300">
-                                %
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
             <div>
               <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1.5">Project Status</label>
               <div className="rounded-md border border-surface-200 dark:border-dark-border overflow-hidden">
@@ -2224,3 +2586,6 @@ export function StatusReportsTab({
     </div>
   );
 }
+</file>
+
+</files>

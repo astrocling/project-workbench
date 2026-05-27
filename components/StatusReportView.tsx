@@ -14,6 +14,11 @@ import {
   cdaOverallHoursRemaining,
   cdaContractHoursCompletePercent,
 } from "@/components/pdf/StatusReportDocument";
+import type {
+  DonutKpiData,
+  SprintScheduleData,
+  StoryPointsMetricsData,
+} from "@/lib/reportPanels";
 import { getWeeksInMonthsForRange } from "@/lib/monthUtils";
 
 // Mirror PDF layout: 16:9 slide, same colors and structure
@@ -69,6 +74,39 @@ function bulletLines(text: string): string[] {
     .split(/\r?\n/)
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+function isHtmlContent(text: string): boolean {
+  return text.trimStart().startsWith("<");
+}
+
+const SPRINT_METRIC_LABELS: Record<string, string> = {
+  planned: "Story Points Planned",
+  completed: "Story Points Completed",
+  inProgress: "Story Points In Progress",
+  carryOver: "Carry Over To Next",
+};
+
+function NarrativeColumnContent({ text }: { text: string }) {
+  if (isHtmlContent(text)) {
+    return (
+      <div
+        className="text-[7px] leading-[1.15] [&_ul]:list-disc [&_ul]:pl-3 [&_li]:my-px [&_strong]:font-bold [&_b]:font-bold [&_a]:text-jblue-600 [&_a]:underline [&_p]:mb-px [&_p:last-child]:mb-0"
+        dangerouslySetInnerHTML={{ __html: sanitizeMeetingNotesHtml(text) }}
+      />
+    );
+  }
+  return (
+    <>
+      {bulletLines(text)
+        .slice(0, 7)
+        .map((line, i) => (
+          <p key={i} className="text-[7px] leading-[1.15]">
+            • <TextWithLinks line={line} />
+          </p>
+        ))}
+    </>
+  );
 }
 function getKeyRoleNames(data: StatusReportPDFData): { cad: string; pm: string; pgm: string; keyStaff: string } {
   const roles = data.project.projectKeyRoles || [];
@@ -480,37 +518,19 @@ export function StatusReportView({
             <div className="flex-1 min-w-0 flex flex-col min-h-0">
               <h3 className="text-[9px] font-bold mb-0.5 shrink-0" style={{ color: "#060066" }}>Completed Activities</h3>
               <div className="flex-1 min-h-0 flex flex-col gap-px">
-                {bulletLines(report.completedActivities)
-                  .slice(0, 7)
-                  .map((line, i) => (
-                    <p key={i} className="text-[7px] leading-[1.15]">
-                      • <TextWithLinks line={line} />
-                    </p>
-                  ))}
+                <NarrativeColumnContent text={report.completedActivities} />
               </div>
             </div>
             <div className="flex-1 min-w-0 flex flex-col min-h-0">
               <h3 className="text-[9px] font-bold mb-0.5 shrink-0" style={{ color: "#060066" }}>Upcoming Activities</h3>
               <div className="flex-1 min-h-0 flex flex-col gap-px">
-                {bulletLines(report.upcomingActivities)
-                  .slice(0, 7)
-                  .map((line, i) => (
-                    <p key={i} className="text-[7px] leading-[1.15]">
-                      • <TextWithLinks line={line} />
-                    </p>
-                  ))}
+                <NarrativeColumnContent text={report.upcomingActivities} />
               </div>
             </div>
             <div className="flex-1 min-w-0 flex flex-col min-h-0">
               <h3 className="text-[9px] font-bold mb-0.5 shrink-0" style={{ color: "#060066" }}>Risks / Issues / Decisions</h3>
               <div className="flex-1 min-h-0 flex flex-col gap-px">
-                {bulletLines(report.risksIssuesDecisions)
-                  .slice(0, 7)
-                  .map((line, i) => (
-                    <p key={i} className="text-[7px] leading-[1.15]">
-                      • <TextWithLinks line={line} />
-                    </p>
-                  ))}
+                <NarrativeColumnContent text={report.risksIssuesDecisions} />
               </div>
             </div>
           </div>
@@ -690,6 +710,95 @@ export function StatusReportView({
                 {data.budget && <BudgetBurnDonut burnPercent={data.budget.burnPercentHigh} compact />}
               </div>
             )}
+
+            {report.variation === "Modular" && (() => {
+              const panels = data.panels ?? [];
+              if (panels.length === 0) {
+                return <div className="text-[7px] text-gray-400 py-1">No panel data.</div>;
+              }
+              const schedulePanelData = panels.find((p) => p.type === "sprintSchedule")?.data as
+                | SprintScheduleData
+                | undefined;
+              const metricsPanelData = panels.find((p) => p.type === "storyPointMetrics")?.data as
+                | StoryPointsMetricsData
+                | undefined;
+              const donutPanels = panels
+                .filter((p) => p.type === "donutKpi")
+                .map((p) => p.data as DonutKpiData);
+              return (
+                <div className="flex flex-row items-start gap-2">
+                  {schedulePanelData && schedulePanelData.rows.length > 0 && (
+                    <div className="flex-1 min-w-0 border border-gray-200">
+                      <div
+                        className="text-[7px] font-semibold py-0.5 px-1 text-center"
+                        style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
+                      >
+                        Sprint Schedule
+                      </div>
+                      {schedulePanelData.rows.map((row, i) => (
+                        <div
+                          key={i}
+                          className="flex flex-row text-[6px] border-t border-gray-200"
+                          style={{ backgroundColor: i % 2 === 0 ? "#ffffff" : "#f3f4f6" }}
+                        >
+                          <div className="w-16 flex-shrink-0 py-0.5 px-1 font-semibold">{row.dateRange}</div>
+                          <div className="flex-1 py-0.5 px-1">{row.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {metricsPanelData && metricsPanelData.systems.length > 0 && (
+                    <div className="flex-1 min-w-0 border border-gray-200">
+                      <div
+                        className="text-[7px] font-semibold py-0.5 px-1 text-center"
+                        style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
+                      >
+                        Key Metrics
+                      </div>
+                      <div
+                        className="flex flex-row text-[6px] font-semibold border-t border-gray-200"
+                        style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
+                      >
+                        <div className="flex-[1.5] py-0.5 px-1" />
+                        {metricsPanelData.systems.map((sys, i) => (
+                          <div key={i} className="flex-1 py-0.5 px-1 text-center">
+                            {sys.name}
+                          </div>
+                        ))}
+                      </div>
+                      {metricsPanelData.rows.map((row, i) => (
+                        <div
+                          key={i}
+                          className="flex flex-row text-[6px] border-t border-gray-200"
+                          style={{ backgroundColor: i % 2 === 0 ? "#ffffff" : "#f3f4f6" }}
+                        >
+                          <div className="flex-[1.5] py-0.5 px-1 font-semibold">
+                            {SPRINT_METRIC_LABELS[row.metric] ?? row.metric}
+                          </div>
+                          {row.values.map((v, j) => (
+                            <div key={j} className="flex-1 py-0.5 px-1 text-center tabular-nums">
+                              {v}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {donutPanels.length > 0 && (
+                    <div className="flex flex-col gap-1 flex-shrink-0">
+                      {donutPanels.map((kpi, i) => (
+                        <BudgetBurnDonut
+                          key={i}
+                          burnPercent={kpi.manualValue ?? 0}
+                          compact
+                          label={kpi.label}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
 
