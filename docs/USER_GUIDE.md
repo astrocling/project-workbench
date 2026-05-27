@@ -71,7 +71,7 @@ Each project has a detail page with several tabs. The header shows the **as-of d
 | **CDA** | (When enabled in Settings) Monthly planned and actuals for CDA reporting. Month-to-date actuals for each month incorporate **split-week** hours when a week crosses a month boundary (see Resourcing below). Optional **Report hours only** hides budget dollars on the Overall row in status copy and CDA reports—see [CDA tab](#cda-tab). |
 | **Budget** | Budget lines (e.g. SOW, CO, Other) with low/high hours and dollars, and burn to date. |
 | **Timeline** | High-level timeline with month columns and up to four rows of bars and markers. Each bar has a label, start/end dates, row (1–4), and an optional color (Blue, Green, Amber, Teal, Slate, or Violet). The same timeline (with colors) appears in status report previews and PDFs. Each saved report stores its **own** copy of the timeline when the report is created; if you change bars or markers later, use **Refresh timeline** while **editing** that report (Standard or Milestones) on the Status Reports tab to update that copy—see [Status Reports tab](#status-reports-tab). |
-| **Status Reports** | Summary table of estimated budget, $ spent, $ remaining, budgeted/actual/remaining hours, with copy-to-clipboard and a % budget used (high est.) circle chart. Create, edit, view, and export status reports. **New** reports cannot be saved while **actuals are stale** (completed weeks with planned hours but missing actuals)—update the Resourcing tab first. When Slack is configured, **Post to Slack** sends the latest saved report summary to the linked account's Slack channel (see [Status Reports tab](#status-reports-tab)). Standard and Milestones reports can **refresh the stored timeline** from the project after the Timeline tab changes—see [Status Reports tab](#status-reports-tab). |
+| **Status Reports** | Summary table of estimated budget, $ spent, $ remaining, budgeted/actual/remaining hours, with copy-to-clipboard and a % budget used (high est.) circle chart. Create, edit, view, and export status reports. **Standard** reports include an optional **Show project budget on report** toggle (default on) to hide the budget table and burn chart on the exported slide—see [Status Reports tab](#status-reports-tab). **New** reports cannot be saved while **actuals are stale** (completed weeks with planned hours but missing actuals)—update the Resourcing tab first. When Slack is configured, **Post to Slack** sends the latest saved report summary to the linked account's Slack channel (see [Status Reports tab](#status-reports-tab)). Standard and Milestones reports can **refresh the stored timeline** from the project after the Timeline tab changes—see [Status Reports tab](#status-reports-tab). |
 | **Settings** | Edit project name, client, dates, status, single rate, notes, SOW/Estimate/Float/Metric links, optional **Slack channel ID** (for missing-actuals Tue/Wed nudges), resourcing thresholds, key roles, and optional CDA tab. Within Settings, sub-sections include **Details** (includes read-only **Industry group** inherited from the linked Float **client account** when `accountId` is set — see Admin → Accounts), **Links**, **Key roles**, **Resourcing** (thresholds), **Rates** (per-role rate card or single bill rate), and **Assignments** (people assigned, their roles, bill-rate overrides, and “hidden from grid” for the Resourcing tab). |
 
 Only users with edit permission can change data; the **Settings** tab may be read-only for some viewers.
@@ -190,6 +190,20 @@ The Status Reports tab is where you create and maintain status reports and expor
 - **Bigger, presentation-friendly default size**: The preview is auto-scaled larger (while still fitting your screen), and the downloaded PDF is generated at a larger default page size so you can present at 100% zoom without squinting.
 - **Typography**: Status report fonts were updated for readability; the preview and exported PDF use the same typography.
 
+### Standard variation — show budget on report
+
+When you create or edit a report with variation **Standard (Timeline/Project Budget)**, the form includes **Show project budget on report** (toggle, default **on**).
+
+| Toggle | On the exported slide (preview and PDF) |
+|--------|----------------------------------------|
+| **On** (default) | Bottom section shows the **HIGH/LOW** budget table ($ and hours) and the **% budget used** burn donut, same as before. |
+| **Off** | That bottom budget block is **hidden**. Timeline, RAG, activities, and other sections are unchanged. |
+
+The **Status Report Summary** table on the tab (reference while editing) is **not** affected—you can still copy budget figures from there even when the slide omits them.
+
+- **New reports** always start with the toggle **on**, even when Workbench copies narrative and RAG from a previous report.
+- **Saved reports**: The choice is stored in that report’s **snapshot** when you save. You can change it with **Update** while editing. Older reports without this field still show budget (same as toggle on).
+
 ### Post to Slack (when configured)
 
 If your team has connected Slack, a **Post to Slack** control appears near the status reports list. It opens a short dialog: optional note (up to 500 characters), then **Post to Slack**. Workbench sends a **health update** summarizing the **most recent saved** report (RAG, budget figures, next milestone, etc.) to the **linked account's Slack channel** (Admin → Accounts).
@@ -210,7 +224,7 @@ When you click **Save** (new report) or **Update** (while editing), Workbench sa
 
 When you **save a new** status report, Workbench stores a **snapshot** with the reporting period, budget (or CDA) figures, and—for Standard and Milestones variations—the **timeline** (bars and markers) as they were **at that moment**. Preview, the HTML view, and PDF export all read from that snapshot so later changes to resourcing, budget, or the **Timeline** tab do not change older reports.
 
-- **What you can still edit** on an existing report: narrative fields (completed / upcoming / risks / meeting notes), RAG values and explanations, and **variation** where the form allows it.
+- **What you can still edit** on an existing report: narrative fields (completed / upcoming / risks / meeting notes), RAG values and explanations, **variation** where the form allows it, and—for **Standard** reports—**Show project budget on report** (see above).
 - **Meeting notes with formatting**: If you paste content that includes **HTML** from another tool, the preview, HTML view, and **Download PDF** keep **allowed** formatting (paragraphs, lists, links, basic styles) and drop unsafe markup automatically. Plain-text notes support line breaks and clickable URLs (paste `https://…` or use `[label](url)`). If client-side PDF generation fails, the preview offers **Download PDF (server)** as a fallback; that path may not preserve HTML formatting in meeting notes.
 - **What stays locked** unless you use **Refresh timeline** (below): **report date**, **reporting period**, **previous months on timeline** (the 1–4 month window chosen at create time), budget/CDA snapshot, and—by default—the **timeline** bars and markers.
 
@@ -303,7 +317,7 @@ On **Admin → Float sync**, **Restore hours from import history (all projects)*
 
 - By default, Float sync **updates** each project assignment’s **role** when it can resolve Float’s job title or scheduling role to a Workbench role.
 - If you **change a person’s role** in **Settings → Assignments** and save, Workbench **stops** applying Float’s role for that person on that project on future syncs, so your choice sticks (see Technical Reference: `ProjectAssignment.syncRoleFromFloat`). To let Float drive the role again for that row, **remove the assignment and add the person again** (new assignments default to following Float), or have a developer set `syncRoleFromFloat` back to true in the database.
-- Keep **Admin → People** **job titles** accurate (they come from Float) so assignment roles align with how your org titles map to Workbench roles.
+- Keep **Admin → People** **job titles** accurate so assignment roles align with how your org titles map to Workbench roles. Titles usually come from Float sync; you can also set them when **adding** someone manually (see *Admin → People* below).
 
 ---
 
@@ -315,7 +329,7 @@ Available from the **Admin** entry in the **sidebar** (admins only).
 |------|---------|
 | **Roles** | Create and manage roles (e.g. Project Manager, FE Developer). Role names must match the ones used on assignments and in Float. |
 | **Industry groups** | Create and maintain **industry group** labels (taxonomy). Archive or restore groups (**archive** hides them from **new** account/user picks; existing links can stay until changed). Shows how many accounts and users reference each group. |
-| **People** | Manage people (name, email, active). These are the resources that appear on project assignments and Float sync. The **Region** column shows each person’s **Float region** by name when the last sync could resolve one (from people and/or holiday API data); otherwise **Region (id)** if only the numeric id is known, or **—** if unset—used for regional public/team holiday handling in Float scheduled hours. Linking a **User** to a **Person** (by email / account setup) helps Slack **@mentions** for PM/PGM when their Workbench user has a **Slack user ID**. |
+| **People** | Manage people in Workbench: view Float-backed fields (email, job title, tags, region, department, Float active, access), filter and sort the table, toggle **Workbench** active (**Remove** / **Add back**), and **add** people not yet in Float. **Job title** (Float `job_title`, stored as **`floatJobTitle`**) drives how Workbench maps a person to a role on project assignments; it is usually filled by Float sync but is **required** when you add someone manually. The **Region** column shows each person’s **Float region** by name when the last sync could resolve one (from people and/or holiday API data); otherwise **Region (id)** if only the numeric id is known, or **—** if unset—used for regional public/team holiday handling in Float scheduled hours. Linking a **User** to a **Person** (by email / account setup) helps Slack **@mentions** for PM/PGM when their Workbench user has a **Slack user ID**. |
 | **Holidays** | Read-only view of Float **public** and **team** holidays (API JSON) for troubleshooting schedules and regions. |
 | **Users** | Manage app logins (email and password) and permissions. Set **User** or **Admin**, optional **position role**, optional **Slack user ID** (`U…`) so Slack messages can @mention the right person and so **Tuesday** missing-actuals DMs can reach PMs. Optional **industry group** per user (independent from client accounts). Users can also set their own **Slack user ID** on **Account → Profile**. Use **Edit** on a row to open the edit dialog (see below)—including **New password** to reset someone’s password without changing their email. |
 | **Slack** | Set the **resourcing** Slack channel ID where **Request Resourcing Changes** messages are posted. Choose which users are on the **notify** list for extra @mentions on those requests. The page reminds you that the bot token is configured via **`SLACK_BOT_TOKEN`** in the server environment. |
@@ -329,6 +343,14 @@ Open **Admin → Industry groups** (`/admin/industry-groups`). Add groups with *
 - **Archive** / **Restore** — Quick toggle without opening the modal.
 
 Define groups before assigning them on **Accounts** or **Users**.
+
+### Admin → People
+
+Open **Admin → People** (`/admin/people`). The table lists everyone in Workbench with columns for name, email, **Job title**, tags, region, department, Float scheduling active, access label, and **Workbench** active (whether the person is included in Workbench workflows). Default filter **Active = Yes** shows only people with Workbench active turned on.
+
+- **Filters** — Narrow by job title, region id, department, and Workbench active. **Clear filters** resets to defaults.
+- **Add person** — Opens a dialog to enter **Name** and select **Job title** (from the Workbench role catalog plus titles already on people). Both are required. The person is added to Workbench with **Workbench active = Yes**. If someone with the same name already exists (case-insensitive), their **job title** is updated. Float sync can enrich other fields later if the name matches Float.
+- **Remove** / **Add back** — Toggles Workbench **active** without deleting the person or their Float data.
 
 ### Admin → Users
 

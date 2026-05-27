@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Admin → People — empty table and add person** — Restored **`GET/POST/PATCH /api/admin/people`** after a regression that reduced the route to a minimal GET-only stub returning a flat array. The People page expects **`{ people, newPersonNames }`** and POST/PATCH handlers; the stub left the table empty and left the add-person modal open (405 on POST). **`GET`** again returns full **`Person`** rows plus **`newPersonNames`** from the latest **`FloatImportRun`**. **`POST`** find-or-creates by name (case-insensitive) and accepts **`jobTitle`** (stored as **`Person.floatJobTitle`**). **`PATCH`** toggles Workbench **`active`**. **`app/admin/users/page.tsx`** parses **`people`** from the wrapped GET response so the Float person dropdown still works.
+
+### Added
+
+- **Admin → People — job title on add** — The **Add person** dialog requires a **Job title** selected from the Workbench role catalog (merged with job titles already on people). Job title is saved as **`floatJobTitle`** and drives assignment role resolution (see *Float sync behavior*).
+
+- **Status reports — Standard show budget toggle** — When creating or editing a **Standard** variation report, editors can turn **Show project budget on report** on or off (default **on**). When off, the exported slide omits the bottom **HIGH/LOW** budget table and burn donut; timeline and narrative sections are unchanged. The choice is stored per report in the JSON **snapshot** (`showBudget`) and can be updated on **Update**; preview, share view, client PDF capture, and server PDF fallback all honor it. Implementation: `components/StatusReportsTab.tsx`, `lib/statusReportPdfData.ts` (`resolveShowBudget`), `StatusReportView.tsx` / `StatusReportDocument.tsx`. Tests: `__tests__/lib/statusReportPdfData.test.ts`.
+
+### Documentation
+
+- **User Guide** — *Admin → People*: table listing, filters, add person (name + job title), Workbench active toggle; job titles from Float sync vs manual add.
+- **Technical Reference** — **`/api/admin/people`** request/response shapes; Admin Users person-dropdown compatibility; Admin People UI notes; *Standard report show budget* (`showBudget` snapshot, POST/PATCH status-reports).
+- **User Guide** — *Status Reports tab*: **Show project budget on report** toggle for Standard variation (default on; hides bottom budget block when off).
+- **`.cursor/rules/status-report.mdc`** — Standard **`showBudget`** snapshot flag.
+- **CHANGELOG** — This unreleased section.
+
 ## [1.1.4] - 2026-05-21
 
 Patch release: **Slack** missing-actuals nudges align with Resourcing **Actuals Stale** rules (**Planned > 0**, **null** actuals only); status health **View full report →** links use **`?tab=status-reports`**; **Download PDF** meeting notes render at readable width. **Deploy:** no new migrations; redeploy as usual.
