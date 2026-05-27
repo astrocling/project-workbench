@@ -34,6 +34,44 @@ const TIMELINE_BAR_BG = "#1941FA";
 const TIMELINE_REPORT_DATE = "#FF2020";
 const TIMELINE_ROW_BORDER = "#d1d5db";
 const TIMELINE_MONTH_DIVIDER = "#9ca3af";
+
+/** Lucide icon path/line data for timeline markers (same icons as Timeline tab). viewBox 0 0 24 24. */
+type IconNode = { type: "path"; d: string } | { type: "line"; x1: number; y1: number; x2: number; y2: number };
+const TIMELINE_MARKER_ICONS: Record<string, IconNode[]> = {
+  BadgeAlert: [
+    { type: "path", d: "M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z" },
+    { type: "line", x1: 12, y1: 8, x2: 12, y2: 12 },
+    { type: "line", x1: 12, y1: 16, x2: 12.01, y2: 16 },
+  ],
+  ThumbsUp: [
+    { type: "path", d: "M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" },
+    { type: "path", d: "M7 10v12" },
+  ],
+  TrendingUpDown: [
+    { type: "path", d: "M14.828 14.828 21 21" },
+    { type: "path", d: "M21 16v5h-5" },
+    { type: "path", d: "m21 3-9 9-4-4-6 6" },
+    { type: "path", d: "M21 8V3h-5" },
+  ],
+  Rocket: [
+    { type: "path", d: "M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" },
+    { type: "path", d: "M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09" },
+    { type: "path", d: "M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z" },
+    { type: "path", d: "M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05" },
+  ],
+  PencilRuler: [
+    { type: "path", d: "M13 7 8.7 2.7a2.41 2.41 0 0 0-3.4 0L2.7 5.3a2.41 2.41 0 0 0 0 3.4L7 13" },
+    { type: "path", d: "m8 6 2-2" },
+    { type: "path", d: "m18 16 2-2" },
+    { type: "path", d: "m17 11 4.3 4.3c.94.94.94 2.46 0 3.4l-2.6 2.6c-.94.94-2.46.94-3.4 0L11 17" },
+    { type: "path", d: "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" },
+    { type: "path", d: "m15 5 4 4" },
+  ],
+  Pin: [
+    { type: "path", d: "M12 17v5" },
+    { type: "path", d: "M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" },
+  ],
+};
 const RAG_COLORS: Record<RagStatus, string> = {
   Red: "#dc2626",
   Amber: "#f59e0b",
@@ -282,7 +320,14 @@ function TimelineBlock({
     return clipped;
   }
 
-  const ROW_HEIGHT_PX = 20;
+  const ROW_HEIGHT_PX = 14;
+
+  const activeRowIndices = [0, 1, 2, 3].filter((rowIdx) => {
+    const rowBars = barsByRow[rowIdx] ?? [];
+    const clipped = getVisibleBarSegments(rowBars);
+    const markersInRow = timeline.markers.filter((m) => (m.rowIndex ?? 1) === rowIdx + 1);
+    return clipped.length > 0 || markersInRow.length > 0;
+  });
 
   return (
     <div className="mt-1 w-full border border-[#d1d5db] relative">
@@ -304,7 +349,7 @@ function TimelineBlock({
         }}
       >
         {months.map((monthKey) => (
-          <div key={monthKey} className="py-0.5 px-0.5 text-center">
+          <div key={monthKey} className="py-px px-0.5 text-center">
             <span className="text-[6px] font-bold text-white uppercase">
               {getMonthFullName(monthKey).toUpperCase()}
             </span>
@@ -315,10 +360,14 @@ function TimelineBlock({
         {reportDatePercent != null && (
           <div
             className="absolute top-0 bottom-0 w-0.5 -ml-px"
-            style={{ left: `${reportDatePercent}%`, backgroundColor: TIMELINE_REPORT_DATE, height: 80 }}
+            style={{
+              left: `${reportDatePercent}%`,
+              backgroundColor: TIMELINE_REPORT_DATE,
+              height: activeRowIndices.length * ROW_HEIGHT_PX + 2,
+            }}
           />
         )}
-        {[0, 1, 2, 3].map((rowIdx) => {
+        {activeRowIndices.map((rowIdx) => {
           const rowBars = barsByRow[rowIdx] ?? [];
           const clipped = getVisibleBarSegments(rowBars);
           return (
@@ -337,19 +386,28 @@ function TimelineBlock({
                 ))}
               </div>
               <div className="absolute inset-0">
-                {clipped.map(({ bar, visibleStart, visibleEnd }, i) => (
+                {clipped.map(({ bar, visibleStart, visibleEnd }, i) => {
+                  const rawWidth = widthPercent(visibleStart, visibleEnd);
+                  const renderedWidth = Math.max(rawWidth, 4);
+                  return (
                   <div
                     key={`bar-${i}`}
-                    className="absolute top-1 bottom-1 rounded-sm flex items-center px-1 opacity-[0.82] overflow-hidden min-w-0"
+                    className="absolute top-[2px] bottom-[2px] rounded flex items-center px-1.5 overflow-hidden min-w-0"
                     style={{
                       left: `${positionPercent(visibleStart)}%`,
-                      width: `${widthPercent(visibleStart, visibleEnd)}%`,
+                      width: `${renderedWidth}%`,
                       backgroundColor: bar.color ?? TIMELINE_BAR_BG,
                     }}
                   >
-                    <span className="text-[5px] text-white font-semibold truncate block min-w-0">{bar.label}</span>
+                    <span
+                      className="text-[5px] text-white font-semibold leading-none block w-full"
+                      style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                    >
+                      {bar.label}
+                    </span>
                   </div>
-                ))}
+                  );
+                })}
               </div>
               {timeline.markers
                 .filter((m) => (m.rowIndex ?? 1) === rowIdx + 1)
@@ -359,10 +417,25 @@ function TimelineBlock({
                     className="absolute flex flex-col items-center min-w-[11px]"
                     style={{ left: `calc(${positionPercent(m.date)}% - 5.5px)` }}
                   >
-                    <div
-                      className="w-[11px] h-[11px] rounded-full border-2 border-[#FF2020] flex-shrink-0"
-                      style={{ borderColor: TIMELINE_REPORT_DATE }}
-                    />
+                    <svg
+                      width={11}
+                      height={11}
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#FF2020"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="flex-shrink-0"
+                    >
+                      {(TIMELINE_MARKER_ICONS[m.shape ?? "Pin"] ?? TIMELINE_MARKER_ICONS.Pin).map((node, ni) =>
+                        node.type === "path" ? (
+                          <path key={ni} d={node.d} />
+                        ) : (
+                          <line key={ni} x1={node.x1} y1={node.y1} x2={node.x2} y2={node.y2} />
+                        )
+                      )}
+                    </svg>
                     <span className="text-[5px] font-medium text-gray-600 bg-gray-100 px-0.5 rounded max-w-[52px] truncate">
                       {m.label}
                     </span>
