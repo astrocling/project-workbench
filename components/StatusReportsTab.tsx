@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { BRAND_COLORS } from "@/lib/brandColors";
 import { StatusReportPreview } from "@/components/StatusReportPreview";
+import { Toggle } from "@/components/Toggle";
 
 type RagValue = "Red" | "Amber" | "Green";
 
@@ -35,7 +36,7 @@ type StatusReportRecord = {
   ragScopeExplanation?: string | null;
   ragScheduleExplanation?: string | null;
   ragBudgetExplanation?: string | null;
-  snapshot?: { timelinePreviousMonths?: number } | null;
+  snapshot?: { timelinePreviousMonths?: number; showBudget?: boolean } | null;
 };
 
 function roundToQuarter(hours: number): number {
@@ -323,6 +324,7 @@ export function StatusReportsTab({
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [formReportDate, setFormReportDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [formVariation, setFormVariation] = useState<"Standard" | "Milestones" | "CDA">("Standard");
+  const [formShowBudget, setFormShowBudget] = useState(true);
   const [formTimelinePreviousMonths, setFormTimelinePreviousMonths] = useState<number>(1);
   const [formCompleted, setFormCompleted] = useState("");
   const [formUpcoming, setFormUpcoming] = useState("");
@@ -459,6 +461,7 @@ export function StatusReportsTab({
         setEditingReportId(null);
         setFormReportDate(today);
         setFormVariation(cdaEnabled ? "CDA" : "Standard");
+        setFormShowBudget(true);
         if (prev) {
           applyPreviousReport(prev);
         } else {
@@ -483,6 +486,7 @@ export function StatusReportsTab({
         setEditingReportId(null);
         setFormReportDate(today);
         setFormVariation(cdaEnabled ? "CDA" : "Standard");
+        setFormShowBudget(true);
         setFormTimelinePreviousMonths(1);
         setFormCompleted("");
         setFormUpcoming("");
@@ -508,6 +512,9 @@ export function StatusReportsTab({
     setEditingReportId(r.id);
     setFormReportDate(r.reportDate.slice(0, 10));
     setFormVariation((r.variation as "Standard" | "Milestones" | "CDA") || "Standard");
+    setFormShowBudget(
+      typeof r.snapshot?.showBudget === "boolean" ? r.snapshot.showBudget : true
+    );
     const prevMonths = r.snapshot?.timelinePreviousMonths;
     setFormTimelinePreviousMonths(
       typeof prevMonths === "number" && prevMonths >= 1 && prevMonths <= 4 ? prevMonths : 1
@@ -551,6 +558,7 @@ export function StatusReportsTab({
       ...(!editingReportId && { reportDate: formReportDate }),
       ...(!editingReportId && { timelinePreviousMonths: formTimelinePreviousMonths }),
       variation: formVariation,
+      ...(formVariation === "Standard" && { showBudget: formShowBudget }),
       completedActivities: formCompleted,
       upcomingActivities: formUpcoming,
       risksIssuesDecisions: formRisks,
@@ -1159,7 +1167,13 @@ export function StatusReportsTab({
               <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">Variation</label>
               <select
                 value={formVariation}
-                onChange={(e) => setFormVariation(e.target.value as "Standard" | "Milestones" | "CDA")}
+                onChange={(e) => {
+                  const next = e.target.value as "Standard" | "Milestones" | "CDA";
+                  setFormVariation(next);
+                  if (next === "Standard" && !editingReportId) {
+                    setFormShowBudget(true);
+                  }
+                }}
                 className="block w-full max-w-xs h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
               >
                 {formVariation === "Milestones" && (
@@ -1170,6 +1184,16 @@ export function StatusReportsTab({
                 ))}
               </select>
             </div>
+            {formVariation === "Standard" && (
+              <div>
+                <Toggle
+                  checked={formShowBudget}
+                  onChange={setFormShowBudget}
+                  label="Show project budget on report"
+                  aria-label="Show project budget on report"
+                />
+              </div>
+            )}
             {(formVariation === "Standard" || formVariation === "Milestones") && (
               <div>
                 <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">

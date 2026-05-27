@@ -29,6 +29,8 @@ const createSchema = z.object({
   ragScopeExplanation: z.string().nullable().optional(),
   ragScheduleExplanation: z.string().nullable().optional(),
   ragBudgetExplanation: z.string().nullable().optional(),
+  /** When false, Standard report omits bottom budget table and burn chart. Default true. */
+  showBudget: z.boolean().default(true),
 });
 
 export async function GET(
@@ -71,6 +73,7 @@ export async function GET(
         ragScopeExplanation: true,
         ragScheduleExplanation: true,
         ragBudgetExplanation: true,
+        snapshot: true,
       },
     });
     return NextResponse.json(report ?? null);
@@ -97,6 +100,7 @@ export async function GET(
     ragScopeExplanation: true,
     ragScheduleExplanation: true,
     ragBudgetExplanation: true,
+    snapshot: true,
   } as const;
 
   if (pageParam != null && limitParam != null) {
@@ -195,6 +199,7 @@ export async function POST(
       timeline: pdfData.timeline,
       timelinePreviousMonths: parsed.data.timelinePreviousMonths,
       cdaReportHoursOnly: pdfData.cdaReportHoursOnly,
+      showBudget: parsed.data.showBudget,
     };
     await prisma.statusReport.update({
       where: { id: report.id },

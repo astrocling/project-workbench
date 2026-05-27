@@ -827,6 +827,8 @@ export type StatusReportPDFData = {
   };
   /** When true, CDA Overall table omits Budget ($) row; first chart uses hours completion. */
   cdaReportHoursOnly?: boolean;
+  /** When false, Standard report omits bottom budget table and burn chart. Default true. */
+  showBudget?: boolean;
 };
 
 /**
@@ -1569,7 +1571,7 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
             );
           })()}
 
-          {report.variation === "Standard" && data.budget && (
+          {report.variation === "Standard" && data.budget && data.showBudget !== false && (
           <View style={styles.bottomQuarterSection}>
             <View style={[styles.bottomQuarterTableCol, styles.table]}>
               {/* Header row — compact for bottom 25% */}

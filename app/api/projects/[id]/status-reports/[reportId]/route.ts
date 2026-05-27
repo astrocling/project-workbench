@@ -3,8 +3,10 @@ import { revalidateTag } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import { getProjectId } from "@/lib/slug";
 import { deleteCachedPdf } from "@/lib/statusReportPdfCache";
+import { isStatusReportSnapshot, type StatusReportSnapshot } from "@/lib/statusReportPdfData";
 import { z } from "zod";
 
 const variationEnum = z.enum(["Standard", "Milestones", "CDA"]);
@@ -25,6 +27,8 @@ const patchSchema = z.object({
   ragScopeExplanation: z.string().nullable().optional(),
   ragScheduleExplanation: z.string().nullable().optional(),
   ragBudgetExplanation: z.string().nullable().optional(),
+  /** When false, Standard report omits bottom budget table and burn chart. */
+  showBudget: z.boolean().optional(),
 });
 
 export async function GET(
@@ -105,9 +109,30 @@ export async function PATCH(
   if (Object.prototype.hasOwnProperty.call(parsed.data, "ragScheduleExplanation")) data.ragScheduleExplanation = parsed.data.ragScheduleExplanation ?? null;
   if (Object.prototype.hasOwnProperty.call(parsed.data, "ragBudgetExplanation")) data.ragBudgetExplanation = parsed.data.ragBudgetExplanation ?? null;
 
+  let snapshotUpdate: Prisma.InputJsonValue | undefined;
+  if (Object.prototype.hasOwnProperty.call(parsed.data, "showBudget")) {
+    const showBudget = parsed.data.showBudget ?? true;
+    if (isStatusReportSnapshot(existing.snapshot)) {
+      snapshotUpdate = {
+        ...existing.snapshot,
+        showBudget,
+      } as Prisma.InputJsonValue;
+    } else {
+      const minimal: StatusReportSnapshot = {
+        period: "",
+        today: "",
+        showBudget,
+      };
+      snapshotUpdate = minimal as Prisma.InputJsonValue;
+    }
+  }
+
   const report = await prisma.statusReport.update({
     where: { id: reportId },
-    data,
+    data: {
+      ...data,
+      ...(snapshotUpdate !== undefined ? { snapshot: snapshotUpdate } : {}),
+    },
   });
   await deleteCachedPdf(reportId);
   revalidateTag(`status-report-${reportId}`, "default");

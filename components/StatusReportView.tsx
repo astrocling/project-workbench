@@ -642,7 +642,7 @@ export function StatusReportView({
               );
             })()}
 
-            {report.variation === "Standard" && data.budget && (
+            {report.variation === "Standard" && data.budget && data.showBudget !== false && (
               <div className="flex flex-row items-start gap-2">
                 <div className="flex-1 min-w-0 border border-gray-200">
                   <div className="flex flex-row text-[8px] font-semibold" style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}>

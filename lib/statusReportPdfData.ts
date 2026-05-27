@@ -34,7 +34,17 @@ export type StatusReportSnapshot = {
   timelinePreviousMonths?: number;
   /** Locked at report creation: hide CDA budget dollars on Overall table. */
   cdaReportHoursOnly?: boolean;
+  /** When false, Standard report omits bottom budget table and burn chart. Default true. */
+  showBudget?: boolean;
 };
+
+/** Resolves whether Standard report budget block is visible (default true). */
+export function resolveShowBudget(snapshot: StatusReportSnapshot | null): boolean {
+  if (snapshot != null && typeof snapshot.showBudget === "boolean") {
+    return snapshot.showBudget;
+  }
+  return true;
+}
 
 export function isStatusReportSnapshot(obj: unknown): obj is StatusReportSnapshot {
   return (
@@ -344,6 +354,8 @@ export async function buildStatusReportPdfData(
     cdaReportHoursOnly = project.cdaReportHoursOnly ?? false;
   }
 
+  const showBudget = resolveShowBudget(snapshot);
+
   return {
     report: {
       reportDate: report.reportDate.toISOString().slice(0, 10),
@@ -379,5 +391,6 @@ export async function buildStatusReportPdfData(
     cda,
     timeline,
     cdaReportHoursOnly,
+    showBudget,
   };
 }
