@@ -124,6 +124,8 @@ export default function AdminPeoplePage() {
   const [newPersonNames, setNewPersonNames] = useState<string[]>([]);
   const [showAddPerson, setShowAddPerson] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newJobTitle, setNewJobTitle] = useState("");
+  const [roleNames, setRoleNames] = useState<string[]>([]);
   const [addingPerson, setAddingPerson] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -135,11 +137,19 @@ export default function AdminPeoplePage() {
   const [loading, setLoading] = useState(true);
 
   function load() {
-    fetch("/api/admin/people")
-      .then((r) => r.json())
-      .then((d) => {
-        setPeople(d.people ?? []);
-        setNewPersonNames(d.newPersonNames ?? []);
+    setLoading(true);
+    Promise.all([
+      fetch("/api/admin/people").then((r) => r.json()),
+      fetch("/api/admin/roles").then((r) => r.json()),
+    ])
+      .then(([peopleData, rolesData]) => {
+        setPeople(peopleData.people ?? []);
+        setNewPersonNames(peopleData.newPersonNames ?? []);
+        setRoleNames(
+          ((rolesData.roles ?? []) as { name: string }[])
+            .map((r) => r.name.trim())
+            .filter(Boolean)
+        );
       })
       .finally(() => setLoading(false));
   }
@@ -151,6 +161,7 @@ export default function AdminPeoplePage() {
   const closeAddPersonDialog = useCallback(() => {
     setShowAddPerson(false);
     setNewName("");
+    setNewJobTitle("");
     setAddingPerson(false);
   }, []);
 
@@ -165,13 +176,14 @@ export default function AdminPeoplePage() {
 
   async function submitAddPerson() {
     const trimmed = newName.trim();
-    if (!trimmed || addingPerson) return;
+    const jobTitle = newJobTitle.trim();
+    if (!trimmed || !jobTitle || addingPerson) return;
     setAddingPerson(true);
     try {
       const res = await fetch("/api/admin/people", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
+        body: JSON.stringify({ name: trimmed, jobTitle }),
       });
       if (res.ok) {
         const p = await res.json();
@@ -212,6 +224,12 @@ export default function AdminPeoplePage() {
     }
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [people]);
+
+  const addJobTitleOptions = useMemo(() => {
+    const set = new Set<string>(roleNames);
+    for (const title of jobTitleOptions) set.add(title);
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [roleNames, jobTitleOptions]);
 
   const regionIdOptions = useMemo(() => {
     const ids = new Set<number>();
@@ -309,6 +327,7 @@ export default function AdminPeoplePage() {
               type="button"
               onClick={() => {
                 setNewName("");
+                setNewJobTitle("");
                 setShowAddPerson(true);
               }}
               className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
@@ -549,31 +568,58 @@ export default function AdminPeoplePage() {
               id="add-person-dialog-desc"
               className="mt-2 text-body-sm text-surface-600 dark:text-surface-300"
             >
-              Enter a name to add someone to the Workbench people list. They can be matched to Float data on the next
-              import if the name lines up.
+              Enter a name and job title to add someone to the Workbench people list. They can be matched to Float data
+              on the next import if the name lines up.
             </p>
             <form
-              className="mt-4"
+              className="mt-4 space-y-3"
               onSubmit={(e) => {
                 e.preventDefault();
                 void submitAddPerson();
               }}
             >
-              <label htmlFor="add-person-name" className="sr-only">
-                Name
-              </label>
-              <input
-                id="add-person-name"
-                type="text"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Full name"
-                autoComplete="name"
-                disabled={addingPerson}
-                className="w-full h-10 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400 disabled:opacity-50"
-                autoFocus
-              />
-              <div className="mt-5 flex justify-end gap-2">
+              <div>
+                <label
+                  htmlFor="add-person-name"
+                  className="block text-body-sm font-medium text-surface-700 dark:text-surface-200 mb-1"
+                >
+                  Name
+                </label>
+                <input
+                  id="add-person-name"
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Full name"
+                  autoComplete="name"
+                  disabled={addingPerson}
+                  className="w-full h-10 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400 disabled:opacity-50"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="add-person-job-title"
+                  className="block text-body-sm font-medium text-surface-700 dark:text-surface-200 mb-1"
+                >
+                  Job title
+                </label>
+                <select
+                  id="add-person-job-title"
+                  value={newJobTitle}
+                  onChange={(e) => setNewJobTitle(e.target.value)}
+                  disabled={addingPerson}
+                  className="w-full h-10 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-jblue-500/30 focus:border-jblue-400 disabled:opacity-50"
+                >
+                  <option value="">Select job title…</option>
+                  {addJobTitleOptions.map((title) => (
+                    <option key={title} value={title}>
+                      {title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="pt-2 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={closeAddPersonDialog}
@@ -584,7 +630,7 @@ export default function AdminPeoplePage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={!newName.trim() || addingPerson}
+                  disabled={!newName.trim() || !newJobTitle.trim() || addingPerson}
                   className="px-3 py-1.5 rounded-md text-body-sm font-medium text-white bg-jblue-600 hover:bg-jblue-700 disabled:opacity-50 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
                 >
                   {addingPerson ? "Adding…" : "Add person"}

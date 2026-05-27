@@ -86,7 +86,8 @@ export default function AdminUsersPage() {
         const text = await r.text();
         if (!text) return [];
         try {
-          return JSON.parse(text) as PersonOption[];
+          const data = JSON.parse(text);
+          return (Array.isArray(data) ? data : data.people ?? []) as PersonOption[];
         } catch {
           return [];
         }
