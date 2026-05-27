@@ -20,14 +20,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Status reports — Modular variation** — New report variation **Modular (Story Points / Velocity)** for agile delivery slides. Bottom section uses composable **panels** stored in **`StatusReport.panels`**: **Sprint Schedule** (date range + phase label rows), **Story Point Metrics** (up to four named systems × Planned / Completed / In Progress / Carry Over), and **Donut KPIs** (default Utilization Rate and Average Velocity with manual 0–100% values). Types and defaults in **`lib/reportPanels.ts`**; form in **`StatusReportsTab.tsx`**; preview/PDF in **`StatusReportView.tsx`** / **`StatusReportDocument.tsx`**. Create stores a minimal snapshot (period only); panel data is editable on **Update**. Enum value **`Sprint`** renamed to **`Modular`** (`20260527150000_rename_sprint_to_modular`).
 
+### Changed
+
+- **Status reports — timeline layout and styling** — The timeline strip on Standard/Milestones slides (preview, client PDF, and server PDF fallback) is more compact and consistent. Row height reduced from 20px to **14px**; empty bar rows (no bars or markers) are **hidden**; month header padding tightened. Bars use natural date-based widths with a **4% minimum** sliver for visibility, full opacity, rounded corners, and labels that **truncate with ellipsis** (HTML) or character-count truncation (PDF) instead of bleeding outside narrow bars. Timeline **markers** in the HTML preview now render **Lucide-equivalent SVG icons** (matching the PDF), not placeholder circles. PDF pinned timeline slot height updated (`TIMELINE_SLOT_HEIGHT` **70**). Implementation: `TimelineBlock` in `components/StatusReportView.tsx` and `components/pdf/StatusReportDocument.tsx` — **both must stay in parity**.
+
 ### Documentation
 
 - **User Guide** — *Admin → People*: table listing, filters, add person (name + job title), Workbench active toggle; job titles from Float sync vs manual add.
-- **Technical Reference** — **`/api/admin/people`** request/response shapes; Admin Users person-dropdown compatibility; Admin People UI notes; *Standard report show budget* (`showBudget` snapshot, POST/PATCH status-reports).
+- **Technical Reference** — **`/api/admin/people`** request/response shapes; Admin Users person-dropdown compatibility; Admin People UI notes; *Standard report show budget* (`showBudget` snapshot, POST/PATCH status-reports); *Timeline on status reports* (`TimelineBlock` parity, compact layout, bar labels, markers).
 - **User Guide** — *Status Reports tab*: **Show project budget on report** toggle for Standard variation (default on; hides bottom budget block when off).
 - **User Guide** — *Status Reports tab*: **Modular** variation (sprint schedule, story points, donut KPIs; panels vs snapshot).
+- **User Guide** — *Timeline on status report slides*: compact rows, empty rows hidden, label truncation, marker icons.
 - **Technical Reference** — *Modular status reports* (`panels`, `lib/reportPanels.ts`, API POST/PATCH, rendering).
-- **`.cursor/rules/status-report.mdc`** — Standard **`showBudget`** snapshot flag; Modular **`panels`** bottom section.
+- **`.cursor/rules/status-report.mdc`** — Standard **`showBudget`** snapshot flag; Modular **`panels`** bottom section; timeline dual-file sync (`StatusReportView` + `StatusReportDocument`).
 - **CHANGELOG** — This unreleased section.
 
 ## [1.1.4] - 2026-05-21
