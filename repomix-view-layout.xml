@@ -1,3 +1,54 @@
+This file is a merged representation of a subset of the codebase, containing specifically included files, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Only files matching these patterns are included: components/StatusReportView.tsx
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+components/
+  StatusReportView.tsx
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="components/StatusReportView.tsx">
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -183,23 +234,21 @@ function RagStatusBlock({ data }: { data: StatusReportPDFData }) {
 function BudgetBurnDonut({
   burnPercent,
   compact = false,
-  xcompact = false,
   label = "Budget burn ($)",
 }: {
   burnPercent: number | null;
   compact?: boolean;
-  xcompact?: boolean;
   label?: string;
 }) {
-  const size = xcompact ? 26 : compact ? 36 : 48;
-  const r = xcompact ? 9 : compact ? 13 : 18;
-  const stroke = xcompact ? 4 : compact ? 5 : 7;
+  const size = compact ? 36 : 48;
+  const r = compact ? 13 : 18;
+  const stroke = compact ? 5 : 7;
   const clamped = burnPercent == null ? 0 : Math.min(100, Math.max(0, burnPercent));
   const circumference = 2 * Math.PI * r;
   const filled = (clamped / 100) * circumference;
   const gap = circumference - filled;
   const percentText = burnPercent != null ? `${burnPercent.toFixed(0)}%` : "—";
-  const textSize = xcompact ? "text-[6px]" : compact ? "text-[8px]" : "text-[10px]";
+  const textSize = compact ? "text-[8px]" : "text-[10px]";
   return (
     <div className="flex flex-col items-center justify-center flex-shrink-0">
       <div className="relative inline-block" style={{ width: size, height: size }}>
@@ -732,7 +781,7 @@ export function StatusReportView({
                   {schedulePanelData && schedulePanelData.rows.length > 0 && (
                     <div className="flex-1 min-w-0 border border-gray-200">
                       <div
-                        className="text-[7px] font-semibold py-px px-1 text-center"
+                        className="text-[7px] font-semibold py-0.5 px-1 text-center"
                         style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
                       >
                         Sprint Schedule
@@ -743,8 +792,8 @@ export function StatusReportView({
                           className="flex flex-row text-[6px] border-t border-gray-200"
                           style={{ backgroundColor: i % 2 === 0 ? "#ffffff" : "#f3f4f6" }}
                         >
-                          <div className="w-16 flex-shrink-0 py-px px-1 font-semibold">{row.dateRange}</div>
-                          <div className="flex-1 py-px px-1">{row.label}</div>
+                          <div className="w-16 flex-shrink-0 py-0.5 px-1 font-semibold">{row.dateRange}</div>
+                          <div className="flex-1 py-0.5 px-1">{row.label}</div>
                         </div>
                       ))}
                     </div>
@@ -752,7 +801,7 @@ export function StatusReportView({
                   {metricsPanelData && metricsPanelData.systems.length > 0 && (
                     <div className="flex-1 min-w-0 border border-gray-200">
                       <div
-                        className="text-[7px] font-semibold py-px px-1 text-center"
+                        className="text-[7px] font-semibold py-0.5 px-1 text-center"
                         style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
                       >
                         Key Metrics
@@ -761,9 +810,9 @@ export function StatusReportView({
                         className="flex flex-row text-[6px] font-semibold border-t border-gray-200"
                         style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
                       >
-                        <div className="flex-[1.5] py-px px-1" />
+                        <div className="flex-[1.5] py-0.5 px-1" />
                         {metricsPanelData.systems.map((sys, i) => (
-                          <div key={i} className="flex-1 py-px px-1 text-center">
+                          <div key={i} className="flex-1 py-0.5 px-1 text-center">
                             {sys.name}
                           </div>
                         ))}
@@ -774,11 +823,11 @@ export function StatusReportView({
                           className="flex flex-row text-[6px] border-t border-gray-200"
                           style={{ backgroundColor: i % 2 === 0 ? "#ffffff" : "#f3f4f6" }}
                         >
-                          <div className="flex-[1.5] py-px px-1 font-semibold">
+                          <div className="flex-[1.5] py-0.5 px-1 font-semibold">
                             {SPRINT_METRIC_LABELS[row.metric] ?? row.metric}
                           </div>
                           {row.values.map((v, j) => (
-                            <div key={j} className="flex-1 py-px px-1 text-center tabular-nums">
+                            <div key={j} className="flex-1 py-0.5 px-1 text-center tabular-nums">
                               {v}
                             </div>
                           ))}
@@ -787,12 +836,12 @@ export function StatusReportView({
                     </div>
                   )}
                   {donutPanels.length > 0 && (
-                    <div className="flex flex-col gap-0.5 flex-shrink-0">
+                    <div className="flex flex-col gap-1 flex-shrink-0">
                       {donutPanels.map((kpi, i) => (
                         <BudgetBurnDonut
                           key={i}
                           burnPercent={kpi.manualValue ?? 0}
-                          xcompact
+                          compact
                           label={kpi.label}
                         />
                       ))}
@@ -859,3 +908,6 @@ export function StatusReportView({
     </div>
   );
 }
+</file>
+
+</files>
