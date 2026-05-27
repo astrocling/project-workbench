@@ -1,6 +1,6 @@
 # Project Workbench — User Guide
 
-This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.1.4** as a baseline and newer behavior documented in [CHANGELOG.md](../CHANGELOG.md) (including Slack integrations and **Industry groups** taxonomy when your deployment includes them). The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
+This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.2.0** as a baseline and newer behavior documented in [CHANGELOG.md](../CHANGELOG.md) (including Slack integrations and **Industry groups** taxonomy when your deployment includes them). The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
 
 ---
 
@@ -65,7 +65,7 @@ Each project has a detail page with several tabs. The header shows the **as-of d
 
 | Tab | Purpose |
 |-----|---------|
-| **Overview** | Summary, key roles (PM, PGM, CAD), project notes, SOW, Estimate, Float, and Metric links, and a snapshot of budget and revenue recovery. When teammates have Float **time off** or a **regional holiday** in the rolling two-week window, small absence pills summarize who is out (see [PTO tab](#pto-tab)). |
+| **Overview** | Summary, key roles (PM, PGM, CAD), project notes, SOW, Estimate, Float, and Metric links, and a snapshot of budget and revenue recovery. Shows the latest status report RAG and a **Status Report History** strip when reports exist; **View all →** (and **Create your first report →** when none exist) opens the **Status Reports** tab (`?tab=status-reports`). Click a report pill to open that report’s HTML view. When teammates have Float **time off** or a **regional holiday** in the rolling two-week window, small absence pills summarize who is out (see [PTO tab](#pto-tab)). |
 | **Resourcing** | Planned hours, actual hours, and Float scheduled hours by person and week. Use this to compare plan vs actual vs Float and spot gaps. You can **collapse Weekly Actuals** (chevron on that section) to bring Planned and Float closer on screen. When Slack is configured, use **Request Resourcing Changes** to notify the org resourcing channel (see [Resourcing tab](#resourcing-tab)). The **Float** grid can show **PTO** and **holiday** indicators per week when Float sync has populated time off and holidays (see [Resourcing tab](#resourcing-tab)). |
 | **PTO** | PTO and regional holidays for **project members** visible on the Resourcing grid across the project date range. Filter by week range and person; see who is on PTO or a holiday and whether a PTO day is full or partial. Data comes from Float sync (`PTOHolidayImpact`). See [PTO tab](#pto-tab). |
 | **CDA** | (When enabled in Settings) Monthly planned and actuals for CDA reporting. Month-to-date actuals for each month incorporate **split-week** hours when a week crosses a month boundary (see Resourcing below). Optional **Report hours only** hides budget dollars on the Overall row in status copy and CDA reports—see [CDA tab](#cda-tab). |
@@ -82,6 +82,7 @@ Open **Settings** from the project detail page. Edits in **Details**, **Links**,
 
 - **Industry group (read-only)** — When Float sync has linked the project to a **client account**, **Details** shows that account’s **industry group** (or explains that none is set). To change it, an admin assigns the group on **Admin → Accounts** for that client; **all projects** sharing that account then show the same group. Until an account link exists, the panel explains that the project will inherit a group once sync links it.
 - **Renaming the project**: When you change the **project name**, Workbench may **update the page URL** to match the new slug (your tab stays on **Settings**). You do not need a full refresh for further edits or link saves to apply.
+- **Assignments** — Add people to the project, set **role** and optional **bill-rate override**, and toggle **Hidden from grid** (see [Resourcing tab](#resourcing-tab)). **Remove** asks for confirmation: removing someone **permanently deletes all of their planned hours** on this project (actual hours are not deleted by this action). If they are no longer actively resourced but **past planned hours should stay** for budgeting, actuals, or column totals, use **Hidden from grid** instead of **Remove**. Float sync clears orphaned float and planned rows when there is no assignment left; removing here clears planned hours immediately.
 
 ---
 
@@ -124,7 +125,7 @@ These rules also drive **automated missing-actuals Slack nudges** (below) for th
 
 ### Automated missing-actuals Slack nudges
 
-When Trigger.dev is configured, Workbench sends weekly Slack reminders about **gaps in the prior UTC week** (Monday–Sunday immediately before the current week). A person is listed only when that week is **stale on the Resourcing Actual grid** under the rules above (**Planned > 0**, Actual **blank**, split-week month-halves respected). **Float scheduled hours alone do not trigger a nudge.**
+When Trigger.dev is configured, Workbench sends weekly Slack reminders about **gaps in the prior UTC week** (Monday–Sunday immediately before the current week). A person is listed only when they **appear on the Resourcing tab** (not **hidden from grid**) and that week is **stale on the Actual grid** under the rules above (**Planned > 0**, Actual **blank**, split-week month-halves respected). **Float scheduled hours alone do not trigger a nudge.** People removed from **Settings → Assignments** (or Float placeholders removed from the project) are not listed, even if old planned-hour rows still exist in the database until the next Float sync or cleanup.
 
 | Day (UTC) | Where the message goes |
 |-----------|-------------------------|
@@ -334,7 +335,7 @@ If the token is missing, the sync action shows an error (API returns **503**).
 
 - **Assignments:** Updates **project assignments** for everyone on a Float **task** in the window—including people who end up with **no** weekly Float hours (for example **zero hours per day** on the task, or the week’s working days all excluded by PTO/holidays). Those people still get an assignment so they show on the project; the **Float** column may be empty for weeks with no scheduled time.
 - **Float scheduled hours (Admin API sync):** Writes **Float scheduled hours** for the **Float** grid by **upserting** incomplete weeks (current and future through the sync window) that appear in the merged Float snapshot. **Admin → Float sync** does **not** bulk-delete all future `FloatScheduledHours` for every in-sync pair before writing—doing so would wipe weeks that exist in Workbench from **backfill** or prior runs but are **outside** the current API task window. Instead, weeks present in this run are written with **`INSERT … ON CONFLICT`**, and **future** rows are cleared only for **(project, person)** pairs that **no longer appear** on the project in Float (see below). **Completed** past weeks are **not** overwritten. If you rely on a full refresh of every future week from Float alone, run **Admin → Float sync** on a window that includes those weeks, or use **Backfill** / **Restore hours from import history** when you need to realign from stored snapshots.
-- **Removed in Float:** If someone no longer appears on a project in Float for the synced snapshot, their **future** Float scheduled hours for that project are cleared in Workbench. A later sync also removes **orphaned** float rows (any week) when there is **no assignment** left for that person on the project—so stale past-week float hours do not inflate totals. The **assignment** row itself is left until you change it under **Settings → Assignments**.
+- **Removed in Float:** If someone no longer appears on a project in Float for the synced snapshot, their **future** Float scheduled hours for that project are cleared in Workbench. A later sync also removes **orphaned** float **and planned** rows (any week) when there is **no assignment** left for that person on the project—so stale past-week hours do not inflate totals or trigger incorrect missing-actuals nudges. The **assignment** row itself is left until you change it under **Settings → Assignments** (use **Hidden from grid** to keep historical planned hours while hiding the row, or **Remove** to delete the assignment and all planned hours on the project).
 
 ### What sync does **not** change
 

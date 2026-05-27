@@ -215,11 +215,16 @@ export async function DELETE(
     return NextResponse.json({ error: "personId required" }, { status: 400 });
   }
 
-  await prisma.projectAssignment.delete({
-    where: {
-      projectId_personId: { projectId: id, personId },
-    },
-  });
+  await prisma.$transaction([
+    prisma.plannedHours.deleteMany({
+      where: { projectId: id, personId },
+    }),
+    prisma.projectAssignment.delete({
+      where: {
+        projectId_personId: { projectId: id, personId },
+      },
+    }),
+  ]);
   revalidateTag("portfolio-metrics", "max");
   revalidateTag(`project-resourcing:${id}`, "max");
   return NextResponse.json({ ok: true });

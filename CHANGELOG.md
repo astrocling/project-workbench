@@ -5,14 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-05-27
 
-## [Unreleased]
+Minor release: **Modular** status reports (panels JSON + migrations), **Standard** optional budget block, compact timeline styling, **Admin → People** restore + job title on add, assignment **remove** confirmation with planned-hours cleanup, missing-actuals nudges scoped to **visible** assignees, overview/status-reports tab links + legacy redirect. **Deploy:** run migrations (`20260527135733_add_sprint_variation_and_panels`, `20260527150000_rename_sprint_to_modular`); Vercel build applies them via `prisma migrate deploy`. Redeploy Trigger.dev worker if you use missing-actuals schedules.
 
 ### Fixed
+
+- **Slack — missing-actuals nudges for removed assignees** — Tue/Wed/Thu nudges no longer list people who are not on the project Resourcing grid. Selection in **`getMissingActualsProjects`** (`lib/missingActuals.ts`) now requires a **`ProjectAssignment`** with **`hiddenFromGrid: false`**, matching visible Resourcing rows and **`projectHasMissingActuals`**. Previously, stale **`PlannedHours`** rows could remain after a person or Float placeholder was removed from assignments, causing nudges for people with no row in the app. **Float sync** orphan cleanup now also deletes orphaned **`PlannedHours`** (same `(projectId, personId)` rule as **`FloatScheduledHours`**). **`DELETE /api/projects/[id]/assignments`** deletes that person’s **`PlannedHours`** on the project. Tests: **`__tests__/lib/missingActuals.test.ts`** (`filterPlannedRowsToVisibleAssignments`).
+
+- **Project overview — Status Reports links** — On the **Overview** tab, **View all →**, **View all status reports →**, and **Create your first report →** now open the **Status Reports** tab via **`/projects/{slug}?tab=status-reports`** (same query-param routing as the tab bar). They previously used **`/projects/{slug}/status-reports`**, which 404'd. Legacy bookmarks and old Slack links to that path **redirect** to the tab via **`app/(app)/projects/[slug]/status-reports/page.tsx`** (mirrors the resourcing redirect). Individual report pills still link to **`/projects/{slug}/status-reports/{id}/view`**. Implementation: **`ProjectDetailTabs.tsx`**.
 
 - **Admin → People — empty table and add person** — Restored **`GET/POST/PATCH /api/admin/people`** after a regression that reduced the route to a minimal GET-only stub returning a flat array. The People page expects **`{ people, newPersonNames }`** and POST/PATCH handlers; the stub left the table empty and left the add-person modal open (405 on POST). **`GET`** again returns full **`Person`** rows plus **`newPersonNames`** from the latest **`FloatImportRun`**. **`POST`** find-or-creates by name (case-insensitive) and accepts **`jobTitle`** (stored as **`Person.floatJobTitle`**). **`PATCH`** toggles Workbench **`active`**. **`app/admin/users/page.tsx`** parses **`people`** from the wrapped GET response so the Float person dropdown still works.
 
 ### Added
+
+- **Settings → Assignments — remove confirmation** — **Remove** shows a browser confirmation before deleting an assignment. Copy explains that removal **permanently deletes all planned hours** for that person on the project and recommends **Hidden from grid** when past planned hours should stay for budgeting or actuals. Implementation: **`components/AssignmentsTab.tsx`**.
 
 - **Admin → People — job title on add** — The **Add person** dialog requires a **Job title** selected from the Workbench role catalog (merged with job titles already on people). Job title is saved as **`floatJobTitle`** and drives assignment role resolution (see *Float sync behavior*).
 
@@ -26,14 +33,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **User Guide** — *Settings → Assignments*: remove confirmation, planned-hours deletion vs **Hidden from grid**; *Automated missing-actuals Slack nudges* → only **visible** assignees; *Float sync* → orphan **`PlannedHours`** cleanup.
+- **Technical Reference** — *Missing-actuals Slack nudges* → **`ProjectAssignment`** / **`hiddenFromGrid`** filter; *Float sync behavior* → orphan **`PlannedHours`** delete; **`DELETE /api/projects/[id]/assignments`**; maintainer scripts **`scripts/debug-missing-actuals-nudge.ts`**, **`scripts/debug-orphan-planned-hours.ts`**.
+- **README** — missing-actuals nudge paragraph notes visible-assignment scope.
 - **User Guide** — *Admin → People*: table listing, filters, add person (name + job title), Workbench active toggle; job titles from Float sync vs manual add.
-- **Technical Reference** — **`/api/admin/people`** request/response shapes; Admin Users person-dropdown compatibility; Admin People UI notes; *Standard report show budget* (`showBudget` snapshot, POST/PATCH status-reports); *Timeline on status reports* (`TimelineBlock` parity, compact layout, bar labels, markers).
+- **Technical Reference** — **`/api/admin/people`** request/response shapes; Admin Users person-dropdown compatibility; Admin People UI notes; *Standard report show budget* (`showBudget` snapshot, POST/PATCH status-reports); *Timeline on status reports* (`TimelineBlock` parity, compact layout, bar labels, markers); *Workbench links in Slack messages* → legacy **`/projects/{slug}/status-reports`** redirect (parity with resourcing).
+- **User Guide** — *Project detail → Overview*: status report summary links (**View all →**, **Create your first report →**) use **`?tab=status-reports`**; report history pills open the HTML view page.
 - **User Guide** — *Status Reports tab*: **Show project budget on report** toggle for Standard variation (default on; hides bottom budget block when off).
 - **User Guide** — *Status Reports tab*: **Modular** variation (sprint schedule, story points, donut KPIs; panels vs snapshot).
 - **User Guide** — *Timeline on status report slides*: compact rows, empty rows hidden, label truncation, marker icons.
 - **Technical Reference** — *Modular status reports* (`panels`, `lib/reportPanels.ts`, API POST/PATCH, rendering).
 - **`.cursor/rules/status-report.mdc`** — Standard **`showBudget`** snapshot flag; Modular **`panels`** bottom section; timeline dual-file sync (`StatusReportView` + `StatusReportDocument`).
-- **CHANGELOG** — This unreleased section.
 
 ## [1.1.4] - 2026-05-21
 

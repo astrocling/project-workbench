@@ -470,6 +470,15 @@ export async function applyFloatImportDatabaseEffects(
           WHERE "projectId" = ANY(${projectIdsInImport}::text[])
         )
     `;
+    await prisma.$executeRaw`
+      DELETE FROM "PlannedHours"
+      WHERE "projectId" = ANY(${projectIdsInImport}::text[])
+        AND ("projectId", "personId") NOT IN (
+          SELECT "projectId", "personId"
+          FROM "ProjectAssignment"
+          WHERE "projectId" = ANY(${projectIdsInImport}::text[])
+        )
+    `;
   }
 
   if (ptoHolidaySync) {

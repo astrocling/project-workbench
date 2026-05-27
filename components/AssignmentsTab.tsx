@@ -108,6 +108,17 @@ export function AssignmentsTab({
     }
   }
 
+  function requestRemoveAssignment(a: Assignment) {
+    if (!canEdit) return;
+    const confirmed = window.confirm(
+      `Remove ${a.person.name} from this project?\n\n` +
+        "This permanently deletes all of their planned hours on this project.\n\n" +
+        "If their past planned hours are still valid, hide them from the resourcing grid instead of removing them."
+    );
+    if (!confirmed) return;
+    void removeAssignment(a.personId);
+  }
+
   function startEdit(a: Assignment) {
     setEditingPersonId(a.personId);
     setEditRoleId(a.role.id);
@@ -277,7 +288,7 @@ export function AssignmentsTab({
                         </button>
                         <button
                           type="button"
-                          onClick={() => removeAssignment(a.personId)}
+                          onClick={() => requestRemoveAssignment(a)}
                           className="text-body-sm text-jred-700 dark:text-jred-400 hover:text-jred-800 font-medium"
                         >
                           Remove

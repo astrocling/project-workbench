@@ -100,6 +100,17 @@ function compositeKey(projectId: string, personId: string, weekStartDate: Date):
   return `${projectId}|${personId}|${weekKey(weekStartDate)}`;
 }
 
+export function assignmentPairKey(projectId: string, personId: string): string {
+  return `${projectId}|${personId}`;
+}
+
+/** Keep only rows with a visible project assignment (matches Resourcing grid). */
+export function filterPlannedRowsToVisibleAssignments<
+  T extends { projectId: string; personId: string },
+>(rows: T[], visibleAssignmentPairs: Set<string>): T[] {
+  return rows.filter((r) => visibleAssignmentPairs.has(assignmentPairKey(r.projectId, r.personId)));
+}
+
 /**
  * Whether a person-week should show as stale on Resourcing (same rules as amber Actual cells).
  */
@@ -185,7 +196,27 @@ export async function getMissingActualsProjects(): Promise<MissingActualsProject
 
   if (plannedRows.length === 0) return [];
 
-  const orKeys = plannedRows.map((r) => ({
+  const assignmentPairs = plannedRows.map((r) => ({
+    projectId: r.projectId,
+    personId: r.personId,
+  }));
+  const visibleAssignments = await prisma.projectAssignment.findMany({
+    where: {
+      hiddenFromGrid: false,
+      OR: assignmentPairs,
+    },
+    select: { projectId: true, personId: true },
+  });
+  const visibleAssignmentPairs = new Set(
+    visibleAssignments.map((a) => assignmentPairKey(a.projectId, a.personId))
+  );
+  const resourcedPlannedRows = filterPlannedRowsToVisibleAssignments(
+    plannedRows,
+    visibleAssignmentPairs
+  );
+  if (resourcedPlannedRows.length === 0) return [];
+
+  const orKeys = resourcedPlannedRows.map((r) => ({
     projectId: r.projectId,
     personId: r.personId,
     weekStartDate: r.weekStartDate,
@@ -224,7 +255,7 @@ export async function getMissingActualsProjects(): Promise<MissingActualsProject
   type MissingRow = { projectId: string; personId: string; personName: string };
   const missing: MissingRow[] = [];
 
-  for (const planned of plannedRows) {
+  for (const planned of resourcedPlannedRows) {
     const k = compositeKey(planned.projectId, planned.personId, planned.weekStartDate);
     const actual = actualByComposite.get(k);
     const actualHours = actual?.hours != null ? Number(actual.hours) : null;

@@ -805,14 +805,14 @@ export function ProjectDetailTabs({
                   </div>
                   {statusReports.length > 0 ? (
                     <Link
-                      href={`/projects/${projectSlug}/status-reports`}
+                      href={`${base}?tab=status-reports`}
                       className="text-body-sm font-medium text-jblue-600 dark:text-jblue-400 hover:underline mt-2 inline-block"
                     >
                       View all status reports →
                     </Link>
                   ) : (
                     <Link
-                      href={`/projects/${projectSlug}/status-reports`}
+                      href={`${base}?tab=status-reports`}
                       className="text-body-sm font-medium text-jblue-600 dark:text-jblue-400 hover:underline mt-2 inline-block"
                     >
                       Create your first report →
@@ -830,7 +830,7 @@ export function ProjectDetailTabs({
               <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                   <Link
-                    href={`/projects/${projectSlug}/status-reports`}
+                    href={`${base}?tab=status-reports`}
                     className="text-body-sm font-medium text-jblue-600 dark:text-jblue-400 hover:underline"
                   >
                     View all →

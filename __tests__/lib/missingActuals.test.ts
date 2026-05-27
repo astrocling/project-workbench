@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { personWeekIsActualsStale } from "@/lib/missingActuals";
+import {
+  assignmentPairKey,
+  filterPlannedRowsToVisibleAssignments,
+  personWeekIsActualsStale,
+} from "@/lib/missingActuals";
 
 /** Mon 2025-02-10 – Sun 2025-02-16 (single month) */
 const COMPLETED_WEEK = new Date("2025-02-10T00:00:00.000Z");
@@ -103,5 +107,16 @@ describe("personWeekIsActualsStale", () => {
         SPLIT_NOW
       )
     ).toBe(false);
+  });
+});
+
+describe("filterPlannedRowsToVisibleAssignments", () => {
+  it("excludes planned rows without a visible assignment", () => {
+    const rows = [
+      { projectId: "p1", personId: "a", hours: 20 },
+      { projectId: "p1", personId: "b", hours: 5 },
+    ];
+    const visible = new Set([assignmentPairKey("p1", "a")]);
+    expect(filterPlannedRowsToVisibleAssignments(rows, visible)).toEqual([rows[0]]);
   });
 });
