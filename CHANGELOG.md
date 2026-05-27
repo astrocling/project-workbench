@@ -18,12 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Status reports — Standard show budget toggle** — When creating or editing a **Standard** variation report, editors can turn **Show project budget on report** on or off (default **on**). When off, the exported slide omits the bottom **HIGH/LOW** budget table and burn donut; timeline and narrative sections are unchanged. The choice is stored per report in the JSON **snapshot** (`showBudget`) and can be updated on **Update**; preview, share view, client PDF capture, and server PDF fallback all honor it. Implementation: `components/StatusReportsTab.tsx`, `lib/statusReportPdfData.ts` (`resolveShowBudget`), `StatusReportView.tsx` / `StatusReportDocument.tsx`. Tests: `__tests__/lib/statusReportPdfData.test.ts`.
 
+- **Status reports — Modular variation** — New report variation **Modular (Story Points / Velocity)** for agile delivery slides. Bottom section uses composable **panels** stored in **`StatusReport.panels`**: **Sprint Schedule** (date range + phase label rows), **Story Point Metrics** (up to four named systems × Planned / Completed / In Progress / Carry Over), and **Donut KPIs** (default Utilization Rate and Average Velocity with manual 0–100% values). Types and defaults in **`lib/reportPanels.ts`**; form in **`StatusReportsTab.tsx`**; preview/PDF in **`StatusReportView.tsx`** / **`StatusReportDocument.tsx`**. Create stores a minimal snapshot (period only); panel data is editable on **Update**. Enum value **`Sprint`** renamed to **`Modular`** (`20260527150000_rename_sprint_to_modular`).
+
 ### Documentation
 
 - **User Guide** — *Admin → People*: table listing, filters, add person (name + job title), Workbench active toggle; job titles from Float sync vs manual add.
 - **Technical Reference** — **`/api/admin/people`** request/response shapes; Admin Users person-dropdown compatibility; Admin People UI notes; *Standard report show budget* (`showBudget` snapshot, POST/PATCH status-reports).
 - **User Guide** — *Status Reports tab*: **Show project budget on report** toggle for Standard variation (default on; hides bottom budget block when off).
-- **`.cursor/rules/status-report.mdc`** — Standard **`showBudget`** snapshot flag.
+- **User Guide** — *Status Reports tab*: **Modular** variation (sprint schedule, story points, donut KPIs; panels vs snapshot).
+- **Technical Reference** — *Modular status reports* (`panels`, `lib/reportPanels.ts`, API POST/PATCH, rendering).
+- **`.cursor/rules/status-report.mdc`** — Standard **`showBudget`** snapshot flag; Modular **`panels`** bottom section.
 - **CHANGELOG** — This unreleased section.
 
 ## [1.1.4] - 2026-05-21

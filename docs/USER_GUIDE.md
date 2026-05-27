@@ -71,7 +71,7 @@ Each project has a detail page with several tabs. The header shows the **as-of d
 | **CDA** | (When enabled in Settings) Monthly planned and actuals for CDA reporting. Month-to-date actuals for each month incorporate **split-week** hours when a week crosses a month boundary (see Resourcing below). Optional **Report hours only** hides budget dollars on the Overall row in status copy and CDA reports—see [CDA tab](#cda-tab). |
 | **Budget** | Budget lines (e.g. SOW, CO, Other) with low/high hours and dollars, and burn to date. |
 | **Timeline** | High-level timeline with month columns and up to four rows of bars and markers. Each bar has a label, start/end dates, row (1–4), and an optional color (Blue, Green, Amber, Teal, Slate, or Violet). The same timeline (with colors) appears in status report previews and PDFs. Each saved report stores its **own** copy of the timeline when the report is created; if you change bars or markers later, use **Refresh timeline** while **editing** that report (Standard or Milestones) on the Status Reports tab to update that copy—see [Status Reports tab](#status-reports-tab). |
-| **Status Reports** | Summary table of estimated budget, $ spent, $ remaining, budgeted/actual/remaining hours, with copy-to-clipboard and a % budget used (high est.) circle chart. Create, edit, view, and export status reports. **Standard** reports include an optional **Show project budget on report** toggle (default on) to hide the budget table and burn chart on the exported slide—see [Status Reports tab](#status-reports-tab). **New** reports cannot be saved while **actuals are stale** (completed weeks with planned hours but missing actuals)—update the Resourcing tab first. When Slack is configured, **Post to Slack** sends the latest saved report summary to the linked account's Slack channel (see [Status Reports tab](#status-reports-tab)). Standard and Milestones reports can **refresh the stored timeline** from the project after the Timeline tab changes—see [Status Reports tab](#status-reports-tab). |
+| **Status Reports** | Summary table of estimated budget, $ spent, $ remaining, budgeted/actual/remaining hours, with copy-to-clipboard and a % budget used (high est.) circle chart. Create, edit, view, and export status reports. Choose a **variation**: **Standard** (timeline + budget), **Milestones**, **CDA**, or **Modular** (sprint schedule, story points, velocity KPIs)—see [Status Reports tab](#status-reports-tab). **Standard** reports include an optional **Show project budget on report** toggle (default on) to hide the budget table and burn chart on the exported slide. **New** reports cannot be saved while **actuals are stale** (completed weeks with planned hours but missing actuals)—update the Resourcing tab first. When Slack is configured, **Post to Slack** sends the latest saved report summary to the linked account's Slack channel. Standard and Milestones reports can **refresh the stored timeline** from the project after the Timeline tab changes. |
 | **Settings** | Edit project name, client, dates, status, single rate, notes, SOW/Estimate/Float/Metric links, optional **Slack channel ID** (for missing-actuals Tue/Wed nudges), resourcing thresholds, key roles, and optional CDA tab. Within Settings, sub-sections include **Details** (includes read-only **Industry group** inherited from the linked Float **client account** when `accountId` is set — see Admin → Accounts), **Links**, **Key roles**, **Resourcing** (thresholds), **Rates** (per-role rate card or single bill rate), and **Assignments** (people assigned, their roles, bill-rate overrides, and “hidden from grid” for the Resourcing tab). |
 
 Only users with edit permission can change data; the **Settings** tab may be read-only for some viewers.
@@ -190,6 +190,33 @@ The Status Reports tab is where you create and maintain status reports and expor
 - **Bigger, presentation-friendly default size**: The preview is auto-scaled larger (while still fitting your screen), and the downloaded PDF is generated at a larger default page size so you can present at 100% zoom without squinting.
 - **Typography**: Status report fonts were updated for readability; the preview and exported PDF use the same typography.
 
+### Report variations
+
+When you create or edit a report, choose a **variation** from the dropdown:
+
+| Variation | Bottom section on the slide |
+|-----------|------------------------------|
+| **Standard (Timeline/Project Budget)** | Timeline (when the project has bars) plus optional **HIGH/LOW** budget table and burn donut—see [Show budget on report](#standard-variation--show-budget-on-report) below. |
+| **Milestones (Fixed Fee No Budget)** | Milestone table placeholder and burn donut (future phase). |
+| **CDA (Monthly/Project CDA Budgets)** | CDA Overall and monthly tables (when CDA is enabled). |
+| **Modular (Story Points / Velocity)** | Sprint schedule, story-point metrics, and donut KPIs—see [Modular variation](#modular-variation-story-points--velocity) below. |
+
+**Copy from previous report** still pre-fills narrative and RAG from the most recent report before the selected date, regardless of variation.
+
+### Modular variation (Story Points / Velocity)
+
+Use **Modular** for agile or multi-system delivery updates where the bottom of the slide should show sprint timing, story-point rollups, and velocity-style KPIs instead of the Standard budget block.
+
+When you select **Modular (Story Points / Velocity)**, the form adds three editable sections. Each is stored on the saved report and can be updated with **Update** while editing:
+
+1. **Sprint Schedule** — A table of phases with **Date range** (free text, e.g. `4/28 – 5/15`) and **Label** (e.g. `Development / Internal QA`). Use **Add row** / **Remove** to manage rows. Empty schedule rows are omitted from the exported slide.
+2. **Story Points** — Define up to **four systems** (column headers, e.g. `OneSource`, `1CTX`). For each system, enter counts for **Planned**, **Completed**, **In Progress**, and **Carry Over**. Add or remove systems with **Add system** / **×**. The slide shows a **Key Metrics** table when at least one system is defined.
+3. **Donut KPIs** — Two default KPIs (**Utilization Rate** and **Average Velocity**). Each has an editable **label** and a **manual percentage** (0–100) shown as a compact donut on the slide.
+
+Modular reports share the same top-of-slide content as other variations: biographical block, RAG table, and completed / upcoming / risks columns. They **do not** include the Standard **HIGH/LOW** budget table or burn chart. If the project has timeline bars, the timeline strip may still appear above the modular panels (same rule as non-CDA reports).
+
+New Modular reports start with empty schedule rows and story-point systems; donut KPIs default to **0%** until you enter values.
+
 ### Standard variation — show budget on report
 
 When you create or edit a report with variation **Standard (Timeline/Project Budget)**, the form includes **Show project budget on report** (toggle, default **on**).
@@ -224,7 +251,9 @@ When you click **Save** (new report) or **Update** (while editing), Workbench sa
 
 When you **save a new** status report, Workbench stores a **snapshot** with the reporting period, budget (or CDA) figures, and—for Standard and Milestones variations—the **timeline** (bars and markers) as they were **at that moment**. Preview, the HTML view, and PDF export all read from that snapshot so later changes to resourcing, budget, or the **Timeline** tab do not change older reports.
 
-- **What you can still edit** on an existing report: narrative fields (completed / upcoming / risks / meeting notes), RAG values and explanations, **variation** where the form allows it, and—for **Standard** reports—**Show project budget on report** (see above).
+**Modular** reports store sprint/story-point/donut content separately in the report’s **panels** field (not in the budget/timeline snapshot). The snapshot for Modular holds only the reporting **period** and **today** date. Panel data is editable on **Update** and is what preview and PDF use for the bottom section.
+
+- **What you can still edit** on an existing report: narrative fields (completed / upcoming / risks / meeting notes), RAG values and explanations, **variation** where the form allows it, **Show project budget on report** for **Standard** reports (see above), and sprint schedule / story points / donut KPI **panels** for **Modular** reports.
 - **Meeting notes with formatting**: If you paste content that includes **HTML** from another tool, the preview, HTML view, and **Download PDF** keep **allowed** formatting (paragraphs, lists, links, basic styles) and drop unsafe markup automatically. Plain-text notes support line breaks and clickable URLs (paste `https://…` or use `[label](url)`). If client-side PDF generation fails, the preview offers **Download PDF (server)** as a fallback; that path may not preserve HTML formatting in meeting notes.
 - **What stays locked** unless you use **Refresh timeline** (below): **report date**, **reporting period**, **previous months on timeline** (the 1–4 month window chosen at create time), budget/CDA snapshot, and—by default—the **timeline** bars and markers.
 
