@@ -8,6 +8,11 @@ import {
   computeCdaProjections,
   roundToQuarter,
 } from "@/lib/cdaCalculations";
+import {
+  formatMonthDay,
+  getDeployDayName,
+  isThursdayOrFriday,
+} from "@/lib/formatIsoDate";
 
 function formatHours(hours: number): string {
   const r = roundToQuarter(hours);
@@ -31,31 +36,6 @@ function getCurrentMonthKey(): string {
   const y = now.getFullYear();
   const m = now.getMonth() + 1;
   return `${y}-${String(m).padStart(2, "0")}`;
-}
-
-/** Format ISO date string as MM/DD for display. */
-function formatMonthDay(isoDate: string): string {
-  const d = new Date(isoDate);
-  if (Number.isNaN(d.getTime())) return "—";
-  const m = d.getMonth() + 1;
-  const day = d.getDate();
-  return `${String(m).padStart(2, "0")}/${String(day).padStart(2, "0")}`;
-}
-
-/** True if the date falls on Thursday (4) or Friday (5). */
-function isThursdayOrFriday(isoDate: string): boolean {
-  const d = new Date(isoDate);
-  if (Number.isNaN(d.getTime())) return false;
-  const day = d.getDay();
-  return day === 4 || day === 5;
-}
-
-/** Day name for deploy-date flag (Thu/Fri). */
-function getDeployDayName(isoDate: string): string {
-  const d = new Date(isoDate);
-  if (Number.isNaN(d.getTime())) return "";
-  const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  return names[d.getDay()] ?? "";
 }
 
 type CdaRow = {

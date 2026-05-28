@@ -20,6 +20,7 @@ import type {
   StoryPointsMetricsData,
 } from "@/lib/reportPanels";
 import { getWeeksInMonthsForRange } from "@/lib/monthUtils";
+import { formatMonthDay } from "@/lib/formatIsoDate";
 
 // Mirror PDF layout: 16:9 slide, same colors and structure
 const BIO_TITLE_COLOR = "#220088";
@@ -83,13 +84,6 @@ function formatDollars(n: number): string {
 }
 function formatReportNum(n: number): string {
   return n.toFixed(2);
-}
-function formatMonthDay(isoDate: string): string {
-  const d = new Date(isoDate);
-  if (Number.isNaN(d.getTime())) return "—";
-  const m = d.getMonth() + 1;
-  const day = d.getDate();
-  return `${String(m).padStart(2, "0")}/${String(day).padStart(2, "0")}`;
 }
 function getMonthFullName(monthKey: string): string {
   const [y, m] = monthKey.split("-").map(Number);

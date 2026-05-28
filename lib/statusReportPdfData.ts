@@ -63,7 +63,53 @@ export type BuildStatusReportPdfDataOptions = {
   timelinePreviousMonths?: number;
   /** When true, ignore snapshot.timeline and rebuild timeline from current project bars/markers. */
   rebuildTimelineFromProject?: boolean;
+  /** When true, ignore snapshot.cda.milestones and rebuild from current project CDA milestones. */
+  rebuildCdaMilestonesFromProject?: boolean;
 };
+
+type CdaMilestoneSnapshot = NonNullable<
+  NonNullable<StatusReportPDFData["cda"]>["milestones"]
+>[number];
+
+type CdaMilestoneRecord = {
+  id: string;
+  phase: string;
+  devStartDate: Date | null;
+  devEndDate: Date | null;
+  uatStartDate: Date | null;
+  uatEndDate: Date | null;
+  deployDate: Date | null;
+  completed: boolean;
+};
+
+function toIsoDateOnly(d: Date | null): string {
+  return d ? d.toISOString().slice(0, 10) : "";
+}
+
+export function buildCdaMilestonesFromProject(
+  milestones: CdaMilestoneRecord[]
+): CdaMilestoneSnapshot[] {
+  return [...milestones]
+    .sort((a, b) => {
+      const ta = a.devStartDate
+        ? new Date(a.devStartDate).getTime()
+        : Number.MAX_SAFE_INTEGER;
+      const tb = b.devStartDate
+        ? new Date(b.devStartDate).getTime()
+        : Number.MAX_SAFE_INTEGER;
+      return ta - tb;
+    })
+    .map((m) => ({
+      id: m.id,
+      phase: m.phase,
+      devStartDate: toIsoDateOnly(m.devStartDate),
+      devEndDate: toIsoDateOnly(m.devEndDate),
+      uatStartDate: toIsoDateOnly(m.uatStartDate),
+      uatEndDate: toIsoDateOnly(m.uatEndDate),
+      deployDate: toIsoDateOnly(m.deployDate),
+      completed: m.completed,
+    }));
+}
 
 export async function buildStatusReportPdfData(
   projectId: string,
@@ -123,6 +169,12 @@ export async function buildStatusReportPdfData(
   }
   if (snapshot?.cda !== undefined) {
     cda = snapshot.cda;
+    if (options?.rebuildCdaMilestonesFromProject && cda) {
+      cda = {
+        ...cda,
+        milestones: buildCdaMilestonesFromProject(project.cdaMilestones ?? []),
+      };
+    }
   }
   if (snapshot?.timeline !== undefined && !options?.rebuildTimelineFromProject) {
     timeline = snapshot.timeline;
@@ -280,28 +332,7 @@ export async function buildStatusReportPdfData(
       });
       const totalPlanned = rows.reduce((s, r) => s + r.planned, 0);
       const totalMtdActuals = rows.reduce((s, r) => s + r.mtdActuals, 0);
-      const toIso = (d: Date | null) =>
-        d ? d.toISOString().slice(0, 10) : "";
-      const milestones = (project.cdaMilestones ?? [])
-        .sort((a, b) => {
-          const ta = a.devStartDate
-            ? new Date(a.devStartDate).getTime()
-            : Number.MAX_SAFE_INTEGER;
-          const tb = b.devStartDate
-            ? new Date(b.devStartDate).getTime()
-            : Number.MAX_SAFE_INTEGER;
-          return ta - tb;
-        })
-        .map((m) => ({
-          id: m.id,
-          phase: m.phase,
-          devStartDate: toIso(m.devStartDate),
-          devEndDate: toIso(m.devEndDate),
-          uatStartDate: toIso(m.uatStartDate),
-          uatEndDate: toIso(m.uatEndDate),
-          deployDate: toIso(m.deployDate),
-          completed: m.completed,
-        }));
+      const milestones = buildCdaMilestonesFromProject(project.cdaMilestones ?? []);
       cda = {
         rows,
         overallBudget: { totalDollars: estBudgetHigh, actualDollars: rollups.actualDollarsToDate },
