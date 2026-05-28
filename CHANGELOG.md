@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-05-28
+
+Patch release: **CDA status reports** — refresh milestone dates on saved reports; preview loads fresh PDF data after refresh; milestone dates display without timezone day-shift. **Deploy:** no new migrations; redeploy as usual.
+
+### Fixed
+
+- **Status reports — CDA milestone dates stale on saved reports** — CDA variation reports snapshot **milestone** dates (phase, dev/UAT/deploy) when the report is **created**. Editing or recreating milestones on the **CDA** tab after that did not update older reports, so the slide could show outdated dates (for example May Sprint with old dev/UAT/deploy ranges). Editors can now **Refresh milestones on report** while **editing** a CDA report (Status Reports tab → Milestones summary), mirroring **Refresh timeline** for Standard/Milestones. API: **`POST /api/projects/[id]/status-reports/[reportId]/refresh-cda-milestones`** merges current **`CdaMilestone`** rows into the report snapshot’s **`cda.milestones`** only; CDA budget rows and other snapshot fields are unchanged. Implementation: `lib/statusReportPdfData.ts` (`buildCdaMilestonesFromProject`), `components/StatusReportsTab.tsx`.
+
+- **Status reports — preview still showed old milestone dates after refresh** — The preview modal fetches **`GET .../status-reports/[reportId]/pdf/data`**, which used a 60-second Next.js **`unstable_cache`** layer that did not always invalidate immediately after milestone refresh. That route now calls **`buildStatusReportPdfData`** directly with **`Cache-Control: no-store`**; **`StatusReportPreview`** uses **`cache: "no-store"`** and bumps **`dataRefreshKey`** on every successful milestone refresh so the modal refetches.
+
+- **CDA milestone date display — timezone day-shift** — Milestone tables on the CDA tab and status report slides formatted **`YYYY-MM-DD`** strings with **`new Date(iso)`** + local **`getDate()`**, which could show the **previous calendar day** in US timezones. Shared **`formatMonthDay`** (and Thu/Fri deploy helpers) in **`lib/formatIsoDate.ts`** parse date-only strings as calendar dates; used in **`CDATab`**, **`StatusReportsTab`**, **`StatusReportView`**, and **`StatusReportDocument`**.
+
+### Documentation
+
+- **User Guide** — *CDA tab* → **Milestones** sub-tab and snapshot behavior; *Status Reports tab* → **Refresh milestones (CDA)**; snapshot section notes locked CDA milestones; project tabs table mentions CDA milestone refresh.
+- **Technical Reference** — **`POST refresh-cda-milestones`**; snapshot/`buildCdaMilestonesFromProject`; preview **`pdf/data`** no-cache path; **`lib/formatIsoDate.ts`**.
+- **README** — production release tag example **v1.2.1**; documentation index mentions CDA milestone refresh.
+- **`.cursor/rules/status-report.mdc`** — CDA milestone snapshot refresh API and preview data path.
+
 ## [1.2.0] - 2026-05-27
 
 Minor release: **Modular** status reports (panels JSON + migrations), **Standard** optional budget block, compact timeline styling, **Admin → People** restore + job title on add, assignment **remove** confirmation with planned-hours cleanup, missing-actuals nudges scoped to **visible** assignees, overview/status-reports tab links + legacy redirect. **Deploy:** run migrations (`20260527135733_add_sprint_variation_and_panels`, `20260527150000_rename_sprint_to_modular`); Vercel build applies them via `prisma migrate deploy`. Redeploy Trigger.dev worker if you use missing-actuals schedules.

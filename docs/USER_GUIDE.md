@@ -1,6 +1,6 @@
 # Project Workbench — User Guide
 
-This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.2.0** as a baseline and newer behavior documented in [CHANGELOG.md](../CHANGELOG.md) (including Slack integrations and **Industry groups** taxonomy when your deployment includes them). The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
+This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.2.1** as a baseline and newer behavior documented in [CHANGELOG.md](../CHANGELOG.md) (including Slack integrations and **Industry groups** taxonomy when your deployment includes them). The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
 
 ---
 
@@ -71,7 +71,7 @@ Each project has a detail page with several tabs. The header shows the **as-of d
 | **CDA** | (When enabled in Settings) Monthly planned and actuals for CDA reporting. Month-to-date actuals for each month incorporate **split-week** hours when a week crosses a month boundary (see Resourcing below). Optional **Report hours only** hides budget dollars on the Overall row in status copy and CDA reports—see [CDA tab](#cda-tab). |
 | **Budget** | Budget lines (e.g. SOW, CO, Other) with low/high hours and dollars, and burn to date. |
 | **Timeline** | High-level timeline with month columns and up to four rows of bars and markers. Each bar has a label, start/end dates, row (1–4), and an optional color (Blue, Green, Amber, Teal, Slate, or Violet). On **status report** slides the timeline uses the same week-proportional layout but is **more compact** than the Timeline tab: only rows that contain bars or markers are shown, bar labels truncate when space is tight, and markers use the same Lucide-style icons as the Timeline tab. The same timeline (with colors) appears in status report previews and PDFs. Each saved report stores its **own** copy of the timeline when the report is created; if you change bars or markers later, use **Refresh timeline** while **editing** that report (Standard or Milestones) on the Status Reports tab to update that copy—see [Status Reports tab](#status-reports-tab). |
-| **Status Reports** | Summary table of estimated budget, $ spent, $ remaining, budgeted/actual/remaining hours, with copy-to-clipboard and a % budget used (high est.) circle chart. Create, edit, view, and export status reports. Choose a **variation**: **Standard** (timeline + budget), **Milestones**, **CDA**, or **Modular** (sprint schedule, story points, velocity KPIs)—see [Status Reports tab](#status-reports-tab). **Standard** reports include an optional **Show project budget on report** toggle (default on) to hide the budget table and burn chart on the exported slide. **New** reports cannot be saved while **actuals are stale** (completed weeks with planned hours but missing actuals)—update the Resourcing tab first. When Slack is configured, **Post to Slack** sends the latest saved report summary to the linked account's Slack channel. Standard and Milestones reports can **refresh the stored timeline** from the project after the Timeline tab changes. |
+| **Status Reports** | Summary table of estimated budget, $ spent, $ remaining, budgeted/actual/remaining hours, with copy-to-clipboard and a % budget used (high est.) circle chart. Create, edit, view, and export status reports. Choose a **variation**: **Standard** (timeline + budget), **Milestones**, **CDA**, or **Modular** (sprint schedule, story points, velocity KPIs)—see [Status Reports tab](#status-reports-tab). **Standard** reports include an optional **Show project budget on report** toggle (default on) to hide the budget table and burn chart on the exported slide. **New** reports cannot be saved while **actuals are stale** (completed weeks with planned hours but missing actuals)—update the Resourcing tab first. When Slack is configured, **Post to Slack** sends the latest saved report summary to the linked account's Slack channel. Standard and Milestones reports can **refresh the stored timeline** from the project after the Timeline tab changes. **CDA** reports can **refresh stored milestone dates** after the CDA tab changes—see [Refresh milestones (CDA)](#refresh-milestones-cda-editors-only). |
 | **Settings** | Edit project name, client, dates, status, single rate, notes, SOW/Estimate/Float/Metric links, optional **Slack channel ID** (for missing-actuals Tue/Wed nudges), resourcing thresholds, key roles, and optional CDA tab. Within Settings, sub-sections include **Details** (includes read-only **Industry group** inherited from the linked Float **client account** when `accountId` is set — see Admin → Accounts), **Links**, **Key roles**, **Resourcing** (thresholds), **Rates** (per-role rate card or single bill rate), and **Assignments** (people assigned, their roles, bill-rate overrides, and “hidden from grid” for the Resourcing tab). |
 
 Only users with edit permission can change data; the **Settings** tab may be read-only for some viewers.
@@ -179,6 +179,23 @@ On the CDA tab, under **Copy for status report**, there is a toggle **Report hou
 
 The monthly CDA tables (month-by-month planned and actuals) are unchanged; only the **Overall** summary row’s budget-dollar cells are affected by this toggle.
 
+### Milestones sub-tab
+
+Switch to **Milestones** on the CDA tab to manage sprint-style phases shown on **CDA** status report slides.
+
+| Column | Meaning |
+|--------|---------|
+| **Phase** | Label (e.g. May Sprint). |
+| **DEV START/END** | Development window (optional dates). |
+| **UAT START/END** | User acceptance window (optional dates). |
+| **Deploy** | Target deploy date (optional). Deploy on **Thursday** or **Friday** is highlighted as a reminder. |
+| **Complete** | Mark done when the sprint is finished (completed milestones are deprioritized on the slide). |
+| **On status** | Whether this row will appear on the exported slide (first **six incomplete** milestones, same rule as the PDF). |
+
+Editors can **Add** milestones with the form above the table, toggle **Complete**, or **Delete** rows.
+
+**Status report snapshot:** When you **save a new CDA status report**, Workbench stores a copy of **all milestone dates at that moment** in the report snapshot. Later edits on this tab (new dates, deleted/recreated milestones) do **not** change older reports until you use **Refresh milestones on report** on the Status Reports tab while editing that report—see [Refresh milestones (CDA)](#refresh-milestones-cda-editors-only). **New** reports always pick up the current milestone list when saved.
+
 ---
 
 ## Status Reports tab
@@ -250,13 +267,13 @@ When you click **Save** (new report) or **Update** (while editing), Workbench sa
 
 ### Snapshot (what stays fixed on a saved report)
 
-When you **save a new** status report, Workbench stores a **snapshot** with the reporting period, budget (or CDA) figures, and—for Standard and Milestones variations—the **timeline** (bars and markers) as they were **at that moment**. Preview, the HTML view, and PDF export all read from that snapshot so later changes to resourcing, budget, or the **Timeline** tab do not change older reports.
+When you **save a new** status report, Workbench stores a **snapshot** with the reporting period, budget (or CDA) figures, and—for Standard and Milestones variations—the **timeline** (bars and markers) as they were **at that moment**. For **CDA** variation, the snapshot also includes **milestone** dates from the CDA tab at save time. Preview, the HTML view, and PDF export all read from that snapshot so later changes to resourcing, budget, the **Timeline** tab, or **CDA milestones** do not change older reports unless you refresh (below).
 
 **Modular** reports store sprint/story-point/donut content separately in the report’s **panels** field (not in the budget/timeline snapshot). The snapshot for Modular holds only the reporting **period** and **today** date. Panel data is editable on **Update** and is what preview and PDF use for the bottom section.
 
 - **What you can still edit** on an existing report: narrative fields (completed / upcoming / risks / meeting notes), RAG values and explanations, **variation** where the form allows it, **Show project budget on report** for **Standard** reports (see above), and sprint schedule / story points / donut KPI **panels** for **Modular** reports.
 - **Meeting notes with formatting**: If you paste content that includes **HTML** from another tool, the preview, HTML view, and **Download PDF** keep **allowed** formatting (paragraphs, lists, links, basic styles) and drop unsafe markup automatically. Plain-text notes support line breaks and clickable URLs (paste `https://…` or use `[label](url)`). If client-side PDF generation fails, the preview offers **Download PDF (server)** as a fallback; that path may not preserve HTML formatting in meeting notes.
-- **What stays locked** unless you use **Refresh timeline** (below): **report date**, **reporting period**, **previous months on timeline** (the 1–4 month window chosen at create time), budget/CDA snapshot, and—by default—the **timeline** bars and markers.
+- **What stays locked** unless you use **Refresh timeline** or **Refresh milestones on report** (below): **report date**, **reporting period**, **previous months on timeline** (the 1–4 month window chosen at create time), budget/CDA monthly snapshot, **CDA milestone dates** (on CDA reports), and—by default—the **timeline** bars and markers.
 
 ### Refresh timeline (Standard and Milestones, editors only)
 
@@ -272,6 +289,19 @@ If the project has **no** timeline the app can render (for example **no end date
 Very old reports **without** a stored snapshot cannot use this action; create a new report if you need a current snapshot.
 
 If the **preview** modal is open for that same report when you refresh, the preview **reloads** so you see the updated timeline without closing it.
+
+### Refresh milestones (CDA, editors only)
+
+If you updated **CDA → Milestones** **after** a CDA report was saved, the report slide still shows the **old** milestone dates until you refresh them:
+
+1. Open **Edit report** for that CDA row (pencil).
+2. In the **Status Report Summary** section, under **Milestones**, click **Refresh milestones on report**.
+3. Read the confirmation dialog: it replaces **only** the milestone dates stored on this report with the **current** milestones from the CDA tab. CDA monthly budget rows and other snapshot data are **not** affected; **report date** and narrative/RAG fields are unchanged.
+4. Confirm to apply, then **View** (or reopen preview) to verify the slide matches the CDA tab.
+
+Each saved report must be refreshed individually if several were created before milestone updates. **New** CDA reports always snapshot current milestones at save time.
+
+If the **preview** modal is open when you refresh, it **reloads** automatically.
 
 ### Timeline on status report slides
 
