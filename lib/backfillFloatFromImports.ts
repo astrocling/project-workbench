@@ -10,16 +10,37 @@ import {
   type FloatImportRunWithDate,
 } from "@/lib/floatImportUtils";
 
+const floatImportRunSelect = {
+  completedAt: true,
+  projectNames: true,
+  projectAssignments: true,
+  projectFloatHours: true,
+} as const;
+
 export async function loadFloatImportRunsForBackfill(prisma: PrismaClient) {
   return prisma.floatImportRun.findMany({
     orderBy: { completedAt: "asc" },
-    select: {
-      completedAt: true,
-      projectNames: true,
-      projectAssignments: true,
-      projectFloatHours: true,
-    },
+    select: floatImportRunSelect,
   });
+}
+
+/** Stream import runs one at a time to avoid loading all JSON blobs into memory at once. */
+export async function* iterateFloatImportRunsAsc(
+  prisma: PrismaClient
+): AsyncGenerator<FloatImportRunWithDate & { id: string }> {
+  let cursor: string | undefined;
+  while (true) {
+    const batch = await prisma.floatImportRun.findMany({
+      take: 1,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      orderBy: { completedAt: "asc" },
+      select: { id: true, ...floatImportRunSelect },
+    });
+    if (batch.length === 0) break;
+    const run = batch[0];
+    yield run;
+    cursor = run.id;
+  }
 }
 
 export type BackfillFloatFromImportsResult = {
