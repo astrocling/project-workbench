@@ -47,30 +47,6 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // #region agent log
-  const debugLog = (
-    location: string,
-    message: string,
-    data: Record<string, unknown>,
-    hypothesisId: string
-  ) => {
-    const payload = {
-      sessionId: "536d73",
-      location,
-      message,
-      data,
-      hypothesisId,
-      timestamp: Date.now(),
-    };
-    console.log("[backfill-float debug]", JSON.stringify(payload));
-    fetch("http://127.0.0.1:7317/ingest/34fb4332-1a06-4b76-a460-798d5289d367", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "536d73" },
-      body: JSON.stringify(payload),
-    }).catch(() => {});
-  };
-  // #endregion
-
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const permissions = (session.user as { permissions?: string }).permissions;
@@ -86,20 +62,6 @@ export async function POST(
     select: { name: true, floatExternalId: true },
   });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
-
-  // #region agent log
-  debugLog(
-    "backfill-float/route.ts:POST",
-    "backfill start",
-    {
-      projectId: id,
-      projectName: project.name,
-      floatExternalId: project.floatExternalId,
-      heapUsedMb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-    },
-    "H2"
-  );
-  // #endregion
 
   try {
     let lookupName = project.name;
@@ -123,48 +85,16 @@ export async function POST(
           normalizeProjectNameForLookup(floatName) !==
             normalizeProjectNameForLookup(lookupName)
         ) {
-          // #region agent log
-          debugLog(
-            "backfill-float/route.ts:POST",
-            "retry with Float API name",
-            { workbenchName: lookupName, floatApiName: floatName },
-            "H6"
-          );
-          // #endregion
           lookupName = floatName;
           result = await backfillFloatScheduledHoursForProjectStreaming(prisma, {
             projectId: id,
             projectName: lookupName,
           });
         }
-      } catch (floatErr) {
-        const message = floatErr instanceof Error ? floatErr.message : String(floatErr);
-        // #region agent log
-        debugLog(
-          "backfill-float/route.ts:POST",
-          "Float API name lookup failed",
-          { error: message },
-          "H6"
-        );
-        // #endregion
+      } catch {
+        // Float API unavailable; continue with Workbench name only
       }
     }
-
-    // #region agent log
-    debugLog(
-      "backfill-float/route.ts:POST",
-      "backfill complete",
-      {
-        projectId: id,
-        lookupName,
-        ...result.diagnostics,
-        upserted: result.upserted,
-        hadImportData: result.hadImportData,
-        heapUsedMb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-      },
-      "H2"
-    );
-    // #endregion
 
     if (!result.hadImportData) {
       const availableWithHours = await loadAvailableFloatProjectNamesWithHoursFromRuns(prisma);
@@ -206,18 +136,6 @@ export async function POST(
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    // #region agent log
-    debugLog(
-      "backfill-float/route.ts:POST",
-      "backfill failed",
-      {
-        projectId: id,
-        error: message,
-        heapUsedMb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-      },
-      "H1"
-    );
-    // #endregion
     console.error("[POST /api/projects/[id]/backfill-float]", err);
     return NextResponse.json({ error: "Backfill failed", detail: message }, { status: 500 });
   }

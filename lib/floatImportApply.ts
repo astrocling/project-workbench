@@ -186,24 +186,13 @@ export async function applyFloatImportDatabaseEffects(
     fallbackRoleIdForAssignment ?? getFallbackRoleIdForNewAssignment(workbenchRoles) ?? null;
 
   const pairList: Array<{ projectId: string; personId: string }> = [];
-  let unresolvedFloatEntries = 0;
-  const unresolvedSamples: Array<{ projectName: string; floatProjectId?: number }> = [];
   for (const entry of mergedFloatByProjectPerson.values()) {
     const projectId = resolveProjectIdForMergedFloatEntry(
       entry,
       projectsByName,
       projectsForResolution
     );
-    if (!projectId) {
-      unresolvedFloatEntries += 1;
-      if (unresolvedSamples.length < 5) {
-        unresolvedSamples.push({
-          projectName: entry.projectName,
-          floatProjectId: entry.floatProjectId,
-        });
-      }
-      continue;
-    }
+    if (!projectId) continue;
     const personId = personByName.get(entry.personName.toLowerCase());
     if (!personId) continue;
     pairList.push({ projectId, personId });
@@ -533,22 +522,6 @@ export async function applyFloatImportDatabaseEffects(
     )
     RETURNING id, "completedAt" as "completedAt"
   `;
-
-  if (floatApiSyncWindow && unresolvedFloatEntries > 0) {
-    // #region agent log
-    console.log(
-      "[float-sync debug]",
-      JSON.stringify({
-        sessionId: "536d73",
-        message: "unresolved float project entries",
-        unresolvedFloatEntries,
-        mergedEntryCount: mergedFloatByProjectPerson.size,
-        unresolvedSamples,
-        timestamp: Date.now(),
-      })
-    );
-    // #endregion
-  }
 
   return {
     run: {
