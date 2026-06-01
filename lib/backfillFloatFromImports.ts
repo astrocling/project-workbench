@@ -8,8 +8,10 @@ import { FLOAT_HOURS_BATCH_SIZE } from "@/lib/floatImportApply";
 import {
   createProjectImportMergeState,
   finalizeProjectImportMerge,
+  getProjectDataFromImport,
   mergeFloatHoursForProjectsFromRuns,
   mergeProjectDataFromRun,
+  normalizeProjectNameForLookup,
   type FloatImportRunWithDate,
 } from "@/lib/floatImportUtils";
 
@@ -38,6 +40,87 @@ export async function loadAvailableFloatProjectNamesFromRuns(
     }
   }
   return Array.from(names);
+}
+
+/** Names that have stored float hour JSON in at least one import run. */
+export async function loadAvailableFloatProjectNamesWithHoursFromRuns(
+  prisma: PrismaClient
+): Promise<string[]> {
+  const names = new Set<string>();
+  for await (const run of iterateFloatImportRunsAsc(prisma)) {
+    const hours = run.projectFloatHours as Record<string, unknown[]> | undefined;
+    if (!hours) continue;
+    for (const key of Object.keys(hours)) {
+      const list = hours[key];
+      if (Array.isArray(list) && list.length > 0) names.add(key);
+    }
+  }
+  return Array.from(names);
+}
+
+export type FloatBackfillDiagnostics = {
+  lookupName: string;
+  normalizedLookupName: string;
+  importRunCount: number;
+  runsWithNameMatch: number;
+  runsWithFloatHours: number;
+  runsWithAssignmentsOnly: number;
+  mergedPersonCount: number;
+  mergedWeekCount: number;
+  lastMatchedKey: string | null;
+};
+
+/** Four-digit years extracted from a project name (e.g. 2025, 2026). */
+export function extractYearTokensFromProjectName(name: string): Set<string> {
+  const matches = normalizeProjectNameForLookup(name).match(/\b20\d{2}\b/g);
+  return new Set(matches ?? []);
+}
+
+/** True when both names carry year tokens and they refer to different ranges. */
+export function projectNamesHaveDistinctYearRanges(a: string, b: string): boolean {
+  const yearsA = extractYearTokensFromProjectName(a);
+  const yearsB = extractYearTokensFromProjectName(b);
+  if (yearsA.size === 0 || yearsB.size === 0) return false;
+  const keyA = [...yearsA].sort().join(",");
+  const keyB = [...yearsB].sort().join(",");
+  return keyA !== keyB;
+}
+
+/** Score Float import keys by normalized overlap with the lookup name. */
+export function scoreCloseFloatProjectNames(
+  lookupName: string,
+  available: string[]
+): Array<{ name: string; score: number }> {
+  const norm = normalizeProjectNameForLookup(lookupName);
+  if (!norm) return [];
+  const tokens = norm.split(" ").filter((t) => t.length > 2);
+  return available
+    .map((name) => {
+      if (projectNamesHaveDistinctYearRanges(lookupName, name)) {
+        return { name, score: 0 };
+      }
+      const nn = normalizeProjectNameForLookup(name);
+      let score = 0;
+      if (nn === norm) score += 100;
+      if (nn.includes(norm) || norm.includes(nn)) score += 50;
+      for (const token of tokens) {
+        if (nn.includes(token)) score += 10;
+      }
+      return { name, score };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score);
+}
+
+/** Suggest Float import keys whose normalized name overlaps the lookup name. */
+export function suggestCloseFloatProjectNames(
+  lookupName: string,
+  available: string[],
+  limit = 5
+): string[] {
+  return scoreCloseFloatProjectNames(lookupName, available)
+    .slice(0, limit)
+    .map((x) => x.name);
 }
 
 /** Stream import runs one at a time to avoid loading all JSON blobs into memory at once. */
@@ -131,16 +214,53 @@ export async function backfillFloatScheduledHoursForProjectStreaming(
     projectName: string;
     personIdByLowerName?: Map<string, string>;
   }
-): Promise<BackfillFloatFromImportsResult & { importRunCount: number }> {
+): Promise<
+  BackfillFloatFromImportsResult & {
+    importRunCount: number;
+    diagnostics: FloatBackfillDiagnostics;
+  }
+> {
+  const lookupName = params.projectName.trim();
+  const normalizedLookupName = normalizeProjectNameForLookup(lookupName);
   const mergeState = createProjectImportMergeState();
   let importRunCount = 0;
+  let runsWithNameMatch = 0;
+  let runsWithFloatHours = 0;
+  let runsWithAssignmentsOnly = 0;
+  let lastMatchedKey: string | null = null;
+
   for await (const run of iterateFloatImportRunsAsc(prisma)) {
-    mergeProjectDataFromRun(mergeState, run, params.projectName);
+    const preview = getProjectDataFromImport(run, lookupName);
+    if (preview.matchedKey) {
+      runsWithNameMatch += 1;
+      lastMatchedKey = preview.matchedKey;
+      if (preview.floatList.length > 0) runsWithFloatHours += 1;
+      else if (preview.assignmentsList.length > 0) runsWithAssignmentsOnly += 1;
+    }
+    mergeProjectDataFromRun(mergeState, run, lookupName);
     importRunCount += 1;
   }
+
   const { floatList } = finalizeProjectImportMerge(mergeState);
+  const mergedPersonCount = floatList.length;
+  const mergedWeekCount = floatList.reduce(
+    (sum, item) => sum + (item.weeks?.length ?? 0),
+    0
+  );
+  const diagnostics: FloatBackfillDiagnostics = {
+    lookupName,
+    normalizedLookupName,
+    importRunCount,
+    runsWithNameMatch,
+    runsWithFloatHours,
+    runsWithAssignmentsOnly,
+    mergedPersonCount,
+    mergedWeekCount,
+    lastMatchedKey,
+  };
+
   if (floatList.length === 0) {
-    return { upserted: 0, hadImportData: false, importRunCount };
+    return { upserted: 0, hadImportData: false, importRunCount, diagnostics };
   }
 
   let map = params.personIdByLowerName;
@@ -155,7 +275,12 @@ export async function backfillFloatScheduledHoursForProjectStreaming(
   );
   await batchUpsertFloatScheduledHours(prisma, rows);
 
-  return { upserted: rows.length, hadImportData: true, importRunCount };
+  return {
+    upserted: rows.length,
+    hadImportData: true,
+    importRunCount,
+    diagnostics,
+  };
 }
 
 /**

@@ -18,6 +18,7 @@ import {
   resolveRoleIdForNewAssignmentFromFloat,
 } from "@/lib/float/roleWorkbenchMatch";
 import { slugify, ensureUniqueSlug } from "@/lib/slug";
+import { linkProjectFloatExternalId } from "@/lib/float/linkProjectFloatExternalId";
 import { z } from "zod";
 
 const createSchema = z.object({
@@ -131,6 +132,11 @@ export async function POST(req: NextRequest) {
   });
   revalidateTag("projects-list", "max");
 
+  const nameToLookup = (floatProjectName ?? name)?.trim();
+  if (nameToLookup) {
+    await linkProjectFloatExternalId(prisma, project.id, nameToLookup);
+  }
+
   // Backfill assignments and float hours from all Float import runs when the new
   // project name matches a project in any import (so resourcing data is available immediately).
   let backfillStats: {
@@ -141,7 +147,6 @@ export async function POST(req: NextRequest) {
     totalWeekEntries?: number;
     floatHoursNote?: string;
   } = { matched: false, assignmentsCreated: 0, floatHoursCreated: 0 };
-  const nameToLookup = (floatProjectName ?? name)?.trim();
   if (nameToLookup) {
     const mergeState = createProjectImportMergeState();
     for await (const run of iterateFloatImportRunsAsc(prisma)) {

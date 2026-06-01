@@ -23,13 +23,26 @@ describe("resolveProjectIdForMergedFloatEntry", () => {
     weekMap: new Map([["2026-04-06", 7.5]]),
   });
 
-  it("matches by floatExternalId when floatProjectId is set", () => {
+  it("matches by floatExternalId when floatProjectId is set and names agree", () => {
     const id = resolveProjectIdForMergedFloatEntry(
       { ...baseEntry(), floatProjectId: 100 },
       projectsByName,
       projectsForResolution
     );
     expect(id).toBe("wb-1");
+  });
+
+  it("does not route hours via floatExternalId when Workbench name disagrees with Float row", () => {
+    const resolution = [
+      { id: "wb-wrong", name: "Other Client Project", floatExternalId: "200" },
+      { id: "wb-1", name: "SNY.TV 2026 CDA", floatExternalId: "100" as string | null },
+    ];
+    const id = resolveProjectIdForMergedFloatEntry(
+      { ...baseEntry(), floatProjectId: 200 },
+      projectsByName,
+      resolution
+    );
+    expect(id).toBeUndefined();
   });
 
   it("does not match Workbench project linked to a different Float id (duplicate name in Float)", () => {

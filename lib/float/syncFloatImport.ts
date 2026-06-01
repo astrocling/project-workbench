@@ -304,12 +304,16 @@ function resolveDbProject(
   projectsByNameLower: Map<string, string>
 ): Project | undefined {
   const ext = String(floatProjectId);
+  const normFloat = normalizeProjectNameForLookup(floatName);
   const byExt = projects.find((p) => p.floatExternalId === ext);
-  if (byExt) return byExt;
-  const p = projects.find(
-    (x) => normalizeProjectNameForLookup(x.name) === normalizeProjectNameForLookup(floatName)
+  if (byExt && normalizeProjectNameForLookup(byExt.name) === normFloat) {
+    return byExt;
+  }
+  const byName = projects.find(
+    (x) => normalizeProjectNameForLookup(x.name) === normFloat
   );
-  if (p) return p;
+  if (byName) return byName;
+  if (byExt) return byExt;
   const direct = projectsByNameLower.get(floatName.toLowerCase());
   if (direct) return projects.find((x) => x.id === direct);
   return undefined;
@@ -594,13 +598,22 @@ export async function executeFloatApiSync(
 
   for (const [fid, meta] of floatProjectById) {
     const match = resolveDbProject(fid, meta.name, projects, projectsByNameLower);
-    if (match && !match.floatExternalId) {
-      await prisma.project.update({
-        where: { id: match.id },
-        data: { floatExternalId: String(fid) },
-      });
-      match.floatExternalId = String(fid);
+    if (!match) continue;
+    const fidStr = String(fid);
+    if (match.floatExternalId === fidStr) continue;
+    const owner = projects.find((p) => p.floatExternalId === fidStr && p.id !== match.id);
+    if (owner) continue;
+    if (
+      match.floatExternalId != null &&
+      normalizeProjectNameForLookup(match.name) !== normalizeProjectNameForLookup(meta.name)
+    ) {
+      continue;
     }
+    await prisma.project.update({
+      where: { id: match.id },
+      data: { floatExternalId: fidStr },
+    });
+    match.floatExternalId = fidStr;
   }
 
   for (const [fid, meta] of floatProjectById) {

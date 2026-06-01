@@ -94,9 +94,9 @@ export function resolveProjectIdForMergedFloatEntry(
 ): string | undefined {
   if (projectsForResolution?.length && entry.floatProjectId != null) {
     const fid = String(entry.floatProjectId);
-    const byExt = projectsForResolution.find((p) => p.floatExternalId === fid);
-    if (byExt) return byExt.id;
     const norm = normalizeProjectNameForLookup(entry.projectName);
+    const byExt = projectsForResolution.find((p) => p.floatExternalId === fid);
+    if (byExt && normalizeProjectNameForLookup(byExt.name) === norm) return byExt.id;
     for (const p of projectsForResolution) {
       if (normalizeProjectNameForLookup(p.name) !== norm) continue;
       if (p.floatExternalId != null && p.floatExternalId !== fid) continue;
@@ -186,13 +186,24 @@ export async function applyFloatImportDatabaseEffects(
     fallbackRoleIdForAssignment ?? getFallbackRoleIdForNewAssignment(workbenchRoles) ?? null;
 
   const pairList: Array<{ projectId: string; personId: string }> = [];
+  let unresolvedFloatEntries = 0;
+  const unresolvedSamples: Array<{ projectName: string; floatProjectId?: number }> = [];
   for (const entry of mergedFloatByProjectPerson.values()) {
     const projectId = resolveProjectIdForMergedFloatEntry(
       entry,
       projectsByName,
       projectsForResolution
     );
-    if (!projectId) continue;
+    if (!projectId) {
+      unresolvedFloatEntries += 1;
+      if (unresolvedSamples.length < 5) {
+        unresolvedSamples.push({
+          projectName: entry.projectName,
+          floatProjectId: entry.floatProjectId,
+        });
+      }
+      continue;
+    }
     const personId = personByName.get(entry.personName.toLowerCase());
     if (!personId) continue;
     pairList.push({ projectId, personId });
@@ -522,6 +533,22 @@ export async function applyFloatImportDatabaseEffects(
     )
     RETURNING id, "completedAt" as "completedAt"
   `;
+
+  if (floatApiSyncWindow && unresolvedFloatEntries > 0) {
+    // #region agent log
+    console.log(
+      "[float-sync debug]",
+      JSON.stringify({
+        sessionId: "536d73",
+        message: "unresolved float project entries",
+        unresolvedFloatEntries,
+        mergedEntryCount: mergedFloatByProjectPerson.size,
+        unresolvedSamples,
+        timestamp: Date.now(),
+      })
+    );
+    // #endregion
+  }
 
   return {
     run: {
