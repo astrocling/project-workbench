@@ -6,7 +6,10 @@ import { Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import { FLOAT_HOURS_BATCH_SIZE } from "@/lib/floatImportApply";
 import {
+  createProjectImportMergeState,
+  finalizeProjectImportMerge,
   mergeFloatHoursForProjectsFromRuns,
+  mergeProjectDataFromRun,
   type FloatImportRunWithDate,
 } from "@/lib/floatImportUtils";
 
@@ -22,6 +25,19 @@ export async function loadFloatImportRunsForBackfill(prisma: PrismaClient) {
     orderBy: { completedAt: "asc" },
     select: floatImportRunSelect,
   });
+}
+
+/** Collect distinct Float project names from import runs without loading full hour JSON. */
+export async function loadAvailableFloatProjectNamesFromRuns(
+  prisma: PrismaClient
+): Promise<string[]> {
+  const names = new Set<string>();
+  for await (const run of iterateFloatImportRunsAsc(prisma)) {
+    for (const name of (run.projectNames as string[] | undefined) ?? []) {
+      if (name?.trim()) names.add(name);
+    }
+  }
+  return Array.from(names);
 }
 
 /** Stream import runs one at a time to avoid loading all JSON blobs into memory at once. */
@@ -102,6 +118,44 @@ export async function batchUpsertFloatScheduledHours(
       DO UPDATE SET hours = EXCLUDED.hours, "updatedAt" = now()
     `;
   }
+}
+
+/**
+ * Upsert scheduled hours for one project by streaming import runs (memory-safe for production).
+ * Semantics match {@link backfillFloatScheduledHoursForProjectFromRuns}.
+ */
+export async function backfillFloatScheduledHoursForProjectStreaming(
+  prisma: PrismaClient,
+  params: {
+    projectId: string;
+    projectName: string;
+    personIdByLowerName?: Map<string, string>;
+  }
+): Promise<BackfillFloatFromImportsResult & { importRunCount: number }> {
+  const mergeState = createProjectImportMergeState();
+  let importRunCount = 0;
+  for await (const run of iterateFloatImportRunsAsc(prisma)) {
+    mergeProjectDataFromRun(mergeState, run, params.projectName);
+    importRunCount += 1;
+  }
+  const { floatList } = finalizeProjectImportMerge(mergeState);
+  if (floatList.length === 0) {
+    return { upserted: 0, hadImportData: false, importRunCount };
+  }
+
+  let map = params.personIdByLowerName;
+  if (!map) {
+    const people = await prisma.person.findMany({ select: { id: true, name: true } });
+    map = new Map(people.map((p) => [p.name.trim().toLowerCase(), p.id] as const));
+  }
+
+  const rows = floatScheduledHourRowsFromMergedLists(
+    new Map([[params.projectId, floatList]]),
+    map
+  );
+  await batchUpsertFloatScheduledHours(prisma, rows);
+
+  return { upserted: rows.length, hadImportData: true, importRunCount };
 }
 
 /**

@@ -96,23 +96,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // #region agent log
-  const debugLog = (location: string, message: string, data: Record<string, unknown>, hypothesisId: string) => {
-    fetch("http://127.0.0.1:7317/ingest/34fb4332-1a06-4b76-a460-798d5289d367", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "680a04" },
-      body: JSON.stringify({
-        sessionId: "680a04",
-        location,
-        message,
-        data,
-        hypothesisId,
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-  };
-  // #endregion
-
   try {
   const body = await req.json();
   const parsed = createSchema.safeParse(body);
@@ -122,9 +105,6 @@ export async function POST(req: NextRequest) {
 
   const { name, clientName, startDate, endDate, status, floatProjectName, sowLink, estimateLink, floatLink, metricLink, pmPersonIds, pgmPersonId, cadPersonId, cdaEnabled } =
     parsed.data;
-  // #region agent log
-  debugLog("route.ts:POST", "create project start", { name, clientName, cdaEnabled: cdaEnabled ?? false, floatProjectName: floatProjectName ?? null }, "H1");
-  // #endregion
   const norm = (s: string | null | undefined) => {
     const raw = s?.trim();
     if (!raw) return null;
@@ -163,29 +143,11 @@ export async function POST(req: NextRequest) {
   } = { matched: false, assignmentsCreated: 0, floatHoursCreated: 0 };
   const nameToLookup = (floatProjectName ?? name)?.trim();
   if (nameToLookup) {
-    // #region agent log
-    debugLog("route.ts:POST", "float backfill start (streaming runs)", { nameToLookup }, "H1");
-    // #endregion
     const mergeState = createProjectImportMergeState();
-    let importRunCount = 0;
     for await (const run of iterateFloatImportRunsAsc(prisma)) {
       mergeProjectDataFromRun(mergeState, run, nameToLookup);
-      importRunCount += 1;
     }
     const { assignmentsList, floatList } = finalizeProjectImportMerge(mergeState);
-    // #region agent log
-    debugLog(
-      "route.ts:POST",
-      "float backfill merged",
-      {
-        importRunCount,
-        assignmentsListLength: assignmentsList.length,
-        floatListLength: floatList.length,
-        totalWeekEntries: floatList.reduce((sum, item) => sum + (item.weeks?.length ?? 0), 0),
-      },
-      "H1"
-    );
-    // #endregion
 
     backfillStats.floatListLength = floatList.length;
     backfillStats.totalWeekEntries = floatList.reduce(
@@ -300,15 +262,9 @@ export async function POST(req: NextRequest) {
   const data = created ?? project;
   const response = Object.assign({}, data, { backfillFromImport: backfillStats });
   revalidateTag("projects-list", "max");
-  // #region agent log
-  debugLog("route.ts:POST", "create project success", { projectId: project.id, slug: project.slug }, "H1");
-  // #endregion
   return NextResponse.json(response);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    // #region agent log
-    debugLog("route.ts:POST", "create project failed", { error: message }, "H1");
-    // #endregion
     console.error("[POST /api/projects]", err);
     return NextResponse.json({ error: "Failed to create project", detail: message }, { status: 500 });
   }
