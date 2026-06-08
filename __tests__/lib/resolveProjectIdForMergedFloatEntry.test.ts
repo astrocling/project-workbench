@@ -5,6 +5,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  resolveFloatImportTargetProjectIds,
   resolveProjectIdForMergedFloatEntry,
   type MergedFloatEntry,
 } from "@/lib/floatImportApply";
@@ -61,5 +62,42 @@ describe("resolveProjectIdForMergedFloatEntry", () => {
       undefined
     );
     expect(id).toBe("wb-1");
+  });
+});
+
+describe("resolveFloatImportTargetProjectIds", () => {
+  const entry: MergedFloatEntry = {
+    projectName: "Stanford OHS/SPCS 2025/2026",
+    personName: "Alex",
+    roleName: "Dev",
+    weekMap: new Map([["2026-06-15", 8]]),
+    floatProjectId: 10381784,
+  };
+
+  it("mirrors to unlinked duplicate-name sibling projects", () => {
+    const projectsByName = new Map([
+      ["stanford ohs/spcs 2025/2026", "wb-duplicate"],
+    ]);
+    const projectsForResolution = [
+      { id: "wb-linked", name: "Stanford OHS/SPCS 2025/2026", floatExternalId: "10381784" },
+      { id: "wb-duplicate", name: "Stanford OHS/SPCS 2025/2026", floatExternalId: null },
+    ];
+    expect(
+      resolveFloatImportTargetProjectIds(entry, projectsByName, projectsForResolution)
+    ).toEqual(["wb-linked", "wb-duplicate"]);
+  });
+
+  it("does not mirror to siblings with a different floatExternalId", () => {
+    const projectsForResolution = [
+      { id: "wb-linked", name: "Stanford OHS/SPCS 2025/2026", floatExternalId: "10381784" },
+      { id: "wb-other", name: "Stanford OHS/SPCS 2025/2026", floatExternalId: "99999" },
+    ];
+    expect(
+      resolveFloatImportTargetProjectIds(
+        entry,
+        new Map([["stanford ohs/spcs 2025/2026", "wb-linked"]]),
+        projectsForResolution
+      )
+    ).toEqual(["wb-linked"]);
   });
 });

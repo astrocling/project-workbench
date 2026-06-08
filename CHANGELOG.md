@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-06-08
+
+Patch release: **Float sync** — duplicate Workbench projects with the same name no longer show an empty **Float Actuals** grid after sync or backfill. **Deploy:** no new migrations; redeploy as usual, then run **Admin → Float sync** once so mirrored hours and assignments are written to all affected projects.
+
+### Fixed
+
+- **Float sync — empty Float Actuals on duplicate project names** — When two or more Workbench projects shared the same normalized name (for example an older project created before **`floatExternalId`** linking and a newer linked copy), Admin Float sync wrote **`FloatScheduledHours`** and **`ProjectAssignment`** rows only to the project whose **`floatExternalId`** matched Float, while **`projectIdsInImport`** for orphan cleanup was derived from a **`projectsByName`** map that keeps only one id per lowercase name. Users opening the unlinked duplicate saw an empty **Float** grid even though sync succeeded; **Backfill** could briefly populate that project, then the next sync’s orphan cleanup removed rows that had no assignments on the duplicate. **`resolveFloatImportTargetProjectIds`** (`lib/floatImportApply.ts`) now mirrors sync data to the primary linked project **plus** same-name siblings with **`floatExternalId` null**, and **`projectIdsInImport`** is built from those resolved target ids only. Tests: **`__tests__/lib/resolveProjectIdForMergedFloatEntry.test.ts`**.
+
+### Documentation
+
+- **User Guide** — *Float sync* → **Duplicate Workbench project names**; troubleshooting row for empty Float grid after sync.
+- **Technical Reference** — *Float sync behavior* → **`resolveFloatImportTargetProjectIds`**, **`projectIdsInImport`** resolution, duplicate-name mirroring vs duplicate Float project names.
+- **README** — Float sync paragraph notes duplicate-name mirroring; documentation index references **v1.2.2**.
+
 ## [1.2.1] - 2026-05-28
 
 Patch release: **CDA status reports** — refresh milestone dates on saved reports; preview loads fresh PDF data after refresh; milestone dates display without timezone day-shift. **Deploy:** no new migrations; redeploy as usual.
