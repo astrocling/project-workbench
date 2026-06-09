@@ -9,6 +9,7 @@ import {
   resolveProjectIdForMergedFloatEntry,
   type MergedFloatEntry,
 } from "@/lib/floatImportApply";
+import { normalizeProjectNameForLookup } from "@/lib/floatImportUtils";
 
 describe("resolveProjectIdForMergedFloatEntry", () => {
   const projectsByName = new Map([["sny.tv 2026 cda", "wb-1"]]);
@@ -62,6 +63,56 @@ describe("resolveProjectIdForMergedFloatEntry", () => {
       undefined
     );
     expect(id).toBe("wb-1");
+  });
+
+  it("prefers floatExternalId link when Workbench was renamed but Float name matches", () => {
+    const resolution = [
+      {
+        id: "wb-linked",
+        name: "Stanford OHS SPCS 2025 2026",
+        floatExternalId: "10381784",
+      },
+      {
+        id: "wb-duplicate",
+        name: "Stanford OHS/SPCS 2025/2026",
+        floatExternalId: null,
+      },
+    ];
+    const id = resolveProjectIdForMergedFloatEntry(
+      {
+        ...baseEntry(),
+        projectName: "Stanford OHS/SPCS 2025/2026",
+        floatProjectId: 10381784,
+      },
+      new Map(),
+      resolution
+    );
+    expect(id).toBe("wb-linked");
+  });
+
+  it("prefers linked project over duplicate when both names match Float", () => {
+    const resolution = [
+      { id: "wb-duplicate", name: "Stanford OHS/SPCS 2025/2026", floatExternalId: null },
+      { id: "wb-linked", name: "Stanford OHS/SPCS 2025/2026", floatExternalId: "10381784" },
+    ];
+    const id = resolveProjectIdForMergedFloatEntry(
+      {
+        ...baseEntry(),
+        projectName: "Stanford OHS/SPCS 2025/2026",
+        floatProjectId: 10381784,
+      },
+      new Map(),
+      resolution
+    );
+    expect(id).toBe("wb-linked");
+  });
+});
+
+describe("normalizeProjectNameForLookup", () => {
+  it("treats slashes like other punctuation separators", () => {
+    expect(normalizeProjectNameForLookup("Stanford OHS/SPCS 2025/2026")).toBe(
+      normalizeProjectNameForLookup("Stanford OHS-SPCS 2025-2026")
+    );
   });
 });
 

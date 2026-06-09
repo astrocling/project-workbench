@@ -1,6 +1,6 @@
 # Project Workbench — User Guide
 
-This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.2.2** as a baseline and newer behavior documented in [CHANGELOG.md](../CHANGELOG.md) (including Slack integrations and **Industry groups** taxonomy when your deployment includes them). The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
+This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.2.3** as a baseline and newer behavior documented in [CHANGELOG.md](../CHANGELOG.md) (including Slack integrations and **Industry groups** taxonomy when your deployment includes them). The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
 
 ---
 
@@ -502,7 +502,7 @@ Your **My Projects** list (on `/projects`) uses the **Person** link described in
 |-------|-------------|
 | **Invalid email or password** | Ensure the database has been seeded and your user exists. Ask an admin to run the seed or add your account in Admin → Users. |
 | **Project names must match** (Float) | Create projects in Workbench with names that match Float, or run sync so `floatExternalId` is set. Add missing roles in Admin → Roles and sync again if needed. |
-| **Float Actuals empty after sync** | Confirm **Admin → Float sync** completed without error. Open the project that has **`floatExternalId`** set (Settings → Details / project metadata). If you have **two projects with the same name**, sync as of **v1.2.2** mirrors data to both—run sync once after upgrading. Otherwise consolidate to a single Workbench project per Float project. **Backfill** alone does not create assignments; sync (or manual assignments) is required for the **Float** grid to show people. |
+| **Float Actuals empty after sync** | Confirm **Admin → Float sync** completed without error (Trigger.dev alone does not refresh the Resourcing page cache—run Admin sync or wait ~60s and hard-refresh). Check for **duplicate projects with the same name**; as of **v1.2.3**, sync mirrors hours to the linked project and unlinked copies. Run **`npx tsx scripts/debug-backfill-match.ts <projectSlug>`** against production `DATABASE_URL` to see duplicate names, sync target ids, and row counts. **Backfill** alone does not create assignments; sync (or manual assignments) is required for the **Float** grid to show people. |
 | **Float API not configured** | Set `FLOAT_API_TOKEN` in the server environment. |
 | **Slack is not configured** / health post errors | Admin must set **`SLACK_BOT_TOKEN`** on the server, invite the bot to channels, and configure **Admin → Slack** (resourcing channel), **Settings → Links** (project channel for missing-actuals nudges), and/or **Admin → Accounts** (account channel for status posts and Thursday nudges) as needed. |
 | **Too many sync requests** | Wait and try again later; sync is rate-limited when Redis is configured. |

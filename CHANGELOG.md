@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.3] - 2026-06-08
+
+Patch release: **Float sync** — follow-up fixes when production still showed empty **Float Actuals** after **v1.2.2**. **Deploy:** no new migrations; redeploy, run **Admin → Float sync** (not Trigger.dev alone if you need the Resourcing cache cleared), hard-refresh the project page.
+
+### Fixed
+
+- **Float sync — project resolution for duplicates and renamed projects** — **`normalizeProjectNameForLookup`** now treats **`/`** like other punctuation (so `OHS/SPCS` matches `OHS-SPCS`). **`resolveProjectIdForMergedFloatEntry`** prefers the Workbench project whose **`floatExternalId`** matches the Float task when duplicate same-name rows exist (array order no longer picks the unlinked copy), trusts the linked project when Workbench was renamed but Float still uses the canonical name, and continues to reject cross-routing when Float **`project_id`** and display name disagree. Tests: **`__tests__/lib/resolveProjectIdForMergedFloatEntry.test.ts`**.
+
 ## [1.2.2] - 2026-06-08
 
 Patch release: **Float sync** — duplicate Workbench projects with the same name no longer show an empty **Float Actuals** grid after sync or backfill. **Deploy:** no new migrations; redeploy as usual, then run **Admin → Float sync** once so mirrored hours and assignments are written to all affected projects.

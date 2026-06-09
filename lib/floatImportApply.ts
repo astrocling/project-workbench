@@ -96,7 +96,27 @@ export function resolveProjectIdForMergedFloatEntry(
     const fid = String(entry.floatProjectId);
     const norm = normalizeProjectNameForLookup(entry.projectName);
     const byExt = projectsForResolution.find((p) => p.floatExternalId === fid);
-    if (byExt && normalizeProjectNameForLookup(byExt.name) === norm) return byExt.id;
+    if (byExt && normalizeProjectNameForLookup(byExt.name) === norm) {
+      return byExt.id;
+    }
+
+    const nameMatches = projectsForResolution.filter(
+      (p) => normalizeProjectNameForLookup(p.name) === norm
+    );
+    const linkedNameMatch = nameMatches.find((p) => p.floatExternalId === fid);
+    if (linkedNameMatch) return linkedNameMatch.id;
+
+    const unlinkedNameMatch = nameMatches.find((p) => p.floatExternalId == null);
+    if (unlinkedNameMatch && !byExt) return unlinkedNameMatch.id;
+
+    if (byExt && nameMatches.length === 0) {
+      return byExt.id;
+    }
+
+    if (byExt && unlinkedNameMatch) {
+      return byExt.id;
+    }
+
     for (const p of projectsForResolution) {
       if (normalizeProjectNameForLookup(p.name) !== norm) continue;
       if (p.floatExternalId != null && p.floatExternalId !== fid) continue;

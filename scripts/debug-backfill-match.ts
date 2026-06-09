@@ -9,6 +9,11 @@
 import { prisma } from "../lib/prisma";
 import { linkProjectFloatExternalId } from "../lib/float/linkProjectFloatExternalId";
 import {
+  resolveFloatImportTargetProjectIds,
+  type MergedFloatEntry,
+} from "../lib/floatImportApply";
+import { normalizeProjectNameForLookup } from "../lib/floatImportUtils";
+import {
   backfillFloatScheduledHoursForProjectStreaming,
   loadAvailableFloatProjectNamesWithHoursFromRuns,
   scoreCloseFloatProjectNames,
@@ -38,6 +43,51 @@ async function main() {
   }
 
   console.log("Project:", project);
+
+  const duplicates = await prisma.project.findMany({
+    where: { name: { equals: project.name, mode: "insensitive" } },
+    select: { id: true, name: true, slug: true, floatExternalId: true },
+  });
+  if (duplicates.length > 1) {
+    console.log("\nDuplicate Workbench names:", duplicates);
+  }
+
+  const allProjects = await prisma.project.findMany({
+    select: { id: true, name: true, floatExternalId: true },
+  });
+  const projectsForResolution = allProjects.map((p) => ({
+    id: p.id,
+    name: p.name,
+    floatExternalId: p.floatExternalId,
+  }));
+  const projectsByName = new Map(
+    allProjects.map((p) => [p.name.toLowerCase(), p.id] as const)
+  );
+  const sampleEntry: MergedFloatEntry = {
+    projectName: project.name,
+    personName: "Sample",
+    roleName: "",
+    weekMap: new Map([["2026-06-15", 1]]),
+    floatProjectId: project.floatExternalId
+      ? Number(project.floatExternalId)
+      : undefined,
+  };
+  console.log("\nNormalized name:", normalizeProjectNameForLookup(project.name));
+  console.log(
+    "Sync target project ids:",
+    resolveFloatImportTargetProjectIds(sampleEntry, projectsByName, projectsForResolution)
+  );
+
+  const floatHourCount = await prisma.floatScheduledHours.count({
+    where: { projectId: project.id },
+  });
+  const futureFloatHourCount = await prisma.floatScheduledHours.count({
+    where: { projectId: project.id, weekStartDate: { gt: new Date() } },
+  });
+  const assignmentCount = await prisma.projectAssignment.count({
+    where: { projectId: project.id },
+  });
+  console.log("\nDB state:", { floatHourCount, futureFloatHourCount, assignmentCount });
 
   const linkedId = await linkProjectFloatExternalId(prisma, project.id, project.name);
   if (linkedId) {

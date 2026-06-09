@@ -11,7 +11,7 @@ export function normalizeProjectNameForLookup(name: string): string {
   return name
     .trim()
     .toLowerCase()
-    .replace(/[\s\-_–—]+/g, " ")
+    .replace(/[\s\-_–—/]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
