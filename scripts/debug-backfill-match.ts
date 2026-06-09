@@ -2,10 +2,11 @@
  * Local diagnostic: compare a Workbench project name against Float import history.
  *
  * Usage:
- *   npx tsx scripts/debug-backfill-match.ts <projectIdOrSlug>
+ *   npx tsx scripts/debug-backfill-match.ts <projectIdOrSlug> [--skip-backfill]
  *
  * Requires DATABASE_URL in .env (use production URL to mirror prod issue).
  */
+import "dotenv/config";
 import { prisma } from "../lib/prisma";
 import { linkProjectFloatExternalId } from "../lib/float/linkProjectFloatExternalId";
 import {
@@ -18,16 +19,24 @@ import {
   loadAvailableFloatProjectNamesWithHoursFromRuns,
   scoreCloseFloatProjectNames,
 } from "../lib/backfillFloatFromImports";
-import { getProjectId } from "../lib/slug";
+async function resolveProjectId(idOrSlug: string): Promise<string | null> {
+  const project = await prisma.project.findFirst({
+    where: { OR: [{ id: idOrSlug }, { slug: idOrSlug }] },
+    select: { id: true },
+  });
+  return project?.id ?? null;
+}
 
 async function main() {
-  const idOrSlug = process.argv[2];
+  const args = process.argv.slice(2).filter((a) => a !== "--skip-backfill");
+  const skipBackfill = process.argv.includes("--skip-backfill");
+  const idOrSlug = args[0];
   if (!idOrSlug) {
     console.error("Usage: npx tsx scripts/debug-backfill-match.ts <projectIdOrSlug>");
     process.exit(1);
   }
 
-  const id = await getProjectId(idOrSlug);
+  const id = await resolveProjectId(idOrSlug);
   if (!id) {
     console.error("Project not found:", idOrSlug);
     process.exit(1);
@@ -72,22 +81,71 @@ async function main() {
       ? Number(project.floatExternalId)
       : undefined,
   };
+  const floatApiEntry: MergedFloatEntry = {
+    ...sampleEntry,
+    floatProjectId: 10381784,
+  };
   console.log("\nNormalized name:", normalizeProjectNameForLookup(project.name));
   console.log(
-    "Sync target project ids:",
+    "Sync target project ids (from project floatExternalId):",
     resolveFloatImportTargetProjectIds(sampleEntry, projectsByName, projectsForResolution)
   );
+  console.log(
+    "Sync target project ids (floatProjectId=10381784):",
+    resolveFloatImportTargetProjectIds(floatApiEntry, projectsByName, projectsForResolution)
+  );
 
+  const asOf = new Date();
   const floatHourCount = await prisma.floatScheduledHours.count({
     where: { projectId: project.id },
   });
   const futureFloatHourCount = await prisma.floatScheduledHours.count({
-    where: { projectId: project.id, weekStartDate: { gt: new Date() } },
+    where: { projectId: project.id, weekStartDate: { gt: asOf } },
   });
   const assignmentCount = await prisma.projectAssignment.count({
     where: { projectId: project.id },
   });
   console.log("\nDB state:", { floatHourCount, futureFloatHourCount, assignmentCount });
+
+  const assignments = await prisma.projectAssignment.findMany({
+    where: { projectId: project.id },
+    select: { personId: true, person: { select: { name: true } } },
+  });
+  const futureFloat = await prisma.floatScheduledHours.findMany({
+    where: { projectId: project.id, weekStartDate: { gt: asOf } },
+    select: { personId: true, person: { select: { name: true } } },
+    distinct: ["personId"],
+  });
+  const assignIds = new Set(assignments.map((a) => a.personId));
+  const visibleFuturePeople = futureFloat.filter((r) => assignIds.has(r.personId));
+  const hiddenFuturePeople = futureFloat.filter((r) => !assignIds.has(r.personId));
+  console.log("\nUI visibility (future float ∩ assignments):", {
+    futureFloatPeople: futureFloat.length,
+    visibleInUi: visibleFuturePeople.length,
+    hiddenNotAssigned: [...new Set(hiddenFuturePeople.map((r) => r.person.name))],
+  });
+
+  if (duplicates.length > 1) {
+    for (const dup of duplicates) {
+      if (dup.id === project.id) continue;
+      const dupFuture = await prisma.floatScheduledHours.count({
+        where: { projectId: dup.id, weekStartDate: { gt: asOf } },
+      });
+      console.log(`Duplicate ${dup.slug} futureFloatHourCount:`, dupFuture);
+    }
+  }
+
+  const latestRun = await prisma.floatImportRun.findFirst({
+    orderBy: { completedAt: "desc" },
+    select: { completedAt: true },
+  });
+  console.log("\nLatest FloatImportRun completedAt:", latestRun?.completedAt ?? null);
+
+  if (skipBackfill) {
+    console.log("\n(--skip-backfill: skipping Float API link + backfill dry-run)");
+    await prisma.$disconnect();
+    return;
+  }
 
   const linkedId = await linkProjectFloatExternalId(prisma, project.id, project.name);
   if (linkedId) {

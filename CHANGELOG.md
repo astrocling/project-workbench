@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.4] - 2026-06-09
+
+Patch release: **Sync plan from Float** — production **500** / `FUNCTION_INVOCATION_FAILED` when Float import history is large. **Deploy:** no new migrations; redeploy Vercel only.
+
+### Fixed
+
+- **Sync plan from Float — OOM / 500 on production** — `POST /api/projects/[id]/sync-plan-from-float` loaded every `FloatImportRun` JSON blob into memory and upserted `PlannedHours` one row at a time, exhausting the 2GB Vercel function limit (~29s then crash). Logic moved to **`lib/syncPlanFromFloat.ts`**: stream import runs via **`iterateFloatImportRunsAsc`** (same pattern as backfill), batch SQL upserts (500 rows/chunk), single person lookup pass, **`maxDuration` 120s**, and structured error responses. Route: `app/api/projects/[id]/sync-plan-from-float/route.ts`.
+
+### Documentation
+
+- **User Guide** — troubleshooting row for **Sync plan from Float** failures.
+- **Technical Reference** — `sync-plan-from-float` API row and *Float sync behavior* notes for **`syncPlannedHoursFromFloat`**.
+
 ## [1.2.3] - 2026-06-08
 
 Patch release: **Float sync** — follow-up fixes when production still showed empty **Float Actuals** after **v1.2.2**. **Deploy:** no new migrations; redeploy, run **Admin → Float sync** (not Trigger.dev alone if you need the Resourcing cache cleared), hard-refresh the project page.
