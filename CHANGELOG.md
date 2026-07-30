@@ -5,7 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.5] - 2026-07-30
+
+Patch release: **Float sync** no longer fails when a Float client is deleted and re-created under the same name; **Status Reports** clear the stale-actuals block immediately after saving actuals on Resourcing. **Deploy:** no new migrations; redeploy the app and Trigger.dev worker, then run **Admin → Float sync** (or wait for the scheduled job) so account rebinds apply.
 
 ### Fixed
 
@@ -16,9 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation
 
 - **CHANGELOG** — This release section.
-- **Technical Reference** — *Float sync behavior* → **Accounts / Float clients** (`planFloatClientAccounts` / `reconcileFloatClientAccounts`); **Account** data-model row notes unique `floatClientId` and reconcile path.
-- **User Guide** — *Float sync* matching rules for accounts/clients, account step under *What sync does*, conflict note under *Holidays and sync failures*; **Admin → Accounts** rebind behavior; *Troubleshooting* for the old unique-constraint failure.
-- **README** — Float sync summary notes client → account linking / rebind.
+- **Technical Reference** — *Float sync behavior* → **Accounts / Float clients** (`planFloatClientAccounts` / `reconcileFloatClientAccounts`); **Account** data-model row notes unique `floatClientId` and reconcile path; QA checklist item for client re-create.
+- **User Guide** — *Float sync* matching rules for accounts/clients, account step under *What sync does*, conflict note under *Holidays and sync failures*; **Admin → Accounts** rebind behavior; *Troubleshooting* for the old unique-constraint failure; release baseline **1.2.5**.
+- **README** — Float sync summary notes client → account linking / rebind; production release tag example **v1.2.5**.
 - **Technical Reference** — *Split-week actual hours* and the `actual-hours` API row note the added **`project-detail`** revalidation; *API overview* status-reports row notes the client stale gate now refreshes via `ProjectDetailTabs` budget state.
 - **User Guide** — *Status Reports tab* / *Status Reports* summary note that updating actuals in Resourcing clears the stale block immediately (no cache wait).
 
