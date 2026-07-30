@@ -94,9 +94,29 @@ export function resolveProjectIdForMergedFloatEntry(
 ): string | undefined {
   if (projectsForResolution?.length && entry.floatProjectId != null) {
     const fid = String(entry.floatProjectId);
-    const byExt = projectsForResolution.find((p) => p.floatExternalId === fid);
-    if (byExt) return byExt.id;
     const norm = normalizeProjectNameForLookup(entry.projectName);
+    const byExt = projectsForResolution.find((p) => p.floatExternalId === fid);
+    if (byExt && normalizeProjectNameForLookup(byExt.name) === norm) {
+      return byExt.id;
+    }
+
+    const nameMatches = projectsForResolution.filter(
+      (p) => normalizeProjectNameForLookup(p.name) === norm
+    );
+    const linkedNameMatch = nameMatches.find((p) => p.floatExternalId === fid);
+    if (linkedNameMatch) return linkedNameMatch.id;
+
+    const unlinkedNameMatch = nameMatches.find((p) => p.floatExternalId == null);
+    if (unlinkedNameMatch && !byExt) return unlinkedNameMatch.id;
+
+    if (byExt && nameMatches.length === 0) {
+      return byExt.id;
+    }
+
+    if (byExt && unlinkedNameMatch) {
+      return byExt.id;
+    }
+
     for (const p of projectsForResolution) {
       if (normalizeProjectNameForLookup(p.name) !== norm) continue;
       if (p.floatExternalId != null && p.floatExternalId !== fid) continue;
@@ -105,6 +125,37 @@ export function resolveProjectIdForMergedFloatEntry(
     return undefined;
   }
   return projectsByName.get(entry.projectName.toLowerCase());
+}
+
+/**
+ * Workbench project ids that should receive Float sync data for a merged row.
+ * Includes the primary resolved project plus unlinked siblings that share the same normalized
+ * name (duplicate Workbench projects created before `floatExternalId` linking). Without mirroring,
+ * hours land only on the linked project while `projectsByName` may point orphan cleanup at the
+ * duplicate, wiping backfilled rows.
+ */
+export function resolveFloatImportTargetProjectIds(
+  entry: MergedFloatEntry,
+  projectsByName: Map<string, string>,
+  projectsForResolution?: Array<{ id: string; name: string; floatExternalId: string | null }>
+): string[] {
+  const primary = resolveProjectIdForMergedFloatEntry(
+    entry,
+    projectsByName,
+    projectsForResolution
+  );
+  if (!primary) return [];
+  if (!projectsForResolution?.length) return [primary];
+
+  const norm = normalizeProjectNameForLookup(entry.projectName);
+  const siblings = projectsForResolution.filter(
+    (p) =>
+      p.id !== primary &&
+      p.floatExternalId == null &&
+      normalizeProjectNameForLookup(p.name) === norm
+  );
+  if (siblings.length === 0) return [primary];
+  return [primary, ...siblings.map((p) => p.id)];
 }
 
 /**
@@ -187,15 +238,15 @@ export async function applyFloatImportDatabaseEffects(
 
   const pairList: Array<{ projectId: string; personId: string }> = [];
   for (const entry of mergedFloatByProjectPerson.values()) {
-    const projectId = resolveProjectIdForMergedFloatEntry(
+    const personId = personByName.get(entry.personName.toLowerCase());
+    if (!personId) continue;
+    for (const projectId of resolveFloatImportTargetProjectIds(
       entry,
       projectsByName,
       projectsForResolution
-    );
-    if (!projectId) continue;
-    const personId = personByName.get(entry.personName.toLowerCase());
-    if (!personId) continue;
-    pairList.push({ projectId, personId });
+    )) {
+      pairList.push({ projectId, personId });
+    }
   }
   const pairDedup = [
     ...new Map(pairList.map((p) => [`${p.projectId}|${p.personId}`, p] as const)).values(),
@@ -254,14 +305,15 @@ export async function applyFloatImportDatabaseEffects(
   >();
 
   for (const entry of mergedFloatByProjectPerson.values()) {
-    const projectId = resolveProjectIdForMergedFloatEntry(
+    const personId = personByName.get(entry.personName.toLowerCase());
+    if (!personId) continue;
+    const targetProjectIds = resolveFloatImportTargetProjectIds(
       entry,
       projectsByName,
       projectsForResolution
     );
-    if (!projectId) continue;
-    const personId = personByName.get(entry.personName.toLowerCase());
-    if (!personId) continue;
+    if (targetProjectIds.length === 0) continue;
+    const projectId = targetProjectIds[0]!;
     const pairKey = `${projectId}|${personId}`;
     const existing = existingAssignmentByPair.get(pairKey);
     let roleId: string | undefined;
@@ -278,7 +330,13 @@ export async function applyFloatImportDatabaseEffects(
       });
     }
     if (!roleId) continue;
-    assignmentUpdates.set(`${projectId}:${personId}`, { projectId, personId, roleId });
+    for (const targetProjectId of targetProjectIds) {
+      assignmentUpdates.set(`${targetProjectId}:${personId}`, {
+        projectId: targetProjectId,
+        personId,
+        roleId,
+      });
+    }
   }
 
   const assignmentRows = Array.from(assignmentUpdates.values());
@@ -341,22 +399,24 @@ export async function applyFloatImportDatabaseEffects(
   >();
 
   for (const entry of mergedFloatByProjectPerson.values()) {
-    const projectId = resolveProjectIdForMergedFloatEntry(
+    const personId = personByName.get(entry.personName.toLowerCase());
+    if (!personId) continue;
+    const targetProjectIds = resolveFloatImportTargetProjectIds(
       entry,
       projectsByName,
       projectsForResolution
     );
-    if (!projectId) continue;
-    const personId = personByName.get(entry.personName.toLowerCase());
-    if (!personId) continue;
-    for (const [weekStart, hours] of entry.weekMap) {
-      const weekStartDate = new Date(`${weekStart}T00:00:00.000Z`);
-      const aggKey = `${projectId}|${personId}|${weekStart}`;
-      const prev = floatHoursAgg.get(aggKey);
-      if (prev) {
-        prev.hours += hours;
-      } else {
-        floatHoursAgg.set(aggKey, { projectId, personId, weekStartDate, hours });
+    if (targetProjectIds.length === 0) continue;
+    for (const projectId of targetProjectIds) {
+      for (const [weekStart, hours] of entry.weekMap) {
+        const weekStartDate = new Date(`${weekStart}T00:00:00.000Z`);
+        const aggKey = `${projectId}|${personId}|${weekStart}`;
+        const prev = floatHoursAgg.get(aggKey);
+        if (prev) {
+          prev.hours += hours;
+        } else {
+          floatHoursAgg.set(aggKey, { projectId, personId, weekStartDate, hours });
+        }
       }
     }
   }
@@ -367,31 +427,24 @@ export async function applyFloatImportDatabaseEffects(
     (r) => !isCompletedWeek(r.weekStartDate, asOf)
   );
 
-  const projectIdsInImport = Array.from(projectNamesSet)
-    .map((name) => projectsByName.get(name.toLowerCase()))
-    .filter((id): id is string => Boolean(id));
-
+  const projectIdsInImportSet = new Set<string>();
   const touchedProjectIds = new Set<string>();
-  for (const id of projectIdsInImport) touchedProjectIds.add(id);
-  for (const entry of mergedFloatByProjectPerson.values()) {
-    const pid = resolveProjectIdForMergedFloatEntry(
-      entry,
-      projectsByName,
-      projectsForResolution
-    );
-    if (pid) touchedProjectIds.add(pid);
-  }
-
   const inImportSet = new Set<string>();
+
   for (const entry of mergedFloatByProjectPerson.values()) {
-    const projectId = resolveProjectIdForMergedFloatEntry(
+    const personId = personByName.get(entry.personName.toLowerCase());
+    const targetProjectIds = resolveFloatImportTargetProjectIds(
       entry,
       projectsByName,
       projectsForResolution
     );
-    const personId = personByName.get(entry.personName.toLowerCase());
-    if (projectId && personId) inImportSet.add(`${projectId}|${personId}`);
+    for (const projectId of targetProjectIds) {
+      projectIdsInImportSet.add(projectId);
+      touchedProjectIds.add(projectId);
+      if (personId) inImportSet.add(`${projectId}|${personId}`);
+    }
   }
+  const projectIdsInImport = Array.from(projectIdsInImportSet);
 
   const pairsWithFutureWrites = new Set<string>();
   for (const r of floatHoursRowsToWrite) {

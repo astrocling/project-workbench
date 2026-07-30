@@ -38,7 +38,9 @@ export function StatusReportPreview({
     setError(null);
     setData(null);
 
-    fetch(`/api/projects/${projectSlug}/status-reports/${reportId}/pdf/data`)
+    fetch(`/api/projects/${projectSlug}/status-reports/${reportId}/pdf/data?_=${dataRefreshKey}`, {
+      cache: "no-store",
+    })
       .then((res) => {
         if (!res.ok) throw new Error(res.status === 404 ? "Report not found" : "Failed to load");
         return res.json();

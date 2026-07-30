@@ -6,13 +6,19 @@ import { prisma } from "@/lib/prisma";
 import {
   batchUpsertFloatScheduledHours,
   floatScheduledHourRowsFromMergedLists,
+  iterateFloatImportRunsAsc,
 } from "@/lib/backfillFloatFromImports";
-import { getProjectDataFromAllImports } from "@/lib/floatImportUtils";
+import {
+  createProjectImportMergeState,
+  finalizeProjectImportMerge,
+  mergeProjectDataFromRun,
+} from "@/lib/floatImportUtils";
 import {
   buildWorkbenchRoleLookup,
   resolveRoleIdForNewAssignmentFromFloat,
 } from "@/lib/float/roleWorkbenchMatch";
 import { slugify, ensureUniqueSlug } from "@/lib/slug";
+import { linkProjectFloatExternalId } from "@/lib/float/linkProjectFloatExternalId";
 import { z } from "zod";
 
 const createSchema = z.object({
@@ -91,6 +97,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  try {
   const body = await req.json();
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) {
@@ -125,6 +132,11 @@ export async function POST(req: NextRequest) {
   });
   revalidateTag("projects-list", "max");
 
+  const nameToLookup = (floatProjectName ?? name)?.trim();
+  if (nameToLookup) {
+    await linkProjectFloatExternalId(prisma, project.id, nameToLookup);
+  }
+
   // Backfill assignments and float hours from all Float import runs when the new
   // project name matches a project in any import (so resourcing data is available immediately).
   let backfillStats: {
@@ -135,21 +147,12 @@ export async function POST(req: NextRequest) {
     totalWeekEntries?: number;
     floatHoursNote?: string;
   } = { matched: false, assignmentsCreated: 0, floatHoursCreated: 0 };
-  const nameToLookup = (floatProjectName ?? name)?.trim();
   if (nameToLookup) {
-    const allRuns = await prisma.floatImportRun.findMany({
-      orderBy: { completedAt: "asc" },
-      select: {
-        completedAt: true,
-        projectNames: true,
-        projectAssignments: true,
-        projectFloatHours: true,
-      },
-    });
-    const { assignmentsList, floatList } = getProjectDataFromAllImports(
-      allRuns,
-      nameToLookup
-    );
+    const mergeState = createProjectImportMergeState();
+    for await (const run of iterateFloatImportRunsAsc(prisma)) {
+      mergeProjectDataFromRun(mergeState, run, nameToLookup);
+    }
+    const { assignmentsList, floatList } = finalizeProjectImportMerge(mergeState);
 
     backfillStats.floatListLength = floatList.length;
     backfillStats.totalWeekEntries = floatList.reduce(
@@ -265,4 +268,9 @@ export async function POST(req: NextRequest) {
   const response = Object.assign({}, data, { backfillFromImport: backfillStats });
   revalidateTag("projects-list", "max");
   return NextResponse.json(response);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[POST /api/projects]", err);
+    return NextResponse.json({ error: "Failed to create project", detail: message }, { status: 500 });
+  }
 }

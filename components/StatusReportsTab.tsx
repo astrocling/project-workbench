@@ -23,6 +23,7 @@ import {
   type StoryPointsRow,
   MODULAR_DEFAULT_PANELS,
 } from "@/lib/reportPanels";
+import { formatMonthDay } from "@/lib/formatIsoDate";
 
 type RagValue = "Red" | "Amber" | "Green";
 
@@ -154,15 +155,6 @@ type CdaMilestone = {
   deployDate: string;
   completed: boolean;
 };
-
-/** Format ISO date string as MM/DD for display. */
-function formatMonthDay(isoDate: string): string {
-  const d = new Date(isoDate);
-  if (Number.isNaN(d.getTime())) return "—";
-  const m = d.getMonth() + 1;
-  const day = d.getDate();
-  return `${String(m).padStart(2, "0")}/${String(day).padStart(2, "0")}`;
-}
 
 /** Status report list row date for Slack modal preview (e.g. May 7, 2026). */
 function formatReportDateForSlackPreview(isoDate: string): string {
@@ -384,6 +376,10 @@ export function StatusReportsTab({
   const [refreshTimelineLoading, setRefreshTimelineLoading] = useState(false);
   const [refreshTimelineModalError, setRefreshTimelineModalError] = useState<string | null>(null);
   const [timelineRefreshSuccess, setTimelineRefreshSuccess] = useState<string | null>(null);
+  const [showRefreshCdaMilestonesModal, setShowRefreshCdaMilestonesModal] = useState(false);
+  const [refreshCdaMilestonesLoading, setRefreshCdaMilestonesLoading] = useState(false);
+  const [refreshCdaMilestonesModalError, setRefreshCdaMilestonesModalError] = useState<string | null>(null);
+  const [cdaMilestonesRefreshSuccess, setCdaMilestonesRefreshSuccess] = useState<string | null>(null);
   const [copiedReportId, setCopiedReportId] = useState<string | null>(null);
   const [slackModalOpen, setSlackModalOpen] = useState(false);
   const [slackNote, setSlackNote] = useState("");
@@ -699,6 +695,32 @@ export function StatusReportsTab({
       setTimeout(() => setTimelineRefreshSuccess(null), 4000);
     } finally {
       setRefreshTimelineLoading(false);
+    }
+  }, [editingReportId, projectId, previewReportId, loadReports]);
+
+  const confirmRefreshCdaMilestones = useCallback(async () => {
+    if (!editingReportId) return;
+    setRefreshCdaMilestonesLoading(true);
+    setRefreshCdaMilestonesModalError(null);
+    try {
+      const res = await fetch(
+        `/api/projects/${projectId}/status-reports/${editingReportId}/refresh-cda-milestones`,
+        { method: "POST" }
+      );
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setRefreshCdaMilestonesModalError(data.error ?? "Refresh failed");
+        return;
+      }
+      setShowRefreshCdaMilestonesModal(false);
+      setCdaMilestonesRefreshSuccess(
+        "Milestones on this report were updated to match the CDA tab."
+      );
+      setPreviewDataKey((k) => k + 1);
+      loadReports();
+      setTimeout(() => setCdaMilestonesRefreshSuccess(null), 4000);
+    } finally {
+      setRefreshCdaMilestonesLoading(false);
     }
   }, [editingReportId, projectId, previewReportId, loadReports]);
 
@@ -1739,7 +1761,29 @@ export function StatusReportsTab({
                   </p>
                   <p className="mt-1 text-body-sm text-surface-500 dark:text-surface-400">
                     Only first six incomplete milestones appear on status report.
+                    {editingReportId
+                      ? " Saved reports keep milestone dates from when the report was created unless you refresh them."
+                      : null}
                   </p>
+                  {editingReportId && canEdit && (
+                    <div className="mt-3 space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRefreshCdaMilestonesModalError(null);
+                          setShowRefreshCdaMilestonesModal(true);
+                        }}
+                        className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-800 dark:text-surface-100 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                      >
+                        Refresh milestones on report
+                      </button>
+                      {cdaMilestonesRefreshSuccess && (
+                        <p className="text-body-sm text-emerald-700 dark:text-emerald-400" role="status">
+                          {cdaMilestonesRefreshSuccess}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex-1 overflow-auto">
                   {cdaMilestones.length === 0 ? (
@@ -2120,6 +2164,47 @@ export function StatusReportsTab({
                 className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-jred-600 hover:bg-jred-700 text-white font-semibold text-body-sm disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-jred-500 focus:ring-offset-1"
               >
                 {refreshTimelineLoading ? "Refreshing…" : "Refresh timeline"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showRefreshCdaMilestonesModal && editingReportId && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="refresh-cda-milestones-modal-title"
+        >
+          <div className="max-w-md w-full rounded-lg border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface shadow-lg p-6 space-y-4">
+            <h3
+              id="refresh-cda-milestones-modal-title"
+              className="text-title-md font-semibold text-surface-800 dark:text-surface-100"
+            >
+              Replace milestones on this report?
+            </h3>
+            <p className="text-body-sm text-surface-600 dark:text-surface-300">
+              This will replace the milestone dates stored on this status report with the current milestones from the CDA tab. CDA budget rows and other locked snapshot data are not affected.
+            </p>
+            {refreshCdaMilestonesModalError && (
+              <p className="text-body-sm text-jred-600 dark:text-jred-400">{refreshCdaMilestonesModalError}</p>
+            )}
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowRefreshCdaMilestonesModal(false)}
+                disabled={refreshCdaMilestonesLoading}
+                className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmRefreshCdaMilestones}
+                disabled={refreshCdaMilestonesLoading}
+                className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-jred-600 hover:bg-jred-700 text-white font-semibold text-body-sm disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-jred-500 focus:ring-offset-1"
+              >
+                {refreshCdaMilestonesLoading ? "Refreshing…" : "Refresh milestones"}
               </button>
             </div>
           </div>

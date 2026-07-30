@@ -3,10 +3,40 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { getProjectId } from "@/lib/slug";
+import { floatClientFromEnv } from "@/lib/float/client";
 import {
-  backfillFloatScheduledHoursForProjectFromRuns,
-  loadFloatImportRunsForBackfill,
+  backfillFloatScheduledHoursForProjectStreaming,
+  loadAvailableFloatProjectNamesWithHoursFromRuns,
+  suggestCloseFloatProjectNames,
 } from "@/lib/backfillFloatFromImports";
+import { normalizeProjectNameForLookup } from "@/lib/floatImportUtils";
+
+function buildNoFloatDataDetail(diagnostics: {
+  lookupName: string;
+  importRunCount: number;
+  runsWithNameMatch: number;
+  runsWithFloatHours: number;
+  runsWithAssignmentsOnly: number;
+  lastMatchedKey: string | null;
+}, suggestedNames: string[]): string {
+  if (diagnostics.importRunCount === 0) {
+    return "No Float sync has been run yet. Run Float sync in Admin first, then try again.";
+  }
+  if (diagnostics.runsWithNameMatch === 0) {
+    const hint =
+      suggestedNames.length > 0
+        ? ` Similar names in sync history (verify these are the same project, not a sibling): ${suggestedNames.join("; ")}.`
+        : "";
+    return `No sync run matched the Workbench name "${diagnostics.lookupName}". The name must match Float exactly (Settings → Details). If this is a new Float project, sync history may not have hours yet — use Admin → Float sync instead.${hint}`;
+  }
+  if (diagnostics.runsWithFloatHours === 0 && diagnostics.runsWithAssignmentsOnly > 0) {
+    return `Found "${diagnostics.lookupName}" in ${diagnostics.runsWithNameMatch} sync run(s) with people assigned, but none stored scheduled hours (often 0h tasks in Float). Run Float sync in Admin to pull current hours from Float.`;
+  }
+  if (diagnostics.lastMatchedKey && diagnostics.lastMatchedKey !== diagnostics.lookupName) {
+    return `Matched Float key "${diagnostics.lastMatchedKey}" but no hour rows were merged. Run Float sync in Admin, then try again.`;
+  }
+  return `No float hours for "${diagnostics.lookupName}" in ${diagnostics.importRunCount} sync run(s). Run Float sync in Admin if hours exist in Float now.`;
+}
 
 /**
  * Backfill FloatScheduledHours for an existing project from all float imports.
@@ -27,46 +57,86 @@ export async function POST(
   const { id: idOrSlug } = await params;
   const id = await getProjectId(idOrSlug);
   if (!id) return NextResponse.json({ error: "Project not found" }, { status: 404 });
-  const project = await prisma.project.findUnique({ where: { id } });
+  const project = await prisma.project.findUnique({
+    where: { id },
+    select: { name: true, floatExternalId: true },
+  });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
-  const allRuns = await loadFloatImportRunsForBackfill(prisma);
-  const availableInImport = Array.from(
-    new Set(
-      allRuns.flatMap((run) => {
-        const hours = run.projectFloatHours as Record<string, unknown[]> | undefined;
-        return hours ? Object.keys(hours) : [];
-      })
-    )
-  );
-
-  const { upserted, hadImportData } = await backfillFloatScheduledHoursForProjectFromRuns(
-    prisma,
-    {
+  try {
+    let lookupName = project.name;
+    let result = await backfillFloatScheduledHoursForProjectStreaming(prisma, {
       projectId: id,
-      projectName: project.name,
-      runs: allRuns,
+      projectName: lookupName,
+    });
+
+    if (!result.hadImportData && project.floatExternalId) {
+      try {
+        const client = floatClientFromEnv();
+        const floatProjects = await client.listAllPages<{ project_id: number; name: string }>(
+          "/v3/projects"
+        );
+        const floatProject = floatProjects.find(
+          (p) => String(p.project_id) === project.floatExternalId
+        );
+        const floatName = floatProject?.name?.trim();
+        if (
+          floatName &&
+          normalizeProjectNameForLookup(floatName) !==
+            normalizeProjectNameForLookup(lookupName)
+        ) {
+          lookupName = floatName;
+          result = await backfillFloatScheduledHoursForProjectStreaming(prisma, {
+            projectId: id,
+            projectName: lookupName,
+          });
+        }
+      } catch {
+        // Float API unavailable; continue with Workbench name only
+      }
     }
-  );
 
-  if (!hadImportData) {
-    return NextResponse.json(
-      {
-        error: "No float data found",
-        detail:
-          allRuns.length > 0
-            ? `No float data for "${project.name}" in any sync. Check that the project name matches (including spaces). Run Float sync again if needed.`
-            : "No Float sync has been run yet. Run Float sync in Admin first, then try again.",
-        projectName: project.name,
-        availableInImport: availableInImport.length > 0 ? availableInImport : undefined,
-      },
-      { status: 404 }
-    );
+    if (!result.hadImportData) {
+      const availableWithHours = await loadAvailableFloatProjectNamesWithHoursFromRuns(prisma);
+      const suggestedNames = suggestCloseFloatProjectNames(
+        project.name,
+        availableWithHours
+      );
+      const existingHourRows = await prisma.floatScheduledHours.count({
+        where: { projectId: id },
+      });
+      let detail = buildNoFloatDataDetail(result.diagnostics, suggestedNames);
+      if (existingHourRows > 0) {
+        detail += ` This project already has ${existingHourRows} float hour row(s) in the database — those were likely written by Admin Float sync (not this backfill request).`;
+      }
+      return NextResponse.json(
+        {
+          error: "No float data found",
+          detail,
+          projectName: project.name,
+          lookupName,
+          diagnostics: result.diagnostics,
+          existingHourRows,
+          suggestedNames: suggestedNames.length > 0 ? suggestedNames : undefined,
+          availableWithHours:
+            availableWithHours.length > 0 ? availableWithHours.slice(0, 20) : undefined,
+        },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      message:
+        lookupName !== project.name
+          ? `Backfilled ${result.upserted} float hour entries using Float name "${lookupName}" (Workbench name is "${project.name}").`
+          : `Backfilled ${result.upserted} float hour entries for ${lookupName}`,
+      count: result.upserted,
+      floatNameUsed: lookupName !== project.name ? lookupName : undefined,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[POST /api/projects/[id]/backfill-float]", err);
+    return NextResponse.json({ error: "Backfill failed", detail: message }, { status: 500 });
   }
-
-  return NextResponse.json({
-    ok: true,
-    message: `Backfilled ${upserted} float hour entries for ${project.name}`,
-    count: upserted,
-  });
 }

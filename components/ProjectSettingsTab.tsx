@@ -277,12 +277,26 @@ export function ProjectSettingsTab({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const detail = data.detail ?? data.error ?? "Backfill failed";
-        const available = data.availableInImport as string[] | undefined;
-        const msg = Array.isArray(available) && available.length > 0
-          ? `${detail}\n\nNames in last import: ${available.join(", ")}`
-          : detail;
+        const suggested = data.suggestedNames as string[] | undefined;
+        const existingHourRows = data.existingHourRows as number | undefined;
+        const diagnostics = data.diagnostics as
+          | { runsWithNameMatch?: number; runsWithAssignmentsOnly?: number }
+          | undefined;
+        let msg = detail;
+        if (typeof existingHourRows === "number" && existingHourRows > 0) {
+          msg += `\n\n(${existingHourRows} float hour rows already exist for this project.)`;
+        }
+        if (Array.isArray(suggested) && suggested.length > 0) {
+          msg += `\n\nSuggested Float names with hours: ${suggested.join("; ")}`;
+        }
+        if (diagnostics && typeof diagnostics.runsWithNameMatch === "number") {
+          msg += `\n\n(sync runs scanned: name matched in ${diagnostics.runsWithNameMatch}, assignments-only in ${diagnostics.runsWithAssignmentsOnly ?? 0})`;
+        }
         alert(msg);
         return;
+      }
+      if (data.message) {
+        alert(data.message);
       }
       router.refresh();
     } finally {

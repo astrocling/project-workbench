@@ -11,7 +11,7 @@ export function normalizeProjectNameForLookup(name: string): string {
   return name
     .trim()
     .toLowerCase()
-    .replace(/[\s\-_–—]+/g, " ")
+    .replace(/[\s\-_–—/]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -22,6 +22,73 @@ type FloatHourItem = {
   roleName: string;
   weeks: Array<{ weekStart: string; hours: number }>;
 };
+
+export type ProjectImportMergeState = {
+  assignmentsByPerson: Map<string, AssignmentItem>;
+  hoursByPerson: Map<string, { personName: string; weekMap: Map<string, number> }>;
+  matchedKey: string | null;
+};
+
+export function createProjectImportMergeState(): ProjectImportMergeState {
+  return {
+    assignmentsByPerson: new Map(),
+    hoursByPerson: new Map(),
+    matchedKey: null,
+  };
+}
+
+/** Merge one import run into accumulated state (same rules as getProjectDataFromAllImports). */
+export function mergeProjectDataFromRun(
+  state: ProjectImportMergeState,
+  run: FloatImportRunWithDate,
+  projectName: string
+): void {
+  if (!projectName?.trim()) return;
+
+  const { assignmentsList, floatList, matchedKey: key } = getProjectDataFromImport(
+    run,
+    projectName
+  );
+  if (key) state.matchedKey = key;
+
+  for (const a of assignmentsList) {
+    const k = a.personName.trim().toLowerCase();
+    state.assignmentsByPerson.set(k, { personName: a.personName, roleName: a.roleName });
+  }
+
+  for (const item of floatList) {
+    const personName = item.personName;
+    const personKey = personName.trim().toLowerCase();
+    if (!state.hoursByPerson.has(personKey)) {
+      state.hoursByPerson.set(personKey, { personName, weekMap: new Map() });
+    }
+    const entry = state.hoursByPerson.get(personKey)!;
+    entry.personName = personName;
+    for (const w of item.weeks ?? []) {
+      if (w.weekStart != null && w.hours != null) {
+        entry.weekMap.set(w.weekStart, w.hours);
+      }
+    }
+  }
+}
+
+export function finalizeProjectImportMerge(state: ProjectImportMergeState): {
+  assignmentsList: AssignmentItem[];
+  floatList: FloatHourItem[];
+  matchedKey: string | null;
+} {
+  const assignmentsList = Array.from(state.assignmentsByPerson.values());
+  const floatList: FloatHourItem[] = [];
+  for (const { personName, weekMap } of state.hoursByPerson.values()) {
+    const weeks = Array.from(weekMap.entries())
+      .map(([weekStart, hours]) => ({ weekStart, hours }))
+      .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+    if (weeks.length > 0) {
+      floatList.push({ personName, roleName: "", weeks });
+    }
+  }
+  return { assignmentsList, floatList, matchedKey: state.matchedKey };
+}
 
 /** Accepts Prisma FloatImportRun (JSON columns are JsonValue) or similar. */
 type FloatImportRunLike = {
@@ -103,57 +170,15 @@ export function getProjectDataFromAllImports(
   floatList: FloatHourItem[];
   matchedKey: string | null;
 } {
-  const assignmentsByPerson = new Map<string, AssignmentItem>(); // key: personName lowercase
-  const hoursByPerson = new Map<
-    string,
-    { personName: string; weekMap: Map<string, number> }
-  >(); // personKey -> { personName (last seen), weekMap }
-  let matchedKey: string | null = null;
-
   if (!projectName?.trim() || runs.length === 0) {
     return { assignmentsList: [], floatList: [], matchedKey: null };
   }
 
+  const state = createProjectImportMergeState();
   for (const run of runs) {
-    const { assignmentsList, floatList, matchedKey: key } = getProjectDataFromImport(
-      run,
-      projectName
-    );
-    if (key) matchedKey = key;
-
-    for (const a of assignmentsList) {
-      const k = a.personName.trim().toLowerCase();
-      assignmentsByPerson.set(k, { personName: a.personName, roleName: a.roleName });
-    }
-
-    for (const item of floatList) {
-      const personName = item.personName;
-      const personKey = personName.trim().toLowerCase();
-      if (!hoursByPerson.has(personKey)) {
-        hoursByPerson.set(personKey, { personName, weekMap: new Map() });
-      }
-      const entry = hoursByPerson.get(personKey)!;
-      entry.personName = personName;
-      for (const w of item.weeks ?? []) {
-        if (w.weekStart != null && w.hours != null) {
-          entry.weekMap.set(w.weekStart, w.hours);
-        }
-      }
-    }
+    mergeProjectDataFromRun(state, run, projectName);
   }
-
-  const assignmentsList = Array.from(assignmentsByPerson.values());
-  const floatList: FloatHourItem[] = [];
-  for (const { personName, weekMap } of hoursByPerson.values()) {
-    const weeks = Array.from(weekMap.entries())
-      .map(([weekStart, hours]) => ({ weekStart, hours }))
-      .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
-    if (weeks.length > 0) {
-      floatList.push({ personName, roleName: "", weeks });
-    }
-  }
-
-  return { assignmentsList, floatList, matchedKey };
+  return finalizeProjectImportMerge(state);
 }
 
 /**

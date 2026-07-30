@@ -22,6 +22,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Technical Reference** — *Split-week actual hours* and the `actual-hours` API row note the added **`project-detail`** revalidation; *API overview* status-reports row notes the client stale gate now refreshes via `ProjectDetailTabs` budget state.
 - **User Guide** — *Status Reports tab* / *Status Reports* summary note that updating actuals in Resourcing clears the stale block immediately (no cache wait).
 
+## [1.2.4] - 2026-06-09
+
+Patch release: **Sync plan from Float** — production **500** / `FUNCTION_INVOCATION_FAILED` when Float import history is large. **Deploy:** no new migrations; redeploy Vercel only.
+
+### Fixed
+
+- **Sync plan from Float — OOM / 500 on production** — `POST /api/projects/[id]/sync-plan-from-float` loaded every `FloatImportRun` JSON blob into memory and upserted `PlannedHours` one row at a time, exhausting the 2GB Vercel function limit (~29s then crash). Logic moved to **`lib/syncPlanFromFloat.ts`**: stream import runs via **`iterateFloatImportRunsAsc`** (same pattern as backfill), batch SQL upserts (500 rows/chunk), single person lookup pass, **`maxDuration` 120s**, and structured error responses. Route: `app/api/projects/[id]/sync-plan-from-float/route.ts`.
+
+### Documentation
+
+- **User Guide** — troubleshooting row for **Sync plan from Float** failures.
+- **Technical Reference** — `sync-plan-from-float` API row and *Float sync behavior* notes for **`syncPlannedHoursFromFloat`**.
+
+## [1.2.3] - 2026-06-08
+
+Patch release: **Float sync** — follow-up fixes when production still showed empty **Float Actuals** after **v1.2.2**. **Deploy:** no new migrations; redeploy, run **Admin → Float sync** (not Trigger.dev alone if you need the Resourcing cache cleared), hard-refresh the project page.
+
+### Fixed
+
+- **Float sync — project resolution for duplicates and renamed projects** — **`normalizeProjectNameForLookup`** now treats **`/`** like other punctuation (so `OHS/SPCS` matches `OHS-SPCS`). **`resolveProjectIdForMergedFloatEntry`** prefers the Workbench project whose **`floatExternalId`** matches the Float task when duplicate same-name rows exist (array order no longer picks the unlinked copy), trusts the linked project when Workbench was renamed but Float still uses the canonical name, and continues to reject cross-routing when Float **`project_id`** and display name disagree. Tests: **`__tests__/lib/resolveProjectIdForMergedFloatEntry.test.ts`**.
+
+## [1.2.2] - 2026-06-08
+
+Patch release: **Float sync** — duplicate Workbench projects with the same name no longer show an empty **Float Actuals** grid after sync or backfill. **Deploy:** no new migrations; redeploy as usual, then run **Admin → Float sync** once so mirrored hours and assignments are written to all affected projects.
+
+### Fixed
+
+- **Float sync — empty Float Actuals on duplicate project names** — When two or more Workbench projects shared the same normalized name (for example an older project created before **`floatExternalId`** linking and a newer linked copy), Admin Float sync wrote **`FloatScheduledHours`** and **`ProjectAssignment`** rows only to the project whose **`floatExternalId`** matched Float, while **`projectIdsInImport`** for orphan cleanup was derived from a **`projectsByName`** map that keeps only one id per lowercase name. Users opening the unlinked duplicate saw an empty **Float** grid even though sync succeeded; **Backfill** could briefly populate that project, then the next sync’s orphan cleanup removed rows that had no assignments on the duplicate. **`resolveFloatImportTargetProjectIds`** (`lib/floatImportApply.ts`) now mirrors sync data to the primary linked project **plus** same-name siblings with **`floatExternalId` null**, and **`projectIdsInImport`** is built from those resolved target ids only. Tests: **`__tests__/lib/resolveProjectIdForMergedFloatEntry.test.ts`**.
+
+### Documentation
+
+- **User Guide** — *Float sync* → **Duplicate Workbench project names**; troubleshooting row for empty Float grid after sync.
+- **Technical Reference** — *Float sync behavior* → **`resolveFloatImportTargetProjectIds`**, **`projectIdsInImport`** resolution, duplicate-name mirroring vs duplicate Float project names.
+- **README** — Float sync paragraph notes duplicate-name mirroring; documentation index references **v1.2.2**.
+
+## [1.2.1] - 2026-05-28
+
+Patch release: **CDA status reports** — refresh milestone dates on saved reports; preview loads fresh PDF data after refresh; milestone dates display without timezone day-shift. **Deploy:** no new migrations; redeploy as usual.
+
+### Fixed
+
+- **Status reports — CDA milestone dates stale on saved reports** — CDA variation reports snapshot **milestone** dates (phase, dev/UAT/deploy) when the report is **created**. Editing or recreating milestones on the **CDA** tab after that did not update older reports, so the slide could show outdated dates (for example May Sprint with old dev/UAT/deploy ranges). Editors can now **Refresh milestones on report** while **editing** a CDA report (Status Reports tab → Milestones summary), mirroring **Refresh timeline** for Standard/Milestones. API: **`POST /api/projects/[id]/status-reports/[reportId]/refresh-cda-milestones`** merges current **`CdaMilestone`** rows into the report snapshot’s **`cda.milestones`** only; CDA budget rows and other snapshot fields are unchanged. Implementation: `lib/statusReportPdfData.ts` (`buildCdaMilestonesFromProject`), `components/StatusReportsTab.tsx`.
+
+- **Status reports — preview still showed old milestone dates after refresh** — The preview modal fetches **`GET .../status-reports/[reportId]/pdf/data`**, which used a 60-second Next.js **`unstable_cache`** layer that did not always invalidate immediately after milestone refresh. That route now calls **`buildStatusReportPdfData`** directly with **`Cache-Control: no-store`**; **`StatusReportPreview`** uses **`cache: "no-store"`** and bumps **`dataRefreshKey`** on every successful milestone refresh so the modal refetches.
+
+- **CDA milestone date display — timezone day-shift** — Milestone tables on the CDA tab and status report slides formatted **`YYYY-MM-DD`** strings with **`new Date(iso)`** + local **`getDate()`**, which could show the **previous calendar day** in US timezones. Shared **`formatMonthDay`** (and Thu/Fri deploy helpers) in **`lib/formatIsoDate.ts`** parse date-only strings as calendar dates; used in **`CDATab`**, **`StatusReportsTab`**, **`StatusReportView`**, and **`StatusReportDocument`**.
+
+### Documentation
+
+- **User Guide** — *CDA tab* → **Milestones** sub-tab and snapshot behavior; *Status Reports tab* → **Refresh milestones (CDA)**; snapshot section notes locked CDA milestones; project tabs table mentions CDA milestone refresh.
+- **Technical Reference** — **`POST refresh-cda-milestones`**; snapshot/`buildCdaMilestonesFromProject`; preview **`pdf/data`** no-cache path; **`lib/formatIsoDate.ts`**.
+- **README** — production release tag example **v1.2.1**; documentation index mentions CDA milestone refresh.
+- **`.cursor/rules/status-report.mdc`** — CDA milestone snapshot refresh API and preview data path.
+
 ## [1.2.0] - 2026-05-27
 
 Minor release: **Modular** status reports (panels JSON + migrations), **Standard** optional budget block, compact timeline styling, **Admin → People** restore + job title on add, assignment **remove** confirmation with planned-hours cleanup, missing-actuals nudges scoped to **visible** assignees, overview/status-reports tab links + legacy redirect. **Deploy:** run migrations (`20260527135733_add_sprint_variation_and_panels`, `20260527150000_rename_sprint_to_modular`); Vercel build applies them via `prisma migrate deploy`. Redeploy Trigger.dev worker if you use missing-actuals schedules.

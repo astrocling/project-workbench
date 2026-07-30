@@ -59,14 +59,17 @@ export async function POST(req: NextRequest) {
 
     const uploadedByUserId = (session.user as { id?: string }).id ?? null;
 
-    const { run, unknownRoles } = await executeFloatApiSync(prisma, client, {
+    const { run, unknownRoles, touchedProjectIds } = await executeFloatApiSync(prisma, client, {
       startDate: body.startDate,
       endDate: body.endDate,
       uploadedByUserId,
     });
 
-    /** `GET /api/projects/[id]/resourcing` uses `unstable_cache` with tags `project-resourcing` and `project-resourcing:{id}`; one global revalidation invalidates all resourcing caches after sync. */
+    /** `GET /api/projects/[id]/resourcing` uses `unstable_cache` with tags `project-resourcing` and `project-resourcing:{id}`. */
     revalidateTag("project-resourcing", "max");
+    for (const projectId of touchedProjectIds) {
+      revalidateTag(`project-resourcing:${projectId}`, "max");
+    }
 
     return NextResponse.json({
       ok: true,

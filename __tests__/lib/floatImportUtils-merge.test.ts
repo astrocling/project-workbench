@@ -4,8 +4,11 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  createProjectImportMergeState,
+  finalizeProjectImportMerge,
   getProjectDataFromAllImports,
   mergeFloatHoursForProjectsFromRuns,
+  mergeProjectDataFromRun,
   type FloatImportRunWithDate,
 } from "@/lib/floatImportUtils";
 
@@ -75,5 +78,16 @@ describe("mergeFloatHoursForProjectsFromRuns", () => {
     const expected = floatListOnly(getProjectDataFromAllImports(runs, "Project X"));
     expect(merged.get("a")).toEqual(expected);
     expect(merged.get("b")).toEqual(expected);
+  });
+
+  it("incremental merge matches getProjectDataFromAllImports", () => {
+    const runs = [alpha, beta];
+    const state = createProjectImportMergeState();
+    for (const run of runs) {
+      mergeProjectDataFromRun(state, run, "Project X");
+    }
+    expect(finalizeProjectImportMerge(state)).toEqual(
+      getProjectDataFromAllImports(runs, "Project X")
+    );
   });
 });

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { getProjectId } from "@/lib/slug";
-import { getCachedStatusReportPdfData } from "@/lib/statusReportPdfData";
+import { buildStatusReportPdfData } from "@/lib/statusReportPdfData";
 
 export async function GET(
   _req: NextRequest,
@@ -15,8 +15,11 @@ export async function GET(
   const projectId = await getProjectId(idOrSlug);
   if (!projectId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const pdfData = await getCachedStatusReportPdfData(projectId, reportId);
+  // Always build fresh for preview/export data so milestone/timeline refreshes show immediately.
+  const pdfData = await buildStatusReportPdfData(projectId, reportId);
   if (!pdfData) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  return NextResponse.json(pdfData);
+  return NextResponse.json(pdfData, {
+    headers: { "Cache-Control": "no-store" },
+  });
 }

@@ -1,6 +1,6 @@
 # Project Workbench — User Guide
 
-This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.2.0** as a baseline and newer behavior documented in [CHANGELOG.md](../CHANGELOG.md) (including Slack integrations and **Industry groups** taxonomy when your deployment includes them). The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
+This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.2.3** as a baseline and newer behavior documented in [CHANGELOG.md](../CHANGELOG.md) (including Slack integrations and **Industry groups** taxonomy when your deployment includes them). The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
 
 ---
 
@@ -71,8 +71,7 @@ Each project has a detail page with several tabs. The header shows the **as-of d
 | **CDA** | (When enabled in Settings) Monthly planned and actuals for CDA reporting. Month-to-date actuals for each month incorporate **split-week** hours when a week crosses a month boundary (see Resourcing below). Optional **Report hours only** hides budget dollars on the Overall row in status copy and CDA reports—see [CDA tab](#cda-tab). |
 | **Budget** | Budget lines (e.g. SOW, CO, Other) with low/high hours and dollars, and burn to date. |
 | **Timeline** | High-level timeline with month columns and up to four rows of bars and markers. Each bar has a label, start/end dates, row (1–4), and an optional color (Blue, Green, Amber, Teal, Slate, or Violet). On **status report** slides the timeline uses the same week-proportional layout but is **more compact** than the Timeline tab: only rows that contain bars or markers are shown, bar labels truncate when space is tight, and markers use the same Lucide-style icons as the Timeline tab. The same timeline (with colors) appears in status report previews and PDFs. Each saved report stores its **own** copy of the timeline when the report is created; if you change bars or markers later, use **Refresh timeline** while **editing** that report (Standard or Milestones) on the Status Reports tab to update that copy—see [Status Reports tab](#status-reports-tab). |
-| **Status Reports** | Summary table of estimated budget, $ spent, $ remaining, budgeted/actual/remaining hours, with copy-to-clipboard and a % budget used (high est.) circle chart. Create, edit, view, and export status reports. Choose a **variation**: **Standard** (timeline + budget), **Milestones**, **CDA**, or **Modular** (sprint schedule, story points, velocity KPIs)—see [Status Reports tab](#status-reports-tab). **Standard** reports include an optional **Show project budget on report** toggle (default on) to hide the budget table and burn chart on the exported slide. **New** reports cannot be saved while **actuals are stale** (completed weeks with planned hours but missing actuals)—update the Resourcing tab first; the block clears immediately once actuals are filled in. When Slack is configured, **Post to Slack** sends the latest saved report summary to the linked account's Slack channel. Standard and Milestones reports can **refresh the stored timeline** from the project after the Timeline tab changes. |
-| **Settings** | Edit project name, client, dates, status, single rate, notes, SOW/Estimate/Float/Metric links, optional **Slack channel ID** (for missing-actuals Tue/Wed nudges), resourcing thresholds, key roles, and optional CDA tab. Within Settings, sub-sections include **Details** (includes read-only **Industry group** inherited from the linked Float **client account** when `accountId` is set — see Admin → Accounts), **Links**, **Key roles**, **Resourcing** (thresholds), **Rates** (per-role rate card or single bill rate), and **Assignments** (people assigned, their roles, bill-rate overrides, and “hidden from grid” for the Resourcing tab). |
+| **Status Reports** | Summary table of estimated budget, $ spent, $ remaining, budgeted/actual/remaining hours, with copy-to-clipboard and a % budget used (high est.) circle chart. Create, edit, view, and export status reports. Choose a **variation**: **Standard** (timeline + budget), **Milestones**, **CDA**, or **Modular** (sprint schedule, story points, velocity KPIs)—see [Status Reports tab](#status-reports-tab). **Standard** reports include an optional **Show project budget on report** toggle (default on) to hide the budget table and burn chart on the exported slide. **New** reports cannot be saved while **actuals are stale** (completed weeks with planned hours but missing actuals)—update the Resourcing tab first; the block clears immediately once actuals are filled in. When Slack is configured, **Post to Slack** sends the latest saved report summary to the linked account's Slack channel. Standard and Milestones reports can **refresh the stored timeline** from the project after the Timeline tab changes. **CDA** reports can **refresh stored milestone dates** after the CDA tab changes—see [Refresh milestones (CDA)](#refresh-milestones-cda-editors-only). || **Settings** | Edit project name, client, dates, status, single rate, notes, SOW/Estimate/Float/Metric links, optional **Slack channel ID** (for missing-actuals Tue/Wed nudges), resourcing thresholds, key roles, and optional CDA tab. Within Settings, sub-sections include **Details** (includes read-only **Industry group** inherited from the linked Float **client account** when `accountId` is set — see Admin → Accounts), **Links**, **Key roles**, **Resourcing** (thresholds), **Rates** (per-role rate card or single bill rate), and **Assignments** (people assigned, their roles, bill-rate overrides, and “hidden from grid” for the Resourcing tab). |
 
 Only users with edit permission can change data; the **Settings** tab may be read-only for some viewers.
 
@@ -179,6 +178,23 @@ On the CDA tab, under **Copy for status report**, there is a toggle **Report hou
 
 The monthly CDA tables (month-by-month planned and actuals) are unchanged; only the **Overall** summary row’s budget-dollar cells are affected by this toggle.
 
+### Milestones sub-tab
+
+Switch to **Milestones** on the CDA tab to manage sprint-style phases shown on **CDA** status report slides.
+
+| Column | Meaning |
+|--------|---------|
+| **Phase** | Label (e.g. May Sprint). |
+| **DEV START/END** | Development window (optional dates). |
+| **UAT START/END** | User acceptance window (optional dates). |
+| **Deploy** | Target deploy date (optional). Deploy on **Thursday** or **Friday** is highlighted as a reminder. |
+| **Complete** | Mark done when the sprint is finished (completed milestones are deprioritized on the slide). |
+| **On status** | Whether this row will appear on the exported slide (first **six incomplete** milestones, same rule as the PDF). |
+
+Editors can **Add** milestones with the form above the table, toggle **Complete**, or **Delete** rows.
+
+**Status report snapshot:** When you **save a new CDA status report**, Workbench stores a copy of **all milestone dates at that moment** in the report snapshot. Later edits on this tab (new dates, deleted/recreated milestones) do **not** change older reports until you use **Refresh milestones on report** on the Status Reports tab while editing that report—see [Refresh milestones (CDA)](#refresh-milestones-cda-editors-only). **New** reports always pick up the current milestone list when saved.
+
 ---
 
 ## Status Reports tab
@@ -250,13 +266,13 @@ When you click **Save** (new report) or **Update** (while editing), Workbench sa
 
 ### Snapshot (what stays fixed on a saved report)
 
-When you **save a new** status report, Workbench stores a **snapshot** with the reporting period, budget (or CDA) figures, and—for Standard and Milestones variations—the **timeline** (bars and markers) as they were **at that moment**. Preview, the HTML view, and PDF export all read from that snapshot so later changes to resourcing, budget, or the **Timeline** tab do not change older reports.
+When you **save a new** status report, Workbench stores a **snapshot** with the reporting period, budget (or CDA) figures, and—for Standard and Milestones variations—the **timeline** (bars and markers) as they were **at that moment**. For **CDA** variation, the snapshot also includes **milestone** dates from the CDA tab at save time. Preview, the HTML view, and PDF export all read from that snapshot so later changes to resourcing, budget, the **Timeline** tab, or **CDA milestones** do not change older reports unless you refresh (below).
 
 **Modular** reports store sprint/story-point/donut content separately in the report’s **panels** field (not in the budget/timeline snapshot). The snapshot for Modular holds only the reporting **period** and **today** date. Panel data is editable on **Update** and is what preview and PDF use for the bottom section.
 
 - **What you can still edit** on an existing report: narrative fields (completed / upcoming / risks / meeting notes), RAG values and explanations, **variation** where the form allows it, **Show project budget on report** for **Standard** reports (see above), and sprint schedule / story points / donut KPI **panels** for **Modular** reports.
 - **Meeting notes with formatting**: If you paste content that includes **HTML** from another tool, the preview, HTML view, and **Download PDF** keep **allowed** formatting (paragraphs, lists, links, basic styles) and drop unsafe markup automatically. Plain-text notes support line breaks and clickable URLs (paste `https://…` or use `[label](url)`). If client-side PDF generation fails, the preview offers **Download PDF (server)** as a fallback; that path may not preserve HTML formatting in meeting notes.
-- **What stays locked** unless you use **Refresh timeline** (below): **report date**, **reporting period**, **previous months on timeline** (the 1–4 month window chosen at create time), budget/CDA snapshot, and—by default—the **timeline** bars and markers.
+- **What stays locked** unless you use **Refresh timeline** or **Refresh milestones on report** (below): **report date**, **reporting period**, **previous months on timeline** (the 1–4 month window chosen at create time), budget/CDA monthly snapshot, **CDA milestone dates** (on CDA reports), and—by default—the **timeline** bars and markers.
 
 ### Refresh timeline (Standard and Milestones, editors only)
 
@@ -272,6 +288,19 @@ If the project has **no** timeline the app can render (for example **no end date
 Very old reports **without** a stored snapshot cannot use this action; create a new report if you need a current snapshot.
 
 If the **preview** modal is open for that same report when you refresh, the preview **reloads** so you see the updated timeline without closing it.
+
+### Refresh milestones (CDA, editors only)
+
+If you updated **CDA → Milestones** **after** a CDA report was saved, the report slide still shows the **old** milestone dates until you refresh them:
+
+1. Open **Edit report** for that CDA row (pencil).
+2. In the **Status Report Summary** section, under **Milestones**, click **Refresh milestones on report**.
+3. Read the confirmation dialog: it replaces **only** the milestone dates stored on this report with the **current** milestones from the CDA tab. CDA monthly budget rows and other snapshot data are **not** affected; **report date** and narrative/RAG fields are unchanged.
+4. Confirm to apply, then **View** (or reopen preview) to verify the slide matches the CDA tab.
+
+Each saved report must be refreshed individually if several were created before milestone updates. **New** CDA reports always snapshot current milestones at save time.
+
+If the **preview** modal is open when you refresh, it **reloads** automatically.
 
 ### Timeline on status report slides
 
@@ -323,6 +352,7 @@ If the token is missing, the sync action shows an error (API returns **503**).
 ### Matching rules
 
 - **Projects** — Matched by Float project id once stored on the project (`floatExternalId`), or by project **name** (normalized). Use the same names in Workbench as in Float, or run sync after creating a project so the link is stored.
+- **Duplicate Workbench project names** — If you accidentally have **two Workbench projects** with the **same name** (one linked to Float via **`floatExternalId`**, one older copy without a link), Float sync now writes **assignments** and **Float scheduled hours** to **both** so either project’s Resourcing tab shows the **Float** grid. Prefer **one** canonical project per Float project long term: archive or delete the extra copy after confirming data, so you do not maintain duplicate rows. The **Float** grid only shows hours for people who have a **project assignment** on **that** project.
 - **People** — Pulled from Float; Workbench creates or updates `Person` rows (including Float id, **job title** from Float, and **Float region** id + display name when Float or holiday payloads provide them).
 - **Accounts (clients)** — Float **clients** become Workbench **accounts** (**Admin → Accounts**). Sync matches by Float client id when already linked; if Float deletes and re-creates a client under the **same name** (new id), Workbench **rebinds** the existing account so Slack channel, industry group, and project links stay intact. New clients create accounts when the name is free; renamed clients update the account name when safe. If two live Float clients share one name (or a name cannot be claimed without colliding with another linked account), that client is **skipped** with a warning and the rest of sync still runs—check server logs for `[float-sync]` messages.
 - **Roles** — Workbench matches Float scheduling roles and **job titles** to **Admin → Roles** names (with normalization). Unknown Float role labels appear on the sync page under **Last sync** so you can add or alias roles and run sync again. **Assignment role** resolution (when Float is allowed to set the role—see below): prefers the person’s **job title** in **Admin → People** (from Float `job_title`) when it maps to a Workbench role; otherwise uses the role name from Float tasks. If a label still does not map: **existing** assignment rows **keep** their current Workbench role; **new** rows use a stable preferred fallback (typically **Solutions Consultant**, not merely “first alphabetically”) so people are not skipped. You can always set or correct a role under **Settings → Assignments**; saving there tells Workbench **not** to overwrite that assignment’s role on future Float syncs until you turn that behavior back on (see *Assignment roles and Float sync* below).
@@ -474,6 +504,8 @@ Your **My Projects** list (on `/projects`) uses the **Person** link described in
 |-------|-------------|
 | **Invalid email or password** | Ensure the database has been seeded and your user exists. Ask an admin to run the seed or add your account in Admin → Users. |
 | **Project names must match** (Float) | Create projects in Workbench with names that match Float, or run sync so `floatExternalId` is set. Add missing roles in Admin → Roles and sync again if needed. |
+| **Float Actuals empty after sync** | Confirm **Admin → Float sync** completed without error (Trigger.dev alone does not refresh the Resourcing page cache—run Admin sync or wait ~60s and hard-refresh). Check for **duplicate projects with the same name**; as of **v1.2.3**, sync mirrors hours to the linked project and unlinked copies. Run **`npx tsx scripts/debug-backfill-match.ts <projectSlug>`** against production `DATABASE_URL` to see duplicate names, sync target ids, and row counts. **Backfill** alone does not create assignments; sync (or manual assignments) is required for the **Float** grid to show people. |
+| **Sync plan from Float fails (500 or “Sync failed”)** | As of **v1.2.4**, long Float import history no longer crashes the server. If it still fails, read the alert message. Ensure **Admin → Float sync** or **Backfill** has populated **Float** hours and the people appear in **Settings → Assignments** (not hidden from grid). |
 | **Float API not configured** | Set `FLOAT_API_TOKEN` in the server environment. |
 | **Float sync fails with unique constraint on account name** | Fixed in current builds: sync rebinds accounts when Float re-creates a client under the same name. Redeploy if you still see this. If two **live** Float clients share one name, that client is skipped—rename one in Float and sync again. Check server logs for `[float-sync]` warnings. |
 | **Slack is not configured** / health post errors | Admin must set **`SLACK_BOT_TOKEN`** on the server, invite the bot to channels, and configure **Admin → Slack** (resourcing channel), **Settings → Links** (project channel for missing-actuals nudges), and/or **Admin → Accounts** (account channel for status posts and Thursday nudges) as needed. |

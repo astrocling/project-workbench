@@ -13,6 +13,7 @@ import {
   G,
 } from "@react-pdf/renderer";
 import { BRAND_COLORS } from "@/lib/brandColors";
+import { formatMonthDay } from "@/lib/formatIsoDate";
 import { getWeeksInMonthsForRange } from "@/lib/monthUtils";
 import type {
   DonutKpiData,
@@ -1120,15 +1121,6 @@ function TimelineBlock({
       </View>
     </View>
   );
-}
-
-/** Format ISO date string as MM/DD for PDF milestones table. */
-function formatMonthDay(isoDate: string): string {
-  const d = new Date(isoDate);
-  if (Number.isNaN(d.getTime())) return "—";
-  const m = d.getMonth() + 1;
-  const day = d.getDate();
-  return `${String(m).padStart(2, "0")}/${String(day).padStart(2, "0")}`;
 }
 
 /** Max milestones shown in the PDF export table (completed are dropped first). */
