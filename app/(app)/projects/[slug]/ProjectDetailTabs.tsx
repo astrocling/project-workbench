@@ -139,6 +139,8 @@ export function ProjectDetailTabs({
     rollups: Record<string, unknown> | null;
   } | null>(initialBudgetStatus ?? null);
 
+  const [budgetData, setBudgetData] = useState(initialBudgetData);
+
   const [revenueRecoveryToDate, setRevenueRecoveryToDate] = useState<number | null>(null);
   const [revenueRecoveryData, setRevenueRecoveryData] = useState<{
     weeks: Array<{ weekStartDate: string; forecastDollars?: number; actualDollars?: number; recoveryPercent?: number | null }>;
@@ -249,6 +251,12 @@ export function ProjectDetailTabs({
           lastWeekWithActuals: d.lastWeekWithActuals ?? null,
           missingActuals: d.rollups?.missingActuals ?? false,
           rollups: d.rollups ?? null,
+        });
+        setBudgetData({
+          budgetLines: d.budgetLines ?? [],
+          rollups: d.rollups ?? null,
+          lastWeekWithActuals: d.lastWeekWithActuals ?? null,
+          peopleSummary: d.peopleSummary ?? [],
         });
       })
       .catch(() => {});
@@ -1011,7 +1019,7 @@ export function ProjectDetailTabs({
           projectEndDateIso={projectEndDateIso}
         />
       )}
-      {tab === "budget" && <BudgetTab projectId={projectId} canEdit={canEdit} initialBudgetData={initialBudgetData} />}
+      {tab === "budget" && <BudgetTab projectId={projectId} canEdit={canEdit} initialBudgetData={budgetData} />}
       {tab === "timeline" && <TimelineTab projectId={projectId} canEdit={canEdit} />}
       {tab === "status-reports" && (
         <StatusReportsTab
@@ -1020,7 +1028,7 @@ export function ProjectDetailTabs({
           canEdit={canEdit}
           cdaEnabled={cdaEnabled}
           cdaReportHoursOnly={cdaReportHoursOnly}
-          initialBudgetData={initialBudgetData}
+          initialBudgetData={budgetData}
         />
       )}
       {tab === "cda" && cdaEnabled && (
@@ -1028,7 +1036,7 @@ export function ProjectDetailTabs({
           projectId={projectId}
           canEdit={canEdit}
           cdaReportHoursOnly={cdaReportHoursOnly}
-          initialBudgetData={initialBudgetData}
+          initialBudgetData={budgetData}
         />
       )}
       {tab === "settings" && canEdit && (

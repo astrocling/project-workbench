@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Float sync — unique constraint on `Account.name`** — Sync no longer aborts when Float deletes and re-creates a client under the same name (new `client_id`). Identity is planned in **`planFloatClientAccounts`** (`lib/float/accountReconcile.ts`) and applied by **`reconcileFloatClientAccounts`** (`lib/float/syncFloatImport.ts`): match by `floatClientId`, else **rebind** the account that already holds the name when its previous Float id is gone, else create; renames (including swaps) are staged so the unique index is never violated mid-run. True duplicate live names become warnings (`accountWarnings` / `[float-sync]` logs) instead of a Prisma unique failure. Tests: `__tests__/lib/float/accountReconcile.test.ts`. **Deploy:** no new migrations; redeploy app and Trigger.dev worker, then run **Admin → Float sync** (or wait for the scheduled job).
+
+- **Status reports — stale actuals cleared immediately after saving** — After updating actuals on the **Resourcing** tab, switching to **Status Reports** no longer shows the "Update actuals in Resourcing before creating a new report" banner or leaves **New report** disabled until caches expired. Two causes were addressed: (1) **`ProjectDetailTabs.tsx`** now holds the budget payload in state (`budgetData`) and refreshes it in **`refetchBudgetStatus`** (called via **`onActualsUpdated`** after each actuals save), passing the fresh data to the **Status Reports**, **Budget**, and **CDA** tabs so they remount with current **`missingActuals`** rollups instead of the frozen SSR snapshot. (2) **`PATCH /api/projects/[id]/actual-hours`** now also **`revalidateTag("project-detail")`** (alongside the existing `portfolio-metrics`, `project-budget`, `project-revenue`, and `project-resourcing:{id}` tags) in both the split-week and single-value save paths, so a full page reload within the 30s cache TTL cannot serve a stale `initialBudgetData` from `getCachedProjectBySlugOrId` (`lib/projectCache.ts`). The server create gate (`projectHasMissingActuals`, `lib/projectActualsStale.ts`) already read live data and was unchanged. **Deploy:** no new migrations.
+
+### Documentation
+
+- **CHANGELOG** — This release section.
+- **Technical Reference** — *Float sync behavior* → **Accounts / Float clients** (`planFloatClientAccounts` / `reconcileFloatClientAccounts`); **Account** data-model row notes unique `floatClientId` and reconcile path.
+- **User Guide** — *Float sync* matching rules for accounts/clients, account step under *What sync does*, conflict note under *Holidays and sync failures*; **Admin → Accounts** rebind behavior; *Troubleshooting* for the old unique-constraint failure.
+- **README** — Float sync summary notes client → account linking / rebind.
+- **Technical Reference** — *Split-week actual hours* and the `actual-hours` API row note the added **`project-detail`** revalidation; *API overview* status-reports row notes the client stale gate now refreshes via `ProjectDetailTabs` budget state.
+- **User Guide** — *Status Reports tab* / *Status Reports* summary note that updating actuals in Resourcing clears the stale block immediately (no cache wait).
+
 ## [1.2.0] - 2026-05-27
 
 Minor release: **Modular** status reports (panels JSON + migrations), **Standard** optional budget block, compact timeline styling, **Admin → People** restore + job title on add, assignment **remove** confirmation with planned-hours cleanup, missing-actuals nudges scoped to **visible** assignees, overview/status-reports tab links + legacy redirect. **Deploy:** run migrations (`20260527135733_add_sprint_variation_and_panels`, `20260527150000_rename_sprint_to_modular`); Vercel build applies them via `prisma migrate deploy`. Redeploy Trigger.dev worker if you use missing-actuals schedules.

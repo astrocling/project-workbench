@@ -243,6 +243,7 @@ export async function PATCH(
     revalidateTag("project-budget", "max");
     revalidateTag("project-revenue", "max");
     revalidateTag(`project-resourcing:${id}`, "max");
+    revalidateTag("project-detail", "max");
     return NextResponse.json(updated);
   }
 
@@ -286,5 +287,6 @@ export async function PATCH(
   revalidateTag("project-budget", "max");
   revalidateTag("project-revenue", "max");
   revalidateTag(`project-resourcing:${id}`, "max");
+  revalidateTag("project-detail", "max");
   return NextResponse.json(results.length === 1 ? results[0] : results);
 }

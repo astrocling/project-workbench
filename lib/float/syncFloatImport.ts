@@ -26,6 +26,10 @@ import {
   buildWorkbenchRoleLookup,
   getFallbackRoleIdForNewAssignment,
 } from "@/lib/float/roleWorkbenchMatch";
+import {
+  normalizeFloatClientName,
+  planFloatClientAccounts,
+} from "@/lib/float/accountReconcile";
 import { applyFloatImportDatabaseEffects, type MergedFloatEntry } from "@/lib/floatImportApply";
 import { normalizeProjectNameForLookup } from "@/lib/floatImportUtils";
 import { getAsOfDate } from "@/lib/weekUtils";
@@ -460,6 +464,70 @@ export async function syncPeopleFromFloatList(
   }
 }
 
+/** Temporary names used to break rename cycles without tripping the unique index on `Account.name`. */
+function stagingAccountName(accountId: string): string {
+  return `__float_sync_staging__${accountId}`;
+}
+
+/**
+ * Link Float clients to `Account` rows, tolerating clients that were deleted and
+ * re-created under the same name and names that changed hands between clients.
+ */
+export async function reconcileFloatClientAccounts(
+  prisma: PrismaClient,
+  clientIdToName: Map<number, string>
+): Promise<{ accountIdByFloatClientId: Map<number, string>; warnings: string[] }> {
+  const floatClients = [...clientIdToName].map(([floatClientId, rawName]) => ({
+    floatClientId,
+    name: normalizeFloatClientName(rawName, floatClientId),
+  }));
+
+  const existingAccounts = await prisma.account.findMany({
+    select: { id: true, name: true, floatClientId: true },
+  });
+
+  const plan = planFloatClientAccounts({ floatClients, existingAccounts });
+
+  for (const bind of plan.binds) {
+    await prisma.account.update({
+      where: { id: bind.accountId },
+      data: { floatClientId: bind.floatClientId },
+    });
+  }
+
+  if (plan.renamesNeedStaging) {
+    for (const rename of plan.renames) {
+      await prisma.account.update({
+        where: { id: rename.accountId },
+        data: { name: stagingAccountName(rename.accountId) },
+      });
+    }
+  }
+  for (const rename of plan.renames) {
+    await prisma.account.update({
+      where: { id: rename.accountId },
+      data: { name: rename.to },
+    });
+  }
+
+  const accountIdByFloatClientId = new Map<number, string>(
+    plan.resolved.map((r) => [r.floatClientId, r.accountId])
+  );
+
+  for (const create of plan.creates) {
+    const account = await prisma.account.create({
+      data: { name: create.name, floatClientId: create.floatClientId },
+    });
+    accountIdByFloatClientId.set(create.floatClientId, account.id);
+  }
+
+  for (const warning of plan.warnings) {
+    console.warn(`[float-sync] ${warning}`);
+  }
+
+  return { accountIdByFloatClientId, warnings: plan.warnings };
+}
+
 export type ExecuteFloatApiSyncParams = {
   /** YYYY-MM-DD inclusive (Float API). Defaults to ~±12 months from today UTC. */
   startDate?: string;
@@ -472,6 +540,8 @@ export type ExecuteFloatApiSyncResult = {
   run: { id: string; completedAt: Date };
   unknownRoles: string[];
   touchedProjectIds: string[];
+  /** Float clients that could not be linked to an account (e.g. duplicate names). */
+  accountWarnings?: string[];
 };
 
 /**
@@ -540,20 +610,8 @@ export async function executeFloatApiSync(
     if (id != null) clientIdToName.set(id, c.name ?? "");
   }
 
-  const floatClientIdToAccountId = new Map<number, string>();
-  for (const [floatClientId, rawName] of clientIdToName) {
-    const name = (rawName ?? "").trim() || `Float client ${floatClientId}`;
-    await prisma.account.updateMany({
-      where: { name, floatClientId: null },
-      data: { floatClientId },
-    });
-    const account = await prisma.account.upsert({
-      where: { floatClientId },
-      create: { name, floatClientId },
-      update: { name },
-    });
-    floatClientIdToAccountId.set(floatClientId, account.id);
-  }
+  const { accountIdByFloatClientId: floatClientIdToAccountId, warnings: accountWarnings } =
+    await reconcileFloatClientAccounts(prisma, clientIdToName);
 
   const floatProjectById = new Map<number, { name: string; client_id?: number }>();
   for (const p of floatProjects) {
@@ -768,7 +826,7 @@ export async function executeFloatApiSync(
 
   const fallbackRoleIdForAssignment = getFallbackRoleIdForNewAssignment(knownRoles);
 
-  return applyFloatImportDatabaseEffects(prisma, {
+  const result = await applyFloatImportDatabaseEffects(prisma, {
     asOf,
     uploadedByUserId,
     mergedFloatByProjectPerson,
@@ -795,4 +853,6 @@ export async function executeFloatApiSync(
     },
     floatApiSyncWindow: { start: windowStart, end: windowEnd },
   });
+
+  return accountWarnings.length > 0 ? { ...result, accountWarnings } : result;
 }
