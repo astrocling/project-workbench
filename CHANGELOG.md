@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Status reports — budget locked at $0 after Budget tab lines are added** — Standard reports snapshot budget totals at create time. Reports saved before any Budget lines existed (or before lines were updated) kept **`$0` / `0` hours** on the slide even though the Budget tab showed correct totals. Editors can now **Refresh budget** while editing a Standard report (Status Reports tab), mirroring **Refresh timeline**. API: **`POST /api/projects/[id]/status-reports/[reportId]/refresh-budget`** recomputes **`snapshot.budget`** from live budget lines + spend (`rebuildBudgetFromProject` / `shouldUseLockedSnapshotBudget` in `lib/statusReportPdfData.ts`); on **CDA** also updates **`snapshot.cda.overallBudget`**. UI: `components/StatusReportsTab.tsx`.
+
+- **CDA status reports — Overall Hours Planned used monthly plan sum instead of Budget high hours** — `cdaOverallHoursPlanned()` already preferred **`budget.budgetedHoursHigh`**, but CDA PDF/view data did not attach the budget block (only Standard/Milestones did). **`shouldAttachBudgetToPdfData()`** now includes **CDA** so Overall Hours Planned / Remaining and the hours-complete burn use Budget tab high hours when present (fallback remains **`cda.totalPlanned`**). Tests: `__tests__/lib/statusReportPdfData.test.ts`.
+
+### Documentation
+
+- **User Guide** — *Refresh budget*; Status Reports tab overview; *Overall Hours Planned on CDA status reports*.
+- **Technical Reference** — **`POST refresh-budget`**; *Refresh budget on saved reports*; *CDA Overall Hours Planned*; snapshot rebuild option.
+- **`.cursor/rules/status-report.mdc`** — budget snapshot refresh API.
+- **README** — status report / CDA doc index mentions.
+
 ## [1.2.5] - 2026-07-30
 
 Patch release: **Float sync** no longer fails when a Float client is deleted and re-created under the same name; **Status Reports** clear the stale-actuals block immediately after saving actuals on Resourcing. **Deploy:** no new migrations; redeploy the app and Trigger.dev worker, then run **Admin → Float sync** (or wait for the scheduled job) so account rebinds apply.

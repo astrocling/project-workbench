@@ -47,6 +47,18 @@ export function resolveShowBudget(snapshot: StatusReportSnapshot | null): boolea
   return true;
 }
 
+/**
+ * Whether PDF/view data should include the budget block.
+ * CDA needs budgetedHoursHigh for Overall Hours Planned (not the CDA monthly plan sum).
+ */
+export function shouldAttachBudgetToPdfData(variation: string): boolean {
+  return (
+    variation === "Standard" ||
+    variation === "Milestones" ||
+    variation === "CDA"
+  );
+}
+
 export function isStatusReportSnapshot(obj: unknown): obj is StatusReportSnapshot {
   return (
     typeof obj === "object" &&
@@ -65,7 +77,20 @@ export type BuildStatusReportPdfDataOptions = {
   rebuildTimelineFromProject?: boolean;
   /** When true, ignore snapshot.cda.milestones and rebuild from current project CDA milestones. */
   rebuildCdaMilestonesFromProject?: boolean;
+  /** When true, ignore snapshot.budget and recompute from current project budget lines + actuals. */
+  rebuildBudgetFromProject?: boolean;
 };
+
+/**
+ * Whether to keep the budget block locked on the report snapshot.
+ * Refresh-budget sets rebuildBudgetFromProject so stale $0 locks (e.g. report created before budget lines existed) can be replaced.
+ */
+export function shouldUseLockedSnapshotBudget(
+  snapshot: StatusReportSnapshot | null,
+  options?: Pick<BuildStatusReportPdfDataOptions, "rebuildBudgetFromProject">
+): boolean {
+  return snapshot?.budget !== undefined && !options?.rebuildBudgetFromProject;
+}
 
 type CdaMilestoneSnapshot = NonNullable<
   NonNullable<StatusReportPDFData["cda"]>["milestones"]
@@ -164,8 +189,8 @@ export async function buildStatusReportPdfData(
   let cda: StatusReportPDFData["cda"] | undefined;
   let timeline: StatusReportPDFData["timeline"] | undefined;
 
-  if (snapshot?.budget !== undefined) {
-    budget = snapshot.budget;
+  if (shouldUseLockedSnapshotBudget(snapshot, options)) {
+    budget = snapshot!.budget;
   }
   if (snapshot?.cda !== undefined) {
     cda = snapshot.cda;
@@ -419,7 +444,7 @@ export async function buildStatusReportPdfData(
     },
     period,
     today,
-    budget: report.variation === "Standard" || report.variation === "Milestones" ? budget : undefined,
+    budget: shouldAttachBudgetToPdfData(report.variation) ? budget : undefined,
     cda,
     timeline,
     cdaReportHoursOnly,

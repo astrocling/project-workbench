@@ -376,6 +376,10 @@ export function StatusReportsTab({
   const [refreshTimelineLoading, setRefreshTimelineLoading] = useState(false);
   const [refreshTimelineModalError, setRefreshTimelineModalError] = useState<string | null>(null);
   const [timelineRefreshSuccess, setTimelineRefreshSuccess] = useState<string | null>(null);
+  const [showRefreshBudgetModal, setShowRefreshBudgetModal] = useState(false);
+  const [refreshBudgetLoading, setRefreshBudgetLoading] = useState(false);
+  const [refreshBudgetModalError, setRefreshBudgetModalError] = useState<string | null>(null);
+  const [budgetRefreshSuccess, setBudgetRefreshSuccess] = useState<string | null>(null);
   const [showRefreshCdaMilestonesModal, setShowRefreshCdaMilestonesModal] = useState(false);
   const [refreshCdaMilestonesLoading, setRefreshCdaMilestonesLoading] = useState(false);
   const [refreshCdaMilestonesModalError, setRefreshCdaMilestonesModalError] = useState<string | null>(null);
@@ -695,6 +699,32 @@ export function StatusReportsTab({
       setTimeout(() => setTimelineRefreshSuccess(null), 4000);
     } finally {
       setRefreshTimelineLoading(false);
+    }
+  }, [editingReportId, projectId, previewReportId, loadReports]);
+
+  const confirmRefreshBudget = useCallback(async () => {
+    if (!editingReportId) return;
+    setRefreshBudgetLoading(true);
+    setRefreshBudgetModalError(null);
+    try {
+      const res = await fetch(
+        `/api/projects/${projectId}/status-reports/${editingReportId}/refresh-budget`,
+        { method: "POST" }
+      );
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setRefreshBudgetModalError(data.error ?? "Refresh failed");
+        return;
+      }
+      setShowRefreshBudgetModal(false);
+      setBudgetRefreshSuccess("Budget on this report was updated to match the Budget tab.");
+      if (previewReportId === editingReportId) {
+        setPreviewDataKey((k) => k + 1);
+      }
+      loadReports();
+      setTimeout(() => setBudgetRefreshSuccess(null), 4000);
+    } finally {
+      setRefreshBudgetLoading(false);
     }
   }, [editingReportId, projectId, previewReportId, loadReports]);
 
@@ -1250,13 +1280,32 @@ export function StatusReportsTab({
               </select>
             </div>
             {formVariation === "Standard" && (
-              <div>
+              <div className="space-y-3">
                 <Toggle
                   checked={formShowBudget}
                   onChange={setFormShowBudget}
                   label="Show project budget on report"
                   aria-label="Show project budget on report"
                 />
+                {editingReportId && canEdit && (
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRefreshBudgetModalError(null);
+                        setShowRefreshBudgetModal(true);
+                      }}
+                      className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-800 dark:text-surface-100 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                    >
+                      Refresh budget
+                    </button>
+                    {budgetRefreshSuccess && (
+                      <p className="text-body-sm text-emerald-700 dark:text-emerald-400" role="status">
+                        {budgetRefreshSuccess}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {(formVariation === "Standard" || formVariation === "Milestones") && (
@@ -2164,6 +2213,47 @@ export function StatusReportsTab({
                 className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-jred-600 hover:bg-jred-700 text-white font-semibold text-body-sm disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-jred-500 focus:ring-offset-1"
               >
                 {refreshTimelineLoading ? "Refreshing…" : "Refresh timeline"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showRefreshBudgetModal && editingReportId && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="refresh-budget-modal-title"
+        >
+          <div className="max-w-md w-full rounded-lg border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface shadow-lg p-6 space-y-4">
+            <h3
+              id="refresh-budget-modal-title"
+              className="text-title-md font-semibold text-surface-800 dark:text-surface-100"
+            >
+              Replace budget on this report?
+            </h3>
+            <p className="text-body-sm text-surface-600 dark:text-surface-300">
+              This will replace the budget totals stored on this status report with the current Budget tab lines and spend-to-date. Timeline and other locked snapshot data are not affected.
+            </p>
+            {refreshBudgetModalError && (
+              <p className="text-body-sm text-jred-600 dark:text-jred-400">{refreshBudgetModalError}</p>
+            )}
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowRefreshBudgetModal(false)}
+                disabled={refreshBudgetLoading}
+                className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmRefreshBudget}
+                disabled={refreshBudgetLoading}
+                className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-jred-600 hover:bg-jred-700 text-white font-semibold text-body-sm disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-jred-500 focus:ring-offset-1"
+              >
+                {refreshBudgetLoading ? "Refreshing…" : "Refresh budget"}
               </button>
             </div>
           </div>
