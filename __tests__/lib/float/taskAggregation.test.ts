@@ -144,9 +144,15 @@ describe("aggregateTasksToWeeklyHours", () => {
     ).toBe(expected);
   });
 
-  it("uses max hours per UTC day when tasks overlap (same project, person, day)", () => {
+  /**
+   * Regression: multiple Float allocations for the same person on the same project
+   * must add together. Workstreams blocked as separate tasks on overlapping days
+   * (Yakima-style) used to keep only Math.max per day, dropping the rest.
+   */
+  it("sums distinct tasks on the same UTC day (same project, person)", () => {
     const tasks: FloatTaskJson[] = [
       {
+        task_id: 101,
         project_id: 5,
         people_id: 3,
         start_date: "2024-03-04",
@@ -154,6 +160,7 @@ describe("aggregateTasksToWeeklyHours", () => {
         hours: 4,
       },
       {
+        task_id: 102,
         project_id: 5,
         people_id: 3,
         start_date: "2024-03-04",
@@ -162,7 +169,33 @@ describe("aggregateTasksToWeeklyHours", () => {
       },
     ];
     const wk = formatWeekKey(getWeekStartDate(new Date(Date.UTC(2024, 2, 4))));
-    expect(aggregateTasksToWeeklyHours(tasks).get(weeklyHoursCompositeKey(5, 3, wk))).toBe(4 * 2);
+    expect(aggregateTasksToWeeklyHours(tasks).get(weeklyHoursCompositeKey(5, 3, wk))).toBe(
+      (4 + 2) * 2
+    );
+  });
+
+  it("sums split blocks in the same week (1h Monday + 1h Friday)", () => {
+    const tasks: FloatTaskJson[] = [
+      {
+        task_id: 201,
+        project_id: 5,
+        people_id: 3,
+        start_date: "2024-03-04",
+        end_date: "2024-03-04",
+        hours: 1,
+      },
+      {
+        task_id: 202,
+        project_id: 5,
+        people_id: 3,
+        start_date: "2024-03-08",
+        end_date: "2024-03-08",
+        hours: 1,
+      },
+    ];
+    const wk = formatWeekKey(getWeekStartDate(new Date(Date.UTC(2024, 2, 4))));
+    expect(wk).toBe("2024-03-04");
+    expect(aggregateTasksToWeeklyHours(tasks).get(weeklyHoursCompositeKey(5, 3, wk))).toBe(2);
   });
 
   it("weeklyHoursMapToRows returns sorted rows", () => {

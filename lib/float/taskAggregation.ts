@@ -12,9 +12,10 @@
  *   contribute to weekly totals — aligns planned grid (business days) with Float rollups.
  * - Optional **per-person excluded UTC days** (e.g. Float time off + regional holidays): those
  *   calendar days do not contribute for that Float `people_id`, after weekday/window checks.
- * - When **multiple tasks** cover the same UTC calendar day for the same project and person, we take
- *   the **maximum** `hours` that day (not the sum). Float’s schedule shows one stacked bar per day;
- *   summing would double-count overlapping rows returned by the API.
+ * - Distinct Float tasks for the same project and person are **summed**, including multiple
+ *   workstreams on the same UTC day and split blocks in the same week (e.g. 1h Monday + 1h Friday).
+ *   Duplicate API rows for the same `task_id` (pagination overlap) are collapsed first so they are
+ *   not counted twice.
  *
  * ## Prisma matching
  * - `Person.externalId` stores Float `people_id` (existing).
@@ -258,7 +259,7 @@ export function weeklyHoursCompositeKey(
   return `${floatProjectId}|${floatPeopleId}|${weekStartKey}`;
 }
 
-/** UTC calendar day key for deduping overlapping tasks: project|person|YYYY-MM-DD */
+/** UTC calendar day key for summing distinct tasks: project|person|YYYY-MM-DD */
 function dailyHoursCompositeKey(
   floatProjectId: number,
   floatPeopleId: number,
@@ -272,7 +273,7 @@ function dailyHoursCompositeKey(
 /**
  * Sum hours per (Float project id, Float people id, Monday week key).
  * Days are UTC calendar days; week buckets use {@link getWeekStartDate} / {@link formatWeekKey}.
- * Overlapping tasks on the same day use {@link Math.max} for that day's hours before summing into weeks.
+ * Distinct tasks on the same day are **added**; duplicate `task_id` rows are collapsed first.
  * With {@link AggregateTasksToWeeklyHoursOptions.weekdaysOnly}, only Mon–Fri UTC days contribute.
  */
 export function aggregateTasksToWeeklyHours(
@@ -288,11 +289,16 @@ export function aggregateTasksToWeeklyHours(
   const hoursPerUtcDay = new Map<string, number>();
 
   /**
+   * Collapse pagination duplicates before expanding repeats. Repeat expansion copies
+   * `task_id` onto each occurrence, so deduping after expand would drop later weeks.
+   */
+  const uniqueTasks = dedupeFloatTasksForAggregation(tasks);
+  /**
    * Float returns only the source occurrence for repeating allocations; expand them
    * so every occurrence within `repeat_end_date` contributes to its week bucket.
    * Non-repeating tasks pass through unchanged.
    */
-  const expanded = expandRepeatedTasks(tasks);
+  const expanded = expandRepeatedTasks(uniqueTasks);
 
   for (const task of expanded) {
     const projectId = toProjectId(task);
@@ -345,7 +351,7 @@ export function aggregateTasksToWeeklyHours(
         }
         const dk = dailyHoursCompositeKey(projectId, pid, day);
         const prev = hoursPerUtcDay.get(dk) ?? 0;
-        hoursPerUtcDay.set(dk, Math.max(prev, hoursPerDay));
+        hoursPerUtcDay.set(dk, prev + hoursPerDay);
       }
     }
   }

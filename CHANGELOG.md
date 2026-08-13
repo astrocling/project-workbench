@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Float sync — multiple allocations on the same person were under-counted** — When Float had more than one task for the same person on the same project (separate workstreams on overlapping days, or split blocks like 1h Monday + 1h Friday), weekly **Float** hours kept only the **largest** block per day (`Math.max`) instead of adding them. Distinct tasks are now **summed**; duplicate API rows for the same `task_id` are still collapsed so pagination overlap is not double-counted. Re-run **Admin → Float sync** (or wait for the scheduled job) so stored hours refresh. Tests: `__tests__/lib/float/taskAggregation.test.ts`.
+
+### Documentation
+
+- **User Guide** — *Multiple time blocks* under Float sync; troubleshooting when Float hours look low vs Float.
+- **Technical Reference** — `aggregateTasksToWeeklyHours` sums distinct tasks; QA checklist for multiple allocations.
+- **README** — Float sync notes summing multiple allocations on the same person.
+
 ## [1.2.6] - 2026-08-13
 
 Patch release: **New project Float backfill** no longer times out on thousands of stored sync snapshots; **Status Reports** can **Refresh budget** when a Standard report was saved with **$0**; **CDA** Overall Hours Planned uses Budget high hours. **Deploy:** no new migrations; redeploy the app.
