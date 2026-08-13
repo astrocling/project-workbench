@@ -1,6 +1,6 @@
 # Project Workbench — User Guide
 
-This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.2.5** as a baseline and newer behavior documented in [CHANGELOG.md](../CHANGELOG.md) (including Slack integrations and **Industry groups** taxonomy when your deployment includes them). The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
+This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.2.6** as a baseline and newer behavior documented in [CHANGELOG.md](../CHANGELOG.md) (including Slack integrations and **Industry groups** taxonomy when your deployment includes them). The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
 
 ---
 
@@ -517,7 +517,7 @@ Your **My Projects** list (on `/projects`) uses the **Person** link described in
 |-------|-------------|
 | **Invalid email or password** | Ensure the database has been seeded and your user exists. Ask an admin to run the seed or add your account in Admin → Users. |
 | **Project names must match** (Float) | Create projects in Workbench with names that match Float, or run sync so `floatExternalId` is set. Add missing roles in Admin → Roles and sync again if needed. |
-| **New project has no Float people or hours** | Create used to time out while reading thousands of stored sync snapshots. After this fix, create reads only the **latest** snapshot. Hard-refresh **Resourcing** (not Overview—Overview shows planned/actual hours, which stay 0 until you enter them or **Sync plan from Float**). If it is still empty, run **Admin → Float sync** then **Backfill** on the project. |
+| **New project has no Float people or hours** | Fixed in **v1.2.6**: create reads only the **latest** Float sync snapshot. Hard-refresh **Resourcing** (not Overview—Overview shows planned/actual hours, which stay 0 until you enter them or **Sync plan from Float**). If it is still empty, run **Admin → Float sync** then **Backfill** on the project. |
 | **Float Actuals empty after sync** | Confirm **Admin → Float sync** completed without error (Trigger.dev alone does not refresh the Resourcing page cache—run Admin sync or wait ~60s and hard-refresh). Check for **duplicate projects with the same name**; as of **v1.2.3**, sync mirrors hours to the linked project and unlinked copies. Run **`npx tsx scripts/debug-backfill-match.ts <projectSlug>`** against production `DATABASE_URL` to see duplicate names, sync target ids, and row counts. **Backfill** alone does not create assignments; sync (or manual assignments) is required for the **Float** grid to show people. |
 | **Sync plan from Float fails (500 or “Sync failed”)** | As of **v1.2.4**, long Float import history no longer crashes the server. If it still fails, read the alert message. Ensure **Admin → Float sync** or **Backfill** has populated **Float** hours and the people appear in **Settings → Assignments** (not hidden from grid). |
 | **Float API not configured** | Set `FLOAT_API_TOKEN` in the server environment. |

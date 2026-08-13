@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.6] - 2026-08-13
+
+Patch release: **New project Float backfill** no longer times out on thousands of stored sync snapshots; **Status Reports** can **Refresh budget** when a Standard report was saved with **$0**; **CDA** Overall Hours Planned uses Budget high hours. **Deploy:** no new migrations; redeploy the app.
+
 ### Fixed
 
 - **Status reports — budget locked at $0 after Budget tab lines are added** — Standard reports snapshot budget totals at create time. Reports saved before any Budget lines existed (or before lines were updated) kept **`$0` / `0` hours** on the slide even though the Budget tab showed correct totals. Editors can now **Refresh budget** while editing a Standard report (Status Reports tab), mirroring **Refresh timeline**. API: **`POST /api/projects/[id]/status-reports/[reportId]/refresh-budget`** recomputes **`snapshot.budget`** from live budget lines + spend (`rebuildBudgetFromProject` / `shouldUseLockedSnapshotBudget` in `lib/statusReportPdfData.ts`); on **CDA** also updates **`snapshot.cda.overallBudget`**. UI: `components/StatusReportsTab.tsx`.
@@ -17,11 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
-- **User Guide** — *Refresh budget*; Status Reports tab overview; *Overall Hours Planned on CDA status reports*; *Float data on create*; per-project **Backfill** vs admin restore-all; troubleshooting for empty new-project Float grids.
+- **CHANGELOG** — This release section.
+- **User Guide** — *Refresh budget*; Status Reports tab overview; *Overall Hours Planned on CDA status reports*; *Float data on create*; per-project **Backfill** vs admin restore-all; troubleshooting for empty new-project Float grids; release baseline **1.2.6**.
 - **Technical Reference** — **`POST refresh-budget`**; *Refresh budget on saved reports*; *CDA Overall Hours Planned*; snapshot rebuild option; *New projects* / `POST /api/projects` / `backfill-float` latest-import backfill; admin **backfill-float-all** still uses full history.
-- **README** — New project auto-populate from the latest Float import snapshot.
+- **README** — New project auto-populate from the latest Float import snapshot; production release tag example **v1.2.6**.
 - **`.cursor/rules/status-report.mdc`** — budget snapshot refresh API.
-- **README** — status report / CDA doc index mentions.
 
 ## [1.2.5] - 2026-07-30
 
