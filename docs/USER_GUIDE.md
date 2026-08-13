@@ -52,7 +52,7 @@ From the table you can:
 - Click a **project name** to open the project detail page.
 - Use the **Actions** column (icons) when you have edit or delete permission:
   - **Edit** (pencil) — Opens the project edit page (Settings and key details).
-  - **Backfill** (refresh) — Repopulates this project’s Float scheduled hours from stored Float import data. Use this when a project is missing historical float data (e.g. the project was created after an import). A confirmation dialog appears first; it explains that existing float hours for the project may be overwritten and that this isn’t a common action—if you aren’t doing it on purpose, it’s best to cancel. Admins can run the same style of restore for **all** projects at once from **Admin → Float sync** (*Restore hours from import history (all projects)*).
+  - **Backfill** (refresh) — Repopulates this project’s Float scheduled hours from the **latest** Float sync snapshot. Use this when a project is missing Float hours (e.g. create timed out before this fix, or the name did not match). A confirmation dialog appears first; it explains that existing float hours for the project may be overwritten and that this isn’t a common action—if you aren’t doing it on purpose, it’s best to cancel. Admins can restore **all** projects from **full** stored sync history at **Admin → Float sync** (*Restore hours from import history (all projects)*).
   - **Delete** (trash, Admins only) — Permanently removes the project and all its data. A confirmation modal appears: you must type the project name exactly to confirm before the delete is performed. This cannot be undone.
 
 ---
@@ -341,7 +341,7 @@ Preview, **Download PDF**, and the server PDF fallback all use the same timeline
    - Optional: single bill rate, notes, SOW link, estimate link, Float link, Metric link, and resourcing thresholds.
 3. Submit to create the project. You can then add assignments, key roles, budget lines, and rates from the project detail page.
 
-**Float data on create:** If **Admin → Float sync** has run at least once, creating a project whose **name** matches a Float project in **stored import history** (`FloatImportRun`) automatically **creates `ProjectAssignment` rows** (using Float role names and each person’s Float **job title** when roles are resolved) and **writes `FloatScheduledHours`** from the merged history—Workbench creates **`Person`** rows for any names that do not exist yet. The API response can include **`backfillFromImport`** with counts (and sometimes a note if assignments were created but no float hours were found in history; run **Float sync** again and use **Backfill** on the project if needed). Use the same **project name** as Float, or on **New project** choose a **Float project** from the dropdown when available so **`floatProjectName`** is sent—either way the lookup matches merged import history.
+**Float data on create:** If **Admin → Float sync** has run at least once, creating a project whose **name** matches a Float project in the **latest** import snapshot (`FloatImportRun`) automatically **creates `ProjectAssignment` rows** (using Float role names and each person’s Float **job title** when roles are resolved) and **writes `FloatScheduledHours`** from that snapshot—Workbench creates **`Person`** rows for any names that do not exist yet. The API response can include **`backfillFromImport`** with counts (and sometimes a note if assignments were created but no float hours were found; run **Float sync** again and use **Backfill** on the project if needed). Use the same **project name** as Float, or on **New project** choose a **Float project** from the dropdown when available so **`floatProjectName`** is sent.
 
 If you use **Float sync** first, project names in Workbench should match Float (or you can create projects and run a **backfill** after sync to apply stored Float data).
 
@@ -391,7 +391,7 @@ If the token is missing, the sync action shows an error (API returns **503**).
 ### When Planned and Float still disagree
 
 - **You didn’t copy Float → Planned:** The **Float** column updates from Admin Float sync; **Planned** does not, until you sync the plan (Settings) or edit Planned / use **Sync plan from Float** on the Resourcing tab (future/current weeks).
-- **Past week in Float product ≠ Workbench Float column:** Admin Float sync **does not overwrite past** `FloatScheduledHours` rows. Workbench can keep an older snapshot; Planned (after **Sync plan from Float**) will match that snapshot, not necessarily today’s historical view in Float. **Backfill** reapplies stored import JSON and can refresh hours for past weeks when the import data is newer.
+- **Past week in Float product ≠ Workbench Float column:** Admin Float sync **does not overwrite past** `FloatScheduledHours` rows. Workbench can keep an older snapshot; Planned (after **Sync plan from Float**) will match that snapshot, not necessarily today’s historical view in Float. Per-project **Backfill** reapplies the **latest** import snapshot (including completed weeks in that snapshot). **Restore hours from import history (all projects)** merges the full stored history.
 
 ### Limits
 
@@ -399,7 +399,7 @@ If the token is missing, the sync action shows an error (API returns **503**).
 
 ### Restore hours from import history (all projects)
 
-On **Admin → Float sync**, **Restore hours from import history (all projects)** repopulates **Float scheduled hours** for **every** project from stored Float sync snapshots (`FloatImportRun`), using the **same merge rules** as **Backfill** on a single project (Projects list or project settings). Use it after a problematic sync or when many projects need historical float rows restored at once—only works if **Float sync** has run before so import history exists. Confirm the dialog before the operation runs.
+On **Admin → Float sync**, **Restore hours from import history (all projects)** repopulates **Float scheduled hours** for **every** project from **all** stored Float sync snapshots (`FloatImportRun`). Per-project **Backfill** (Projects list or project settings) uses only the **latest** snapshot so it finishes quickly. Use the admin restore after a problematic sync or when many projects need historical float rows restored at once—only works if **Float sync** has run before so import history exists. Confirm the dialog before the operation runs.
 
 ### Assignment roles and Float sync
 
@@ -517,6 +517,7 @@ Your **My Projects** list (on `/projects`) uses the **Person** link described in
 |-------|-------------|
 | **Invalid email or password** | Ensure the database has been seeded and your user exists. Ask an admin to run the seed or add your account in Admin → Users. |
 | **Project names must match** (Float) | Create projects in Workbench with names that match Float, or run sync so `floatExternalId` is set. Add missing roles in Admin → Roles and sync again if needed. |
+| **New project has no Float people or hours** | Create used to time out while reading thousands of stored sync snapshots. After this fix, create reads only the **latest** snapshot. Hard-refresh **Resourcing** (not Overview—Overview shows planned/actual hours, which stay 0 until you enter them or **Sync plan from Float**). If it is still empty, run **Admin → Float sync** then **Backfill** on the project. |
 | **Float Actuals empty after sync** | Confirm **Admin → Float sync** completed without error (Trigger.dev alone does not refresh the Resourcing page cache—run Admin sync or wait ~60s and hard-refresh). Check for **duplicate projects with the same name**; as of **v1.2.3**, sync mirrors hours to the linked project and unlinked copies. Run **`npx tsx scripts/debug-backfill-match.ts <projectSlug>`** against production `DATABASE_URL` to see duplicate names, sync target ids, and row counts. **Backfill** alone does not create assignments; sync (or manual assignments) is required for the **Float** grid to show people. |
 | **Sync plan from Float fails (500 or “Sync failed”)** | As of **v1.2.4**, long Float import history no longer crashes the server. If it still fails, read the alert message. Ensure **Admin → Float sync** or **Backfill** has populated **Float** hours and the people appear in **Settings → Assignments** (not hidden from grid). |
 | **Float API not configured** | Set `FLOAT_API_TOKEN` in the server environment. |

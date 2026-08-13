@@ -8,7 +8,6 @@ import { FLOAT_HOURS_BATCH_SIZE } from "@/lib/floatImportApply";
 import {
   createProjectImportMergeState,
   finalizeProjectImportMerge,
-  getProjectDataFromImport,
   mergeFloatHoursForProjectsFromRuns,
   mergeProjectDataFromRun,
   normalizeProjectNameForLookup,
@@ -29,31 +28,64 @@ export async function loadFloatImportRunsForBackfill(prisma: PrismaClient) {
   });
 }
 
-/** Collect distinct Float project names from import runs without loading full hour JSON. */
+/**
+ * Project create (and per-project backfill) must not walk the full `FloatImportRun` history.
+ * Production can have thousands of hourly snapshots, each with multi-MB `projectFloatHours` JSON;
+ * iterating them all exceeds Vercel timeouts so the project row is committed with no assignments
+ * or hours. API sync already stores a complete ±12 month snapshot on the latest run.
+ */
+export async function mergeProjectCreateBackfillFromLatestImport(
+  prisma: PrismaClient,
+  projectName: string
+): Promise<{
+  assignmentsList: Array<{ personName: string; roleName: string }>;
+  floatList: Array<{
+    personName: string;
+    roleName: string;
+    weeks: Array<{ weekStart: string; hours: number }>;
+  }>;
+  matchedKey: string | null;
+}> {
+  const lastImport = await prisma.floatImportRun.findFirst({
+    orderBy: { completedAt: "desc" },
+    select: floatImportRunSelect,
+  });
+  const state = createProjectImportMergeState();
+  if (lastImport) {
+    mergeProjectDataFromRun(state, lastImport, projectName);
+  }
+  return finalizeProjectImportMerge(state);
+}
+
+/** Collect distinct Float project names from the latest import snapshot. */
 export async function loadAvailableFloatProjectNamesFromRuns(
   prisma: PrismaClient
 ): Promise<string[]> {
+  const lastImport = await prisma.floatImportRun.findFirst({
+    orderBy: { completedAt: "desc" },
+    select: { projectNames: true },
+  });
   const names = new Set<string>();
-  for await (const run of iterateFloatImportRunsAsc(prisma)) {
-    for (const name of (run.projectNames as string[] | undefined) ?? []) {
-      if (name?.trim()) names.add(name);
-    }
+  for (const name of (lastImport?.projectNames as string[] | undefined) ?? []) {
+    if (name?.trim()) names.add(name);
   }
   return Array.from(names);
 }
 
-/** Names that have stored float hour JSON in at least one import run. */
+/** Names that have stored float hour JSON on the latest import snapshot. */
 export async function loadAvailableFloatProjectNamesWithHoursFromRuns(
   prisma: PrismaClient
 ): Promise<string[]> {
+  const lastImport = await prisma.floatImportRun.findFirst({
+    orderBy: { completedAt: "desc" },
+    select: { projectFloatHours: true },
+  });
   const names = new Set<string>();
-  for await (const run of iterateFloatImportRunsAsc(prisma)) {
-    const hours = run.projectFloatHours as Record<string, unknown[]> | undefined;
-    if (!hours) continue;
-    for (const key of Object.keys(hours)) {
-      const list = hours[key];
-      if (Array.isArray(list) && list.length > 0) names.add(key);
-    }
+  const hours = lastImport?.projectFloatHours as Record<string, unknown[]> | undefined;
+  if (!hours) return [];
+  for (const key of Object.keys(hours)) {
+    const list = hours[key];
+    if (Array.isArray(list) && list.length > 0) names.add(key);
   }
   return Array.from(names);
 }
@@ -204,8 +236,8 @@ export async function batchUpsertFloatScheduledHours(
 }
 
 /**
- * Upsert scheduled hours for one project by streaming import runs (memory-safe for production).
- * Semantics match {@link backfillFloatScheduledHoursForProjectFromRuns}.
+ * Upsert scheduled hours for one project from the latest FloatImportRun snapshot.
+ * Full-history iteration is too slow in production (thousands of hourly JSON snapshots).
  */
 export async function backfillFloatScheduledHoursForProjectStreaming(
   prisma: PrismaClient,
@@ -222,26 +254,17 @@ export async function backfillFloatScheduledHoursForProjectStreaming(
 > {
   const lookupName = params.projectName.trim();
   const normalizedLookupName = normalizeProjectNameForLookup(lookupName);
-  const mergeState = createProjectImportMergeState();
-  let importRunCount = 0;
-  let runsWithNameMatch = 0;
-  let runsWithFloatHours = 0;
-  let runsWithAssignmentsOnly = 0;
-  let lastMatchedKey: string | null = null;
-
-  for await (const run of iterateFloatImportRunsAsc(prisma)) {
-    const preview = getProjectDataFromImport(run, lookupName);
-    if (preview.matchedKey) {
-      runsWithNameMatch += 1;
-      lastMatchedKey = preview.matchedKey;
-      if (preview.floatList.length > 0) runsWithFloatHours += 1;
-      else if (preview.assignmentsList.length > 0) runsWithAssignmentsOnly += 1;
-    }
-    mergeProjectDataFromRun(mergeState, run, lookupName);
-    importRunCount += 1;
-  }
-
-  const { floatList } = finalizeProjectImportMerge(mergeState);
+  const lastImport = await prisma.floatImportRun.findFirst({
+    select: { id: true },
+    orderBy: { completedAt: "desc" },
+  });
+  const importRunCount = lastImport ? 1 : 0;
+  const { assignmentsList, floatList, matchedKey: lastMatchedKey } =
+    await mergeProjectCreateBackfillFromLatestImport(prisma, lookupName);
+  const runsWithNameMatch = lastMatchedKey ? 1 : 0;
+  const runsWithFloatHours = floatList.length > 0 ? 1 : 0;
+  const runsWithAssignmentsOnly =
+    floatList.length === 0 && assignmentsList.length > 0 ? 1 : 0;
   const mergedPersonCount = floatList.length;
   const mergedWeekCount = floatList.reduce(
     (sum, item) => sum + (item.weeks?.length ?? 0),

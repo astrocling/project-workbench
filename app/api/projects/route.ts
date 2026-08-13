@@ -6,13 +6,8 @@ import { prisma } from "@/lib/prisma";
 import {
   batchUpsertFloatScheduledHours,
   floatScheduledHourRowsFromMergedLists,
-  iterateFloatImportRunsAsc,
+  mergeProjectCreateBackfillFromLatestImport,
 } from "@/lib/backfillFloatFromImports";
-import {
-  createProjectImportMergeState,
-  finalizeProjectImportMerge,
-  mergeProjectDataFromRun,
-} from "@/lib/floatImportUtils";
 import {
   buildWorkbenchRoleLookup,
   resolveRoleIdForNewAssignmentFromFloat,
@@ -20,6 +15,9 @@ import {
 import { slugify, ensureUniqueSlug } from "@/lib/slug";
 import { linkProjectFloatExternalId } from "@/lib/float/linkProjectFloatExternalId";
 import { z } from "zod";
+
+/** Latest-import backfill is fast; keep headroom for Float project-list linking. */
+export const maxDuration = 60;
 
 const createSchema = z.object({
   name: z.string().min(1),
@@ -148,11 +146,8 @@ export async function POST(req: NextRequest) {
     floatHoursNote?: string;
   } = { matched: false, assignmentsCreated: 0, floatHoursCreated: 0 };
   if (nameToLookup) {
-    const mergeState = createProjectImportMergeState();
-    for await (const run of iterateFloatImportRunsAsc(prisma)) {
-      mergeProjectDataFromRun(mergeState, run, nameToLookup);
-    }
-    const { assignmentsList, floatList } = finalizeProjectImportMerge(mergeState);
+    const { assignmentsList, floatList } =
+      await mergeProjectCreateBackfillFromLatestImport(prisma, nameToLookup);
 
     backfillStats.floatListLength = floatList.length;
     backfillStats.totalWeekEntries = floatList.reduce(
@@ -267,6 +262,11 @@ export async function POST(req: NextRequest) {
   const data = created ?? project;
   const response = Object.assign({}, data, { backfillFromImport: backfillStats });
   revalidateTag("projects-list", "max");
+  if (backfillStats.matched) {
+    revalidateTag("project-detail", "max");
+    revalidateTag("project-resourcing", "max");
+    revalidateTag(`project-resourcing:${project.id}`, "max");
+  }
   return NextResponse.json(response);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

@@ -11,12 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Status reports — budget locked at $0 after Budget tab lines are added** — Standard reports snapshot budget totals at create time. Reports saved before any Budget lines existed (or before lines were updated) kept **`$0` / `0` hours** on the slide even though the Budget tab showed correct totals. Editors can now **Refresh budget** while editing a Standard report (Status Reports tab), mirroring **Refresh timeline**. API: **`POST /api/projects/[id]/status-reports/[reportId]/refresh-budget`** recomputes **`snapshot.budget`** from live budget lines + spend (`rebuildBudgetFromProject` / `shouldUseLockedSnapshotBudget` in `lib/statusReportPdfData.ts`); on **CDA** also updates **`snapshot.cda.overallBudget`**. UI: `components/StatusReportsTab.tsx`.
 
+- **Project create — empty Float grid until the next scheduled sync** — Creating a project walked **every** stored `FloatImportRun` (thousands of hourly snapshots with full `projectFloatHours` JSON) to backfill assignments and hours. That exceeded Vercel timeouts, so the project row was saved with no people/hours even when the latest snapshot already had the Float project. Create and per-project **Backfill** now read **only the latest** import run (`mergeProjectCreateBackfillFromLatestImport`). Tests: `__tests__/lib/mergeProjectCreateBackfillFromLatestImport.test.ts`.
+
 - **CDA status reports — Overall Hours Planned used monthly plan sum instead of Budget high hours** — `cdaOverallHoursPlanned()` already preferred **`budget.budgetedHoursHigh`**, but CDA PDF/view data did not attach the budget block (only Standard/Milestones did). **`shouldAttachBudgetToPdfData()`** now includes **CDA** so Overall Hours Planned / Remaining and the hours-complete burn use Budget tab high hours when present (fallback remains **`cda.totalPlanned`**). Tests: `__tests__/lib/statusReportPdfData.test.ts`.
 
 ### Documentation
 
-- **User Guide** — *Refresh budget*; Status Reports tab overview; *Overall Hours Planned on CDA status reports*.
-- **Technical Reference** — **`POST refresh-budget`**; *Refresh budget on saved reports*; *CDA Overall Hours Planned*; snapshot rebuild option.
+- **User Guide** — *Refresh budget*; Status Reports tab overview; *Overall Hours Planned on CDA status reports*; *Float data on create*; per-project **Backfill** vs admin restore-all; troubleshooting for empty new-project Float grids.
+- **Technical Reference** — **`POST refresh-budget`**; *Refresh budget on saved reports*; *CDA Overall Hours Planned*; snapshot rebuild option; *New projects* / `POST /api/projects` / `backfill-float` latest-import backfill; admin **backfill-float-all** still uses full history.
+- **README** — New project auto-populate from the latest Float import snapshot.
 - **`.cursor/rules/status-report.mdc`** — budget snapshot refresh API.
 - **README** — status report / CDA doc index mentions.
 

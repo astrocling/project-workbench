@@ -9,8 +9,8 @@ import {
 } from "@/lib/backfillFloatFromImports";
 
 /**
- * One-shot: restore FloatScheduledHours for every project from merged FloatImportRun history
- * (same logic as POST /api/projects/[id]/backfill-float per project). Admin-only.
+ * One-shot: restore FloatScheduledHours for every project from full FloatImportRun history.
+ * Per-project POST /api/projects/[id]/backfill-float uses only the latest snapshot.
  */
 export async function POST() {
   const session = await getServerSession(authOptions);
