@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.7] - 2026-08-13
+
+Patch release: **Float** weekly hours now **sum** multiple allocations for the same person on a project; **Settings → Assignments** uses each person’s **job title** when adding them (not the first catalog role). **Deploy:** no new migrations; redeploy the app and Trigger.dev worker, then run **Admin → Float sync** so stored Float hours refresh.
+
 ### Fixed
 
 - **Settings → Assignments — adding a person used the first catalog role** — Adding someone without picking a role (`POST /api/projects/[id]/assignments` with no `roleId`, which is how the Assignments UI works) fell through to `Role.findFirst()`, which is usually **Analytics Engineer**. New assignments now use the same resolution as Float sync: the person’s **job title** in **Admin → People** (`Person.floatJobTitle`), then a Float scheduling-role hint from the latest import if the title does not map, then the stable fallback (**Solutions Consultant**), never “first role alphabetically.” Helpers: `resolveRoleIdForManualAssignmentAdd` / `mostCommonFloatRoleNameForPerson` in `lib/float/roleWorkbenchMatch.ts`. Tests: `__tests__/lib/roleWorkbenchMatch.test.ts`.
@@ -15,9 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
-- **User Guide** — *Multiple time blocks* under Float sync; troubleshooting when Float hours look low vs Float; **Settings → Assignments** add uses Admin → People job title; troubleshooting for new assignments showing the first catalog role.
+- **CHANGELOG** — This release section.
+- **User Guide** — *Multiple time blocks* under Float sync; troubleshooting when Float hours look low vs Float; **Settings → Assignments** add uses Admin → People job title; troubleshooting for new assignments showing the first catalog role; release baseline **1.2.7**.
 - **Technical Reference** — `aggregateTasksToWeeklyHours` sums distinct tasks; QA checklist for multiple allocations; **manual assignment add** role resolution (`resolveRoleIdForManualAssignmentAdd`).
-- **README** — Float sync notes summing multiple allocations on the same person; **Settings → Assignments → Add** uses job title, not the first catalog role.
+- **README** — Float sync notes summing multiple allocations on the same person; **Settings → Assignments → Add** uses job title, not the first catalog role; production release tag example **v1.2.7**.
 
 ## [1.2.6] - 2026-08-13
 
