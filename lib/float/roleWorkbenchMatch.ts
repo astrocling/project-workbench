@@ -131,6 +131,54 @@ export function getFallbackRoleIdForNewAssignment(roles: WorkbenchRoleRow[]): st
 }
 
 /**
+ * Most frequent Float scheduling-role label for a person across a
+ * `FloatImportRun.projectAssignments` snapshot. Names are matched case-insensitively;
+ * the returned label is normalized (lowercase) for Workbench role lookup.
+ */
+export function mostCommonFloatRoleNameForPerson(
+  projectAssignments: Record<string, Array<{ personName: string; roleName: string }>>,
+  personName: string
+): string | null {
+  const personNameLower = personName.toLowerCase();
+  const roleCounts = new Map<string, number>();
+  for (const list of Object.values(projectAssignments)) {
+    for (const entry of list) {
+      if (entry.personName.toLowerCase() === personNameLower && entry.roleName.trim()) {
+        const rn = entry.roleName.trim().toLowerCase();
+        roleCounts.set(rn, (roleCounts.get(rn) ?? 0) + 1);
+      }
+    }
+  }
+  let bestRoleName: string | null = null;
+  let bestCount = 0;
+  for (const [rn, count] of roleCounts) {
+    if (count > bestCount) {
+      bestCount = count;
+      bestRoleName = rn;
+    }
+  }
+  return bestRoleName;
+}
+
+/**
+ * Role for **Settings → Assignments** when the UI does not send `roleId`.
+ * Prefers the person’s system job title (`Person.floatJobTitle`), then an optional
+ * Float scheduling-role hint, then the stable new-assignment fallback — never
+ * “first role in the catalog” (often Analytics Engineer).
+ */
+export function resolveRoleIdForManualAssignmentAdd(params: {
+  workbenchRoles: WorkbenchRoleRow[];
+  floatJobTitle: string | null | undefined;
+  floatRoleNameHint?: string | null;
+}): string | undefined {
+  return resolveRoleIdForNewAssignmentFromFloat({
+    workbenchRoles: params.workbenchRoles,
+    floatRoleName: params.floatRoleNameHint ?? "",
+    floatJobTitle: params.floatJobTitle,
+  });
+}
+
+/**
  * Same resolution order as Float import apply for sync-from-Float assignments:
  * job title → Float role label (with aliases) → existing assignment role → fallback for new rows.
  * Use when creating project assignments from Float import JSON without duplicating logic.

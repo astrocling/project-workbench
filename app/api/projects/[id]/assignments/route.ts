@@ -5,6 +5,10 @@ import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { getProjectId } from "@/lib/slug";
 import { getAsOfDate } from "@/lib/weekUtils";
+import {
+  mostCommonFloatRoleNameForPerson,
+  resolveRoleIdForManualAssignmentAdd,
+} from "@/lib/float/roleWorkbenchMatch";
 import { z } from "zod";
 
 const addSchema = z.object({
@@ -86,48 +90,30 @@ export async function POST(
 
   let roleId = parsed.data.roleId;
   if (!roleId) {
-    const person = await prisma.person.findUnique({
-      where: { id: parsed.data.personId },
-      select: { name: true },
-    });
-    if (person) {
-      const lastImport = await prisma.floatImportRun.findFirst({
+    const [person, roles, lastImport] = await Promise.all([
+      prisma.person.findUnique({
+        where: { id: parsed.data.personId },
+        select: { name: true, floatJobTitle: true },
+      }),
+      prisma.role.findMany({ select: { id: true, name: true } }),
+      prisma.floatImportRun.findFirst({
         orderBy: { completedAt: "desc" },
-      });
-      const projectAssignments =
-        (lastImport?.projectAssignments as Record<
-          string,
-          Array<{ personName: string; roleName: string }>
-        >) ?? {};
-      const personNameLower = person.name.toLowerCase();
-      const roleCounts = new Map<string, number>();
-      for (const list of Object.values(projectAssignments)) {
-        for (const entry of list) {
-          if (entry.personName.toLowerCase() === personNameLower && entry.roleName.trim()) {
-            const rn = entry.roleName.trim().toLowerCase();
-            roleCounts.set(rn, (roleCounts.get(rn) ?? 0) + 1);
-          }
-        }
-      }
-      let bestRoleName: string | null = null;
-      let bestCount = 0;
-      for (const [rn, count] of roleCounts) {
-        if (count > bestCount) {
-          bestCount = count;
-          bestRoleName = rn;
-        }
-      }
-      if (bestRoleName) {
-        const role = await prisma.role.findFirst({
-          where: { name: { equals: bestRoleName, mode: "insensitive" } },
-        });
-        if (role) roleId = role.id;
-      }
-    }
-    if (!roleId) {
-      const firstRole = await prisma.role.findFirst();
-      roleId = firstRole?.id;
-    }
+        select: { projectAssignments: true },
+      }),
+    ]);
+    const projectAssignments =
+      (lastImport?.projectAssignments as Record<
+        string,
+        Array<{ personName: string; roleName: string }>
+      >) ?? {};
+    const floatRoleNameHint = person
+      ? mostCommonFloatRoleNameForPerson(projectAssignments, person.name)
+      : null;
+    roleId = resolveRoleIdForManualAssignmentAdd({
+      workbenchRoles: roles,
+      floatJobTitle: person?.floatJobTitle,
+      floatRoleNameHint,
+    });
     if (!roleId) {
       return NextResponse.json({ error: "No role available" }, { status: 400 });
     }

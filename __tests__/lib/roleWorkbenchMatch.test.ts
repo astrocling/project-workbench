@@ -6,8 +6,10 @@ import { describe, it, expect } from "vitest";
 import {
   buildWorkbenchRoleLookup,
   getFallbackRoleIdForNewAssignment,
+  mostCommonFloatRoleNameForPerson,
   normalizeFloatRoleName,
   resolveJobTitleToWorkbenchId,
+  resolveRoleIdForManualAssignmentAdd,
   resolveRoleIdForNewAssignmentFromFloat,
 } from "@/lib/float/roleWorkbenchMatch";
 
@@ -132,6 +134,70 @@ describe("roleWorkbenchMatch", () => {
           fallbackRoleIdForNew: "ld",
         })
       ).toBe("ld");
+    });
+  });
+
+  describe("mostCommonFloatRoleNameForPerson", () => {
+    const snapshot = {
+      Alpha: [
+        { personName: "Alex Kim", roleName: "Project Manager" },
+        { personName: "Alex Kim", roleName: "Project Manager" },
+        { personName: "Other Person", roleName: "Designer" },
+      ],
+      Beta: [{ personName: "alex kim", roleName: "FE Developer" }],
+    };
+
+    it("returns the most frequent Float role label for that person", () => {
+      expect(mostCommonFloatRoleNameForPerson(snapshot, "Alex Kim")).toBe("project manager");
+    });
+
+    it("returns null when the person is not in the snapshot", () => {
+      expect(mostCommonFloatRoleNameForPerson(snapshot, "Nobody")).toBeNull();
+    });
+  });
+
+  describe("resolveRoleIdForManualAssignmentAdd", () => {
+    const roles = [
+      { id: "ae", name: "Analytics Engineer" },
+      { id: "pm", name: "Project Manager" },
+      { id: "sc", name: "Solutions Consultant" },
+    ];
+
+    it("uses the person's system job title, not the first catalog role", () => {
+      expect(
+        resolveRoleIdForManualAssignmentAdd({
+          workbenchRoles: roles,
+          floatJobTitle: "Project Manager",
+        })
+      ).toBe("pm");
+    });
+
+    it("maps job title aliases (e.g. Senior Consultant)", () => {
+      expect(
+        resolveRoleIdForManualAssignmentAdd({
+          workbenchRoles: roles,
+          floatJobTitle: "Senior Consultant",
+        })
+      ).toBe("sc");
+    });
+
+    it("uses a Float role hint when job title is missing", () => {
+      expect(
+        resolveRoleIdForManualAssignmentAdd({
+          workbenchRoles: roles,
+          floatJobTitle: null,
+          floatRoleNameHint: "pm",
+        })
+      ).toBe("pm");
+    });
+
+    it("falls back to Solutions Consultant instead of Analytics Engineer", () => {
+      expect(
+        resolveRoleIdForManualAssignmentAdd({
+          workbenchRoles: roles,
+          floatJobTitle: null,
+        })
+      ).toBe("sc");
     });
   });
 });
