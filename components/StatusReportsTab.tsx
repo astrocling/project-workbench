@@ -24,6 +24,7 @@ import {
   MODULAR_DEFAULT_PANELS,
 } from "@/lib/reportPanels";
 import { formatMonthDay } from "@/lib/formatIsoDate";
+import { shouldShowRefreshBudget } from "@/lib/statusReportPdfData";
 
 type RagValue = "Red" | "Amber" | "Green";
 
@@ -1280,31 +1281,29 @@ export function StatusReportsTab({
               </select>
             </div>
             {formVariation === "Standard" && (
-              <div className="space-y-3">
-                <Toggle
-                  checked={formShowBudget}
-                  onChange={setFormShowBudget}
-                  label="Show project budget on report"
-                  aria-label="Show project budget on report"
-                />
-                {editingReportId && canEdit && (
-                  <div className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRefreshBudgetModalError(null);
-                        setShowRefreshBudgetModal(true);
-                      }}
-                      className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-800 dark:text-surface-100 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
-                    >
-                      Refresh budget
-                    </button>
-                    {budgetRefreshSuccess && (
-                      <p className="text-body-sm text-emerald-700 dark:text-emerald-400" role="status">
-                        {budgetRefreshSuccess}
-                      </p>
-                    )}
-                  </div>
+              <Toggle
+                checked={formShowBudget}
+                onChange={setFormShowBudget}
+                label="Show project budget on report"
+                aria-label="Show project budget on report"
+              />
+            )}
+            {shouldShowRefreshBudget(formVariation) && editingReportId && canEdit && (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRefreshBudgetModalError(null);
+                    setShowRefreshBudgetModal(true);
+                  }}
+                  className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-800 dark:text-surface-100 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                >
+                  Refresh budget
+                </button>
+                {budgetRefreshSuccess && (
+                  <p className="text-body-sm text-emerald-700 dark:text-emerald-400" role="status">
+                    {budgetRefreshSuccess}
+                  </p>
                 )}
               </div>
             )}
@@ -2233,7 +2232,7 @@ export function StatusReportsTab({
               Replace budget on this report?
             </h3>
             <p className="text-body-sm text-surface-600 dark:text-surface-300">
-              This will replace the budget totals stored on this status report with the current Budget tab lines and spend-to-date. Timeline and other locked snapshot data are not affected.
+              This will replace the budget totals stored on this status report with the current Budget tab lines and spend-to-date. On CDA reports this also updates the overall budget dollars on the slide. Timeline, milestones, and other locked snapshot data are not affected.
             </p>
             {refreshBudgetModalError && (
               <p className="text-body-sm text-jred-600 dark:text-jred-400">{refreshBudgetModalError}</p>

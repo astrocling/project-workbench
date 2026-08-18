@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.8] - 2026-08-18
+
+Patch release: **Refresh budget** is visible when editing **CDA** and **Milestones** status reports, not only Standard. **Deploy:** no new migrations; redeploy the app.
+
+### Fixed
+
+- **Status reports — Refresh budget was hidden on CDA and Milestones** — The refresh API already updated `snapshot.budget` (and CDA `overallBudget`), but the edit-form button only rendered next to the Standard **Show project budget on report** toggle. **Refresh budget** now shows when editing Standard, Milestones, or CDA reports (`shouldShowRefreshBudget`). Tests: `__tests__/lib/statusReportPdfData.test.ts`.
+
+### Documentation
+
+- **CHANGELOG** — This release section.
+- **User Guide** — *Refresh budget* covers CDA and Milestones; Status Reports tab overview; troubleshooting when the button is missing; release baseline **1.2.8**.
+- **Technical Reference** — **Refresh budget** UI gated by `shouldShowRefreshBudget`.
+- **README** — Status reports note CDA/Milestones can refresh stored budget; production release tag example **v1.2.8**.
+
 ## [1.2.7] - 2026-08-13
 
 Patch release: **Float** weekly hours now **sum** multiple allocations for the same person on a project; **Settings → Assignments** uses each person’s **job title** when adding them (not the first catalog role). **Deploy:** no new migrations; redeploy the app and Trigger.dev worker, then run **Admin → Float sync** so stored Float hours refresh.

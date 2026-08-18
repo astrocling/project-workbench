@@ -498,7 +498,7 @@ The CDA **Budget** sub-tab card (`CDATab`) calls `computeCdaProjections({ contra
 - **Problem**: Budget (and CDA overall dollars) are locked in **`snapshot.budget`** at create time. Reports created **before** Budget tab lines exist store **`$0` / `0` hours**; later Budget tab edits do not update older reports.
 - **API**: **`POST .../status-reports/[reportId]/refresh-budget`** — requires a valid snapshot; rejects **Modular**. Calls **`buildStatusReportPdfData(..., { rebuildBudgetFromProject: true })`**, writes **`snapshot.budget`**, and for **CDA** also sets **`snapshot.cda.overallBudget`** from **`estBudgetHigh`** / **`spentDollars`**. Invalidates PDF cache + report tag.
 - **Helpers**: **`shouldUseLockedSnapshotBudget()`** / **`rebuildBudgetFromProject`** in `lib/statusReportPdfData.ts`. **`shouldAttachBudgetToPdfData(variation)`** attaches the budget block for **Standard**, **Milestones**, and **CDA** (Modular omits it).
-- **UI**: **Refresh budget** on the Status Reports edit form when variation is **Standard** (confirmation modal; bumps preview **`dataRefreshKey`**).
+- **UI**: **Refresh budget** on the Status Reports edit form when variation is **Standard**, **Milestones**, or **CDA** (`shouldShowRefreshBudget`; confirmation modal; bumps preview **`dataRefreshKey`**). Hidden for **Modular**.
 
 ### CDA Overall Hours Planned (`cdaOverallHoursPlanned`)
 

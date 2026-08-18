@@ -59,6 +59,15 @@ export function shouldAttachBudgetToPdfData(variation: string): boolean {
   );
 }
 
+/**
+ * Edit-form **Refresh budget** is offered for every variation that locks budget
+ * into the snapshot. The API already refreshes Standard, Milestones, and CDA
+ * (`snapshot.budget` plus CDA `overallBudget`); Modular has no budget snapshot.
+ */
+export function shouldShowRefreshBudget(variation: string): boolean {
+  return shouldAttachBudgetToPdfData(variation);
+}
+
 export function isStatusReportSnapshot(obj: unknown): obj is StatusReportSnapshot {
   return (
     typeof obj === "object" &&

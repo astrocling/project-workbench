@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   resolveShowBudget,
   shouldAttachBudgetToPdfData,
+  shouldShowRefreshBudget,
   shouldUseLockedSnapshotBudget,
   type StatusReportSnapshot,
 } from "@/lib/statusReportPdfData";
@@ -59,6 +60,18 @@ describe("shouldAttachBudgetToPdfData", () => {
 
   it("does not attach budget for Modular", () => {
     expect(shouldAttachBudgetToPdfData("Modular")).toBe(false);
+  });
+});
+
+describe("shouldShowRefreshBudget", () => {
+  it("shows Refresh budget for Standard, Milestones, and CDA (not only Standard)", () => {
+    expect(shouldShowRefreshBudget("Standard")).toBe(true);
+    expect(shouldShowRefreshBudget("Milestones")).toBe(true);
+    expect(shouldShowRefreshBudget("CDA")).toBe(true);
+  });
+
+  it("hides Refresh budget for Modular", () => {
+    expect(shouldShowRefreshBudget("Modular")).toBe(false);
   });
 });
 
