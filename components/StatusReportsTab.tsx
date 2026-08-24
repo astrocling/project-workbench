@@ -718,7 +718,9 @@ export function StatusReportsTab({
         return;
       }
       setShowRefreshBudgetModal(false);
-      setBudgetRefreshSuccess("Budget on this report was updated to match the Budget tab.");
+      setBudgetRefreshSuccess(
+        "Budget on this report was updated to match current Budget tab and actuals."
+      );
       if (previewReportId === editingReportId) {
         setPreviewDataKey((k) => k + 1);
       }
@@ -2232,7 +2234,7 @@ export function StatusReportsTab({
               Replace budget on this report?
             </h3>
             <p className="text-body-sm text-surface-600 dark:text-surface-300">
-              This will replace the budget totals stored on this status report with the current Budget tab lines and spend-to-date. On CDA reports this also updates the overall budget dollars on the slide. Timeline, milestones, and other locked snapshot data are not affected.
+              This will replace the budget totals stored on this status report with the current Budget tab lines and spend-to-date. On CDA reports this also updates monthly hours, overall hours actuals, and overall budget dollars on the slide. Timeline, milestones, and other locked snapshot data are not affected.
             </p>
             {refreshBudgetModalError && (
               <p className="text-body-sm text-jred-600 dark:text-jred-400">{refreshBudgetModalError}</p>

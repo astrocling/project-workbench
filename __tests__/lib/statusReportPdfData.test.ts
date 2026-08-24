@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyCdaBudgetRefresh,
   resolveShowBudget,
   shouldAttachBudgetToPdfData,
+  shouldRebuildCdaBudgetFromProject,
   shouldShowRefreshBudget,
   shouldUseLockedSnapshotBudget,
   type StatusReportSnapshot,
@@ -94,6 +96,68 @@ describe("shouldUseLockedSnapshotBudget", () => {
         { rebuildBudgetFromProject: true }
       )
     ).toBe(false);
+  });
+});
+
+describe("shouldRebuildCdaBudgetFromProject", () => {
+  it("rebuilds CDA budget fields when refresh-budget runs on a CDA report", () => {
+    expect(
+      shouldRebuildCdaBudgetFromProject("CDA", { rebuildBudgetFromProject: true })
+    ).toBe(true);
+  });
+
+  it("does not rebuild CDA budget for Standard or when not refreshing", () => {
+    expect(
+      shouldRebuildCdaBudgetFromProject("Standard", { rebuildBudgetFromProject: true })
+    ).toBe(false);
+    expect(shouldRebuildCdaBudgetFromProject("CDA")).toBe(false);
+    expect(shouldRebuildCdaBudgetFromProject("CDA", {})).toBe(false);
+  });
+});
+
+describe("applyCdaBudgetRefresh", () => {
+  const lockedMilestones = [
+    {
+      id: "m1",
+      phase: "May Sprint",
+      devStartDate: "2026-05-01",
+      devEndDate: "2026-05-15",
+      uatStartDate: "2026-05-16",
+      uatEndDate: "2026-05-22",
+      deployDate: "2026-05-23",
+      completed: false,
+    },
+  ];
+
+  const staleCda = {
+    rows: [{ monthKey: "2026-08", monthLabel: "August", planned: 40, mtdActuals: 44.75 }],
+    overallBudget: { totalDollars: 10000, actualDollars: 5000 },
+    totalPlanned: 40,
+    totalMtdActuals: 44.75,
+    totalRemaining: -4.75,
+    milestones: lockedMilestones,
+  };
+
+  const liveCdaBudget = {
+    rows: [{ monthKey: "2026-08", monthLabel: "August", planned: 40, mtdActuals: 45 }],
+    overallBudget: { totalDollars: 10000, actualDollars: 5100 },
+    totalPlanned: 40,
+    totalMtdActuals: 45,
+    totalRemaining: -5,
+  };
+
+  it("updates CDA hours and dollars from live actuals while keeping locked milestones", () => {
+    const next = applyCdaBudgetRefresh(staleCda, liveCdaBudget);
+    expect(next.totalMtdActuals).toBe(45);
+    expect(next.rows[0]?.mtdActuals).toBe(45);
+    expect(next.overallBudget?.actualDollars).toBe(5100);
+    expect(next.milestones).toEqual(lockedMilestones);
+  });
+
+  it("works when the snapshot had no CDA block yet", () => {
+    const next = applyCdaBudgetRefresh(undefined, liveCdaBudget);
+    expect(next.totalMtdActuals).toBe(45);
+    expect(next.milestones).toBeUndefined();
   });
 });
 

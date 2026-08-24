@@ -69,15 +69,10 @@ export async function POST(
     budget: pdfData.budget,
   };
 
-  // Keep CDA overall dollar row in sync when refreshing budget on a CDA report
-  if (report.variation === "CDA" && existingSnapshot.cda) {
-    nextSnapshot.cda = {
-      ...existingSnapshot.cda,
-      overallBudget: {
-        totalDollars: pdfData.budget.estBudgetHigh,
-        actualDollars: pdfData.budget.spentDollars,
-      },
-    };
+  // CDA: replace locked monthly hours / totals / overall dollars; milestones stay from build
+  // (applyCdaBudgetRefresh preserves snapshot milestones inside buildStatusReportPdfData).
+  if (report.variation === "CDA" && pdfData.cda) {
+    nextSnapshot.cda = pdfData.cda;
   }
 
   await prisma.statusReport.update({

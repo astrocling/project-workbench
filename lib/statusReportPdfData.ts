@@ -61,8 +61,9 @@ export function shouldAttachBudgetToPdfData(variation: string): boolean {
 
 /**
  * Edit-form **Refresh budget** is offered for every variation that locks budget
- * into the snapshot. The API already refreshes Standard, Milestones, and CDA
- * (`snapshot.budget` plus CDA `overallBudget`); Modular has no budget snapshot.
+ * into the snapshot. The API refreshes Standard, Milestones, and CDA
+ * (`snapshot.budget`; on CDA also monthly hours / totalMtdActuals / overallBudget).
+ * Modular has no budget snapshot.
  */
 export function shouldShowRefreshBudget(variation: string): boolean {
   return shouldAttachBudgetToPdfData(variation);
@@ -86,7 +87,7 @@ export type BuildStatusReportPdfDataOptions = {
   rebuildTimelineFromProject?: boolean;
   /** When true, ignore snapshot.cda.milestones and rebuild from current project CDA milestones. */
   rebuildCdaMilestonesFromProject?: boolean;
-  /** When true, ignore snapshot.budget and recompute from current project budget lines + actuals. */
+  /** When true, ignore snapshot.budget and recompute from current project budget lines + actuals. On CDA, also rebuilds locked monthly hours / totalMtdActuals (milestones preserved). */
   rebuildBudgetFromProject?: boolean;
 };
 
@@ -99,6 +100,34 @@ export function shouldUseLockedSnapshotBudget(
   options?: Pick<BuildStatusReportPdfDataOptions, "rebuildBudgetFromProject">
 ): boolean {
   return snapshot?.budget !== undefined && !options?.rebuildBudgetFromProject;
+}
+
+/**
+ * Refresh-budget on a CDA report must also rebuild locked CDA monthly hours /
+ * totalMtdActuals (not only snapshot.budget and overallBudget dollars).
+ */
+export function shouldRebuildCdaBudgetFromProject(
+  variation: string,
+  options?: Pick<BuildStatusReportPdfDataOptions, "rebuildBudgetFromProject">
+): boolean {
+  return variation === "CDA" && Boolean(options?.rebuildBudgetFromProject);
+}
+
+type CdaSnapshot = NonNullable<StatusReportPDFData["cda"]>;
+type CdaBudgetFields = Omit<CdaSnapshot, "milestones">;
+
+/**
+ * Replace CDA budget/actuals fields from a live rebuild while keeping milestones
+ * from the existing snapshot (use Refresh milestones for those).
+ */
+export function applyCdaBudgetRefresh(
+  existing: CdaSnapshot | undefined,
+  refreshed: CdaBudgetFields
+): CdaSnapshot {
+  return {
+    ...refreshed,
+    milestones: existing?.milestones,
+  };
 }
 
 type CdaMilestoneSnapshot = NonNullable<
@@ -201,7 +230,8 @@ export async function buildStatusReportPdfData(
   if (shouldUseLockedSnapshotBudget(snapshot, options)) {
     budget = snapshot!.budget;
   }
-  if (snapshot?.cda !== undefined) {
+  const rebuildCdaBudget = shouldRebuildCdaBudgetFromProject(report.variation, options);
+  if (snapshot?.cda !== undefined && !rebuildCdaBudget) {
     cda = snapshot.cda;
     if (options?.rebuildCdaMilestonesFromProject && cda) {
       cda = {
@@ -259,7 +289,9 @@ export async function buildStatusReportPdfData(
     }
   }
 
-  if (budget === undefined || (report.variation === "CDA" && cda === undefined)) {
+  const needCdaBudget =
+    report.variation === "CDA" && (cda === undefined || rebuildCdaBudget);
+  if (budget === undefined || needCdaBudget) {
     const singleRate =
       project.useSingleRate && project.singleBillRate != null
         ? Number(project.singleBillRate)
@@ -356,7 +388,7 @@ export async function buildStatusReportPdfData(
       };
     }
 
-    if (report.variation === "CDA" && cda === undefined) {
+    if (needCdaBudget) {
       const rows = buildCdaRowsForProject({
         startDate: project.startDate,
         endDate: project.endDate,
@@ -366,15 +398,23 @@ export async function buildStatusReportPdfData(
       });
       const totalPlanned = rows.reduce((s, r) => s + r.planned, 0);
       const totalMtdActuals = rows.reduce((s, r) => s + r.mtdActuals, 0);
-      const milestones = buildCdaMilestonesFromProject(project.cdaMilestones ?? []);
-      cda = {
+      const refreshedCdaBudget: CdaBudgetFields = {
         rows,
         overallBudget: { totalDollars: estBudgetHigh, actualDollars: rollups.actualDollarsToDate },
         totalPlanned,
         totalMtdActuals,
         totalRemaining: totalPlanned - totalMtdActuals,
-        milestones,
       };
+      if (rebuildCdaBudget) {
+        // Keep locked milestones; Refresh milestones is separate.
+        const existingCda = isStatusReportSnapshot(snapshot) ? snapshot.cda : undefined;
+        cda = applyCdaBudgetRefresh(existingCda, refreshedCdaBudget);
+      } else {
+        cda = {
+          ...refreshedCdaBudget,
+          milestones: buildCdaMilestonesFromProject(project.cdaMilestones ?? []),
+        };
+      }
     }
   }
 

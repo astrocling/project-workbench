@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Status reports — CDA Refresh budget left hours stuck** — **Refresh budget** on a CDA report updated `snapshot.budget` and overall **dollar** totals, but the slide’s hours still came from locked **`snapshot.cda.totalMtdActuals`** / monthly rows. Correcting Resourcing actuals (e.g. +0.25h) showed the right total in the edit-form summary, while **Update** and even **Refresh budget** left the slide on the old figure. Refresh now rebuilds CDA monthly hours and overall hours actuals (milestones unchanged). Helpers: `shouldRebuildCdaBudgetFromProject`, `applyCdaBudgetRefresh`. Tests: `__tests__/lib/statusReportPdfData.test.ts`.
+
+### Documentation
+
+- **User Guide** — Refresh budget covers CDA hours/actuals; troubleshooting when Update does not change the slide.
+- **Technical Reference** — Refresh budget replaces full CDA budget fields, not only `overallBudget` dollars.
+
 ## [1.2.8] - 2026-08-18
 
 Patch release: **Refresh budget** is visible when editing **CDA** and **Milestones** status reports, not only Standard. **Deploy:** no new migrations; redeploy the app.
