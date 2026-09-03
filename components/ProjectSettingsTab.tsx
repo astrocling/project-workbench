@@ -244,10 +244,15 @@ export function ProjectSettingsTab({
     const timer = setTimeout(async () => {
       setSaving(true);
       setError("");
+      const payload = buildPayload();
+      const prevPayload = lastSavedRef.current
+        ? (JSON.parse(lastSavedRef.current) as { planEnabled?: boolean })
+        : null;
+      const prevPlanEnabled = prevPayload?.planEnabled;
       const res = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildPayload()),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         setError(await res.text());
@@ -258,7 +263,10 @@ export function ProjectSettingsTab({
       if (typeof updated.slug === "string" && updated.slug !== projectSlug) {
         router.replace(`/projects/${updated.slug}?tab=settings`);
       }
-      lastSavedRef.current = JSON.stringify(buildPayload());
+      lastSavedRef.current = JSON.stringify(payload);
+      if (isAdmin && prevPlanEnabled !== payload.planEnabled) {
+        router.refresh();
+      }
       setSaving(false);
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 2000);
@@ -271,6 +279,7 @@ export function ProjectSettingsTab({
     projectSlug,
     buildPayload,
     router,
+    isAdmin,
   ]);
 
   function handleSubmit(e: React.FormEvent) {

@@ -55,8 +55,16 @@ export function PlanTab({
   const [assumptionsSaving, setAssumptionsSaving] = useState(false);
   const [defaultSaving, setDefaultSaving] = useState(false);
   const [defaultError, setDefaultError] = useState<string | null>(null);
+  const [pendingReportDefault, setPendingReportDefault] = useState<"timeline" | "plan" | null>(
+    null
+  );
 
   const apiBase = `/api/projects/${projectId}/plan`;
+  const displayReportDefault = pendingReportDefault ?? planReportDefault;
+
+  useEffect(() => {
+    setPendingReportDefault(null);
+  }, [planReportDefault]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -148,7 +156,8 @@ export function PlanTab({
   }
 
   async function saveDefault(value: "timeline" | "plan") {
-    if (!canEdit || value === planReportDefault || defaultSaving) return;
+    if (!canEdit || value === displayReportDefault || defaultSaving) return;
+    setPendingReportDefault(value);
     setDefaultSaving(true);
     setDefaultError(null);
     try {
@@ -157,8 +166,10 @@ export function PlanTab({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ planReportDefault: value }),
       });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        setDefaultError(await res.text());
+        setPendingReportDefault(null);
+        setDefaultError(json.error ?? "Could not save report default. Try again.");
         return;
       }
       router.refresh();
@@ -326,10 +337,12 @@ export function PlanTab({
             <button
               type="button"
               disabled={defaultSaving}
-              aria-pressed={planReportDefault === "timeline"}
+              aria-pressed={displayReportDefault === "timeline"}
               onClick={() => saveDefault("timeline")}
               className={`${REPORT_DEFAULT_BTN} ${
-                planReportDefault === "timeline" ? REPORT_DEFAULT_BTN_PRESSED : REPORT_DEFAULT_BTN_IDLE
+                displayReportDefault === "timeline"
+                  ? REPORT_DEFAULT_BTN_PRESSED
+                  : REPORT_DEFAULT_BTN_IDLE
               }`}
             >
               Project timeline
@@ -337,10 +350,10 @@ export function PlanTab({
             <button
               type="button"
               disabled={defaultSaving}
-              aria-pressed={planReportDefault === "plan"}
+              aria-pressed={displayReportDefault === "plan"}
               onClick={() => saveDefault("plan")}
               className={`${REPORT_DEFAULT_BTN} ${
-                planReportDefault === "plan" ? REPORT_DEFAULT_BTN_PRESSED : REPORT_DEFAULT_BTN_IDLE
+                displayReportDefault === "plan" ? REPORT_DEFAULT_BTN_PRESSED : REPORT_DEFAULT_BTN_IDLE
               }`}
             >
               Project Plan
