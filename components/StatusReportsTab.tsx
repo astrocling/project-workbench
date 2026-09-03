@@ -24,25 +24,21 @@ import {
   MODULAR_DEFAULT_PANELS,
 } from "@/lib/reportPanels";
 import { formatMonthDay } from "@/lib/formatIsoDate";
-import { shouldShowRefreshBudget } from "@/lib/statusReportFlags";
-import type { PlanReportDensity, ScheduleSource } from "@/lib/statusReportPdfData";
+import {
+  PREVIOUS_MONTHS_ON_SCHEDULE_LABEL,
+  buildScheduleSourceCreatePayload,
+  createScheduleFormDefaults,
+  isScheduleEligibleVariation,
+  planDensityLabel,
+  scheduleSourceLabel,
+  shouldResetScheduleDefaultsOnVariationChange,
+  shouldShowRefreshBudget,
+  shouldShowScheduleSourceFields,
+  type ScheduleSource,
+} from "@/lib/statusReportFlags";
+import type { PlanReportDensity } from "@/lib/statusReportPdfData";
 
 type RagValue = "Red" | "Amber" | "Green";
-
-function scheduleSourceLabel(source: ScheduleSource): string {
-  return source === "plan" ? "Project Plan" : "Project timeline";
-}
-
-function planDensityLabel(density: PlanReportDensity): string {
-  return density === "phases" ? "Phases only" : "Phases + key dates";
-}
-
-function createScheduleDefaults(planReportDefault: "timeline" | "plan") {
-  return {
-    scheduleSource: planReportDefault,
-    planDensity: "phases_and_key_dates" as PlanReportDensity,
-  };
-}
 
 type FormVariation = "Standard" | "Milestones" | "CDA" | "Modular";
 
@@ -531,7 +527,7 @@ export function StatusReportsTab({
         setFormPanels(MODULAR_DEFAULT_PANELS);
         setFormShowBudget(true);
         setFormTimelinePreviousMonths(1);
-        const scheduleDefaults = createScheduleDefaults(planReportDefault);
+        const scheduleDefaults = createScheduleFormDefaults(planReportDefault);
         setFormScheduleSource(scheduleDefaults.scheduleSource);
         setFormPlanDensity(scheduleDefaults.planDensity);
         setEditingScheduleSource("timeline");
@@ -563,7 +559,7 @@ export function StatusReportsTab({
         setFormPanels(MODULAR_DEFAULT_PANELS);
         setFormShowBudget(true);
         setFormTimelinePreviousMonths(1);
-        const scheduleDefaults = createScheduleDefaults(planReportDefault);
+        const scheduleDefaults = createScheduleFormDefaults(planReportDefault);
         setFormScheduleSource(scheduleDefaults.scheduleSource);
         setFormPlanDensity(scheduleDefaults.planDensity);
         setEditingScheduleSource("timeline");
@@ -660,11 +656,12 @@ export function StatusReportsTab({
       ragScheduleExplanation: formRagScheduleExplanation.trim() || null,
       ragBudgetExplanation: formRagBudgetExplanation.trim() || null,
       ...(!editingReportId &&
-        planEnabled &&
-        (formVariation === "Standard" || formVariation === "Milestones") && {
-          scheduleSource: formScheduleSource,
-          ...(formScheduleSource === "plan" && { planDensity: formPlanDensity }),
-        }),
+        buildScheduleSourceCreatePayload(
+          planEnabled,
+          formVariation,
+          formScheduleSource,
+          formPlanDensity
+        )),
     };
     const url = editingReportId
       ? `/api/projects/${projectId}/status-reports/${editingReportId}`
@@ -1330,10 +1327,9 @@ export function StatusReportsTab({
                   }
                   if (
                     !editingReportId &&
-                    planEnabled &&
-                    (next === "Standard" || next === "Milestones")
+                    shouldResetScheduleDefaultsOnVariationChange(formVariation, next)
                   ) {
-                    const scheduleDefaults = createScheduleDefaults(planReportDefault);
+                    const scheduleDefaults = createScheduleFormDefaults(planReportDefault);
                     setFormScheduleSource(scheduleDefaults.scheduleSource);
                     setFormPlanDensity(scheduleDefaults.planDensity);
                   }
@@ -1372,9 +1368,9 @@ export function StatusReportsTab({
                 )}
               </div>
             )}
-            {(formVariation === "Standard" || formVariation === "Milestones") && (
+            {isScheduleEligibleVariation(formVariation) && (
               <div className="space-y-4">
-                {planEnabled && (
+                {shouldShowScheduleSourceFields(planEnabled, editingScheduleSource) && (
                   <div className="space-y-4">
                     <div>
                       <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">
@@ -1422,45 +1418,54 @@ export function StatusReportsTab({
                     )}
                   </div>
                 )}
-              <div>
-                <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">
-                  Previous months on timeline{editingReportId ? " (locked)" : ""}
-                </label>
-                {editingReportId ? (
-                  <p className="text-body-sm text-surface-600 dark:text-surface-300 pt-1.5">
-                    {formTimelinePreviousMonths} {formTimelinePreviousMonths === 1 ? "month" : "months"}
-                  </p>
-                ) : (
-                  <select
-                    value={formTimelinePreviousMonths}
-                    onChange={(e) => setFormTimelinePreviousMonths(Number(e.target.value))}
-                    className="block w-full max-w-xs h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
-                  >
-                    {[1, 2, 3, 4].map((n) => (
-                      <option key={n} value={n}>{n} {n === 1 ? "month" : "months"} before report date</option>
-                    ))}
-                  </select>
-                )}
-                {editingReportId && canEdit && (
-                  <div className="mt-3 space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRefreshTimelineModalError(null);
-                        setShowRefreshTimelineModal(true);
-                      }}
-                      className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-800 dark:text-surface-100 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                <div>
+                  <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">
+                    {PREVIOUS_MONTHS_ON_SCHEDULE_LABEL}
+                    {editingReportId ? " (locked)" : ""}
+                  </label>
+                  {editingReportId ? (
+                    <p className="text-body-sm text-surface-600 dark:text-surface-300 pt-1.5">
+                      {formTimelinePreviousMonths}{" "}
+                      {formTimelinePreviousMonths === 1 ? "month" : "months"}
+                    </p>
+                  ) : (
+                    <select
+                      value={formTimelinePreviousMonths}
+                      onChange={(e) => setFormTimelinePreviousMonths(Number(e.target.value))}
+                      className="block w-full max-w-xs h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
                     >
-                      {editingScheduleSource === "plan" ? "Refresh schedule" : "Refresh timeline"}
-                    </button>
-                    {timelineRefreshSuccess && (
-                      <p className="text-body-sm text-emerald-700 dark:text-emerald-400" role="status">
-                        {timelineRefreshSuccess}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
+                      {[1, 2, 3, 4].map((n) => (
+                        <option key={n} value={n}>
+                          {n} {n === 1 ? "month" : "months"} before report date
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {editingReportId && canEdit && (
+                    <div className="mt-3 space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRefreshTimelineModalError(null);
+                          setShowRefreshTimelineModal(true);
+                        }}
+                        className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-800 dark:text-surface-100 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                      >
+                        {editingScheduleSource === "plan"
+                          ? "Refresh schedule"
+                          : "Refresh timeline"}
+                      </button>
+                      {timelineRefreshSuccess && (
+                        <p
+                          className="text-body-sm text-emerald-700 dark:text-emerald-400"
+                          role="status"
+                        >
+                          {timelineRefreshSuccess}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
             {formVariation === "Modular" && (() => {

@@ -232,12 +232,12 @@ When an Admin has enabled **Plan** for the project (**Settings → Enable Plan t
 
 | Field | Purpose |
 |-------|---------|
-| **Schedule source** | **Project timeline** (bars and markers from the **Timeline** tab) or **Project Plan** (compact phase bars and key-date markers from the **Plan** tab). Defaults to the value set on the **Plan** tab (**Default for new status reports**). |
+| **Schedule source** | **Project timeline** (bars and markers from the **Timeline** tab) or **Project Plan** (compact phase bars and key-date markers from the **Plan** tab). Defaults to the value set on the **Plan** tab (**New status reports use**). |
 | **Plan density** | Shown when source is **Project Plan**: **Phases only** or **Phases + key dates** (default). |
 
 **CDA** and **Modular** variations do not show these fields. Projects with Plan **off** always use **Project timeline** (legacy behavior).
 
-On **edit**, schedule source and plan density are **locked** (read-only), same as report date and previous months. Use **Refresh timeline** or **Refresh schedule** (below) to update the stored bars/markers after changing the Timeline or Plan tab.
+On **edit**, schedule source and plan density are **locked** (read-only), same as report date and **Previous months on schedule**. Use **Refresh timeline** or **Refresh schedule** (below) to update the stored bars/markers after changing the Timeline or Plan tab. If Plan is later disabled on the project, reports that used **Project Plan** still show their locked schedule source and density when you edit them.
 
 ### Modular variation (Story Points / Velocity)
 
@@ -291,7 +291,7 @@ When you **save a new** status report, Workbench stores a **snapshot** with the 
 
 - **What you can still edit** on an existing report: narrative fields (completed / upcoming / risks / meeting notes), RAG values and explanations, **variation** where the form allows it, **Show project budget on report** for **Standard** reports (see above), and sprint schedule / story points / donut KPI **panels** for **Modular** reports.
 - **Meeting notes with formatting**: If you paste content that includes **HTML** from another tool, the preview, HTML view, and **Download PDF** keep **allowed** formatting (paragraphs, lists, links, basic styles) and drop unsafe markup automatically. Plain-text notes support line breaks and clickable URLs (paste `https://…` or use `[label](url)`). If client-side PDF generation fails, the preview offers **Download PDF (server)** as a fallback; that path may not preserve HTML formatting in meeting notes.
-- **What stays locked** unless you use **Refresh timeline**, **Refresh schedule**, **Refresh budget**, or **Refresh milestones on report** (below): **report date**, **reporting period**, **schedule source** and **plan density** (when Plan is enabled), **previous months on timeline** (the 1–4 month window chosen at create time), budget/CDA monthly snapshot, **CDA milestone dates** (on CDA reports), and—by default—the **timeline** bars and markers (from Timeline or Plan, depending on source).
+- **What stays locked** unless you use **Refresh timeline**, **Refresh schedule**, **Refresh budget**, or **Refresh milestones on report** (below): **report date**, **reporting period**, **schedule source** and **plan density** (when Plan is enabled or the report used Plan), **Previous months on schedule** (the 1–4 month window chosen at create time), budget/CDA monthly snapshot, **CDA milestone dates** (on CDA reports), and—by default—the **timeline** bars and markers (from Timeline or Plan, depending on source).
 
 ### Refresh budget (Standard, Milestones, and CDA; editors only)
 
@@ -308,7 +308,7 @@ If you added or changed **Budget** tab lines, or corrected **Resourcing** actual
 If you updated the project **Timeline** tab **after** a report was saved with **Project timeline**, the report still shows the **old** timeline until you refresh it. If you updated the **Plan** tab after a report was saved with **Project Plan**, use **Refresh schedule** instead.
 
 1. Open **Edit report** for that row (pencil).
-2. Under **Previous months on timeline** (read-only on edit), click **Refresh timeline** (Timeline source) or **Refresh schedule** (Plan source).
+2. Under **Previous months on schedule** (read-only on edit), click **Refresh timeline** (Timeline source) or **Refresh schedule** (Plan source).
 3. Read the confirmation dialog: it explains that the **schedule stored on this report** will be **replaced** with your project’s **current** Timeline bars/markers or **current** Plan phases/key dates. Your **report date** and **how many previous months** are shown do **not** change; other snapshot data (for example budget) is **not** affected.
 4. Confirm to apply, or cancel to keep the existing stored schedule.
 
