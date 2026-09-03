@@ -25,6 +25,11 @@ enum ProjectStatus {
   Closed
 }
 
+enum PlanReportDefault {
+  timeline
+  plan
+}
+
 enum BudgetLineType {
   SOW
   CO
@@ -175,6 +180,10 @@ model Project {
   cdaEnabled     Boolean   @default(false)
   /// Status report / CDA copy: Overall table shows hours only (hide budget dollars)
   cdaReportHoursOnly Boolean @default(false)
+  /// Show Plan tab (beta schedule builder). Admin-only to change.
+  planEnabled Boolean @default(false)
+  /// Prefill for new Standard/Milestones reports: legacy Timeline vs compact Plan.
+  planReportDefault PlanReportDefault @default(timeline)
   /// Client sponsor (for status report biographical block)
   clientSponsor   String?
   /// Second client sponsor (for status report biographical block)
