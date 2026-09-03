@@ -32,13 +32,39 @@ export function getPlanScale(startYmd: string, endYmd: string): PlanScale {
   return "month";
 }
 
+export function getPlanAxisRange(
+  plan: {
+    kickoffDate: string;
+    endDate: string;
+    phases: { items: { startDate: string; endDate: string }[] }[];
+  }
+): { startYmd: string; endYmd: string } {
+  const kickoff = parseYmd(plan.kickoffDate);
+  const planEnd = parseYmd(plan.endDate);
+  let startMs = Math.min(kickoff.getTime(), planEnd.getTime());
+  let endMs = Math.max(kickoff.getTime(), planEnd.getTime());
+
+  for (const phase of plan.phases) {
+    for (const item of phase.items) {
+      const itemStartMs = parseYmd(item.startDate).getTime();
+      const itemEndMs = parseYmd(item.endDate).getTime();
+      startMs = Math.min(startMs, itemStartMs, itemEndMs);
+      endMs = Math.max(endMs, itemStartMs, itemEndMs);
+    }
+  }
+
+  return {
+    startYmd: formatYmd(new Date(startMs)),
+    endYmd: formatYmd(new Date(endMs)),
+  };
+}
+
 /** Column headers for the plan chart at the scale chosen by {@link getPlanScale}. */
 export function getScaleColumns(
   startYmd: string,
-  endYmd: string
+  endYmd: string,
+  scale: PlanScale = getPlanScale(startYmd, endYmd)
 ): ScaleColumn[] {
-  const scale = getPlanScale(startYmd, endYmd);
-
   if (scale === "day") {
     return expandYmdRange(startYmd, endYmd).map((ymd) => {
       const d = parseYmd(ymd);

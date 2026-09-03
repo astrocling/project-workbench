@@ -3,12 +3,16 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import {
   dateString,
+  getPlanItemsForValidation,
   getSessionUserId,
+  normalizeItemDates,
   parseDate,
   planItemTypeEnum,
+  planMeetingStatusEnum,
   requireEditSession,
   resolveProjectId,
   validateDateRange,
+  validateItemPayload,
 } from "@/lib/plan/api";
 import { serializePlanItem } from "@/lib/plan/serialize";
 import { touchPlan } from "@/lib/plan/touchPlan";
@@ -20,6 +24,9 @@ const postSchema = z.object({
   startDate: dateString,
   endDate: dateString,
   order: z.number().int().optional(),
+  parentItemId: z.string().min(1).nullable().optional(),
+  meetingStatus: planMeetingStatusEnum.nullable().optional(),
+  scheduledTime: z.string().nullable().optional(),
 });
 
 export async function POST(
@@ -48,15 +55,41 @@ export async function POST(
   });
   if (!phase) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const startDate = parseDate(parsed.data.startDate);
-  const endDate = parseDate(parsed.data.endDate);
+  const meetingStatus = parsed.data.type === "meeting" ? parsed.data.meetingStatus ?? null : null;
+  const scheduledTime = parsed.data.type === "meeting" ? parsed.data.scheduledTime ?? null : null;
+  const parentItemId = parsed.data.parentItemId ?? null;
+  const dates = normalizeItemDates({
+    type: parsed.data.type,
+    meetingStatus,
+    startDate: parsed.data.startDate,
+    endDate: parsed.data.endDate,
+  });
+
+  const siblings = await getPlanItemsForValidation(phase.planId);
+  const payloadError = validateItemPayload(
+    {
+      type: parsed.data.type,
+      meetingStatus,
+      startDate: dates.startDate,
+      endDate: dates.endDate,
+      phaseId: phase.id,
+      parentItemId,
+    },
+    siblings
+  );
+  if (payloadError) {
+    return NextResponse.json({ error: payloadError }, { status: 400 });
+  }
+
+  const startDate = parseDate(dates.startDate);
+  const endDate = parseDate(dates.endDate);
   const rangeError = validateDateRange(startDate, endDate);
   if (rangeError) {
     return NextResponse.json({ error: rangeError }, { status: 400 });
   }
 
   const maxOrder = await prisma.planItem.aggregate({
-    where: { phaseId: phase.id },
+    where: { phaseId: phase.id, parentItemId },
     _max: { order: true },
   });
   const order = parsed.data.order ?? (maxOrder._max.order ?? -1) + 1;
@@ -70,6 +103,9 @@ export async function POST(
         startDate,
         endDate,
         order,
+        parentItemId,
+        meetingStatus,
+        scheduledTime,
       },
     });
 

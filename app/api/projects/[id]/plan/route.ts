@@ -151,7 +151,6 @@ export async function POST(
             orderBy: { order: "asc" },
             include: { items: { orderBy: { order: "asc" } } },
           },
-          meetings: { orderBy: { order: "asc" } },
           updatedBy: {
             select: { firstName: true, lastName: true, email: true },
           },
@@ -213,7 +212,6 @@ export async function PATCH(
         orderBy: { order: "asc" },
         include: { items: { orderBy: { order: "asc" } } },
       },
-      meetings: { orderBy: { order: "asc" } },
       updatedBy: {
         select: { firstName: true, lastName: true, email: true },
       },

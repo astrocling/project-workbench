@@ -53,6 +53,7 @@ enum PlanItemType {
   sign_off
   hard_deadline
   waiting_on_client
+  meeting
 }
 
 enum PlanMeetingStatus {
@@ -336,7 +337,6 @@ model ProjectPlan {
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   updatedBy User?   @relation("PlanUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
   phases    PlanPhase[]
-  meetings  PlanMeeting[]
 
   @@index([projectId])
 }
@@ -357,40 +357,25 @@ model PlanPhase {
 }
 
 model PlanItem {
-  id        String       @id @default(cuid())
-  phaseId   String
-  type      PlanItemType
-  label     String
-  startDate DateTime     @db.Date
-  endDate   DateTime     @db.Date
-  order     Int          @default(0)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id            String             @id @default(cuid())
+  phaseId       String
+  type          PlanItemType
+  label         String
+  startDate     DateTime           @db.Date
+  endDate       DateTime           @db.Date
+  order         Int                @default(0)
+  parentItemId  String?
+  meetingStatus PlanMeetingStatus?
+  scheduledTime String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
-  phase PlanPhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+  phase    PlanPhase  @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+  parent   PlanItem?  @relation("PlanItemTree", fields: [parentItemId], references: [id], onDelete: Cascade)
+  children PlanItem[] @relation("PlanItemTree")
 
   @@index([phaseId])
-}
-
-model PlanMeeting {
-  id             String            @id @default(cuid())
-  planId         String
-  label          String
-  status         PlanMeetingStatus
-  windowStart    DateTime          @db.Date
-  windowEnd      DateTime          @db.Date
-  scheduledDate  DateTime?         @db.Date
-  scheduledTime  String?
-  relatedPhaseId String?
-  relatedItemId  String?
-  notes          String?
-  order          Int               @default(0)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-
-  plan ProjectPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-
-  @@index([planId])
+  @@index([parentItemId])
 }
 
 model ProjectAssignment {

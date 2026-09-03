@@ -6,6 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { getProjectId } from "@/lib/slug";
 import { z } from "zod";
 import { PLAN_ITEM_TYPES, PLAN_MEETING_STATUSES } from "@/lib/plan/types";
+import { normalizeItemDates, validateItemPayload } from "@/lib/plan/itemRules";
+
+export { normalizeItemDates, validateItemPayload };
 
 export const dateString = z.string().refine((s) => !Number.isNaN(Date.parse(s)), {
   message: "Invalid date",
@@ -74,9 +77,6 @@ export const planInclude = {
       },
     },
   },
-  meetings: {
-    orderBy: { order: "asc" as const },
-  },
   updatedBy: {
     select: {
       firstName: true,
@@ -85,6 +85,13 @@ export const planInclude = {
     },
   },
 };
+
+export async function getPlanItemsForValidation(planId: string) {
+  return prisma.planItem.findMany({
+    where: { phase: { planId } },
+    select: { id: true, phaseId: true, parentItemId: true },
+  });
+}
 
 export async function getPlanForProject(projectId: string) {
   return prisma.projectPlan.findUnique({
