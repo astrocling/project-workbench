@@ -160,6 +160,7 @@ export function PlanTab({
     setPendingReportDefault(value);
     setDefaultSaving(true);
     setDefaultError(null);
+    const saveFailedMessage = "Could not save report default. Try again.";
     try {
       const res = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
@@ -169,10 +170,13 @@ export function PlanTab({
       const json = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
         setPendingReportDefault(null);
-        setDefaultError(json.error ?? "Could not save report default. Try again.");
+        setDefaultError(json.error ?? saveFailedMessage);
         return;
       }
       router.refresh();
+    } catch {
+      setPendingReportDefault(null);
+      setDefaultError(saveFailedMessage);
     } finally {
       setDefaultSaving(false);
     }
