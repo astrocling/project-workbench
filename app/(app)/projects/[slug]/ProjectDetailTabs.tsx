@@ -1052,6 +1052,8 @@ export function ProjectDetailTabs({
           canEdit={canEdit}
           cdaEnabled={cdaEnabled}
           cdaReportHoursOnly={cdaReportHoursOnly}
+          planEnabled={planEnabled}
+          planReportDefault={planReportDefault}
           initialBudgetData={budgetData}
         />
       )}
