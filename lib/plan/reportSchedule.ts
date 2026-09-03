@@ -61,20 +61,28 @@ export function compactPlanToSchedule(
     return null;
   }
 
-  const bars = datedPhases.map((phase) => {
-    const startDates = phase.items.map((item) => item.startDate);
-    const endDates = phase.items.map((item) => item.endDate);
-    return {
-      rowIndex: phaseRowIndex(phase.order),
-      label: phase.name,
-      startDate: minDate(startDates),
-      endDate: maxDate(endDates),
-      color: null,
-    };
-  });
+  const bars = datedPhases
+    .map((phase) => {
+      const startDates = phase.items.map((item) => item.startDate);
+      const endDates = phase.items.map((item) => item.endDate);
+      const startDate = minDate(startDates);
+      const endDate = maxDate(endDates);
+      // Point-only phases render as markers only (no zero-length / one-day bars).
+      if (startDate >= endDate) {
+        return null;
+      }
+      return {
+        rowIndex: phaseRowIndex(phase.order),
+        label: phase.name,
+        startDate,
+        endDate,
+        color: null,
+      };
+    })
+    .filter((bar): bar is NonNullable<typeof bar> => bar != null);
 
   if (density === "phases") {
-    return { bars, markers: [] };
+    return bars.length > 0 ? { bars, markers: [] } : null;
   }
 
   const markers = datedPhases.flatMap((phase) => {
@@ -89,5 +97,64 @@ export function compactPlanToSchedule(
       }));
   });
 
-  return { bars, markers };
+  return bars.length === 0 && markers.length === 0 ? null : { bars, markers };
+}
+
+type ScheduleBar = {
+  startDate: string;
+  endDate: string;
+};
+type ScheduleMarker = {
+  date: string;
+};
+
+export type TimelineAxisSlice = {
+  startDate: string;
+  endDate: string;
+  bars: ScheduleBar[];
+  markers: ScheduleMarker[];
+};
+
+/** Clip a bar to the axis; returns null when nothing is visible (zero-length or fully outside). */
+export function getVisibleBarSegment(
+  bar: Pick<ScheduleBar, "startDate" | "endDate">,
+  axisStart: string,
+  axisEnd: string
+): { visibleStart: string; visibleEnd: string } | null {
+  const startYmd = axisStart.slice(0, 10);
+  const endYmd = axisEnd.slice(0, 10);
+  const visibleStart = bar.startDate > startYmd ? bar.startDate : startYmd;
+  const visibleEnd = bar.endDate < endYmd ? bar.endDate : endYmd;
+  if (visibleStart < visibleEnd) {
+    return { visibleStart, visibleEnd };
+  }
+  return null;
+}
+
+export function isMarkerInAxis(
+  marker: Pick<ScheduleMarker, "date">,
+  axisStart: string,
+  axisEnd: string
+): boolean {
+  const startYmd = axisStart.slice(0, 10);
+  const endYmd = axisEnd.slice(0, 10);
+  const date = marker.date.slice(0, 10);
+  return date >= startYmd && date <= endYmd;
+}
+
+/** True when at least one bar segment or marker is visible on the timeline axis. */
+export function timelineHasVisibleSchedule(timeline: TimelineAxisSlice): boolean {
+  const startYmd = timeline.startDate.slice(0, 10);
+  const endYmd = timeline.endDate.slice(0, 10);
+  for (const bar of timeline.bars) {
+    if (getVisibleBarSegment(bar, startYmd, endYmd)) {
+      return true;
+    }
+  }
+  for (const marker of timeline.markers) {
+    if (isMarkerInAxis(marker, startYmd, endYmd)) {
+      return true;
+    }
+  }
+  return false;
 }

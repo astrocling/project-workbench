@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PlanItemJson, PlanPhaseJson } from "@/lib/plan/serialize";
-import { compactPlanToSchedule } from "@/lib/plan/reportSchedule";
+import { compactPlanToSchedule, getVisibleBarSegment, isMarkerInAxis, timelineHasVisibleSchedule } from "@/lib/plan/reportSchedule";
 
 function item(
   partial: Partial<PlanItemJson> & Pick<PlanItemJson, "id" | "phaseId" | "label">
@@ -267,5 +267,133 @@ describe("compactPlanToSchedule", () => {
     expect(result?.markers).toEqual([
       { label: "Code complete", date: "2026-05-15", shape: "Pin", rowIndex: 3 },
     ]);
+  });
+
+  it("omits point-only phase bars and returns null for phases-only density", () => {
+    const pointOnlyPhase = phase({
+      id: "p1",
+      name: "Launch",
+      order: 0,
+      items: [
+        item({
+          id: "m1",
+          phaseId: "p1",
+          label: "Go live",
+          type: "milestone",
+          startDate: "2026-06-01",
+          endDate: "2026-06-01",
+        }),
+      ],
+    });
+
+    expect(compactPlanToSchedule([pointOnlyPhase], "phases")).toBeNull();
+  });
+
+  it("passes point-only phases via markers in key-dates density", () => {
+    const pointOnlyPhase = phase({
+      id: "p1",
+      name: "Launch",
+      order: 0,
+      items: [
+        item({
+          id: "m1",
+          phaseId: "p1",
+          label: "Go live",
+          type: "milestone",
+          startDate: "2026-06-01",
+          endDate: "2026-06-01",
+        }),
+      ],
+    });
+
+    const result = compactPlanToSchedule([pointOnlyPhase], "phases_and_key_dates");
+    expect(result?.bars).toEqual([]);
+    expect(result?.markers).toEqual([
+      { label: "Go live", date: "2026-06-01", shape: "Pin", rowIndex: 1 },
+    ]);
+    expect(
+      timelineHasVisibleSchedule({
+        startDate: "2026-01-01",
+        endDate: "2026-12-31",
+        bars: result!.bars,
+        markers: result!.markers,
+      })
+    ).toBe(true);
+  });
+
+  it("phases-only point-only phase fails visible schedule validation", () => {
+    const pointOnlyPhase = phase({
+      id: "p1",
+      name: "Launch",
+      order: 0,
+      items: [
+        item({
+          id: "m1",
+          phaseId: "p1",
+          label: "Go live",
+          type: "milestone",
+          startDate: "2026-06-01",
+          endDate: "2026-06-01",
+        }),
+      ],
+    });
+    expect(compactPlanToSchedule([pointOnlyPhase], "phases")).toBeNull();
+  });
+});
+
+describe("timelineHasVisibleSchedule", () => {
+  it("detects visible bar segments within the axis", () => {
+    expect(
+      getVisibleBarSegment(
+        { startDate: "2026-03-01", endDate: "2026-03-05" },
+        "2026-02-01",
+        "2026-04-01"
+      )
+    ).toEqual({ visibleStart: "2026-03-01", visibleEnd: "2026-03-05" });
+    expect(
+      getVisibleBarSegment(
+        { startDate: "2026-05-01", endDate: "2026-05-01" },
+        "2026-02-01",
+        "2026-04-01"
+      )
+    ).toBeNull();
+  });
+
+  it("detects markers within the axis", () => {
+    expect(isMarkerInAxis({ date: "2026-03-15" }, "2026-03-01", "2026-04-01")).toBe(true);
+    expect(isMarkerInAxis({ date: "2026-05-01" }, "2026-03-01", "2026-04-01")).toBe(false);
+  });
+
+  it("returns true for marker-only schedules on the axis", () => {
+    expect(
+      timelineHasVisibleSchedule({
+        startDate: "2026-03-01",
+        endDate: "2026-06-30",
+        bars: [{ startDate: "2026-06-01", endDate: "2026-06-01" }],
+        markers: [{ date: "2026-04-01" }],
+      })
+    ).toBe(true);
+  });
+
+  it("returns false for phases-only point-only bars with no in-axis markers", () => {
+    expect(
+      timelineHasVisibleSchedule({
+        startDate: "2026-03-01",
+        endDate: "2026-06-30",
+        bars: [{ startDate: "2026-06-01", endDate: "2026-06-01" }],
+        markers: [],
+      })
+    ).toBe(false);
+  });
+
+  it("returns false when all bars are outside the axis and no markers", () => {
+    expect(
+      timelineHasVisibleSchedule({
+        startDate: "2026-03-01",
+        endDate: "2026-04-01",
+        bars: [{ startDate: "2026-05-01", endDate: "2026-06-01" }],
+        markers: [],
+      })
+    ).toBe(false);
   });
 });

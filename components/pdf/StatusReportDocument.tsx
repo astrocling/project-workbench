@@ -22,6 +22,7 @@ import type {
   StoryPointsMetricsData,
 } from "@/lib/reportPanels";
 import { parseLinkSegments } from "@/lib/statusReportLinks";
+import { timelineHasVisibleSchedule } from "@/lib/plan/reportSchedule";
 
 /**
  * Call registerStatusReportFonts(baseUrl) before rendering this document.
@@ -1370,7 +1371,9 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
           <View
             style={[
               styles.mainContentPadding,
-              ...(!(report.variation !== "CDA" && data.timeline && data.timeline.bars.length > 0)
+              ...(!(report.variation !== "CDA" &&
+                data.timeline &&
+                timelineHasVisibleSchedule(data.timeline))
                 ? [{ paddingBottom: 0 }]
                 : []),
             ]}
@@ -1399,7 +1402,9 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
               <View style={styles.budgetSectionSpacer} />
             </View>
           </View>
-          {report.variation !== "CDA" && data.timeline && data.timeline.bars.length > 0 && (
+          {report.variation !== "CDA" &&
+            data.timeline &&
+            timelineHasVisibleSchedule(data.timeline) && (
             <View style={styles.timelineSlotFixed}>
               <TimelineBlock timeline={data.timeline} reportDate={data.report.reportDate} />
             </View>

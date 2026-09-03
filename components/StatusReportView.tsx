@@ -21,6 +21,7 @@ import type {
 } from "@/lib/reportPanels";
 import { getWeeksInMonthsForRange } from "@/lib/monthUtils";
 import { formatMonthDay } from "@/lib/formatIsoDate";
+import { timelineHasVisibleSchedule } from "@/lib/plan/reportSchedule";
 
 // Mirror PDF layout: 16:9 slide, same colors and structure
 const BIO_TITLE_COLOR = "#220088";
@@ -604,8 +605,10 @@ export function StatusReportView({
             </div>
           </div>
 
-          {/* Timeline (non-CDA with bars) */}
-          {report.variation !== "CDA" && data.timeline && data.timeline.bars.length > 0 && (
+          {/* Timeline (non-CDA with visible bars or markers) */}
+          {report.variation !== "CDA" &&
+            data.timeline &&
+            timelineHasVisibleSchedule(data.timeline) && (
             <div className="mt-2 flex-shrink-0">
               <TimelineBlock timeline={data.timeline} reportDate={data.report.reportDate} />
             </div>

@@ -12,6 +12,12 @@ import {
   resolveScheduleSource,
   type StatusReportSnapshot,
 } from "@/lib/statusReportPdfData";
+import { isPlanTabEnabled } from "@/lib/plan/feature";
+import {
+  PLAN_NOT_ENABLED_ERROR,
+  resolveScheduleRebuildError,
+} from "@/lib/plan/reportScheduleErrors";
+import { timelineHasVisibleSchedule } from "@/lib/plan/reportSchedule";
 
 export async function POST(
   _req: NextRequest,
@@ -43,17 +49,29 @@ export async function POST(
   const existingSnapshot: StatusReportSnapshot = report.snapshot;
   const scheduleSource = resolveScheduleSource(existingSnapshot);
 
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { planEnabled: true, endDate: true },
+  });
+  if (scheduleSource === "plan" && !isPlanTabEnabled(project?.planEnabled)) {
+    return NextResponse.json({ error: PLAN_NOT_ENABLED_ERROR }, { status: 400 });
+  }
+
   const pdfData = await buildStatusReportPdfData(projectId, reportId, {
     rebuildTimelineFromProject: true,
   });
   if (!pdfData) {
     return NextResponse.json({ error: "Failed to build report data" }, { status: 500 });
   }
-  if (!pdfData.timeline) {
-    const errorMessage =
-      scheduleSource === "plan"
-        ? "Add phases and dated items on the Plan tab (or choose Project timeline)."
-        : "This project has no timeline to show on a report (set a project end date and timeline bars on the Timeline tab).";
+
+  const hasProjectEndDate = project?.endDate != null;
+  const hasVisibleTimeline =
+    pdfData.timeline != null && timelineHasVisibleSchedule(pdfData.timeline);
+
+  if (!hasVisibleTimeline) {
+    const errorMessage = resolveScheduleRebuildError(scheduleSource, {
+      hasProjectEndDate,
+    });
     return NextResponse.json({ error: errorMessage }, { status: 400 });
   }
 

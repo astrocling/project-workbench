@@ -7,6 +7,15 @@ import { getProjectId } from "@/lib/slug";
 import { projectHasMissingActuals } from "@/lib/projectActualsStale";
 import { buildStatusReportPdfData } from "@/lib/statusReportPdfData";
 import type { StatusReportSnapshot } from "@/lib/statusReportPdfData";
+import { isPlanTabEnabled } from "@/lib/plan/feature";
+import {
+  isPlanScheduleCreateRequest,
+  PLAN_NOT_ENABLED_ERROR,
+  PROJECT_END_DATE_REQUIRED_ERROR,
+  PLAN_SCHEDULE_EMPTY_ERROR,
+  resolveScheduleRebuildError,
+} from "@/lib/plan/reportScheduleErrors";
+import { timelineHasVisibleSchedule } from "@/lib/plan/reportSchedule";
 import { MODULAR_DEFAULT_PANELS, type ReportPanel } from "@/lib/reportPanels";
 import { z } from "zod";
 
@@ -171,6 +180,23 @@ export async function POST(
     );
   }
 
+  const usePlanSchedule = isPlanScheduleCreateRequest(
+    parsed.data.variation,
+    parsed.data.scheduleSource
+  );
+  if (usePlanSchedule) {
+    const projectForPlan = await prisma.project.findUnique({
+      where: { id },
+      select: { planEnabled: true, endDate: true },
+    });
+    if (!isPlanTabEnabled(projectForPlan?.planEnabled)) {
+      return NextResponse.json({ error: PLAN_NOT_ENABLED_ERROR }, { status: 400 });
+    }
+    if (!projectForPlan?.endDate) {
+      return NextResponse.json({ error: PROJECT_END_DATE_REQUIRED_ERROR }, { status: 400 });
+    }
+  }
+
   const report = await prisma.statusReport.create({
     data: {
       projectId: id,
@@ -218,9 +244,6 @@ export async function POST(
     });
   } else {
     // Lock period, budget, milestones, and timeline to creation time so they don't change when project is edited
-    const usePlanSchedule =
-      (parsed.data.variation === "Standard" || parsed.data.variation === "Milestones") &&
-      parsed.data.scheduleSource === "plan";
     const pdfData = await buildStatusReportPdfData(id, report.id, {
       timelinePreviousMonths: parsed.data.timelinePreviousMonths,
       ...(usePlanSchedule
@@ -230,15 +253,27 @@ export async function POST(
           }
         : {}),
     });
-    if (usePlanSchedule && !pdfData?.timeline) {
-      await prisma.statusReport.delete({ where: { id: report.id } });
-      return NextResponse.json(
-        {
-          error:
-            "Add phases and dated items on the Plan tab (or choose Project timeline).",
-        },
-        { status: 400 }
-      );
+    const planScheduleInvalid =
+      usePlanSchedule &&
+      (!pdfData?.timeline ||
+        !timelineHasVisibleSchedule(pdfData.timeline));
+    if (planScheduleInvalid) {
+      try {
+        await prisma.statusReport.delete({ where: { id: report.id } });
+      } catch (deleteError) {
+        console.error(
+          "Failed to delete status report after invalid Plan schedule:",
+          deleteError
+        );
+        return NextResponse.json(
+          {
+            error: PLAN_SCHEDULE_EMPTY_ERROR,
+            rollbackFailed: true,
+          },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json({ error: PLAN_SCHEDULE_EMPTY_ERROR }, { status: 400 });
     }
     if (pdfData) {
       const scheduleSource = usePlanSchedule ? "plan" : "timeline";

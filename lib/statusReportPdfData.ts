@@ -13,6 +13,7 @@ import { planInclude } from "@/lib/plan/api";
 import { serializePlan } from "@/lib/plan/serialize";
 import {
   compactPlanToSchedule,
+  timelineHasVisibleSchedule,
   type PlanReportDensity,
 } from "@/lib/plan/reportSchedule";
 
@@ -460,12 +461,15 @@ export async function buildStatusReportPdfData(
         const density = resolvePlanDensity(snapshot, options);
         const schedule = compactPlanToSchedule(planJson.phases, density);
         if (schedule) {
-          timeline = {
+          const candidate = {
             startDate: effectiveStartStr,
             endDate: endStr,
             bars: schedule.bars,
             markers: schedule.markers,
           };
+          if (timelineHasVisibleSchedule(candidate)) {
+            timeline = candidate;
+          }
         }
       }
     } else {
