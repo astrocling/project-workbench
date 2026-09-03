@@ -4,6 +4,11 @@ import { computeBudgetRollups } from "@/lib/budgetCalculations";
 import { buildCdaRowsForProject } from "@/lib/cdaMtdFromResourcing";
 import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument";
 import type { ReportPanel } from "@/lib/reportPanels";
+import {
+  resolveShowBudget,
+  shouldAttachBudgetToPdfData,
+  shouldShowRefreshBudget,
+} from "@/lib/statusReportFlags";
 
 const CACHE_KEY = "status-report-pdf-data";
 const CACHE_REVALIDATE = 60;
@@ -39,35 +44,11 @@ export type StatusReportSnapshot = {
   showBudget?: boolean;
 };
 
-/** Resolves whether Standard report budget block is visible (default true). */
-export function resolveShowBudget(snapshot: StatusReportSnapshot | null): boolean {
-  if (snapshot != null && typeof snapshot.showBudget === "boolean") {
-    return snapshot.showBudget;
-  }
-  return true;
-}
-
-/**
- * Whether PDF/view data should include the budget block.
- * CDA needs budgetedHoursHigh for Overall Hours Planned (not the CDA monthly plan sum).
- */
-export function shouldAttachBudgetToPdfData(variation: string): boolean {
-  return (
-    variation === "Standard" ||
-    variation === "Milestones" ||
-    variation === "CDA"
-  );
-}
-
-/**
- * Edit-form **Refresh budget** is offered for every variation that locks budget
- * into the snapshot. The API refreshes Standard, Milestones, and CDA
- * (`snapshot.budget`; on CDA also monthly hours / totalMtdActuals / overallBudget).
- * Modular has no budget snapshot.
- */
-export function shouldShowRefreshBudget(variation: string): boolean {
-  return shouldAttachBudgetToPdfData(variation);
-}
+export {
+  resolveShowBudget,
+  shouldAttachBudgetToPdfData,
+  shouldShowRefreshBudget,
+} from "@/lib/statusReportFlags";
 
 export function isStatusReportSnapshot(obj: unknown): obj is StatusReportSnapshot {
   return (

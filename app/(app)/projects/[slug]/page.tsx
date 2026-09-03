@@ -55,6 +55,7 @@ export default async function ProjectDetailPage({
     "cda",
     "budget",
     "timeline",
+    "plan",
     "status-reports",
     "settings",
   ] as const;

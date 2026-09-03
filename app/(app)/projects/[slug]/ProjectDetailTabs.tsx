@@ -22,6 +22,9 @@ const BudgetTab = dynamic(() => import("@/components/BudgetTab").then((m) => ({ 
 const TimelineTab = dynamic(() => import("@/components/TimelineTab").then((m) => ({ default: m.TimelineTab })), {
   loading: () => <div className="min-h-[200px] flex items-center justify-center text-surface-500 dark:text-surface-400">Loading…</div>,
 });
+const PlanTab = dynamic(() => import("@/components/PlanTab").then((m) => ({ default: m.PlanTab })), {
+  loading: () => <div className="min-h-[200px] flex items-center justify-center text-surface-500 dark:text-surface-400">Loading…</div>,
+});
 const StatusReportsTab = dynamic(() => import("@/components/StatusReportsTab").then((m) => ({ default: m.StatusReportsTab })), {
   loading: () => <div className="min-h-[200px] flex items-center justify-center text-surface-500 dark:text-surface-400">Loading…</div>,
 });
@@ -41,6 +44,7 @@ const TABS = [
   { id: "cda", label: "CDA" },
   { id: "budget", label: "Budget" },
   { id: "timeline", label: "Timeline" },
+  { id: "plan", label: "Plan" },
   { id: "status-reports", label: "Status Reports" },
   { id: "settings", label: "Settings" },
 ] as const;
@@ -1021,6 +1025,7 @@ export function ProjectDetailTabs({
       )}
       {tab === "budget" && <BudgetTab projectId={projectId} canEdit={canEdit} initialBudgetData={budgetData} />}
       {tab === "timeline" && <TimelineTab projectId={projectId} canEdit={canEdit} />}
+      {tab === "plan" && <PlanTab projectId={projectId} canEdit={canEdit} />}
       {tab === "status-reports" && (
         <StatusReportsTab
           projectId={projectId}

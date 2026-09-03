@@ -24,7 +24,7 @@ import {
   MODULAR_DEFAULT_PANELS,
 } from "@/lib/reportPanels";
 import { formatMonthDay } from "@/lib/formatIsoDate";
-import { shouldShowRefreshBudget } from "@/lib/statusReportPdfData";
+import { shouldShowRefreshBudget } from "@/lib/statusReportFlags";
 
 type RagValue = "Red" | "Amber" | "Green";
 
