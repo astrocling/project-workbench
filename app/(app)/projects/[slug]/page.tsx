@@ -242,6 +242,8 @@ export default async function ProjectDetailPage({
     endDate: dateToIsoNullable(project.endDate),
     status: project.status,
     cdaEnabled: project.cdaEnabled ?? false,
+    planEnabled: project.planEnabled ?? false,
+    planReportDefault: project.planReportDefault ?? "timeline",
     actualsLowThresholdPercent: project.actualsLowThresholdPercent ?? null,
     actualsHighThresholdPercent: project.actualsHighThresholdPercent ?? null,
     clientSponsor: project.clientSponsor ?? null,

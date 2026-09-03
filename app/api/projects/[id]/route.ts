@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { slugify, ensureUniqueSlug } from "@/lib/slug";
+import { rejectNonAdminPlanEnabledPatch } from "@/lib/plan/projectSettingsPatch";
 import { z } from "zod";
 
 async function resolveProject(idOrSlug: string) {
@@ -47,6 +48,8 @@ const updateSchema = z.object({
   cadPersonId: z.string().optional().nullable(),
   cdaEnabled: z.boolean().optional(),
   cdaReportHoursOnly: z.boolean().optional(),
+  planEnabled: z.boolean().optional(),
+  planReportDefault: z.enum(["timeline", "plan"]).optional(),
   clientSponsor: z.string().nullable().optional(),
   clientSponsor2: z.string().nullable().optional(),
   otherContact: z.string().nullable().optional(),
@@ -83,6 +86,10 @@ export async function PATCH(
   const id = existing.id;
 
   const body = await req.json();
+  const planFlagBlock = rejectNonAdminPlanEnabledPatch(permissions, body);
+  if (planFlagBlock) {
+    return NextResponse.json({ error: planFlagBlock.error }, { status: planFlagBlock.status });
+  }
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });
@@ -101,6 +108,8 @@ export async function PATCH(
   if (parsed.data.useSingleRate === false) data.singleBillRate = null;
   if (parsed.data.cdaEnabled !== undefined) data.cdaEnabled = parsed.data.cdaEnabled;
   if (parsed.data.cdaReportHoursOnly !== undefined) data.cdaReportHoursOnly = parsed.data.cdaReportHoursOnly;
+  if (parsed.data.planEnabled !== undefined) data.planEnabled = parsed.data.planEnabled;
+  if (parsed.data.planReportDefault !== undefined) data.planReportDefault = parsed.data.planReportDefault;
   if (parsed.data.notes !== undefined) data.notes = parsed.data.notes;
   if (parsed.data.clientSponsor !== undefined) data.clientSponsor = parsed.data.clientSponsor;
   if (parsed.data.clientSponsor2 !== undefined) data.clientSponsor2 = parsed.data.clientSponsor2;

@@ -10,6 +10,8 @@ export type EditProjectInitial = {
   endDate: string | null;
   status: string;
   cdaEnabled: boolean;
+  planEnabled: boolean;
+  planReportDefault: "timeline" | "plan";
   actualsLowThresholdPercent: number | null;
   actualsHighThresholdPercent: number | null;
   clientSponsor: string | null;
