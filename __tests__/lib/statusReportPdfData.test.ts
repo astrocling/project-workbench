@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   applyCdaBudgetRefresh,
+  resolvePlanDensity,
+  resolveScheduleSource,
   resolveShowBudget,
   shouldAttachBudgetToPdfData,
   shouldRebuildCdaBudgetFromProject,
@@ -31,6 +33,27 @@ const lockedBudget = {
   remainingHoursLow: -10,
   burnPercentHigh: null,
 };
+
+describe("resolveScheduleSource", () => {
+  it("defaults to timeline", () => {
+    expect(resolveScheduleSource(baseSnapshot)).toBe("timeline");
+  });
+  it("uses snapshot plan unless options override", () => {
+    expect(resolveScheduleSource({ ...baseSnapshot, scheduleSource: "plan" })).toBe("plan");
+    expect(
+      resolveScheduleSource({ ...baseSnapshot, scheduleSource: "plan" }, { scheduleSource: "timeline" })
+    ).toBe("timeline");
+  });
+});
+
+describe("resolvePlanDensity", () => {
+  it("defaults to phases_and_key_dates", () => {
+    expect(resolvePlanDensity(baseSnapshot)).toBe("phases_and_key_dates");
+  });
+  it("honors snapshot phases", () => {
+    expect(resolvePlanDensity({ ...baseSnapshot, planDensity: "phases" })).toBe("phases");
+  });
+});
 
 describe("resolveShowBudget", () => {
   it("defaults to true when snapshot is null", () => {

@@ -33,6 +33,8 @@ const createSchema = z.object({
   /** When false, Standard report omits bottom budget table and burn chart. Default true. */
   showBudget: z.boolean().default(true),
   panels: z.array(z.any()).optional(),
+  scheduleSource: z.enum(["timeline", "plan"]).optional(),
+  planDensity: z.enum(["phases", "phases_and_key_dates"]).optional(),
 });
 
 export async function GET(
@@ -216,10 +218,30 @@ export async function POST(
     });
   } else {
     // Lock period, budget, milestones, and timeline to creation time so they don't change when project is edited
+    const usePlanSchedule =
+      (parsed.data.variation === "Standard" || parsed.data.variation === "Milestones") &&
+      parsed.data.scheduleSource === "plan";
     const pdfData = await buildStatusReportPdfData(id, report.id, {
       timelinePreviousMonths: parsed.data.timelinePreviousMonths,
+      ...(usePlanSchedule
+        ? {
+            scheduleSource: "plan" as const,
+            planDensity: parsed.data.planDensity,
+          }
+        : {}),
     });
+    if (usePlanSchedule && !pdfData?.timeline) {
+      await prisma.statusReport.delete({ where: { id: report.id } });
+      return NextResponse.json(
+        {
+          error:
+            "Add phases and dated items on the Plan tab (or choose Project timeline).",
+        },
+        { status: 400 }
+      );
+    }
     if (pdfData) {
+      const scheduleSource = usePlanSchedule ? "plan" : "timeline";
       const snapshot: StatusReportSnapshot = {
         period: pdfData.period,
         today: pdfData.today,
@@ -229,6 +251,10 @@ export async function POST(
         timelinePreviousMonths: parsed.data.timelinePreviousMonths,
         cdaReportHoursOnly: pdfData.cdaReportHoursOnly,
         showBudget: parsed.data.showBudget,
+        scheduleSource,
+        ...(scheduleSource === "plan"
+          ? { planDensity: parsed.data.planDensity ?? "phases_and_key_dates" }
+          : {}),
       };
       await prisma.statusReport.update({
         where: { id: report.id },

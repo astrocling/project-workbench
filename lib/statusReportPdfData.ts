@@ -9,6 +9,12 @@ import {
   shouldAttachBudgetToPdfData,
   shouldShowRefreshBudget,
 } from "@/lib/statusReportFlags";
+import { planInclude } from "@/lib/plan/api";
+import { serializePlan } from "@/lib/plan/serialize";
+import {
+  compactPlanToSchedule,
+  type PlanReportDensity,
+} from "@/lib/plan/reportSchedule";
 
 const CACHE_KEY = "status-report-pdf-data";
 const CACHE_REVALIDATE = 60;
@@ -30,6 +36,9 @@ export async function getCachedStatusReportPdfData(
 }
 
 /** Snapshot of period, budget, CDA, and timeline at report creation so they stay locked when project is edited. */
+export type ScheduleSource = "timeline" | "plan";
+export type { PlanReportDensity } from "@/lib/plan/reportSchedule";
+
 export type StatusReportSnapshot = {
   period: string;
   today: string;
@@ -42,6 +51,10 @@ export type StatusReportSnapshot = {
   cdaReportHoursOnly?: boolean;
   /** When false, Standard report omits bottom budget table and burn chart. Default true. */
   showBudget?: boolean;
+  /** Schedule source for timeline: project Timeline tab or compact Plan. Default timeline when absent. */
+  scheduleSource?: ScheduleSource;
+  /** Plan report density when scheduleSource is plan. */
+  planDensity?: PlanReportDensity;
 };
 
 export {
@@ -64,13 +77,39 @@ export function isStatusReportSnapshot(obj: unknown): obj is StatusReportSnapsho
 export type BuildStatusReportPdfDataOptions = {
   /** Number of months before report date to show on timeline (1–4). Used when creating a new report before snapshot exists. */
   timelinePreviousMonths?: number;
-  /** When true, ignore snapshot.timeline and rebuild timeline from current project bars/markers. */
+  /** When true, ignore snapshot.timeline and rebuild timeline from current project bars/markers or Plan. */
   rebuildTimelineFromProject?: boolean;
   /** When true, ignore snapshot.cda.milestones and rebuild from current project CDA milestones. */
   rebuildCdaMilestonesFromProject?: boolean;
   /** When true, ignore snapshot.budget and recompute from current project budget lines + actuals. On CDA, also rebuilds locked monthly hours / totalMtdActuals (milestones preserved). */
   rebuildBudgetFromProject?: boolean;
+  /** Schedule source for timeline when building a new timeline (create or refresh). */
+  scheduleSource?: ScheduleSource;
+  /** Plan report density when scheduleSource is plan. */
+  planDensity?: PlanReportDensity;
 };
+
+export function resolveScheduleSource(
+  snapshot: StatusReportSnapshot | null,
+  options?: Pick<BuildStatusReportPdfDataOptions, "scheduleSource">
+): ScheduleSource {
+  if (options?.scheduleSource === "plan" || options?.scheduleSource === "timeline") {
+    return options.scheduleSource;
+  }
+  if (snapshot?.scheduleSource === "plan") return "plan";
+  return "timeline";
+}
+
+export function resolvePlanDensity(
+  snapshot: StatusReportSnapshot | null,
+  options?: Pick<BuildStatusReportPdfDataOptions, "planDensity">
+): PlanReportDensity {
+  if (options?.planDensity === "phases" || options?.planDensity === "phases_and_key_dates") {
+    return options.planDensity;
+  }
+  if (snapshot?.planDensity === "phases") return "phases";
+  return "phases_and_key_dates";
+}
 
 /**
  * Whether to keep the budget block locked on the report snapshot.
@@ -178,6 +217,7 @@ export async function buildStatusReportPdfData(
       cdaMilestones: true,
       timelineBars: true,
       timelineMarkers: true,
+      projectPlan: { include: planInclude },
     },
   });
   if (!project) return null;
@@ -411,24 +451,43 @@ export async function buildStatusReportPdfData(
     const minStartDate = new Date(Date.UTC(reportDate.getUTCFullYear(), reportDate.getUTCMonth() - previousMonths, 1));
     const minStartStr = minStartDate.toISOString().slice(0, 10);
     const effectiveStartStr = startStr < minStartStr ? minStartStr : startStr;
-    const bars = (project.timelineBars ?? [])
-      .sort((a, b) => a.rowIndex - b.rowIndex || a.startDate.getTime() - b.startDate.getTime())
-      .map((b) => ({
-        rowIndex: b.rowIndex,
-        label: b.label,
-        startDate: b.startDate.toISOString().slice(0, 10),
-        endDate: b.endDate.toISOString().slice(0, 10),
-        color: b.color ?? null,
-      }));
-    const markers = (project.timelineMarkers ?? [])
-      .sort((a, b) => a.date.getTime() - b.date.getTime())
-      .map((m) => ({
-        label: m.label,
-        date: m.date.toISOString().slice(0, 10),
-        shape: m.shape,
-        rowIndex: m.rowIndex,
-      }));
-    timeline = { startDate: effectiveStartStr, endDate: endStr, bars, markers };
+
+    const scheduleSource = resolveScheduleSource(snapshot, options);
+    if (scheduleSource === "plan") {
+      const plan = project.projectPlan;
+      if (plan) {
+        const planJson = serializePlan(plan);
+        const density = resolvePlanDensity(snapshot, options);
+        const schedule = compactPlanToSchedule(planJson.phases, density);
+        if (schedule) {
+          timeline = {
+            startDate: effectiveStartStr,
+            endDate: endStr,
+            bars: schedule.bars,
+            markers: schedule.markers,
+          };
+        }
+      }
+    } else {
+      const bars = (project.timelineBars ?? [])
+        .sort((a, b) => a.rowIndex - b.rowIndex || a.startDate.getTime() - b.startDate.getTime())
+        .map((b) => ({
+          rowIndex: b.rowIndex,
+          label: b.label,
+          startDate: b.startDate.toISOString().slice(0, 10),
+          endDate: b.endDate.toISOString().slice(0, 10),
+          color: b.color ?? null,
+        }));
+      const markers = (project.timelineMarkers ?? [])
+        .sort((a, b) => a.date.getTime() - b.date.getTime())
+        .map((m) => ({
+          label: m.label,
+          date: m.date.toISOString().slice(0, 10),
+          shape: m.shape,
+          rowIndex: m.rowIndex,
+        }));
+      timeline = { startDate: effectiveStartStr, endDate: endStr, bars, markers };
+    }
   }
 
   let cdaReportHoursOnly = false;

@@ -9,6 +9,7 @@ import { deleteCachedPdf } from "@/lib/statusReportPdfCache";
 import {
   buildStatusReportPdfData,
   isStatusReportSnapshot,
+  resolveScheduleSource,
   type StatusReportSnapshot,
 } from "@/lib/statusReportPdfData";
 
@@ -40,6 +41,7 @@ export async function POST(
   }
 
   const existingSnapshot: StatusReportSnapshot = report.snapshot;
+  const scheduleSource = resolveScheduleSource(existingSnapshot);
 
   const pdfData = await buildStatusReportPdfData(projectId, reportId, {
     rebuildTimelineFromProject: true,
@@ -48,13 +50,11 @@ export async function POST(
     return NextResponse.json({ error: "Failed to build report data" }, { status: 500 });
   }
   if (!pdfData.timeline) {
-    return NextResponse.json(
-      {
-        error:
-          "This project has no timeline to show on a report (set a project end date and timeline bars on the Timeline tab).",
-      },
-      { status: 400 }
-    );
+    const errorMessage =
+      scheduleSource === "plan"
+        ? "Add phases and dated items on the Plan tab (or choose Project timeline)."
+        : "This project has no timeline to show on a report (set a project end date and timeline bars on the Timeline tab).";
+    return NextResponse.json({ error: errorMessage }, { status: 400 });
   }
 
   const nextSnapshot: StatusReportSnapshot = {
