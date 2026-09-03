@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { slugify, ensureUniqueSlug } from "@/lib/slug";
 import { rejectNonAdminPlanEnabledPatch } from "@/lib/plan/projectSettingsPatch";
+import { IMMEDIATE_EXPIRATION } from "@/lib/cacheProfiles";
 import { z } from "zod";
 
 async function resolveProject(idOrSlug: string) {
@@ -189,7 +190,9 @@ export async function PATCH(
   });
   revalidateTag("portfolio-metrics", "max");
   revalidateTag("projects-list", "max");
-  revalidateTag("project-detail", "max");
+  // Settings re-reads the project detail cache right after this response (router.refresh),
+  // so it must expire now rather than being served stale while it revalidates.
+  revalidateTag("project-detail", IMMEDIATE_EXPIRATION);
   return NextResponse.json(project);
 }
 

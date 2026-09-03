@@ -7,6 +7,12 @@ import { PersonCombobox, PersonMultiCombobox } from "@/components/PersonCombobox
 import { Toggle } from "@/components/Toggle";
 import { RatesTab } from "@/components/RatesTab";
 import { AssignmentsTab } from "@/components/AssignmentsTab";
+import {
+  buildProjectSettingsPayload,
+  projectToSettingsFormFields,
+  resolveSettingsAutosaveAction,
+  type ProjectSettingsSource,
+} from "@/lib/projectSettingsForm";
 import type { EditProjectInitial } from "@/app/(app)/projects/[slug]/edit/EditProjectDataContext";
 
 export function ProjectSettingsTab({
@@ -62,43 +68,39 @@ export function ProjectSettingsTab({
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
   const lastSavedRef = useRef<string | null>(null);
   const initialSaveRecordedRef = useRef(false);
+  // Payload implied by the most recent re-hydration from server props. Autosave adopts it as
+  // its baseline instead of writing it back, so hydrating stale props cannot undo a just-saved
+  // change (e.g. the Plan toggle) with a compensating PATCH.
+  const serverHydrationBaselineRef = useRef<string | null>(null);
 
   const buildPayload = useCallback(
-    () => ({
-      name,
-      clientName,
-      startDate: new Date(startDate).toISOString(),
-      endDate: endDate ? new Date(endDate).toISOString() : null,
-      status,
-      cdaEnabled,
-      ...(isAdmin ? { planEnabled } : {}),
-      pmPersonIds: pmPersonIds.filter(Boolean),
-      pgmPersonId: pgmPersonId || null,
-      cadPersonId: cadPersonId || null,
-      clientSponsor: clientSponsor.trim() || null,
-      clientSponsor2: clientSponsor2.trim() || null,
-      otherContact: otherContact.trim() || null,
-      keyStaffName: keyStaffName.trim() || null,
-      actualsLowThresholdPercent:
-        actualsLowThresholdPercent === ""
-          ? null
-          : (() => {
-              const n = Number(actualsLowThresholdPercent);
-              return Number.isFinite(n) && n >= 0 && n <= 100 ? n : null;
-            })(),
-      actualsHighThresholdPercent:
-        actualsHighThresholdPercent === ""
-          ? null
-          : (() => {
-              const n = Number(actualsHighThresholdPercent);
-              return Number.isFinite(n) && n >= 0 && n <= 100 ? n : null;
-            })(),
-      sowLink: sowLink.trim() || null,
-      estimateLink: estimateLink.trim() || null,
-      floatLink: floatLink.trim() || null,
-      metricLink: metricLink.trim() || null,
-      slackChannelId: slackChannelId.trim() || null,
-    }),
+    () =>
+      buildProjectSettingsPayload(
+        {
+          name,
+          clientName,
+          startDate,
+          endDate,
+          status,
+          cdaEnabled,
+          planEnabled,
+          actualsLowThresholdPercent,
+          actualsHighThresholdPercent,
+          pmPersonIds,
+          pgmPersonId,
+          cadPersonId,
+          clientSponsor,
+          clientSponsor2,
+          otherContact,
+          keyStaffName,
+          sowLink,
+          estimateLink,
+          floatLink,
+          metricLink,
+          slackChannelId,
+        },
+        { isAdmin }
+      ),
     [
       name,
       clientName,
@@ -125,58 +127,31 @@ export function ProjectSettingsTab({
     ]
   );
 
-  function applyProjectToState(p: {
-    id?: string;
-    name?: string;
-    clientName?: string;
-    startDate?: string;
-    endDate?: string | null;
-    status?: string;
-    cdaEnabled?: boolean;
-    planEnabled?: boolean;
-    actualsLowThresholdPercent?: number | null;
-    actualsHighThresholdPercent?: number | null;
-    clientSponsor?: string | null;
-    clientSponsor2?: string | null;
-    otherContact?: string | null;
-    keyStaffName?: string | null;
-    sowLink?: string | null;
-    estimateLink?: string | null;
-    floatLink?: string | null;
-    metricLink?: string | null;
-    slackChannelId?: string | null;
-    projectKeyRoles?: Array<{ type: string; personId: string; person: { id: string; name: string } }>;
-    accountId?: string | null;
-    account?: {
-      id?: string;
-      industryGroup?: { id: string; name: string; archivedAt?: string | Date | null } | null;
-    } | null;
-    clientIndustryGroup?: { id: string; name: string; archivedAt: string | null } | null;
-  }) {
+  function applyProjectToState(p: ProjectSettingsSource) {
     if (!p) return;
+    const fields = projectToSettingsFormFields(p);
     setProjectId(p.id ?? "");
-    setName(p.name ?? "");
-    setClientName(p.clientName ?? "");
-    setStartDate(p.startDate ? new Date(p.startDate).toISOString().slice(0, 10) : "");
-    setEndDate(p.endDate ? new Date(p.endDate).toISOString().slice(0, 10) : "");
-    setStatus((p.status as "Active" | "Closed") ?? "Active");
-    setCdaEnabled(p.cdaEnabled ?? false);
-    setPlanEnabled(p.planEnabled ?? false);
-    setActualsLowThresholdPercent(p.actualsLowThresholdPercent != null ? String(p.actualsLowThresholdPercent) : "");
-    setActualsHighThresholdPercent(p.actualsHighThresholdPercent != null ? String(p.actualsHighThresholdPercent) : "");
-    const keyRoles = (p.projectKeyRoles ?? []) as { type: string; personId: string; person: { id: string; name: string } }[];
-    setPmPersonIds(keyRoles.filter((kr) => kr.type === "PM").map((kr) => kr.personId));
-    setPgmPersonId(keyRoles.find((kr) => kr.type === "PGM")?.personId ?? "");
-    setCadPersonId(keyRoles.find((kr) => kr.type === "CAD")?.personId ?? "");
-    setClientSponsor(p.clientSponsor ?? "");
-    setClientSponsor2(p.clientSponsor2 ?? "");
-    setOtherContact(p.otherContact ?? "");
-    setKeyStaffName(p.keyStaffName ?? "");
-    setSowLink(p.sowLink ?? "");
-    setEstimateLink(p.estimateLink ?? "");
-    setFloatLink(p.floatLink ?? "");
-    setMetricLink(p.metricLink ?? "");
-    setSlackChannelId(p.slackChannelId ?? "");
+    setName(fields.name);
+    setClientName(fields.clientName);
+    setStartDate(fields.startDate);
+    setEndDate(fields.endDate);
+    setStatus(fields.status);
+    setCdaEnabled(fields.cdaEnabled);
+    setPlanEnabled(fields.planEnabled);
+    setActualsLowThresholdPercent(fields.actualsLowThresholdPercent);
+    setActualsHighThresholdPercent(fields.actualsHighThresholdPercent);
+    setPmPersonIds(fields.pmPersonIds);
+    setPgmPersonId(fields.pgmPersonId);
+    setCadPersonId(fields.cadPersonId);
+    setClientSponsor(fields.clientSponsor);
+    setClientSponsor2(fields.clientSponsor2);
+    setOtherContact(fields.otherContact);
+    setKeyStaffName(fields.keyStaffName);
+    setSowLink(fields.sowLink);
+    setEstimateLink(fields.estimateLink);
+    setFloatLink(fields.floatLink);
+    setMetricLink(fields.metricLink);
+    setSlackChannelId(fields.slackChannelId);
     const igFromAccount = p.account?.industryGroup;
     const resolvedIg =
       p.clientIndustryGroup ??
@@ -202,6 +177,13 @@ export function ProjectSettingsTab({
 
   useEffect(() => {
     if (initialProjectProp) {
+      if (initialSaveRecordedRef.current) {
+        // Fresh server props (e.g. after router.refresh) replace the form state below, so treat
+        // the payload they imply as already saved rather than as a local edit to write back.
+        serverHydrationBaselineRef.current = JSON.stringify(
+          buildProjectSettingsPayload(projectToSettingsFormFields(initialProjectProp), { isAdmin })
+        );
+      }
       applyProjectToState(initialProjectProp);
       if (initialEligibleProp != null) {
         setEligiblePeople(initialEligibleProp);
@@ -226,7 +208,7 @@ export function ProjectSettingsTab({
         applyEligiblePeople(Array.isArray(people) ? people : [], keyRoles);
       })
       .finally(() => setLoading(false));
-  }, [projectSlug, initialProjectProp, initialEligibleProp]);
+  }, [projectSlug, initialProjectProp, initialEligibleProp, isAdmin]);
 
   // Record initial payload once load completes so we don't auto-save on first paint
   useEffect(() => {
@@ -239,7 +221,19 @@ export function ProjectSettingsTab({
   useEffect(() => {
     if (loading || !projectId || !initialSaveRecordedRef.current) return;
     const payloadStr = JSON.stringify(buildPayload());
-    if (payloadStr === lastSavedRef.current) return;
+    const action = resolveSettingsAutosaveAction({
+      payload: payloadStr,
+      lastSavedPayload: lastSavedRef.current,
+      serverHydrationBaseline: serverHydrationBaselineRef.current,
+    });
+    if (action === "idle") return;
+    if (action === "adopt-server-baseline") {
+      serverHydrationBaselineRef.current = null;
+      lastSavedRef.current = payloadStr;
+      return;
+    }
+    // Local edits supersede the hydrated snapshot, so it must stop shadowing later payloads.
+    serverHydrationBaselineRef.current = null;
 
     const timer = setTimeout(async () => {
       setSaving(true);
