@@ -7,14 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Deploy:** new migrations — run **`prisma migrate deploy`** (the `build` script already does) before or with the app deploy: `20260903120000_add_project_plan`, `20260903140000_plan_items_meetings_nesting`, `20260903183710_add_project_plan_beta`. **Plan is off for every project** until an Admin enables it per project. `20260903140000` **drops `PlanMeeting`**; that table only ever existed on this unreleased branch (added by `20260903120000` earlier in the same series) and is replaced by meeting fields on `PlanItem`, so no released deployment can hold data in it.
+
+### Added
+
+- **Project Plan (beta)** — New per-project **Plan** tab: a grid + Gantt schedule builder with phases, nested items (up to 3 levels), types (task, milestone, sign-off, hard deadline, waiting on client, meeting), assumed vs scheduled meetings, business-day durations, project non-working days, and fit/day/week/month zoom. Everyone who can open the project sees the tab; editors can change it. Model: `ProjectPlan` / `PlanPhase` / `PlanItem` (+ `PlanNonWorkingDay`). API: `/api/projects/[id]/plan` (+ `plan/phases`, `plan/items`, `plan/non-working-days`), **404** when Plan is off. UI: `components/PlanTab.tsx`, `components/plan/PlanGridGantt.tsx`. The **Timeline** tab is unchanged and still the default source for status reports.
+
+- **Admin gate per project** — **Settings → Enable Plan tab (beta)** (`Project.planEnabled`, default **off**). Only **Admins** see the toggle, and only an Admin `PATCH /api/projects/[id]` may send `planEnabled` (**403** otherwise). Saving it refreshes the project nav so the Plan tab appears or disappears without a reload.
+
+- **Status reports — Plan as schedule source** — **Standard** and **Milestones** reports can be created from **Project timeline** or **Project Plan**, with density **Phases only** or **Phases + key dates** (`snapshot.scheduleSource` / `snapshot.planDensity`; per-project default `Project.planReportDefault`, set on the Plan tab). Plan phases map to compact bars and key dates to markers in the existing report timeline block, so preview, client PDF, and server PDF are unchanged visually. Source and density are locked on edit; **Refresh schedule** re-reads the Plan tab the way **Refresh timeline** re-reads the Timeline tab.
+
 ### Fixed
 
 - **Status reports — CDA Refresh budget left hours stuck** — **Refresh budget** on a CDA report updated `snapshot.budget` and overall **dollar** totals, but the slide’s hours still came from locked **`snapshot.cda.totalMtdActuals`** / monthly rows. Correcting Resourcing actuals (e.g. +0.25h) showed the right total in the edit-form summary, while **Update** and even **Refresh budget** left the slide on the old figure. Refresh now rebuilds CDA monthly hours and overall hours actuals (milestones unchanged). Helpers: `shouldRebuildCdaBudgetFromProject`, `applyCdaBudgetRefresh`. Tests: `__tests__/lib/statusReportPdfData.test.ts`.
 
 ### Documentation
 
-- **User Guide** — Refresh budget covers CDA hours/actuals; troubleshooting when Update does not change the slide.
-- **Technical Reference** — Refresh budget replaces full CDA budget fields, not only `overallBudget` dollars.
+- **User Guide** — Refresh budget covers CDA hours/actuals; troubleshooting when Update does not change the slide. **Plan** tab, **Schedule source (Plan enabled)**, **Refresh schedule**, and what happens to Plan-sourced reports if Plan is later disabled.
+- **Technical Reference** — Refresh budget replaces full CDA budget fields, not only `overallBudget` dollars. Plan schema/routes/gating helpers, `scheduleSource` / `planDensity` snapshot fields, the shared timeline render gate, and the Settings autosave rules for the Plan nav refresh.
 
 ## [1.2.8] - 2026-08-18
 

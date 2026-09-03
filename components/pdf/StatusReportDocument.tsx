@@ -22,7 +22,12 @@ import type {
   StoryPointsMetricsData,
 } from "@/lib/reportPanels";
 import { parseLinkSegments } from "@/lib/statusReportLinks";
-import { timelineHasVisibleSchedule } from "@/lib/plan/reportSchedule";
+import {
+  getActiveTimelineRows,
+  getVisibleBarSegmentsForRow,
+  getVisibleMarkersForRow,
+  timelineHasVisibleSchedule,
+} from "@/lib/plan/reportSchedule";
 
 /**
  * Call registerStatusReportFonts(baseUrl) before rendering this document.
@@ -963,12 +968,6 @@ function TimelineBlock({
     Math.max(0, Math.min(100, ((new Date(endStr).getTime() - new Date(startStr).getTime()) / totalMs) * 100));
 
   const months = getMonthsForTimeline(timeline.startDate, timeline.endDate);
-  const barsByRow: typeof timeline.bars[] = [[], [], [], []];
-  for (const bar of timeline.bars) {
-    if (bar.rowIndex >= 1 && bar.rowIndex <= 4) {
-      barsByRow[bar.rowIndex - 1].push(bar);
-    }
-  }
 
   const startYmd = timeline.startDate.slice(0, 10);
   const endYmd = timeline.endDate.slice(0, 10);
@@ -982,30 +981,12 @@ function TimelineBlock({
     endMs
   );
 
-  type TimelineBar = (typeof timeline.bars)[number];
-  /** Clip each bar to the visible range so position/width match the axis. */
-  function getVisibleBarSegments(rowBars: TimelineBar[]) {
-    const clipped: { bar: TimelineBar; visibleStart: string; visibleEnd: string }[] = [];
-    for (const bar of rowBars) {
-      const visibleStart = bar.startDate > startYmd ? bar.startDate : startYmd;
-      const visibleEnd = bar.endDate < endYmd ? bar.endDate : endYmd;
-      if (visibleStart < visibleEnd) {
-        clipped.push({ bar, visibleStart, visibleEnd });
-      }
-    }
-    return clipped;
-  }
-
   const ROW_HEIGHT = 14;
   const ROW_BAR_TOP = 1;
   const ROW_BAR_BOTTOM = 1;
 
-  const activeRowIndices = [0, 1, 2, 3].filter((rowIdx) => {
-    const rowBars = barsByRow[rowIdx] ?? [];
-    const clipped = getVisibleBarSegments(rowBars);
-    const markersInRow = timeline.markers.filter((m) => (m.rowIndex ?? 1) === rowIdx + 1);
-    return clipped.length > 0 || markersInRow.length > 0;
-  });
+  // Rows, bar segments, and markers all come from the shared helpers that back the render gate.
+  const activeRows = getActiveTimelineRows(timeline);
 
   return (
     <View style={styles.timelineWrap}>
@@ -1044,19 +1025,18 @@ function TimelineBlock({
               {
                 left: `${reportDatePercent}%`,
                 marginLeft: -1,
-                height: activeRowIndices.length * ROW_HEIGHT + 2,
+                height: activeRows.length * ROW_HEIGHT + 2,
               },
             ]}
           />
         )}
         <View style={styles.timelineBarRowsContent}>
-        {activeRowIndices.map((rowIdx) => {
-        const rowBars = barsByRow[rowIdx] ?? [];
-        const clipped = getVisibleBarSegments(rowBars);
-        const markersInRow = timeline.markers.filter((m) => (m.rowIndex ?? 1) === rowIdx + 1);
+        {activeRows.map((row) => {
+        const clipped = getVisibleBarSegmentsForRow(timeline.bars, row, startYmd, endYmd);
+        const markersInRow = getVisibleMarkersForRow(timeline.markers, row, startYmd, endYmd);
         return (
           <View
-            key={rowIdx}
+            key={row}
             style={[styles.timelineBarRow, { minHeight: ROW_HEIGHT }]}
           >
             {/* Vertical month lines as first child so they paint behind bars and markers */}

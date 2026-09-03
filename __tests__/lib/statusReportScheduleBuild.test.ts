@@ -3,13 +3,12 @@ import type { PlanPhaseJson } from "@/lib/plan/serialize";
 import {
   buildLegacyTimeline,
   buildPlanTimelineCandidate,
-  isMarkerOnlyVisibleTimeline,
   isValidPlanTimeline,
   shouldBuildTimelineFromLegacy,
   shouldBuildTimelineFromPlan,
-  shouldFetchProjectPlan,
   shouldUseLockedTimeline,
 } from "@/lib/statusReportScheduleBuild";
+import { timelineHasVisibleSchedule } from "@/lib/plan/reportSchedule";
 import { resolveScheduleSource, type StatusReportSnapshot } from "@/lib/statusReportPdfData";
 
 const baseSnapshot: StatusReportSnapshot = {
@@ -43,13 +42,11 @@ describe("statusReportScheduleBuild", () => {
     it("chooses Plan mapping when source is plan and timeline is not locked", () => {
       expect(shouldBuildTimelineFromPlan("plan", false)).toBe(true);
       expect(shouldBuildTimelineFromLegacy("plan", false)).toBe(false);
-      expect(shouldFetchProjectPlan("plan", false, true)).toBe(true);
     });
 
     it("chooses legacy bars/markers when source is timeline and timeline is not locked", () => {
       expect(shouldBuildTimelineFromLegacy("timeline", false)).toBe(true);
       expect(shouldBuildTimelineFromPlan("timeline", false)).toBe(false);
-      expect(shouldFetchProjectPlan("timeline", false, true)).toBe(false);
     });
 
     it("defaults resolveScheduleSource to timeline for fresh snapshots", () => {
@@ -84,7 +81,6 @@ describe("statusReportScheduleBuild", () => {
       expect(timeline?.bars).toEqual([]);
       expect(timeline?.markers).toHaveLength(1);
       expect(isValidPlanTimeline(timeline)).toBe(true);
-      expect(isMarkerOnlyVisibleTimeline(timeline!)).toBe(true);
     });
 
     it("rejects phases-only point-only phases", () => {
@@ -126,7 +122,8 @@ describe("statusReportScheduleBuild", () => {
         [{ label: "Cutover", date: "2026-04-01", shape: "Pin", rowIndex: 2 }],
         axis
       );
-      expect(isMarkerOnlyVisibleTimeline(timeline)).toBe(true);
+      // The renderers gate on the same helper, so a marker-only legacy snapshot still draws.
+      expect(timelineHasVisibleSchedule(timeline)).toBe(true);
     });
   });
 });

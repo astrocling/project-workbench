@@ -10,6 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { expandYmdRange, isWeekendYmd } from "@/lib/plan/businessDays";
+import { resolvePlanDateCommit } from "@/lib/plan/dateInput";
 import { positionPercent, widthPercent } from "@/lib/plan/positioning";
 import {
   getPlanAxisRange,
@@ -103,7 +104,7 @@ function buildItemPatch(
     changes.meetingStatus !== undefined ? changes.meetingStatus : item.meetingStatus;
   if (type === "meeting" && !meetingStatus) meetingStatus = "assumed";
 
-  let startDate = changes.startDate ?? item.startDate;
+  const startDate = changes.startDate ?? item.startDate;
   let endDate = changes.endDate ?? item.endDate;
 
   if (type !== "meeting" && changes.type !== undefined) {
@@ -124,6 +125,32 @@ function buildItemPatch(
       changes.scheduledTime !== undefined ? changes.scheduledTime : item.scheduledTime,
     ...(changes.parentItemId !== undefined ? { parentItemId: changes.parentItemId } : {}),
   };
+}
+
+/**
+ * Save a date cell only when the input holds a complete, changed date. Native date inputs report
+ * a value on every keystroke, so committing on raw change would PATCH and refetch the plan
+ * repeatedly while a date is being typed. Returns whether anything was saved.
+ */
+function commitDateEdit(
+  value: string,
+  currentValue: string,
+  save: (nextValue: string) => void
+): boolean {
+  const nextValue = resolvePlanDateCommit(value, currentValue);
+  if (!nextValue) return false;
+  save(nextValue);
+  return true;
+}
+
+/** On blur a half-typed value snaps back to the stored date rather than lingering in the cell. */
+function commitDateOnBlur(
+  input: HTMLInputElement,
+  currentValue: string,
+  save: (nextValue: string) => void
+) {
+  if (commitDateEdit(input.value, currentValue, save)) return;
+  if (input.value !== currentValue) input.value = currentValue;
 }
 
 function columnPixelWidth(scale: ReturnType<typeof getPlanScale>): number {
@@ -793,6 +820,9 @@ function GridRow({
     const collapsed = collapsedIds.has(item.id);
   const point = isPointType(item.type, item.meetingStatus);
   const duration = calendarDays(item.startDate, item.endDate);
+  const saveStartDate = (startDate: string) =>
+    onPatchItem(item, { startDate, endDate: point ? startDate : item.endDate });
+  const saveEndDate = (endDate: string) => onPatchItem(item, { endDate });
 
   return (
     <div
@@ -870,16 +900,12 @@ function GridRow({
         {canEdit ? (
           <input
             type="date"
-            value={item.startDate}
+            defaultValue={item.startDate}
+            key={`${item.id}:start:${item.startDate}`}
             className={INPUT_CLASS}
             onClick={(e) => e.stopPropagation()}
-            onChange={(e) => {
-              const startDate = e.target.value;
-              onPatchItem(item, {
-                startDate,
-                endDate: point ? startDate : item.endDate,
-              });
-            }}
+            onChange={(e) => commitDateEdit(e.target.value, item.startDate, saveStartDate)}
+            onBlur={(e) => commitDateOnBlur(e.target, item.startDate, saveStartDate)}
           />
         ) : (
           <span className="text-body-sm tabular-nums text-surface-700 dark:text-surface-300">
@@ -891,10 +917,12 @@ function GridRow({
         {canEdit && !point ? (
           <input
             type="date"
-            value={item.endDate}
+            defaultValue={item.endDate}
+            key={`${item.id}:end:${item.endDate}`}
             className={INPUT_CLASS}
             onClick={(e) => e.stopPropagation()}
-            onChange={(e) => onPatchItem(item, { endDate: e.target.value })}
+            onChange={(e) => commitDateEdit(e.target.value, item.endDate, saveEndDate)}
+            onBlur={(e) => commitDateOnBlur(e.target, item.endDate, saveEndDate)}
           />
         ) : (
           <span

@@ -192,3 +192,50 @@ export function resolveSettingsAutosave({
   }
   return { action: "save", nextServerHydrationBaseline: null };
 }
+
+/**
+ * Whether a finished save should `router.refresh()` so the project nav picks up the Plan tab.
+ *
+ * A refresh re-hydrates server props over the form, so it must not run while the form holds
+ * edits the server has not stored yet — the settings form autosaves without aborting a save in
+ * flight, so a keystroke during the Plan toggle's PATCH would otherwise be overwritten by props
+ * that predate it. In that case the refresh is deferred and this runs again after the follow-up
+ * save, refreshing as soon as the saved payload is the newest form state.
+ *
+ * `currentPayload` must be read at the moment the save resolves (a ref, not a render closure),
+ * or an edit made during the save looks identical to a settled form.
+ */
+export function resolvePlanNavRefresh({
+  planToggledBySave,
+  refreshDeferred,
+  savedPayload,
+  currentPayload,
+}: {
+  planToggledBySave: boolean;
+  refreshDeferred: boolean;
+  savedPayload: string;
+  currentPayload: string;
+}): { action: "refresh" | "none"; nextRefreshDeferred: boolean } {
+  if (!planToggledBySave && !refreshDeferred) {
+    return { action: "none", nextRefreshDeferred: false };
+  }
+  if (currentPayload !== savedPayload) {
+    return { action: "none", nextRefreshDeferred: true };
+  }
+  return { action: "refresh", nextRefreshDeferred: false };
+}
+
+/**
+ * Whether freshly arrived server props may replace the form state. Hydration is skipped while
+ * the form is dirty so a `router.refresh()` (or any re-render with new props) cannot discard
+ * unsaved edits; autosave still writes them, and the next clean render hydrates.
+ */
+export function shouldHydrateServerProps({
+  baselineRecorded,
+  hasLocalEdits,
+}: {
+  baselineRecorded: boolean;
+  hasLocalEdits: boolean;
+}): boolean {
+  return !baselineRecorded || !hasLocalEdits;
+}

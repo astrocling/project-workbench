@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { PlanItemJson, PlanPhaseJson } from "@/lib/plan/serialize";
-import { compactPlanToSchedule, getVisibleBarSegment, isMarkerInAxis, isRenderableTimelineRow, timelineHasVisibleSchedule } from "@/lib/plan/reportSchedule";
+import {
+  compactPlanToSchedule,
+  getActiveTimelineRows,
+  getVisibleBarSegment,
+  getVisibleBarSegmentsForRow,
+  getVisibleMarkersForRow,
+  isMarkerInAxis,
+  isRenderableTimelineRow,
+  timelineHasVisibleSchedule,
+} from "@/lib/plan/reportSchedule";
 
 function item(
   partial: Partial<PlanItemJson> & Pick<PlanItemJson, "id" | "phaseId" | "label">
@@ -398,5 +407,101 @@ describe("timelineHasVisibleSchedule", () => {
         markers: [],
       })
     ).toBe(false);
+  });
+});
+
+/**
+ * The row helpers below are what both `TimelineBlock` renderers use, so the render gate
+ * (`timelineHasVisibleSchedule`) and what each row actually draws cannot disagree.
+ */
+describe("timeline row content", () => {
+  const axis = { startDate: "2026-03-01", endDate: "2026-06-30" };
+
+  it("keeps only in-axis markers on a row, so none is clamped to an axis edge", () => {
+    const markers = [
+      { label: "Kickoff", date: "2026-01-15", rowIndex: 1 },
+      { label: "Cutover", date: "2026-04-01", rowIndex: 1 },
+      { label: "Handover", date: "2026-09-01", rowIndex: 1 },
+      { label: "Other row", date: "2026-04-02", rowIndex: 2 },
+    ];
+    expect(getVisibleMarkersForRow(markers, 1, axis.startDate, axis.endDate)).toEqual([
+      { label: "Cutover", date: "2026-04-01", rowIndex: 1 },
+    ]);
+  });
+
+  it("treats a marker without a row as row 1 and ignores rows outside 1-4", () => {
+    const markers = [{ label: "Default row", date: "2026-04-01" }];
+    expect(getVisibleMarkersForRow(markers, 1, axis.startDate, axis.endDate)).toEqual(markers);
+    expect(getVisibleMarkersForRow(markers, 2, axis.startDate, axis.endDate)).toEqual([]);
+    expect(
+      getVisibleMarkersForRow(
+        [{ label: "Off-grid", date: "2026-04-01", rowIndex: 5 }],
+        5,
+        axis.startDate,
+        axis.endDate
+      )
+    ).toEqual([]);
+  });
+
+  it("clips bars on a row to the axis and drops the ones with nothing visible", () => {
+    const bars = [
+      { label: "Discovery", startDate: "2026-01-01", endDate: "2026-04-15", rowIndex: 1 },
+      { label: "Point", startDate: "2026-05-01", endDate: "2026-05-01", rowIndex: 1 },
+      { label: "Later", startDate: "2026-08-01", endDate: "2026-09-01", rowIndex: 1 },
+    ];
+    expect(getVisibleBarSegmentsForRow(bars, 1, axis.startDate, axis.endDate)).toEqual([
+      { bar: bars[0], visibleStart: "2026-03-01", visibleEnd: "2026-04-15" },
+    ]);
+    expect(getVisibleBarSegmentsForRow(bars, 3, axis.startDate, axis.endDate)).toEqual([]);
+  });
+
+  it("activates only rows that draw something, for legacy timelines", () => {
+    expect(
+      getActiveTimelineRows({
+        ...axis,
+        bars: [{ startDate: "2026-03-10", endDate: "2026-04-10", rowIndex: 1 }],
+        markers: [
+          // Out of axis: must not open row 3 with a marker pinned to the axis edge.
+          { date: "2026-12-01", rowIndex: 3 },
+          { date: "2026-05-01", rowIndex: 4 },
+        ],
+      })
+    ).toEqual([1, 4]);
+  });
+
+  it("activates the marker row of a marker-only Plan schedule", () => {
+    const schedule = compactPlanToSchedule(
+      [
+        phase({
+          id: "p1",
+          name: "Launch",
+          order: 1,
+          items: [
+            item({
+              id: "m1",
+              phaseId: "p1",
+              label: "Go live",
+              type: "milestone",
+              startDate: "2026-04-01",
+              endDate: "2026-04-01",
+            }),
+          ],
+        }),
+      ],
+      "phases_and_key_dates"
+    );
+    const timeline = { ...axis, bars: schedule!.bars, markers: schedule!.markers };
+    expect(getActiveTimelineRows(timeline)).toEqual([2]);
+    expect(timelineHasVisibleSchedule(timeline)).toBe(true);
+  });
+
+  it("agrees with the render gate: no active rows means no visible schedule", () => {
+    const timeline = {
+      ...axis,
+      bars: [{ startDate: "2026-08-01", endDate: "2026-09-01", rowIndex: 1 }],
+      markers: [{ date: "2026-12-01", rowIndex: 2 }],
+    };
+    expect(getActiveTimelineRows(timeline)).toEqual([]);
+    expect(timelineHasVisibleSchedule(timeline)).toBe(false);
   });
 });

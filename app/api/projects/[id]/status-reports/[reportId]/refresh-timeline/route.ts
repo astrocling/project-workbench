@@ -16,8 +16,7 @@ import {
 import { isPlanTabEnabled } from "@/lib/plan/feature";
 import {
   PLAN_NOT_ENABLED_ERROR,
-  PROJECT_END_DATE_REQUIRED_ERROR,
-  resolvePlanScheduleEmptyError,
+  resolveScheduleRebuildError,
 } from "@/lib/plan/reportScheduleErrors";
 import { isValidPlanTimeline } from "@/lib/statusReportScheduleBuild";
 
@@ -68,20 +67,18 @@ export async function POST(
   }
 
   const hasProjectEndDate = project?.endDate != null;
+  // Plan needs a renderable schedule; legacy timeline refresh retains prior semantics
+  // (a timeline is built whenever the project has an end date, with no visible-schedule gate).
+  const rebuiltSchedule =
+    scheduleSource === "plan"
+      ? isValidPlanTimeline(pdfData.timeline)
+      : pdfData.timeline != null;
 
-  if (scheduleSource === "plan") {
-    if (!hasProjectEndDate) {
-      return NextResponse.json({ error: PROJECT_END_DATE_REQUIRED_ERROR }, { status: 400 });
-    }
-    if (!isValidPlanTimeline(pdfData.timeline)) {
-      return NextResponse.json(
-        { error: resolvePlanScheduleEmptyError(planDensity) },
-        { status: 400 }
-      );
-    }
-  } else if (!pdfData.timeline) {
-    // Legacy timeline refresh: retain prior semantics (no visible-schedule gate).
-    return NextResponse.json({ error: PROJECT_END_DATE_REQUIRED_ERROR }, { status: 400 });
+  if (!rebuiltSchedule) {
+    return NextResponse.json(
+      { error: resolveScheduleRebuildError(scheduleSource, { hasProjectEndDate, planDensity }) },
+      { status: 400 }
+    );
   }
 
   const nextSnapshot: StatusReportSnapshot = {

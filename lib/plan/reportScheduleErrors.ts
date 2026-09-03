@@ -18,7 +18,10 @@ export const PROJECT_END_DATE_REQUIRED_ERROR =
 export const TIMELINE_SCHEDULE_EMPTY_ERROR =
   "This project has no timeline to show on a report (set a project end date and timeline bars on the Timeline tab).";
 
-/** Error when rebuild produces no usable schedule (missing end date vs empty content). */
+/**
+ * Error when a rebuild produces no usable schedule (missing end date vs empty content). Used by
+ * `POST .../status-reports/[reportId]/refresh-timeline` for both schedule sources.
+ */
 export function resolveScheduleRebuildError(
   scheduleSource: ScheduleSource,
   opts: { hasProjectEndDate: boolean; planDensity?: PlanReportDensity }

@@ -11,7 +11,9 @@ import {
   buildProjectSettingsPayload,
   projectToSettingsFormFields,
   projectToSettingsPayload,
+  resolvePlanNavRefresh,
   resolveSettingsAutosave,
+  shouldHydrateServerProps,
   type ProjectSettingsSource,
 } from "@/lib/projectSettingsForm";
 import type { EditProjectInitial } from "@/app/(app)/projects/[slug]/edit/EditProjectDataContext";
@@ -73,6 +75,11 @@ export function ProjectSettingsTab({
   // its baseline instead of writing it back, so hydrating stale props cannot undo a just-saved
   // change (e.g. the Plan toggle) with a compensating PATCH.
   const serverHydrationBaselineRef = useRef<string | null>(null);
+  // Newest form payload, kept in a ref so a save that is already in flight can tell whether the
+  // form moved on while it ran (its own closure still holds the payload it sent).
+  const latestPayloadRef = useRef<string | null>(null);
+  // A router.refresh() owed for a saved Plan toggle, held back until the form has no unsaved edits.
+  const planNavRefreshDeferredRef = useRef(false);
 
   const buildPayload = useCallback(
     () =>
@@ -180,6 +187,18 @@ export function ProjectSettingsTab({
     serverHydrationBaselineRef.current = JSON.stringify(projectToSettingsPayload(p, opts));
   }
 
+  /**
+   * Server props may replace the form only while it is clean: a `router.refresh()` (Plan toggle)
+   * or any other re-render with new props would otherwise discard edits made in the meantime.
+   */
+  function canHydrateFromServer() {
+    const latest = latestPayloadRef.current;
+    return shouldHydrateServerProps({
+      baselineRecorded: initialSaveRecordedRef.current,
+      hasLocalEdits: latest != null && latest !== lastSavedRef.current,
+    });
+  }
+
   function applyEligiblePeople(people: { id: string; name: string }[], keyRoles: { type: string; personId: string; person: { id: string; name: string } }[]) {
     const eligible = Array.isArray(people) ? people : [];
     const currentIds = new Set(eligible.map((x) => x.id));
@@ -189,8 +208,10 @@ export function ProjectSettingsTab({
 
   useEffect(() => {
     if (initialProjectProp) {
-      recordServerHydration(initialProjectProp, { isAdmin });
-      applyProjectToState(initialProjectProp);
+      if (canHydrateFromServer()) {
+        recordServerHydration(initialProjectProp, { isAdmin });
+        applyProjectToState(initialProjectProp);
+      }
       if (initialEligibleProp != null) {
         setEligiblePeople(initialEligibleProp);
       } else {
@@ -209,8 +230,10 @@ export function ProjectSettingsTab({
       fetch("/api/people/eligible-key-roles").then((r) => r.json()),
     ])
       .then(([p, people]) => {
-        recordServerHydration(p, { isAdmin });
-        applyProjectToState(p);
+        if (canHydrateFromServer()) {
+          recordServerHydration(p, { isAdmin });
+          applyProjectToState(p);
+        }
         const keyRoles = (p?.projectKeyRoles ?? []) as { type: string; personId: string; person: { id: string; name: string } }[];
         applyEligiblePeople(Array.isArray(people) ? people : [], keyRoles);
       })
@@ -228,6 +251,7 @@ export function ProjectSettingsTab({
   useEffect(() => {
     if (loading || !projectId || !initialSaveRecordedRef.current) return;
     const payloadStr = JSON.stringify(buildPayload());
+    latestPayloadRef.current = payloadStr;
     const { action, nextServerHydrationBaseline } = resolveSettingsAutosave({
       payload: payloadStr,
       lastSavedPayload: lastSavedRef.current,
@@ -262,8 +286,16 @@ export function ProjectSettingsTab({
       if (typeof updated.slug === "string" && updated.slug !== projectSlug) {
         router.replace(`/projects/${updated.slug}?tab=settings`);
       }
-      lastSavedRef.current = JSON.stringify(payload);
-      if (isAdmin && prevPlanEnabled !== payload.planEnabled) {
+      const savedPayloadStr = JSON.stringify(payload);
+      lastSavedRef.current = savedPayloadStr;
+      const planNav = resolvePlanNavRefresh({
+        planToggledBySave: isAdmin && prevPlanEnabled !== payload.planEnabled,
+        refreshDeferred: planNavRefreshDeferredRef.current,
+        savedPayload: savedPayloadStr,
+        currentPayload: latestPayloadRef.current ?? savedPayloadStr,
+      });
+      planNavRefreshDeferredRef.current = planNav.nextRefreshDeferred;
+      if (planNav.action === "refresh") {
         router.refresh();
       }
       setSaving(false);
@@ -280,6 +312,17 @@ export function ProjectSettingsTab({
     router,
     isAdmin,
   ]);
+
+  // A deferred Plan nav refresh also settles when the edits that deferred it are undone rather
+  // than saved, so the nav never waits on a save that will not happen.
+  useEffect(() => {
+    const latestPayload = latestPayloadRef.current;
+    if (!planNavRefreshDeferredRef.current || saving) return;
+    if (latestPayload != null && latestPayload !== lastSavedRef.current) return;
+    planNavRefreshDeferredRef.current = false;
+    router.refresh();
+    // buildPayload is a dependency so this re-checks after every form edit, not only after a save.
+  }, [saving, buildPayload, router]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

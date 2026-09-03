@@ -48,14 +48,6 @@ export function shouldBuildTimelineFromLegacy(
   return !timelineLocked && scheduleSource === "timeline";
 }
 
-export function shouldFetchProjectPlan(
-  scheduleSource: ScheduleSource,
-  timelineLocked: boolean,
-  hasProjectEndDate: boolean
-): boolean {
-  return hasProjectEndDate && shouldBuildTimelineFromPlan(scheduleSource, timelineLocked);
-}
-
 export function buildPlanTimelineCandidate(
   phases: PlanPhaseJson[],
   density: PlanReportDensity,
@@ -94,15 +86,12 @@ export function buildLegacyTimeline(
   };
 }
 
+/**
+ * Gate for Plan-sourced schedules: a timeline must draw at least one bar segment or in-axis
+ * marker on rows 1–4. Marker-only Plan key-date schedules pass.
+ */
 export function isValidPlanTimeline(
   timeline: StatusReportSnapshot["timeline"] | undefined
 ): timeline is NonNullable<StatusReportSnapshot["timeline"]> {
   return timeline != null && timelineHasVisibleSchedule(timeline);
-}
-
-/** Marker-only timelines (Plan key-dates or legacy snapshots) pass when an in-axis marker sits on rows 1–4. */
-export function isMarkerOnlyVisibleTimeline(
-  timeline: NonNullable<StatusReportSnapshot["timeline"]>
-): boolean {
-  return timeline.bars.length === 0 && timelineHasVisibleSchedule(timeline);
 }

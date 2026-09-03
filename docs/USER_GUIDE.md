@@ -237,7 +237,7 @@ When an Admin has enabled **Plan** for the project (**Settings → Enable Plan t
 
 **CDA** and **Modular** variations do not show these fields. Projects with Plan **off** always use **Project timeline** (legacy behavior).
 
-On **edit**, schedule source and plan density are **locked** (read-only), same as report date and **Previous months on schedule**. Use **Refresh timeline** or **Refresh schedule** (below) to update the stored bars/markers after changing the Timeline or Plan tab. If Plan is later disabled on the project, reports that used **Project Plan** still show their locked schedule source and density when you edit them.
+On **edit**, schedule source and plan density are **locked** (read-only), same as report date and **Previous months on schedule**. Use **Refresh timeline** or **Refresh schedule** (below) to update the stored bars/markers after changing the Timeline or Plan tab. If Plan is later disabled on the project, reports that used **Project Plan** still show their locked schedule source and density when you edit them, and the saved schedule keeps showing on the slide — but **Refresh schedule** fails with *“Plan is not enabled for this project.”* until an Admin turns Plan back on in **Settings**.
 
 ### Modular variation (Story Points / Velocity)
 
@@ -312,7 +312,7 @@ If you updated the project **Timeline** tab **after** a report was saved with **
 3. Read the confirmation dialog: it explains that the **schedule stored on this report** will be **replaced** with your project’s **current** Timeline bars/markers or **current** Plan phases/key dates. Your **report date** and **how many previous months** are shown do **not** change; other snapshot data (for example budget) is **not** affected.
 4. Confirm to apply, or cancel to keep the existing stored schedule.
 
-If the project has **no** schedule the app can render (for example **no end date**, or Plan with no dated phases when source is Plan), the action may fail with an error message—set the project end date and add content on the **Timeline** or **Plan** tab first.
+If the project has **no** schedule the app can render (for example **no end date**, or Plan with no dated phases when source is Plan), the action may fail with an error message—set the project end date and add content on the **Timeline** or **Plan** tab first. **Refresh schedule** also fails if **Plan** has been disabled on the project since the report was created.
 
 Very old reports **without** a stored snapshot cannot use this action; create a new report if you need a current snapshot.
 
@@ -541,6 +541,7 @@ Your **My Projects** list (on `/projects`) uses the **Person** link described in
 | **Sync plan from Float fails (500 or “Sync failed”)** | As of **v1.2.4**, long Float import history no longer crashes the server. If it still fails, read the alert message. Ensure **Admin → Float sync** or **Backfill** has populated **Float** hours and the people appear in **Settings → Assignments** (not hidden from grid). |
 | **New assignment shows Analytics Engineer (or the first role)** | Fixed in **v1.2.7**: adding someone in **Settings → Assignments** uses their **job title** from **Admin → People**. If the title is blank or does not match a Workbench role, set/correct it there, then **Remove** and **Add** them again (or **Edit** the role on the assignment). Existing rows are not rewritten. |
 | **Refresh budget missing on a CDA (or Milestones) report** | Fixed in **v1.2.8**: open **Edit report** — the button is under the variation selector. It used to appear only on **Standard** reports (next to **Show project budget on report**). |
+| **Refresh schedule says “Plan is not enabled for this project.”** | The report was created from **Project Plan**, but Plan has since been turned off in **Settings**. The saved schedule still shows on the slide; ask an Admin to re-enable **Enable Plan tab (beta)** before refreshing. |
 | **Edit form shows correct hours but the slide stays old after Update** | **Update** does not refresh locked budget/hours. Use **Refresh budget** while editing. On **CDA**, that also refreshes monthly and overall hours actuals (not only dollars). |
 | **Float API not configured** | Set `FLOAT_API_TOKEN` in the server environment. |
 | **Float sync fails with unique constraint on account name** | Fixed in current builds: sync rebinds accounts when Float re-creates a client under the same name. Redeploy if you still see this. If two **live** Float clients share one name, that client is skipped—rename one in Float and sync again. Check server logs for `[float-sync]` warnings. |

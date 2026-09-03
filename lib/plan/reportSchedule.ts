@@ -152,25 +152,59 @@ export function isMarkerInAxis(
   return date >= startYmd && date <= endYmd;
 }
 
-/** True when at least one bar segment or marker is visible on rows 1–4 within the axis. */
-export function timelineHasVisibleSchedule(timeline: TimelineAxisSlice): boolean {
+/** Bars and markers default to row 1 when a snapshot omits the row. */
+function rowIndexOf(entry: { rowIndex?: number }): number {
+  return entry.rowIndex ?? 1;
+}
+
+/** Bar segments to draw on one row, clipped to the axis; drops bars with nothing visible. */
+export function getVisibleBarSegmentsForRow<B extends ScheduleBar>(
+  bars: readonly B[],
+  rowIndex: number,
+  axisStart: string,
+  axisEnd: string
+): Array<{ bar: B; visibleStart: string; visibleEnd: string }> {
+  if (!isRenderableTimelineRow(rowIndex)) return [];
+  const segments: Array<{ bar: B; visibleStart: string; visibleEnd: string }> = [];
+  for (const bar of bars) {
+    if (rowIndexOf(bar) !== rowIndex) continue;
+    const segment = getVisibleBarSegment(bar, axisStart, axisEnd);
+    if (segment) segments.push({ bar, ...segment });
+  }
+  return segments;
+}
+
+/**
+ * Markers to draw on one row. Out-of-axis markers are dropped rather than clamped to an axis
+ * edge, so a marker outside the reported window neither opens a row nor draws at the boundary.
+ */
+export function getVisibleMarkersForRow<M extends ScheduleMarker>(
+  markers: readonly M[],
+  rowIndex: number,
+  axisStart: string,
+  axisEnd: string
+): M[] {
+  if (!isRenderableTimelineRow(rowIndex)) return [];
+  return markers.filter(
+    (marker) => rowIndexOf(marker) === rowIndex && isMarkerInAxis(marker, axisStart, axisEnd)
+  );
+}
+
+/** Rows 1–4 that draw at least one bar segment or marker. Both renderers show exactly these. */
+export function getActiveTimelineRows(timeline: TimelineAxisSlice): number[] {
   const startYmd = timeline.startDate.slice(0, 10);
   const endYmd = timeline.endDate.slice(0, 10);
-  for (const bar of timeline.bars) {
-    if (!isRenderableTimelineRow(bar.rowIndex)) {
-      continue;
-    }
-    if (getVisibleBarSegment(bar, startYmd, endYmd)) {
-      return true;
-    }
+  const rows: number[] = [];
+  for (let row = TIMELINE_RENDERABLE_ROW_MIN; row <= TIMELINE_RENDERABLE_ROW_MAX; row += 1) {
+    const hasContent =
+      getVisibleBarSegmentsForRow(timeline.bars, row, startYmd, endYmd).length > 0 ||
+      getVisibleMarkersForRow(timeline.markers, row, startYmd, endYmd).length > 0;
+    if (hasContent) rows.push(row);
   }
-  for (const marker of timeline.markers) {
-    if (!isRenderableTimelineRow(marker.rowIndex)) {
-      continue;
-    }
-    if (isMarkerInAxis(marker, startYmd, endYmd)) {
-      return true;
-    }
-  }
-  return false;
+  return rows;
+}
+
+/** True when at least one bar segment or marker is visible on rows 1–4 within the axis. */
+export function timelineHasVisibleSchedule(timeline: TimelineAxisSlice): boolean {
+  return getActiveTimelineRows(timeline).length > 0;
 }

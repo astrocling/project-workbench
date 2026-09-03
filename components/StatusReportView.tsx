@@ -21,7 +21,12 @@ import type {
 } from "@/lib/reportPanels";
 import { getWeeksInMonthsForRange } from "@/lib/monthUtils";
 import { formatMonthDay } from "@/lib/formatIsoDate";
-import { timelineHasVisibleSchedule } from "@/lib/plan/reportSchedule";
+import {
+  getActiveTimelineRows,
+  getVisibleBarSegmentsForRow,
+  getVisibleMarkersForRow,
+  timelineHasVisibleSchedule,
+} from "@/lib/plan/reportSchedule";
 
 // Mirror PDF layout: 16:9 slide, same colors and structure
 const BIO_TITLE_COLOR = "#220088";
@@ -286,11 +291,6 @@ function TimelineBlock({
   const widthPercent = (startStr: string, endStr: string) =>
     Math.max(0, Math.min(100, ((new Date(endStr).getTime() - new Date(startStr).getTime()) / totalMs) * 100));
   const months = getMonthsForTimeline(timeline.startDate, timeline.endDate);
-  type Bar = (typeof timeline.bars)[number];
-  const barsByRow: Bar[][] = [[], [], [], []];
-  for (const bar of timeline.bars) {
-    if (bar.rowIndex >= 1 && bar.rowIndex <= 4) barsByRow[bar.rowIndex - 1].push(bar);
-  }
   const startYmd = timeline.startDate.slice(0, 10);
   const endYmd = timeline.endDate.slice(0, 10);
   const reportDateInRange = reportDate && reportDate >= startYmd && reportDate <= endYmd;
@@ -302,27 +302,10 @@ function TimelineBlock({
     endMs
   );
 
-  /** Clip each bar to the visible range so position/width match the axis. */
-  function getVisibleBarSegments(rowBars: Bar[]) {
-    const clipped: { bar: Bar; visibleStart: string; visibleEnd: string }[] = [];
-    for (const bar of rowBars) {
-      const visibleStart = bar.startDate > startYmd ? bar.startDate : startYmd;
-      const visibleEnd = bar.endDate < endYmd ? bar.endDate : endYmd;
-      if (visibleStart < visibleEnd) {
-        clipped.push({ bar, visibleStart, visibleEnd });
-      }
-    }
-    return clipped;
-  }
-
   const ROW_HEIGHT_PX = 14;
 
-  const activeRowIndices = [0, 1, 2, 3].filter((rowIdx) => {
-    const rowBars = barsByRow[rowIdx] ?? [];
-    const clipped = getVisibleBarSegments(rowBars);
-    const markersInRow = timeline.markers.filter((m) => (m.rowIndex ?? 1) === rowIdx + 1);
-    return clipped.length > 0 || markersInRow.length > 0;
-  });
+  // Rows, bar segments, and markers all come from the shared helpers that back the render gate.
+  const activeRows = getActiveTimelineRows(timeline);
 
   return (
     <div className="mt-1 w-full border border-[#d1d5db] relative">
@@ -358,16 +341,16 @@ function TimelineBlock({
             style={{
               left: `${reportDatePercent}%`,
               backgroundColor: TIMELINE_REPORT_DATE,
-              height: activeRowIndices.length * ROW_HEIGHT_PX + 2,
+              height: activeRows.length * ROW_HEIGHT_PX + 2,
             }}
           />
         )}
-        {activeRowIndices.map((rowIdx) => {
-          const rowBars = barsByRow[rowIdx] ?? [];
-          const clipped = getVisibleBarSegments(rowBars);
+        {activeRows.map((row) => {
+          const clipped = getVisibleBarSegmentsForRow(timeline.bars, row, startYmd, endYmd);
+          const markersInRow = getVisibleMarkersForRow(timeline.markers, row, startYmd, endYmd);
           return (
             <div
-              key={rowIdx}
+              key={row}
               className="border-b border-[#d1d5db] relative"
               style={{ minHeight: ROW_HEIGHT_PX }}
             >
@@ -404,8 +387,7 @@ function TimelineBlock({
                   );
                 })}
               </div>
-              {timeline.markers
-                .filter((m) => (m.rowIndex ?? 1) === rowIdx + 1)
+              {markersInRow
                 .map((m, i) => (
                   <div
                     key={`m-${i}`}

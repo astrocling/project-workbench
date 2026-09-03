@@ -4,11 +4,7 @@ import { computeBudgetRollups } from "@/lib/budgetCalculations";
 import { buildCdaRowsForProject } from "@/lib/cdaMtdFromResourcing";
 import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument";
 import type { ReportPanel } from "@/lib/reportPanels";
-import {
-  resolveShowBudget,
-  shouldAttachBudgetToPdfData,
-  shouldShowRefreshBudget,
-} from "@/lib/statusReportFlags";
+import { resolveShowBudget, shouldAttachBudgetToPdfData } from "@/lib/statusReportFlags";
 import { getPlanForProject } from "@/lib/plan/api";
 import { serializePlan } from "@/lib/plan/serialize";
 import type { PlanReportDensity } from "@/lib/plan/reportSchedule";
@@ -17,7 +13,6 @@ import {
   buildPlanTimelineCandidate,
   shouldBuildTimelineFromLegacy,
   shouldBuildTimelineFromPlan,
-  shouldFetchProjectPlan,
   shouldUseLockedTimeline,
 } from "@/lib/statusReportScheduleBuild";
 
@@ -461,12 +456,10 @@ export async function buildStatusReportPdfData(
     const scheduleSource = resolveScheduleSource(snapshot, options);
 
     if (shouldBuildTimelineFromPlan(scheduleSource, timelineLocked)) {
-      if (shouldFetchProjectPlan(scheduleSource, timelineLocked, true)) {
-        const plan = await getPlanForProject(projectId);
-        if (plan) {
-          const density = resolvePlanDensity(snapshot, options);
-          timeline = buildPlanTimelineCandidate(serializePlan(plan).phases, density, axis);
-        }
+      const plan = await getPlanForProject(projectId);
+      if (plan) {
+        const density = resolvePlanDensity(snapshot, options);
+        timeline = buildPlanTimelineCandidate(serializePlan(plan).phases, density, axis);
       }
     } else if (shouldBuildTimelineFromLegacy(scheduleSource, timelineLocked)) {
       const bars = (project.timelineBars ?? [])

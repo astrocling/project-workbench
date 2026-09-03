@@ -3,7 +3,9 @@ import {
   buildProjectSettingsPayload,
   projectToSettingsFormFields,
   projectToSettingsPayload,
+  resolvePlanNavRefresh,
   resolveSettingsAutosave,
+  shouldHydrateServerProps,
   type ProjectSettingsSource,
 } from "@/lib/projectSettingsForm";
 
@@ -204,5 +206,77 @@ describe("resolveSettingsAutosave", () => {
         serverHydrationBaseline: "from-server",
       })
     ).toEqual({ action: "save", nextServerHydrationBaseline: null });
+  });
+});
+
+describe("resolvePlanNavRefresh", () => {
+  it("does nothing for an ordinary save that did not touch the Plan toggle", () => {
+    expect(
+      resolvePlanNavRefresh({
+        planToggledBySave: false,
+        refreshDeferred: false,
+        savedPayload: "saved",
+        currentPayload: "saved",
+      })
+    ).toEqual({ action: "none", nextRefreshDeferred: false });
+  });
+
+  it("refreshes right away when the Plan toggle save is the newest form state", () => {
+    expect(
+      resolvePlanNavRefresh({
+        planToggledBySave: true,
+        refreshDeferred: false,
+        savedPayload: "saved",
+        currentPayload: "saved",
+      })
+    ).toEqual({ action: "refresh", nextRefreshDeferred: false });
+  });
+
+  it("defers the refresh when the form was edited while the Plan save was in flight", () => {
+    // Refreshing here would hydrate server props that predate the edit and silently drop it.
+    expect(
+      resolvePlanNavRefresh({
+        planToggledBySave: true,
+        refreshDeferred: false,
+        savedPayload: "saved",
+        currentPayload: "edited-during-save",
+      })
+    ).toEqual({ action: "none", nextRefreshDeferred: true });
+  });
+
+  it("runs the deferred refresh once a later save catches the form up", () => {
+    expect(
+      resolvePlanNavRefresh({
+        planToggledBySave: false,
+        refreshDeferred: true,
+        savedPayload: "edited-during-save",
+        currentPayload: "edited-during-save",
+      })
+    ).toEqual({ action: "refresh", nextRefreshDeferred: false });
+  });
+
+  it("keeps deferring while each follow-up save is overtaken by another edit", () => {
+    expect(
+      resolvePlanNavRefresh({
+        planToggledBySave: false,
+        refreshDeferred: true,
+        savedPayload: "second-save",
+        currentPayload: "third-edit",
+      })
+    ).toEqual({ action: "none", nextRefreshDeferred: true });
+  });
+});
+
+describe("shouldHydrateServerProps", () => {
+  it("hydrates the first load, when nothing local can be lost", () => {
+    expect(shouldHydrateServerProps({ baselineRecorded: false, hasLocalEdits: true })).toBe(true);
+  });
+
+  it("hydrates a re-render of a clean form", () => {
+    expect(shouldHydrateServerProps({ baselineRecorded: true, hasLocalEdits: false })).toBe(true);
+  });
+
+  it("leaves a dirty form alone, so a refresh cannot overwrite unsaved edits", () => {
+    expect(shouldHydrateServerProps({ baselineRecorded: true, hasLocalEdits: true })).toBe(false);
   });
 });
