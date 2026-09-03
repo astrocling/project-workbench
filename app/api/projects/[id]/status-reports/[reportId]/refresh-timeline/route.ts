@@ -9,15 +9,17 @@ import { deleteCachedPdf } from "@/lib/statusReportPdfCache";
 import {
   buildStatusReportPdfData,
   isStatusReportSnapshot,
+  resolvePlanDensity,
   resolveScheduleSource,
   type StatusReportSnapshot,
 } from "@/lib/statusReportPdfData";
 import { isPlanTabEnabled } from "@/lib/plan/feature";
 import {
   PLAN_NOT_ENABLED_ERROR,
-  resolveScheduleRebuildError,
+  PROJECT_END_DATE_REQUIRED_ERROR,
+  resolvePlanScheduleEmptyError,
 } from "@/lib/plan/reportScheduleErrors";
-import { timelineHasVisibleSchedule } from "@/lib/plan/reportSchedule";
+import { isValidPlanTimeline } from "@/lib/statusReportScheduleBuild";
 
 export async function POST(
   _req: NextRequest,
@@ -48,6 +50,7 @@ export async function POST(
 
   const existingSnapshot: StatusReportSnapshot = report.snapshot;
   const scheduleSource = resolveScheduleSource(existingSnapshot);
+  const planDensity = resolvePlanDensity(existingSnapshot);
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },
@@ -65,14 +68,20 @@ export async function POST(
   }
 
   const hasProjectEndDate = project?.endDate != null;
-  const hasVisibleTimeline =
-    pdfData.timeline != null && timelineHasVisibleSchedule(pdfData.timeline);
 
-  if (!hasVisibleTimeline) {
-    const errorMessage = resolveScheduleRebuildError(scheduleSource, {
-      hasProjectEndDate,
-    });
-    return NextResponse.json({ error: errorMessage }, { status: 400 });
+  if (scheduleSource === "plan") {
+    if (!hasProjectEndDate) {
+      return NextResponse.json({ error: PROJECT_END_DATE_REQUIRED_ERROR }, { status: 400 });
+    }
+    if (!isValidPlanTimeline(pdfData.timeline)) {
+      return NextResponse.json(
+        { error: resolvePlanScheduleEmptyError(planDensity) },
+        { status: 400 }
+      );
+    }
+  } else if (!pdfData.timeline) {
+    // Legacy timeline refresh: retain prior semantics (no visible-schedule gate).
+    return NextResponse.json({ error: PROJECT_END_DATE_REQUIRED_ERROR }, { status: 400 });
   }
 
   const nextSnapshot: StatusReportSnapshot = {

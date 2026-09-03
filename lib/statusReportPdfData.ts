@@ -9,13 +9,17 @@ import {
   shouldAttachBudgetToPdfData,
   shouldShowRefreshBudget,
 } from "@/lib/statusReportFlags";
-import { planInclude } from "@/lib/plan/api";
+import { getPlanForProject } from "@/lib/plan/api";
 import { serializePlan } from "@/lib/plan/serialize";
+import type { PlanReportDensity } from "@/lib/plan/reportSchedule";
 import {
-  compactPlanToSchedule,
-  timelineHasVisibleSchedule,
-  type PlanReportDensity,
-} from "@/lib/plan/reportSchedule";
+  buildLegacyTimeline,
+  buildPlanTimelineCandidate,
+  shouldBuildTimelineFromLegacy,
+  shouldBuildTimelineFromPlan,
+  shouldFetchProjectPlan,
+  shouldUseLockedTimeline,
+} from "@/lib/statusReportScheduleBuild";
 
 const CACHE_KEY = "status-report-pdf-data";
 const CACHE_REVALIDATE = 60;
@@ -218,7 +222,6 @@ export async function buildStatusReportPdfData(
       cdaMilestones: true,
       timelineBars: true,
       timelineMarkers: true,
-      projectPlan: { include: planInclude },
     },
   });
   if (!project) return null;
@@ -452,27 +455,20 @@ export async function buildStatusReportPdfData(
     const minStartDate = new Date(Date.UTC(reportDate.getUTCFullYear(), reportDate.getUTCMonth() - previousMonths, 1));
     const minStartStr = minStartDate.toISOString().slice(0, 10);
     const effectiveStartStr = startStr < minStartStr ? minStartStr : startStr;
+    const axis = { startDate: effectiveStartStr, endDate: endStr };
 
+    const timelineLocked = shouldUseLockedTimeline(snapshot, options?.rebuildTimelineFromProject);
     const scheduleSource = resolveScheduleSource(snapshot, options);
-    if (scheduleSource === "plan") {
-      const plan = project.projectPlan;
-      if (plan) {
-        const planJson = serializePlan(plan);
-        const density = resolvePlanDensity(snapshot, options);
-        const schedule = compactPlanToSchedule(planJson.phases, density);
-        if (schedule) {
-          const candidate = {
-            startDate: effectiveStartStr,
-            endDate: endStr,
-            bars: schedule.bars,
-            markers: schedule.markers,
-          };
-          if (timelineHasVisibleSchedule(candidate)) {
-            timeline = candidate;
-          }
+
+    if (shouldBuildTimelineFromPlan(scheduleSource, timelineLocked)) {
+      if (shouldFetchProjectPlan(scheduleSource, timelineLocked, true)) {
+        const plan = await getPlanForProject(projectId);
+        if (plan) {
+          const density = resolvePlanDensity(snapshot, options);
+          timeline = buildPlanTimelineCandidate(serializePlan(plan).phases, density, axis);
         }
       }
-    } else {
+    } else if (shouldBuildTimelineFromLegacy(scheduleSource, timelineLocked)) {
       const bars = (project.timelineBars ?? [])
         .sort((a, b) => a.rowIndex - b.rowIndex || a.startDate.getTime() - b.startDate.getTime())
         .map((b) => ({
@@ -490,7 +486,7 @@ export async function buildStatusReportPdfData(
           shape: m.shape,
           rowIndex: m.rowIndex,
         }));
-      timeline = { startDate: effectiveStartStr, endDate: endStr, bars, markers };
+      timeline = buildLegacyTimeline(bars, markers, axis);
     }
   }
 

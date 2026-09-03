@@ -103,9 +103,11 @@ export function compactPlanToSchedule(
 type ScheduleBar = {
   startDate: string;
   endDate: string;
+  rowIndex?: number;
 };
 type ScheduleMarker = {
   date: string;
+  rowIndex?: number;
 };
 
 export type TimelineAxisSlice = {
@@ -114,6 +116,14 @@ export type TimelineAxisSlice = {
   bars: ScheduleBar[];
   markers: ScheduleMarker[];
 };
+
+export const TIMELINE_RENDERABLE_ROW_MIN = 1;
+export const TIMELINE_RENDERABLE_ROW_MAX = 4;
+
+export function isRenderableTimelineRow(rowIndex: number | undefined): boolean {
+  const row = rowIndex ?? 1;
+  return row >= TIMELINE_RENDERABLE_ROW_MIN && row <= TIMELINE_RENDERABLE_ROW_MAX;
+}
 
 /** Clip a bar to the axis; returns null when nothing is visible (zero-length or fully outside). */
 export function getVisibleBarSegment(
@@ -142,16 +152,22 @@ export function isMarkerInAxis(
   return date >= startYmd && date <= endYmd;
 }
 
-/** True when at least one bar segment or marker is visible on the timeline axis. */
+/** True when at least one bar segment or marker is visible on rows 1–4 within the axis. */
 export function timelineHasVisibleSchedule(timeline: TimelineAxisSlice): boolean {
   const startYmd = timeline.startDate.slice(0, 10);
   const endYmd = timeline.endDate.slice(0, 10);
   for (const bar of timeline.bars) {
+    if (!isRenderableTimelineRow(bar.rowIndex)) {
+      continue;
+    }
     if (getVisibleBarSegment(bar, startYmd, endYmd)) {
       return true;
     }
   }
   for (const marker of timeline.markers) {
+    if (!isRenderableTimelineRow(marker.rowIndex)) {
+      continue;
+    }
     if (isMarkerInAxis(marker, startYmd, endYmd)) {
       return true;
     }

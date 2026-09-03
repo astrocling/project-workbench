@@ -7,15 +7,17 @@ import { getProjectId } from "@/lib/slug";
 import { projectHasMissingActuals } from "@/lib/projectActualsStale";
 import { buildStatusReportPdfData } from "@/lib/statusReportPdfData";
 import type { StatusReportSnapshot } from "@/lib/statusReportPdfData";
-import { isPlanTabEnabled } from "@/lib/plan/feature";
 import {
   isPlanScheduleCreateRequest,
-  PLAN_NOT_ENABLED_ERROR,
-  PROJECT_END_DATE_REQUIRED_ERROR,
-  PLAN_SCHEDULE_EMPTY_ERROR,
-  resolveScheduleRebuildError,
+  resolvePlanScheduleEmptyError,
+  validatePlanScheduleCreateEligibility,
 } from "@/lib/plan/reportScheduleErrors";
-import { timelineHasVisibleSchedule } from "@/lib/plan/reportSchedule";
+import { isValidPlanTimeline } from "@/lib/statusReportScheduleBuild";
+import {
+  PLAN_CREATE_BUILD_FAILED_ERROR,
+  PLAN_CREATE_ROLLBACK_FAILED_ERROR,
+  rollbackCreatedStatusReport,
+} from "@/lib/statusReportCreateRollback";
 import { MODULAR_DEFAULT_PANELS, type ReportPanel } from "@/lib/reportPanels";
 import { z } from "zod";
 
@@ -189,11 +191,12 @@ export async function POST(
       where: { id },
       select: { planEnabled: true, endDate: true },
     });
-    if (!isPlanTabEnabled(projectForPlan?.planEnabled)) {
-      return NextResponse.json({ error: PLAN_NOT_ENABLED_ERROR }, { status: 400 });
-    }
-    if (!projectForPlan?.endDate) {
-      return NextResponse.json({ error: PROJECT_END_DATE_REQUIRED_ERROR }, { status: 400 });
+    const eligibilityError = validatePlanScheduleCreateEligibility({
+      planEnabled: projectForPlan?.planEnabled,
+      hasEndDate: projectForPlan?.endDate != null,
+    });
+    if (eligibilityError) {
+      return NextResponse.json({ error: eligibilityError }, { status: 400 });
     }
   }
 
@@ -243,38 +246,50 @@ export async function POST(
       data: { snapshot: snapshot as Prisma.InputJsonValue },
     });
   } else {
-    // Lock period, budget, milestones, and timeline to creation time so they don't change when project is edited
-    const pdfData = await buildStatusReportPdfData(id, report.id, {
-      timelinePreviousMonths: parsed.data.timelinePreviousMonths,
-      ...(usePlanSchedule
-        ? {
-            scheduleSource: "plan" as const,
-            planDensity: parsed.data.planDensity,
-          }
-        : {}),
-    });
-    const planScheduleInvalid =
-      usePlanSchedule &&
-      (!pdfData?.timeline ||
-        !timelineHasVisibleSchedule(pdfData.timeline));
-    if (planScheduleInvalid) {
-      try {
-        await prisma.statusReport.delete({ where: { id: report.id } });
-      } catch (deleteError) {
+    let pdfData: Awaited<ReturnType<typeof buildStatusReportPdfData>> | null = null;
+    try {
+      pdfData = await buildStatusReportPdfData(id, report.id, {
+        timelinePreviousMonths: parsed.data.timelinePreviousMonths,
+        ...(usePlanSchedule
+          ? {
+              scheduleSource: "plan" as const,
+              planDensity: parsed.data.planDensity,
+            }
+          : {}),
+      });
+    } catch (buildError) {
+      console.error("Failed to build status report snapshot after create:", buildError);
+      const rollback = await rollbackCreatedStatusReport(
+        async (reportId) => {
+          await prisma.statusReport.delete({ where: { id: reportId } });
+        },
+        report.id
+      );
+      if (!rollback.ok) {
+        console.error("Failed to delete status report after build error:", rollback.error);
+        return NextResponse.json({ error: PLAN_CREATE_ROLLBACK_FAILED_ERROR }, { status: 500 });
+      }
+      return NextResponse.json({ error: PLAN_CREATE_BUILD_FAILED_ERROR }, { status: 500 });
+    }
+
+    if (usePlanSchedule && !isValidPlanTimeline(pdfData?.timeline)) {
+      const planError = resolvePlanScheduleEmptyError(parsed.data.planDensity);
+      const rollback = await rollbackCreatedStatusReport(
+        async (reportId) => {
+          await prisma.statusReport.delete({ where: { id: reportId } });
+        },
+        report.id
+      );
+      if (!rollback.ok) {
         console.error(
           "Failed to delete status report after invalid Plan schedule:",
-          deleteError
+          rollback.error
         );
-        return NextResponse.json(
-          {
-            error: PLAN_SCHEDULE_EMPTY_ERROR,
-            rollbackFailed: true,
-          },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: PLAN_CREATE_ROLLBACK_FAILED_ERROR }, { status: 500 });
       }
-      return NextResponse.json({ error: PLAN_SCHEDULE_EMPTY_ERROR }, { status: 400 });
+      return NextResponse.json({ error: planError }, { status: 400 });
     }
+
     if (pdfData) {
       const scheduleSource = usePlanSchedule ? "plan" : "timeline";
       const snapshot: StatusReportSnapshot = {

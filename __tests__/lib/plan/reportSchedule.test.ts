@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PlanItemJson, PlanPhaseJson } from "@/lib/plan/serialize";
-import { compactPlanToSchedule, getVisibleBarSegment, isMarkerInAxis, timelineHasVisibleSchedule } from "@/lib/plan/reportSchedule";
+import { compactPlanToSchedule, getVisibleBarSegment, isMarkerInAxis, isRenderableTimelineRow, timelineHasVisibleSchedule } from "@/lib/plan/reportSchedule";
 
 function item(
   partial: Partial<PlanItemJson> & Pick<PlanItemJson, "id" | "phaseId" | "label">
@@ -320,25 +320,6 @@ describe("compactPlanToSchedule", () => {
       })
     ).toBe(true);
   });
-
-  it("phases-only point-only phase fails visible schedule validation", () => {
-    const pointOnlyPhase = phase({
-      id: "p1",
-      name: "Launch",
-      order: 0,
-      items: [
-        item({
-          id: "m1",
-          phaseId: "p1",
-          label: "Go live",
-          type: "milestone",
-          startDate: "2026-06-01",
-          endDate: "2026-06-01",
-        }),
-      ],
-    });
-    expect(compactPlanToSchedule([pointOnlyPhase], "phases")).toBeNull();
-  });
 });
 
 describe("timelineHasVisibleSchedule", () => {
@@ -364,13 +345,35 @@ describe("timelineHasVisibleSchedule", () => {
     expect(isMarkerInAxis({ date: "2026-05-01" }, "2026-03-01", "2026-04-01")).toBe(false);
   });
 
-  it("returns true for marker-only schedules on the axis", () => {
+  it("returns true for marker-only schedules on the axis (legacy snapshots included)", () => {
     expect(
       timelineHasVisibleSchedule({
         startDate: "2026-03-01",
         endDate: "2026-06-30",
-        bars: [{ startDate: "2026-06-01", endDate: "2026-06-01" }],
-        markers: [{ date: "2026-04-01" }],
+        bars: [],
+        markers: [{ date: "2026-04-01", rowIndex: 2 }],
+      })
+    ).toBe(true);
+  });
+
+  it("ignores bars and markers outside rows 1-4", () => {
+    expect(isRenderableTimelineRow(1)).toBe(true);
+    expect(isRenderableTimelineRow(4)).toBe(true);
+    expect(isRenderableTimelineRow(5)).toBe(false);
+    expect(
+      timelineHasVisibleSchedule({
+        startDate: "2026-03-01",
+        endDate: "2026-06-30",
+        bars: [{ startDate: "2026-04-01", endDate: "2026-04-10", rowIndex: 5 }],
+        markers: [{ date: "2026-04-15", rowIndex: 0 }],
+      })
+    ).toBe(false);
+    expect(
+      timelineHasVisibleSchedule({
+        startDate: "2026-03-01",
+        endDate: "2026-06-30",
+        bars: [{ startDate: "2026-04-01", endDate: "2026-04-10", rowIndex: 3 }],
+        markers: [],
       })
     ).toBe(true);
   });

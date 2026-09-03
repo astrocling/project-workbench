@@ -1,0 +1,132 @@
+import { describe, expect, it } from "vitest";
+import type { PlanPhaseJson } from "@/lib/plan/serialize";
+import {
+  buildLegacyTimeline,
+  buildPlanTimelineCandidate,
+  isMarkerOnlyVisibleTimeline,
+  isValidPlanTimeline,
+  shouldBuildTimelineFromLegacy,
+  shouldBuildTimelineFromPlan,
+  shouldFetchProjectPlan,
+  shouldUseLockedTimeline,
+} from "@/lib/statusReportScheduleBuild";
+import { resolveScheduleSource, type StatusReportSnapshot } from "@/lib/statusReportPdfData";
+
+const baseSnapshot: StatusReportSnapshot = {
+  period: "Jan 1 – Jan 5, 2026",
+  today: "Jan 6, 2026",
+};
+
+const axis = { startDate: "2026-01-01", endDate: "2026-12-31" };
+
+function phase(name: string, items: PlanPhaseJson["items"]): PlanPhaseJson {
+  return {
+    id: `phase-${name}`,
+    planId: "plan-1",
+    name,
+    color: "#1941FA",
+    order: 0,
+    items,
+  };
+}
+
+describe("statusReportScheduleBuild", () => {
+  describe("source selection", () => {
+    it("uses locked timeline when snapshot has timeline and rebuild is false", () => {
+      expect(
+        shouldUseLockedTimeline({ ...baseSnapshot, timeline: { ...axis, bars: [], markers: [] } })
+      ).toBe(true);
+      expect(shouldBuildTimelineFromPlan("plan", true)).toBe(false);
+      expect(shouldBuildTimelineFromLegacy("timeline", true)).toBe(false);
+    });
+
+    it("chooses Plan mapping when source is plan and timeline is not locked", () => {
+      expect(shouldBuildTimelineFromPlan("plan", false)).toBe(true);
+      expect(shouldBuildTimelineFromLegacy("plan", false)).toBe(false);
+      expect(shouldFetchProjectPlan("plan", false, true)).toBe(true);
+    });
+
+    it("chooses legacy bars/markers when source is timeline and timeline is not locked", () => {
+      expect(shouldBuildTimelineFromLegacy("timeline", false)).toBe(true);
+      expect(shouldBuildTimelineFromPlan("timeline", false)).toBe(false);
+      expect(shouldFetchProjectPlan("timeline", false, true)).toBe(false);
+    });
+
+    it("defaults resolveScheduleSource to timeline for fresh snapshots", () => {
+      expect(resolveScheduleSource(null)).toBe("timeline");
+      expect(resolveScheduleSource(baseSnapshot)).toBe("timeline");
+    });
+  });
+
+  describe("Plan timeline assembly", () => {
+    it("accepts point-only phases as marker-only timelines", () => {
+      const timeline = buildPlanTimelineCandidate(
+        [
+          phase("Launch", [
+            {
+              id: "m1",
+              phaseId: "phase-Launch",
+              type: "milestone",
+              label: "Go live",
+              startDate: "2026-06-01",
+              endDate: "2026-06-01",
+              order: 0,
+              parentItemId: null,
+              meetingStatus: null,
+              scheduledTime: null,
+            },
+          ]),
+        ],
+        "phases_and_key_dates",
+        axis
+      );
+      expect(timeline).toBeDefined();
+      expect(timeline?.bars).toEqual([]);
+      expect(timeline?.markers).toHaveLength(1);
+      expect(isValidPlanTimeline(timeline)).toBe(true);
+      expect(isMarkerOnlyVisibleTimeline(timeline!)).toBe(true);
+    });
+
+    it("rejects phases-only point-only phases", () => {
+      const timeline = buildPlanTimelineCandidate(
+        [
+          phase("Launch", [
+            {
+              id: "m1",
+              phaseId: "phase-Launch",
+              type: "milestone",
+              label: "Go live",
+              startDate: "2026-06-01",
+              endDate: "2026-06-01",
+              order: 0,
+              parentItemId: null,
+              meetingStatus: null,
+              scheduledTime: null,
+            },
+          ]),
+        ],
+        "phases",
+        axis
+      );
+      expect(timeline).toBeUndefined();
+      expect(isValidPlanTimeline(timeline)).toBe(false);
+    });
+  });
+
+  describe("legacy timeline assembly", () => {
+    it("builds legacy timeline without visible-schedule validation", () => {
+      const timeline = buildLegacyTimeline([], [], axis);
+      expect(timeline).toEqual({ ...axis, bars: [], markers: [] });
+      expect(isValidPlanTimeline(timeline)).toBe(false);
+    });
+
+    it("supports marker-only legacy snapshots for render gates", () => {
+      const timeline = buildLegacyTimeline(
+        [],
+        [{ label: "Cutover", date: "2026-04-01", shape: "Pin", rowIndex: 2 }],
+        axis
+      );
+      expect(isMarkerOnlyVisibleTimeline(timeline)).toBe(true);
+    });
+  });
+});
