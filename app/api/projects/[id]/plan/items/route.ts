@@ -9,11 +9,12 @@ import {
   parseDate,
   planItemTypeEnum,
   planMeetingStatusEnum,
-  requireEditSession,
+  requireSession,
   resolveProjectId,
   validateDateRange,
   validateItemPayload,
 } from "@/lib/plan/api";
+import { requirePlanEditSessionForProject } from "@/lib/plan/feature";
 import { serializePlanItem } from "@/lib/plan/serialize";
 import { touchPlan } from "@/lib/plan/touchPlan";
 
@@ -33,12 +34,16 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireEditSession();
-  if ("error" in auth) return auth.error;
-
   const { id: idOrSlug } = await params;
+
+  const sessionAuth = await requireSession();
+  if ("error" in sessionAuth) return sessionAuth.error;
+
   const projectResult = await resolveProjectId(idOrSlug);
   if ("error" in projectResult) return projectResult.error;
+
+  const planAuth = await requirePlanEditSessionForProject(projectResult.id);
+  if ("error" in planAuth) return planAuth.error;
 
   const body = await req.json().catch(() => ({}));
   const parsed = postSchema.safeParse(body);
@@ -109,7 +114,7 @@ export async function POST(
       },
     });
 
-    await touchPlan(phase.planId, getSessionUserId(auth.session));
+    await touchPlan(phase.planId, getSessionUserId(planAuth.session));
 
     return NextResponse.json(serializePlanItem(item));
   } catch (err) {

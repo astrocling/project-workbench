@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { dateString, requireSession, resolveProjectId } from "@/lib/plan/api";
+import { requirePlanSessionForProject } from "@/lib/plan/feature";
 import { getProjectNonWorkingDays } from "@/lib/plan/projectNonWorkingDays";
 import { z } from "zod";
 
@@ -13,12 +14,16 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireSession();
-  if ("error" in auth) return auth.error;
-
   const { id: idOrSlug } = await params;
+
+  const sessionAuth = await requireSession();
+  if ("error" in sessionAuth) return sessionAuth.error;
+
   const projectResult = await resolveProjectId(idOrSlug);
   if ("error" in projectResult) return projectResult.error;
+
+  const planAuth = await requirePlanSessionForProject(projectResult.id);
+  if ("error" in planAuth) return planAuth.error;
 
   const project = await prisma.project.findUnique({
     where: { id: projectResult.id },

@@ -9,6 +9,7 @@ import { getBudgetStatusForDisplay } from "@/lib/budgetCalculations";
 import { getCachedProjectBySlugOrId } from "@/lib/projectCache";
 import { getEligibleKeyRoles } from "@/lib/eligibleKeyRoles";
 import { getProjectPtoAbsencePayload } from "@/lib/pgmPtoWidgetData";
+import { isPlanTabEnabled } from "@/lib/plan/feature";
 import { ProjectDetailTabs } from "./ProjectDetailTabs";
 import type { Metadata } from "next";
 import type { EditProjectInitial } from "@/app/(app)/projects/[slug]/edit/EditProjectDataContext";
@@ -64,6 +65,11 @@ export default async function ProjectDetailPage({
 
   const project = await getCachedProjectBySlugOrId(slugParam);
   if (!project) notFound();
+
+  const planEnabled = isPlanTabEnabled(project.planEnabled);
+  if (tab === "plan" && !planEnabled) {
+    tab = "overview";
+  }
 
   // Backward compatibility: if URL looks like old cuid, redirect to canonical slug
   if (CUID_REGEX.test(slugParam) && project.slug !== slugParam) {
@@ -298,6 +304,7 @@ export default async function ProjectDetailPage({
         canEdit={!!canEdit}
         floatLastUpdated={lastImport?.completedAt ?? null}
         cdaEnabled={project.cdaEnabled ?? false}
+        planEnabled={planEnabled}
         cdaReportHoursOnly={project.cdaReportHoursOnly ?? false}
         initialProject={initialProject}
         initialAssignments={initialAssignments}

@@ -7,7 +7,6 @@ import {
   getProjectDates,
   getSessionUserId,
   parseDate,
-  requireEditSession,
   requireSession,
   resolveProjectId,
   validateDateRange,
@@ -17,6 +16,10 @@ import {
   serializePlan,
   toIsoDate,
 } from "@/lib/plan/serialize";
+import {
+  requirePlanEditSessionForProject,
+  requirePlanSessionForProject,
+} from "@/lib/plan/feature";
 
 const createPhaseSchema = z.object({
   name: z.string().min(1),
@@ -43,12 +46,16 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireSession();
-  if ("error" in auth) return auth.error;
-
   const { id: idOrSlug } = await params;
+
+  const sessionAuth = await requireSession();
+  if ("error" in sessionAuth) return sessionAuth.error;
+
   const projectResult = await resolveProjectId(idOrSlug);
   if ("error" in projectResult) return projectResult.error;
+
+  const planAuth = await requirePlanSessionForProject(projectResult.id);
+  if ("error" in planAuth) return planAuth.error;
 
   const datesResult = await getProjectDates(projectResult.id);
   if ("error" in datesResult) return datesResult.error;
@@ -77,12 +84,16 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireEditSession();
-  if ("error" in auth) return auth.error;
-
   const { id: idOrSlug } = await params;
+
+  const sessionAuth = await requireSession();
+  if ("error" in sessionAuth) return sessionAuth.error;
+
   const projectResult = await resolveProjectId(idOrSlug);
   if ("error" in projectResult) return projectResult.error;
+
+  const planAuth = await requirePlanEditSessionForProject(projectResult.id);
+  if ("error" in planAuth) return planAuth.error;
 
   const datesResult = await getProjectDates(projectResult.id);
   if ("error" in datesResult) return datesResult.error;
@@ -116,7 +127,7 @@ export async function POST(
     return NextResponse.json({ error: rangeError }, { status: 400 });
   }
 
-  const userId = getSessionUserId(auth.session);
+  const userId = getSessionUserId(planAuth.session);
 
   try {
     const plan = await prisma.$transaction(async (tx) => {
@@ -169,12 +180,16 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireEditSession();
-  if ("error" in auth) return auth.error;
-
   const { id: idOrSlug } = await params;
+
+  const sessionAuth = await requireSession();
+  if ("error" in sessionAuth) return sessionAuth.error;
+
   const projectResult = await resolveProjectId(idOrSlug);
   if ("error" in projectResult) return projectResult.error;
+
+  const planAuth = await requirePlanEditSessionForProject(projectResult.id);
+  if ("error" in planAuth) return planAuth.error;
 
   const plan = await getPlanForProject(projectResult.id);
   if (!plan) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -195,7 +210,7 @@ export async function PATCH(
     return NextResponse.json({ error: rangeError }, { status: 400 });
   }
 
-  const userId = getSessionUserId(auth.session);
+  const userId = getSessionUserId(planAuth.session);
 
   const updated = await prisma.projectPlan.update({
     where: { id: plan.id },
@@ -231,12 +246,16 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireEditSession();
-  if ("error" in auth) return auth.error;
-
   const { id: idOrSlug } = await params;
+
+  const sessionAuth = await requireSession();
+  if ("error" in sessionAuth) return sessionAuth.error;
+
   const projectResult = await resolveProjectId(idOrSlug);
   if ("error" in projectResult) return projectResult.error;
+
+  const planAuth = await requirePlanEditSessionForProject(projectResult.id);
+  if ("error" in planAuth) return planAuth.error;
 
   const plan = await prisma.projectPlan.findUnique({
     where: { projectId: projectResult.id },

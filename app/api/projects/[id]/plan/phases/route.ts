@@ -4,9 +4,10 @@ import { z } from "zod";
 import {
   getSessionUserId,
   optionalHexColor,
-  requireEditSession,
+  requireSession,
   resolveProjectId,
 } from "@/lib/plan/api";
+import { requirePlanEditSessionForProject } from "@/lib/plan/feature";
 import { serializePlanPhase } from "@/lib/plan/serialize";
 import { touchPlan } from "@/lib/plan/touchPlan";
 
@@ -20,12 +21,16 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireEditSession();
-  if ("error" in auth) return auth.error;
-
   const { id: idOrSlug } = await params;
+
+  const sessionAuth = await requireSession();
+  if ("error" in sessionAuth) return sessionAuth.error;
+
   const projectResult = await resolveProjectId(idOrSlug);
   if ("error" in projectResult) return projectResult.error;
+
+  const planAuth = await requirePlanEditSessionForProject(projectResult.id);
+  if ("error" in planAuth) return planAuth.error;
 
   const plan = await prisma.projectPlan.findUnique({
     where: { projectId: projectResult.id },
@@ -56,7 +61,7 @@ export async function POST(
       include: { items: { orderBy: { order: "asc" } } },
     });
 
-    await touchPlan(plan.id, getSessionUserId(auth.session));
+    await touchPlan(plan.id, getSessionUserId(planAuth.session));
 
     return NextResponse.json(serializePlanPhase(phase));
   } catch (err) {

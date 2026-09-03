@@ -9,11 +9,12 @@ import {
   parseDate,
   planItemTypeEnum,
   planMeetingStatusEnum,
-  requireEditSession,
+  requireSession,
   resolveProjectId,
   validateDateRange,
   validateItemPayload,
 } from "@/lib/plan/api";
+import { requirePlanEditSessionForProject } from "@/lib/plan/feature";
 import { collectDescendantIds } from "@/lib/plan/tree";
 import { serializePlanItem } from "@/lib/plan/serialize";
 import { touchPlan } from "@/lib/plan/touchPlan";
@@ -34,12 +35,16 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; itemId: string }> }
 ) {
-  const auth = await requireEditSession();
-  if ("error" in auth) return auth.error;
-
   const { id: idOrSlug, itemId } = await params;
+
+  const sessionAuth = await requireSession();
+  if ("error" in sessionAuth) return sessionAuth.error;
+
   const projectResult = await resolveProjectId(idOrSlug);
   if ("error" in projectResult) return projectResult.error;
+
+  const planAuth = await requirePlanEditSessionForProject(projectResult.id);
+  if ("error" in planAuth) return planAuth.error;
 
   const item = await prisma.planItem.findFirst({
     where: {
@@ -156,7 +161,7 @@ export async function PATCH(
     });
   });
 
-  await touchPlan(item.phase.planId, getSessionUserId(auth.session));
+  await touchPlan(item.phase.planId, getSessionUserId(planAuth.session));
 
   return NextResponse.json(serializePlanItem(updated));
 }
@@ -165,12 +170,16 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string; itemId: string }> }
 ) {
-  const auth = await requireEditSession();
-  if ("error" in auth) return auth.error;
-
   const { id: idOrSlug, itemId } = await params;
+
+  const sessionAuth = await requireSession();
+  if ("error" in sessionAuth) return sessionAuth.error;
+
   const projectResult = await resolveProjectId(idOrSlug);
   if ("error" in projectResult) return projectResult.error;
+
+  const planAuth = await requirePlanEditSessionForProject(projectResult.id);
+  if ("error" in planAuth) return planAuth.error;
 
   const item = await prisma.planItem.findFirst({
     where: {
@@ -182,7 +191,7 @@ export async function DELETE(
   if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   await prisma.planItem.delete({ where: { id: itemId } });
-  await touchPlan(item.phase.planId, getSessionUserId(auth.session));
+  await touchPlan(item.phase.planId, getSessionUserId(planAuth.session));
 
   return new NextResponse(null, { status: 204 });
 }
