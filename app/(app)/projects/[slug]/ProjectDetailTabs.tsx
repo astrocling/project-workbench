@@ -88,9 +88,11 @@ export function ProjectDetailTabs({
   projectName,
   tab,
   canEdit,
+  isAdmin = false,
   floatLastUpdated,
   cdaEnabled = false,
   planEnabled = false,
+  planReportDefault = "timeline",
   cdaReportHoursOnly = false,
   initialProject,
   initialAssignments,
@@ -109,10 +111,12 @@ export function ProjectDetailTabs({
   projectName: string;
   tab: string;
   canEdit: boolean;
+  isAdmin?: boolean;
   floatLastUpdated: Date | null;
   cdaEnabled?: boolean;
   /** When false, hide the Plan tab (beta feature flag). */
   planEnabled?: boolean;
+  planReportDefault?: "timeline" | "plan";
   /** When true, CDA status copy and status report preview hide budget dollars (hours only). */
   cdaReportHoursOnly?: boolean;
   initialProject?: InitialProject;
@@ -1033,7 +1037,14 @@ export function ProjectDetailTabs({
       )}
       {tab === "budget" && <BudgetTab projectId={projectId} canEdit={canEdit} initialBudgetData={budgetData} />}
       {tab === "timeline" && <TimelineTab projectId={projectId} canEdit={canEdit} />}
-      {tab === "plan" && planEnabled && <PlanTab projectId={projectId} canEdit={canEdit} />}
+      {tab === "plan" && planEnabled && (
+        <PlanTab
+          projectId={projectId}
+          projectSlug={projectSlug}
+          planReportDefault={planReportDefault}
+          canEdit={canEdit}
+        />
+      )}
       {tab === "status-reports" && (
         <StatusReportsTab
           projectId={projectId}
@@ -1056,6 +1067,7 @@ export function ProjectDetailTabs({
         <ProjectSettingsTab
           projectSlug={projectSlug}
           canEdit={canEdit}
+          isAdmin={isAdmin}
           initialProject={initialSettingsProject}
           initialEligiblePeople={initialSettingsEligiblePeople}
         />

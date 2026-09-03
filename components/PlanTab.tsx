@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { LocalTime } from "@/components/LocalTime";
 import { PlanGridGantt } from "@/components/plan/PlanGridGantt";
@@ -20,7 +22,25 @@ function planDurationDays(kickoff: string, end: string): number {
   return expandYmdRange(kickoff, end).length;
 }
 
-export function PlanTab({ projectId, canEdit }: { projectId: string; canEdit: boolean }) {
+const REPORT_DEFAULT_BTN =
+  "px-2.5 py-1 text-body-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed";
+const REPORT_DEFAULT_BTN_PRESSED =
+  "bg-surface-800 text-white dark:bg-surface-200 dark:text-surface-900";
+const REPORT_DEFAULT_BTN_IDLE =
+  "bg-white text-surface-700 hover:bg-surface-100 dark:bg-dark-surface dark:text-surface-300 dark:hover:bg-dark-raised";
+
+export function PlanTab({
+  projectId,
+  projectSlug,
+  planReportDefault,
+  canEdit,
+}: {
+  projectId: string;
+  projectSlug: string;
+  planReportDefault: "timeline" | "plan";
+  canEdit: boolean;
+}) {
+  const router = useRouter();
   const [data, setData] = useState<PlanResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +53,8 @@ export function PlanTab({ projectId, canEdit }: { projectId: string; canEdit: bo
 
   const [assumptionsText, setAssumptionsText] = useState("");
   const [assumptionsSaving, setAssumptionsSaving] = useState(false);
+  const [defaultSaving, setDefaultSaving] = useState(false);
+  const [defaultError, setDefaultError] = useState<string | null>(null);
 
   const apiBase = `/api/projects/${projectId}/plan`;
 
@@ -122,6 +144,26 @@ export function PlanTab({ projectId, canEdit }: { projectId: string; canEdit: bo
       if (res.ok) load();
     } finally {
       setAssumptionsSaving(false);
+    }
+  }
+
+  async function saveDefault(value: "timeline" | "plan") {
+    if (!canEdit || value === planReportDefault || defaultSaving) return;
+    setDefaultSaving(true);
+    setDefaultError(null);
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planReportDefault: value }),
+      });
+      if (!res.ok) {
+        setDefaultError(await res.text());
+        return;
+      }
+      router.refresh();
+    } finally {
+      setDefaultSaving(false);
     }
   }
 
@@ -271,6 +313,54 @@ export function PlanTab({ projectId, canEdit }: { projectId: string; canEdit: bo
           <p className="mt-2 text-body-sm text-red-600 dark:text-red-400">{headerError}</p>
         )}
       </section>
+
+      {canEdit && (
+        <section className="rounded-lg border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface p-4 space-y-2">
+          <p className="text-body-sm font-medium text-surface-800 dark:text-surface-100">
+            New status reports use
+          </p>
+          <div
+            className="inline-flex rounded-md border border-surface-300 dark:border-dark-muted overflow-hidden"
+            aria-label="Default schedule source for new status reports"
+          >
+            <button
+              type="button"
+              disabled={defaultSaving}
+              aria-pressed={planReportDefault === "timeline"}
+              onClick={() => saveDefault("timeline")}
+              className={`${REPORT_DEFAULT_BTN} ${
+                planReportDefault === "timeline" ? REPORT_DEFAULT_BTN_PRESSED : REPORT_DEFAULT_BTN_IDLE
+              }`}
+            >
+              Project timeline
+            </button>
+            <button
+              type="button"
+              disabled={defaultSaving}
+              aria-pressed={planReportDefault === "plan"}
+              onClick={() => saveDefault("plan")}
+              className={`${REPORT_DEFAULT_BTN} ${
+                planReportDefault === "plan" ? REPORT_DEFAULT_BTN_PRESSED : REPORT_DEFAULT_BTN_IDLE
+              }`}
+            >
+              Project Plan
+            </button>
+          </div>
+          <p className="text-body-sm text-surface-600 dark:text-surface-400">
+            Changing this does not rewrite saved reports.{" "}
+            <Link
+              href={`/projects/${projectSlug}?tab=status-reports`}
+              className="text-jblue-600 dark:text-jblue-400 font-medium hover:underline"
+            >
+              Status Reports
+            </Link>{" "}
+            still use the Timeline tab unless a report chooses Project Plan.
+          </p>
+          {defaultError && (
+            <p className="text-body-sm text-red-600 dark:text-red-400">{defaultError}</p>
+          )}
+        </section>
+      )}
 
       <PlanGridGantt plan={plan} canEdit={canEdit} apiBase={apiBase} onMutated={load} />
 

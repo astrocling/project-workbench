@@ -12,11 +12,13 @@ import type { EditProjectInitial } from "@/app/(app)/projects/[slug]/edit/EditPr
 export function ProjectSettingsTab({
   projectSlug,
   canEdit,
+  isAdmin = false,
   initialProject: initialProjectProp,
   initialEligiblePeople: initialEligibleProp,
 }: {
   projectSlug: string;
   canEdit: boolean;
+  isAdmin?: boolean;
   initialProject: EditProjectInitial | null;
   initialEligiblePeople: { id: string; name: string }[] | null;
 }) {
@@ -27,6 +29,7 @@ export function ProjectSettingsTab({
   const [endDate, setEndDate] = useState("");
   const [status, setStatus] = useState<"Active" | "Closed">("Active");
   const [cdaEnabled, setCdaEnabled] = useState(false);
+  const [planEnabled, setPlanEnabled] = useState(false);
   const [actualsLowThresholdPercent, setActualsLowThresholdPercent] = useState<string>("");
   const [actualsHighThresholdPercent, setActualsHighThresholdPercent] = useState<string>("");
   const [pmPersonIds, setPmPersonIds] = useState<string[]>([]);
@@ -68,6 +71,7 @@ export function ProjectSettingsTab({
       endDate: endDate ? new Date(endDate).toISOString() : null,
       status,
       cdaEnabled,
+      ...(isAdmin ? { planEnabled } : {}),
       pmPersonIds: pmPersonIds.filter(Boolean),
       pgmPersonId: pgmPersonId || null,
       cadPersonId: cadPersonId || null,
@@ -102,6 +106,8 @@ export function ProjectSettingsTab({
       endDate,
       status,
       cdaEnabled,
+      isAdmin,
+      planEnabled,
       pmPersonIds,
       pgmPersonId,
       cadPersonId,
@@ -127,6 +133,7 @@ export function ProjectSettingsTab({
     endDate?: string | null;
     status?: string;
     cdaEnabled?: boolean;
+    planEnabled?: boolean;
     actualsLowThresholdPercent?: number | null;
     actualsHighThresholdPercent?: number | null;
     clientSponsor?: string | null;
@@ -154,6 +161,7 @@ export function ProjectSettingsTab({
     setEndDate(p.endDate ? new Date(p.endDate).toISOString().slice(0, 10) : "");
     setStatus((p.status as "Active" | "Closed") ?? "Active");
     setCdaEnabled(p.cdaEnabled ?? false);
+    setPlanEnabled(p.planEnabled ?? false);
     setActualsLowThresholdPercent(p.actualsLowThresholdPercent != null ? String(p.actualsLowThresholdPercent) : "");
     setActualsHighThresholdPercent(p.actualsHighThresholdPercent != null ? String(p.actualsHighThresholdPercent) : "");
     const keyRoles = (p.projectKeyRoles ?? []) as { type: string; personId: string; person: { id: string; name: string } }[];
@@ -459,6 +467,20 @@ export function ProjectSettingsTab({
                   aria-label="Enable CDA tab"
                 />
               </div>
+              {isAdmin && (
+                <div className="space-y-2">
+                  <Toggle
+                    checked={planEnabled}
+                    onChange={setPlanEnabled}
+                    label="Enable Plan tab (beta)"
+                    aria-label="Enable Plan tab"
+                  />
+                  <p className="text-body-sm text-surface-500 dark:text-surface-400">
+                    Plan is a beta schedule builder. When on, everyone who can open this project sees the Plan tab.
+                    Status reports still use the Timeline tab until a report opts into Plan.
+                  </p>
+                </div>
+              )}
             </section>
             )}
 
