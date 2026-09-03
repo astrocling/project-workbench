@@ -22,7 +22,7 @@ export async function GET(
   const projectResult = await resolveProjectId(idOrSlug);
   if ("error" in projectResult) return projectResult.error;
 
-  const planAuth = await requirePlanSessionForProject(projectResult.id);
+  const planAuth = await requirePlanSessionForProject(projectResult.id, sessionAuth.session);
   if ("error" in planAuth) return planAuth.error;
 
   const project = await prisma.project.findUnique({

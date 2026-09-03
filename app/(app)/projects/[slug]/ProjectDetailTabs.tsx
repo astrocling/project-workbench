@@ -90,6 +90,7 @@ export function ProjectDetailTabs({
   canEdit,
   floatLastUpdated,
   cdaEnabled = false,
+  planEnabled = false,
   cdaReportHoursOnly = false,
   initialProject,
   initialAssignments,
@@ -110,6 +111,8 @@ export function ProjectDetailTabs({
   canEdit: boolean;
   floatLastUpdated: Date | null;
   cdaEnabled?: boolean;
+  /** When false, hide the Plan tab (beta feature flag). */
+  planEnabled?: boolean;
   /** When true, CDA status copy and status report preview hide budget dollars (hours only). */
   cdaReportHoursOnly?: boolean;
   initialProject?: InitialProject;
@@ -415,7 +418,12 @@ export function ProjectDetailTabs({
     <div>
       <div className="sticky top-14 z-20 -mx-8 -mt-6 px-8 pt-6 pb-4 mb-6 bg-surface-50 dark:bg-dark-bg border-b border-surface-200 dark:border-dark-border">
         <nav className="flex gap-2 mb-3">
-          {TABS.filter((t) => (t.id !== "settings" || canEdit) && (t.id !== "cda" || cdaEnabled)).map((t) => {
+          {TABS.filter(
+            (t) =>
+              (t.id !== "settings" || canEdit) &&
+              (t.id !== "cda" || cdaEnabled) &&
+              (t.id !== "plan" || planEnabled)
+          ).map((t) => {
             const href = `${base}?tab=${t.id}`;
             const isActive = tab === t.id;
             const isOverview = t.id === "overview";
@@ -1025,7 +1033,7 @@ export function ProjectDetailTabs({
       )}
       {tab === "budget" && <BudgetTab projectId={projectId} canEdit={canEdit} initialBudgetData={budgetData} />}
       {tab === "timeline" && <TimelineTab projectId={projectId} canEdit={canEdit} />}
-      {tab === "plan" && <PlanTab projectId={projectId} canEdit={canEdit} />}
+      {tab === "plan" && planEnabled && <PlanTab projectId={projectId} canEdit={canEdit} />}
       {tab === "status-reports" && (
         <StatusReportsTab
           projectId={projectId}

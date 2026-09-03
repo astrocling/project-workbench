@@ -19,11 +19,11 @@ export async function isProjectPlanEnabled(projectId: string): Promise<boolean> 
   return isPlanTabEnabled(project?.planEnabled);
 }
 
-export async function requirePlanSessionForProject(projectId: string): Promise<
-  | { session: Session }
-  | { error: NextResponse }
-> {
-  const auth = await requireSession();
+export async function requirePlanSessionForProject(
+  projectId: string,
+  session?: Session
+): Promise<{ session: Session } | { error: NextResponse }> {
+  const auth = session ? { session } : await requireSession();
   if ("error" in auth) return auth;
   if (!(await isProjectPlanEnabled(projectId))) {
     return { error: planNotFound() };
@@ -31,14 +31,16 @@ export async function requirePlanSessionForProject(projectId: string): Promise<
   return auth;
 }
 
-export async function requirePlanEditSessionForProject(projectId: string): Promise<
-  | { session: Session }
-  | { error: NextResponse }
-> {
-  const auth = await requirePlanSessionForProject(projectId);
+export async function requirePlanEditSessionForProject(
+  projectId: string,
+  session?: Session
+): Promise<{ session: Session } | { error: NextResponse }> {
+  const auth = session ? { session } : await requireSession();
   if ("error" in auth) return auth;
+  const planAuth = await requirePlanSessionForProject(projectId, auth.session);
+  if ("error" in planAuth) return planAuth;
   if (!canEdit(auth.session)) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
-  return auth;
+  return planAuth;
 }

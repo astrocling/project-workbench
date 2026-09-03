@@ -29,7 +29,7 @@ export async function POST(
   const projectResult = await resolveProjectId(idOrSlug);
   if ("error" in projectResult) return projectResult.error;
 
-  const planAuth = await requirePlanEditSessionForProject(projectResult.id);
+  const planAuth = await requirePlanEditSessionForProject(projectResult.id, sessionAuth.session);
   if ("error" in planAuth) return planAuth.error;
 
   const plan = await prisma.projectPlan.findUnique({

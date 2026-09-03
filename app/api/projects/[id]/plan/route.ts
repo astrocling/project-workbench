@@ -54,7 +54,7 @@ export async function GET(
   const projectResult = await resolveProjectId(idOrSlug);
   if ("error" in projectResult) return projectResult.error;
 
-  const planAuth = await requirePlanSessionForProject(projectResult.id);
+  const planAuth = await requirePlanSessionForProject(projectResult.id, sessionAuth.session);
   if ("error" in planAuth) return planAuth.error;
 
   const datesResult = await getProjectDates(projectResult.id);
@@ -92,7 +92,7 @@ export async function POST(
   const projectResult = await resolveProjectId(idOrSlug);
   if ("error" in projectResult) return projectResult.error;
 
-  const planAuth = await requirePlanEditSessionForProject(projectResult.id);
+  const planAuth = await requirePlanEditSessionForProject(projectResult.id, sessionAuth.session);
   if ("error" in planAuth) return planAuth.error;
 
   const datesResult = await getProjectDates(projectResult.id);
@@ -188,7 +188,7 @@ export async function PATCH(
   const projectResult = await resolveProjectId(idOrSlug);
   if ("error" in projectResult) return projectResult.error;
 
-  const planAuth = await requirePlanEditSessionForProject(projectResult.id);
+  const planAuth = await requirePlanEditSessionForProject(projectResult.id, sessionAuth.session);
   if ("error" in planAuth) return planAuth.error;
 
   const plan = await getPlanForProject(projectResult.id);
@@ -254,7 +254,7 @@ export async function DELETE(
   const projectResult = await resolveProjectId(idOrSlug);
   if ("error" in projectResult) return projectResult.error;
 
-  const planAuth = await requirePlanEditSessionForProject(projectResult.id);
+  const planAuth = await requirePlanEditSessionForProject(projectResult.id, sessionAuth.session);
   if ("error" in planAuth) return planAuth.error;
 
   const plan = await prisma.projectPlan.findUnique({
