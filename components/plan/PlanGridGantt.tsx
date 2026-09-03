@@ -10,7 +10,10 @@ import {
   Trash2,
 } from "lucide-react";
 import { expandYmdRange, isWeekendYmd } from "@/lib/plan/businessDays";
-import { resolvePlanDateCommit } from "@/lib/plan/dateInput";
+import {
+  resolvePlanDateCellEdit,
+  type PlanDateEditEvent,
+} from "@/lib/plan/dateInput";
 import { positionPercent, widthPercent } from "@/lib/plan/positioning";
 import {
   getPlanAxisRange,
@@ -128,29 +131,65 @@ function buildItemPatch(
 }
 
 /**
- * Save a date cell only when the input holds a complete, changed date. Native date inputs report
- * a value on every keystroke, so committing on raw change would PATCH and refetch the plan
- * repeatedly while a date is being typed. Returns whether anything was saved.
+ * A date cell that holds its own draft value.
+ *
+ * Native date inputs report a value on every keystroke (empty mid-segment, years like `0002`
+ * while `2026` is typed), so only complete, changed dates are saved. The cell remembers the date
+ * it last handed to `onCommit`, so a completed edit saves exactly once whether it is finished by
+ * `change`, by `blur`, or by both. The input is uncontrolled and the stored `value` is written
+ * into it only while it is not focused, which keeps a refetch (from this save or another editor's)
+ * from pulling the value out from under an edit in progress — and, since nothing remounts the
+ * input, arrow-key stepping keeps its focus and caret.
  */
-function commitDateEdit(
-  value: string,
-  currentValue: string,
-  save: (nextValue: string) => void
-): boolean {
-  const nextValue = resolvePlanDateCommit(value, currentValue);
-  if (!nextValue) return false;
-  save(nextValue);
-  return true;
-}
+function DateCell({
+  value,
+  onCommit,
+}: {
+  value: string;
+  onCommit: (nextValue: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const focusedRef = useRef(false);
+  const lastSubmittedRef = useRef<string | null>(null);
 
-/** On blur a half-typed value snaps back to the stored date rather than lingering in the cell. */
-function commitDateOnBlur(
-  input: HTMLInputElement,
-  currentValue: string,
-  save: (nextValue: string) => void
-) {
-  if (commitDateEdit(input.value, currentValue, save)) return;
-  if (input.value !== currentValue) input.value = currentValue;
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input || focusedRef.current) return;
+    lastSubmittedRef.current = null;
+    if (input.value !== value) input.value = value;
+  }, [value]);
+
+  function handleEdit(event: PlanDateEditEvent, inputValue: string) {
+    const decision = resolvePlanDateCellEdit({
+      event,
+      inputValue,
+      externalValue: value,
+      lastSubmitted: lastSubmittedRef.current,
+    });
+    lastSubmittedRef.current = decision.nextLastSubmitted;
+    if (decision.restore != null && inputRef.current) {
+      inputRef.current.value = decision.restore;
+    }
+    if (decision.save != null) onCommit(decision.save);
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      type="date"
+      defaultValue={value}
+      className={INPUT_CLASS}
+      onClick={(e) => e.stopPropagation()}
+      onFocus={() => {
+        focusedRef.current = true;
+      }}
+      onChange={(e) => handleEdit("change", e.target.value)}
+      onBlur={(e) => {
+        focusedRef.current = false;
+        handleEdit("blur", e.target.value);
+      }}
+    />
+  );
 }
 
 function columnPixelWidth(scale: ReturnType<typeof getPlanScale>): number {
@@ -335,6 +374,18 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
   ) {
     const body = buildItemPatch(item, changes);
     return apiCall(`${apiBase}/items/${item.id}`, "PATCH", body);
+  }
+
+  /**
+   * Date cells send only the date they changed. `PATCH` merges against the stored row (and derives
+   * a point item's end date from its type), so a date save that races another edit of the same item
+   * cannot resend the label, type, or other date this render's props were holding.
+   */
+  async function patchItemDates(
+    item: PlanItemJson,
+    dates: { startDate: string } | { endDate: string }
+  ) {
+    return apiCall(`${apiBase}/items/${item.id}`, "PATCH", dates);
   }
 
   async function handleAddPhase() {
@@ -617,6 +668,7 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
                     await apiCall(`${apiBase}/phases/${phase.id}`, "PATCH", { name });
                   }}
                   onPatchItem={patchItem}
+                  onPatchItemDates={patchItemDates}
                 />
               );
             })}
@@ -727,6 +779,7 @@ function GridRow({
   nameInputRef,
   onPatchPhase,
   onPatchItem,
+  onPatchItemDates,
 }: {
   row: PlanVisibleRow;
   canEdit: boolean;
@@ -747,6 +800,10 @@ function GridRow({
       scheduledTime: string | null;
       parentItemId: string | null;
     }>
+  ) => Promise<unknown | null>;
+  onPatchItemDates: (
+    item: PlanItemJson,
+    dates: { startDate: string } | { endDate: string }
   ) => Promise<unknown | null>;
 }) {
   if (row.kind === "phase") {
@@ -820,9 +877,10 @@ function GridRow({
     const collapsed = collapsedIds.has(item.id);
   const point = isPointType(item.type, item.meetingStatus);
   const duration = calendarDays(item.startDate, item.endDate);
-  const saveStartDate = (startDate: string) =>
-    onPatchItem(item, { startDate, endDate: point ? startDate : item.endDate });
-  const saveEndDate = (endDate: string) => onPatchItem(item, { endDate });
+  // A point item's end date follows its start date; the API derives that from the stored type,
+  // so neither cell has to send the other date back.
+  const saveStartDate = (startDate: string) => onPatchItemDates(item, { startDate });
+  const saveEndDate = (endDate: string) => onPatchItemDates(item, { endDate });
 
   return (
     <div
@@ -898,15 +956,7 @@ function GridRow({
       </div>
       <div style={{ width: DATE_COL }} className="shrink-0 px-1">
         {canEdit ? (
-          <input
-            type="date"
-            defaultValue={item.startDate}
-            key={`${item.id}:start:${item.startDate}`}
-            className={INPUT_CLASS}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => commitDateEdit(e.target.value, item.startDate, saveStartDate)}
-            onBlur={(e) => commitDateOnBlur(e.target, item.startDate, saveStartDate)}
-          />
+          <DateCell value={item.startDate} onCommit={saveStartDate} />
         ) : (
           <span className="text-body-sm tabular-nums text-surface-700 dark:text-surface-300">
             {item.startDate}
@@ -915,15 +965,7 @@ function GridRow({
       </div>
       <div style={{ width: DATE_COL }} className="shrink-0 px-1">
         {canEdit && !point ? (
-          <input
-            type="date"
-            defaultValue={item.endDate}
-            key={`${item.id}:end:${item.endDate}`}
-            className={INPUT_CLASS}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => commitDateEdit(e.target.value, item.endDate, saveEndDate)}
-            onBlur={(e) => commitDateOnBlur(e.target, item.endDate, saveEndDate)}
-          />
+          <DateCell value={item.endDate} onCommit={saveEndDate} />
         ) : (
           <span
             className={`text-body-sm tabular-nums ${
