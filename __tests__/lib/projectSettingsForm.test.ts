@@ -2,60 +2,84 @@ import { describe, expect, it } from "vitest";
 import {
   buildProjectSettingsPayload,
   projectToSettingsFormFields,
-  resolveSettingsAutosaveAction,
+  projectToSettingsPayload,
+  resolveSettingsAutosave,
   type ProjectSettingsSource,
 } from "@/lib/projectSettingsForm";
 
-const serverProject: ProjectSettingsSource = {
+/**
+ * Every settings field populated with a distinct non-default value, so a hydration step that
+ * reads the wrong source key or drops a field changes the payload bytes below.
+ */
+const FULL_PROJECT: ProjectSettingsSource = {
   id: "cprojectid0000000000000001",
   name: "Apollo",
   clientName: "Acme",
   startDate: "2025-01-06T00:00:00.000Z",
   endDate: "2025-06-30T00:00:00.000Z",
-  status: "Active",
+  status: "Closed",
   cdaEnabled: true,
-  planEnabled: false,
-  actualsLowThresholdPercent: 10,
-  actualsHighThresholdPercent: null,
+  planEnabled: true,
+  actualsLowThresholdPercent: 12,
+  actualsHighThresholdPercent: 7,
   clientSponsor: "Jane Doe",
-  clientSponsor2: null,
-  otherContact: null,
-  keyStaffName: null,
+  clientSponsor2: "John Roe",
+  otherContact: "Ann Poe",
+  keyStaffName: "Kay Staff",
   sowLink: "https://example.com/sow",
-  estimateLink: null,
-  floatLink: null,
-  metricLink: null,
+  estimateLink: "https://example.com/estimate",
+  floatLink: "https://example.com/float",
+  metricLink: "https://example.com/metric",
   slackChannelId: "C0123456789",
   projectKeyRoles: [
     { type: "PM", personId: "p1", person: { id: "p1", name: "PM One" } },
     { type: "PM", personId: "p2", person: { id: "p2", name: "PM Two" } },
     { type: "PGM", personId: "p3", person: { id: "p3", name: "PGM" } },
+    { type: "CAD", personId: "p4", person: { id: "p4", name: "CAD" } },
   ],
+  // Not part of the form fields or the payload; the component reads these directly.
+  accountId: "caccountid000000000000001",
+  account: {
+    id: "caccountid000000000000001",
+    industryGroup: { id: "cig000000000000000000001", name: "Retail", archivedAt: null },
+  },
 };
 
+const ADMIN_PAYLOAD_JSON =
+  '{"name":"Apollo","clientName":"Acme","startDate":"2025-01-06T00:00:00.000Z",' +
+  '"endDate":"2025-06-30T00:00:00.000Z","status":"Closed","cdaEnabled":true,"planEnabled":true,' +
+  '"pmPersonIds":["p1","p2"],"pgmPersonId":"p3","cadPersonId":"p4","clientSponsor":"Jane Doe",' +
+  '"clientSponsor2":"John Roe","otherContact":"Ann Poe","keyStaffName":"Kay Staff",' +
+  '"actualsLowThresholdPercent":12,"actualsHighThresholdPercent":7,' +
+  '"sowLink":"https://example.com/sow","estimateLink":"https://example.com/estimate",' +
+  '"floatLink":"https://example.com/float","metricLink":"https://example.com/metric",' +
+  '"slackChannelId":"C0123456789"}';
+
+const NON_ADMIN_PAYLOAD_JSON = ADMIN_PAYLOAD_JSON.replace('"planEnabled":true,', "");
+
 describe("projectToSettingsFormFields", () => {
-  it("maps server values to form field values", () => {
-    expect(projectToSettingsFormFields(serverProject)).toEqual({
+  it("maps every settings field a project carries", () => {
+    expect(projectToSettingsFormFields(FULL_PROJECT)).toEqual({
       name: "Apollo",
       clientName: "Acme",
       startDate: "2025-01-06",
       endDate: "2025-06-30",
-      status: "Active",
+      status: "Closed",
       cdaEnabled: true,
-      planEnabled: false,
-      actualsLowThresholdPercent: "10",
-      actualsHighThresholdPercent: "",
+      planEnabled: true,
+      actualsLowThresholdPercent: "12",
+      actualsHighThresholdPercent: "7",
       pmPersonIds: ["p1", "p2"],
       pgmPersonId: "p3",
-      cadPersonId: "",
+      cadPersonId: "p4",
       clientSponsor: "Jane Doe",
-      clientSponsor2: "",
-      otherContact: "",
-      keyStaffName: "",
+      clientSponsor2: "John Roe",
+      otherContact: "Ann Poe",
+      keyStaffName: "Kay Staff",
       sowLink: "https://example.com/sow",
-      estimateLink: "",
-      floatLink: "",
-      metricLink: "",
+      estimateLink: "https://example.com/estimate",
+      floatLink: "https://example.com/float",
+      metricLink: "https://example.com/metric",
       slackChannelId: "C0123456789",
     });
   });
@@ -67,92 +91,118 @@ describe("projectToSettingsFormFields", () => {
     expect(fields.endDate).toBe("");
     expect(fields.planEnabled).toBe(false);
     expect(fields.pmPersonIds).toEqual([]);
+    expect(fields.actualsLowThresholdPercent).toBe("");
   });
 });
 
-describe("buildProjectSettingsPayload", () => {
-  it("round-trips server props to the same payload the form state produces", () => {
-    const fields = projectToSettingsFormFields(serverProject);
-    const payload = buildProjectSettingsPayload(fields, { isAdmin: true });
-    expect(payload.startDate).toBe("2025-01-06T00:00:00.000Z");
-    expect(payload.endDate).toBe("2025-06-30T00:00:00.000Z");
-    expect(payload.pgmPersonId).toBe("p3");
-    expect(payload.cadPersonId).toBeNull();
-    expect(payload.actualsHighThresholdPercent).toBeNull();
-    // Re-applying the payload's own fields must be byte-identical, otherwise hydration would
-    // look like a local edit and auto-save a stale snapshot back to the server.
+describe("project -> form fields -> payload", () => {
+  it("produces the Admin payload byte-for-byte", () => {
+    const fields = projectToSettingsFormFields(FULL_PROJECT);
     expect(JSON.stringify(buildProjectSettingsPayload(fields, { isAdmin: true }))).toBe(
-      JSON.stringify(payload)
+      ADMIN_PAYLOAD_JSON
     );
   });
 
-  it("omits planEnabled for non-admins", () => {
-    const fields = projectToSettingsFormFields({ ...serverProject, planEnabled: true });
-    expect(buildProjectSettingsPayload(fields, { isAdmin: false })).not.toHaveProperty(
-      "planEnabled"
+  it("produces the non-Admin payload byte-for-byte, without planEnabled", () => {
+    const fields = projectToSettingsFormFields(FULL_PROJECT);
+    expect(JSON.stringify(buildProjectSettingsPayload(fields, { isAdmin: false }))).toBe(
+      NON_ADMIN_PAYLOAD_JSON
     );
-    expect(buildProjectSettingsPayload(fields, { isAdmin: true }).planEnabled).toBe(true);
   });
 
-  it("normalizes blank and out-of-range values", () => {
-    const fields = projectToSettingsFormFields(serverProject);
+  it("matches what the component hydrates in one step", () => {
+    expect(JSON.stringify(projectToSettingsPayload(FULL_PROJECT, { isAdmin: true }))).toBe(
+      ADMIN_PAYLOAD_JSON
+    );
+    expect(JSON.stringify(projectToSettingsPayload(FULL_PROJECT, { isAdmin: false }))).toBe(
+      NON_ADMIN_PAYLOAD_JSON
+    );
+  });
+
+  it("keeps hydration and payload in lockstep, so neither side can gain a field alone", () => {
+    const fields = projectToSettingsFormFields(FULL_PROJECT);
+    expect(Object.keys(buildProjectSettingsPayload(fields, { isAdmin: true })).sort()).toEqual(
+      Object.keys(fields).sort()
+    );
+    expect(Object.keys(buildProjectSettingsPayload(fields, { isAdmin: false })).sort()).toEqual(
+      Object.keys(fields)
+        .filter((key) => key !== "planEnabled")
+        .sort()
+    );
+  });
+
+  it("normalizes blank, whitespace-only, and out-of-range form values", () => {
     const payload = buildProjectSettingsPayload(
       {
-        ...fields,
+        ...projectToSettingsFormFields(FULL_PROJECT),
         clientSponsor: "   ",
         actualsLowThresholdPercent: "150",
-        actualsHighThresholdPercent: "5",
+        actualsHighThresholdPercent: "",
         endDate: "",
         pmPersonIds: ["p1", ""],
+        slackChannelId: " C9 ",
       },
       { isAdmin: true }
     );
     expect(payload.clientSponsor).toBeNull();
     expect(payload.actualsLowThresholdPercent).toBeNull();
-    expect(payload.actualsHighThresholdPercent).toBe(5);
+    expect(payload.actualsHighThresholdPercent).toBeNull();
     expect(payload.endDate).toBeNull();
     expect(payload.pmPersonIds).toEqual(["p1"]);
+    expect(payload.slackChannelId).toBe("C9");
   });
 });
 
-describe("resolveSettingsAutosaveAction", () => {
+describe("resolveSettingsAutosave", () => {
   it("does nothing when the payload matches the last save", () => {
     expect(
-      resolveSettingsAutosaveAction({
+      resolveSettingsAutosave({
         payload: "a",
         lastSavedPayload: "a",
         serverHydrationBaseline: null,
       })
-    ).toBe("idle");
+    ).toEqual({ action: "idle", nextServerHydrationBaseline: null });
+  });
+
+  it("drops a hydration baseline that the last save already reflects", () => {
+    expect(
+      resolveSettingsAutosave({
+        payload: "a",
+        lastSavedPayload: "a",
+        serverHydrationBaseline: "a",
+      })
+    ).toEqual({ action: "idle", nextServerHydrationBaseline: null });
+  });
+
+  it("keeps a hydration baseline whose form state has not been applied yet", () => {
+    // Invariant: the effect can run between recording a baseline and the hydrated state landing
+    // (e.g. a rename changes projectSlug in the same commit). The baseline must survive that pass.
+    expect(
+      resolveSettingsAutosave({
+        payload: "just-saved",
+        lastSavedPayload: "just-saved",
+        serverHydrationBaseline: "from-server",
+      })
+    ).toEqual({ action: "idle", nextServerHydrationBaseline: "from-server" });
   });
 
   it("adopts a hydrated snapshot instead of saving it back", () => {
     expect(
-      resolveSettingsAutosaveAction({
-        payload: "stale-from-server",
+      resolveSettingsAutosave({
+        payload: "from-server",
         lastSavedPayload: "just-saved",
-        serverHydrationBaseline: "stale-from-server",
+        serverHydrationBaseline: "from-server",
       })
-    ).toBe("adopt-server-baseline");
+    ).toEqual({ action: "adopt-server-baseline", nextServerHydrationBaseline: null });
   });
 
-  it("saves genuine local edits", () => {
+  it("saves genuine local edits and stops the baseline shadowing later payloads", () => {
     expect(
-      resolveSettingsAutosaveAction({
+      resolveSettingsAutosave({
         payload: "edited",
         lastSavedPayload: "just-saved",
-        serverHydrationBaseline: "stale-from-server",
+        serverHydrationBaseline: "from-server",
       })
-    ).toBe("save");
-  });
-
-  it("treats a matching last save as idle even while a hydration baseline is pending", () => {
-    expect(
-      resolveSettingsAutosaveAction({
-        payload: "same",
-        lastSavedPayload: "same",
-        serverHydrationBaseline: "same",
-      })
-    ).toBe("idle");
+    ).toEqual({ action: "save", nextServerHydrationBaseline: null });
   });
 });

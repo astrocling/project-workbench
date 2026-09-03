@@ -153,14 +153,26 @@ export function buildProjectSettingsPayload(
   };
 }
 
+/** The payload the server is known to hold for `p`; the autosave baseline after hydration. */
+export function projectToSettingsPayload(
+  p: ProjectSettingsSource,
+  opts: { isAdmin: boolean }
+): ProjectSettingsPayload {
+  return buildProjectSettingsPayload(projectToSettingsFormFields(p), opts);
+}
+
 export type SettingsAutosaveAction = "idle" | "adopt-server-baseline" | "save";
 
 /**
  * Decides what the settings autosave effect should do with the current form payload.
- * `adopt-server-baseline` means the payload only reflects values just hydrated from server
- * props, so it becomes the new baseline without being written back.
+ * `adopt-server-baseline` means the payload only reflects values just hydrated from the server,
+ * so it becomes the new baseline without being written back.
+ *
+ * A recorded baseline is dropped as soon as it is adopted, superseded by a local edit, or already
+ * reflected by the last save. It survives only while its hydrated form state has yet to land,
+ * since this can run in between (a rename changes `projectSlug` in the same commit as the props).
  */
-export function resolveSettingsAutosaveAction({
+export function resolveSettingsAutosave({
   payload,
   lastSavedPayload,
   serverHydrationBaseline,
@@ -168,8 +180,15 @@ export function resolveSettingsAutosaveAction({
   payload: string;
   lastSavedPayload: string | null;
   serverHydrationBaseline: string | null;
-}): SettingsAutosaveAction {
-  if (payload === lastSavedPayload) return "idle";
-  if (payload === serverHydrationBaseline) return "adopt-server-baseline";
-  return "save";
+}): { action: SettingsAutosaveAction; nextServerHydrationBaseline: string | null } {
+  if (payload === lastSavedPayload) {
+    return {
+      action: "idle",
+      nextServerHydrationBaseline: serverHydrationBaseline === payload ? null : serverHydrationBaseline,
+    };
+  }
+  if (payload === serverHydrationBaseline) {
+    return { action: "adopt-server-baseline", nextServerHydrationBaseline: null };
+  }
+  return { action: "save", nextServerHydrationBaseline: null };
 }

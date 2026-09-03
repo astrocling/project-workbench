@@ -3,6 +3,7 @@ import { unstable_cache, revalidateTag } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
+import { revalidateProjectDetail } from "@/lib/projectCache";
 import {
   batchUpsertFloatScheduledHours,
   floatScheduledHourRowsFromMergedLists,
@@ -263,7 +264,7 @@ export async function POST(req: NextRequest) {
   const response = Object.assign({}, data, { backfillFromImport: backfillStats });
   revalidateTag("projects-list", "max");
   if (backfillStats.matched) {
-    revalidateTag("project-detail", "max");
+    revalidateProjectDetail();
     revalidateTag("project-resourcing", "max");
     revalidateTag(`project-resourcing:${project.id}`, "max");
   }

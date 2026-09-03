@@ -10,7 +10,8 @@ import { AssignmentsTab } from "@/components/AssignmentsTab";
 import {
   buildProjectSettingsPayload,
   projectToSettingsFormFields,
-  resolveSettingsAutosaveAction,
+  projectToSettingsPayload,
+  resolveSettingsAutosave,
   type ProjectSettingsSource,
 } from "@/lib/projectSettingsForm";
 import type { EditProjectInitial } from "@/app/(app)/projects/[slug]/edit/EditProjectDataContext";
@@ -168,6 +169,17 @@ export function ProjectSettingsTab({
     setLinkedAccountId(p.accountId ?? p.account?.id ?? null);
   }
 
+  /**
+   * Hydrating from the server replaces the form state, so it is a server confirmation rather than
+   * a local edit. Record the payload it implies and autosave adopts it as its baseline instead of
+   * writing it back — otherwise stale server data would undo a just-saved change (the Plan toggle)
+   * with a compensating PATCH. Only re-hydration needs this; the first load has no baseline yet.
+   */
+  function recordServerHydration(p: ProjectSettingsSource, opts: { isAdmin: boolean }) {
+    if (!initialSaveRecordedRef.current || !p?.id) return;
+    serverHydrationBaselineRef.current = JSON.stringify(projectToSettingsPayload(p, opts));
+  }
+
   function applyEligiblePeople(people: { id: string; name: string }[], keyRoles: { type: string; personId: string; person: { id: string; name: string } }[]) {
     const eligible = Array.isArray(people) ? people : [];
     const currentIds = new Set(eligible.map((x) => x.id));
@@ -177,13 +189,7 @@ export function ProjectSettingsTab({
 
   useEffect(() => {
     if (initialProjectProp) {
-      if (initialSaveRecordedRef.current) {
-        // Fresh server props (e.g. after router.refresh) replace the form state below, so treat
-        // the payload they imply as already saved rather than as a local edit to write back.
-        serverHydrationBaselineRef.current = JSON.stringify(
-          buildProjectSettingsPayload(projectToSettingsFormFields(initialProjectProp), { isAdmin })
-        );
-      }
+      recordServerHydration(initialProjectProp, { isAdmin });
       applyProjectToState(initialProjectProp);
       if (initialEligibleProp != null) {
         setEligiblePeople(initialEligibleProp);
@@ -203,6 +209,7 @@ export function ProjectSettingsTab({
       fetch("/api/people/eligible-key-roles").then((r) => r.json()),
     ])
       .then(([p, people]) => {
+        recordServerHydration(p, { isAdmin });
         applyProjectToState(p);
         const keyRoles = (p?.projectKeyRoles ?? []) as { type: string; personId: string; person: { id: string; name: string } }[];
         applyEligiblePeople(Array.isArray(people) ? people : [], keyRoles);
@@ -221,19 +228,17 @@ export function ProjectSettingsTab({
   useEffect(() => {
     if (loading || !projectId || !initialSaveRecordedRef.current) return;
     const payloadStr = JSON.stringify(buildPayload());
-    const action = resolveSettingsAutosaveAction({
+    const { action, nextServerHydrationBaseline } = resolveSettingsAutosave({
       payload: payloadStr,
       lastSavedPayload: lastSavedRef.current,
       serverHydrationBaseline: serverHydrationBaselineRef.current,
     });
+    serverHydrationBaselineRef.current = nextServerHydrationBaseline;
     if (action === "idle") return;
     if (action === "adopt-server-baseline") {
-      serverHydrationBaselineRef.current = null;
       lastSavedRef.current = payloadStr;
       return;
     }
-    // Local edits supersede the hydrated snapshot, so it must stop shadowing later payloads.
-    serverHydrationBaselineRef.current = null;
 
     const timer = setTimeout(async () => {
       setSaving(true);

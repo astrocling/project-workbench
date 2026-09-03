@@ -3,6 +3,7 @@ import { revalidateTag } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
+import { revalidateProjectDetail } from "@/lib/projectCache";
 import { getProjectId } from "@/lib/slug";
 import { getMonthKeysForWeek } from "@/lib/monthUtils";
 import { z } from "zod";
@@ -243,7 +244,7 @@ export async function PATCH(
     revalidateTag("project-budget", "max");
     revalidateTag("project-revenue", "max");
     revalidateTag(`project-resourcing:${id}`, "max");
-    revalidateTag("project-detail", "max");
+    revalidateProjectDetail();
     return NextResponse.json(updated);
   }
 
@@ -287,6 +288,6 @@ export async function PATCH(
   revalidateTag("project-budget", "max");
   revalidateTag("project-revenue", "max");
   revalidateTag(`project-resourcing:${id}`, "max");
-  revalidateTag("project-detail", "max");
+  revalidateProjectDetail();
   return NextResponse.json(results.length === 1 ? results[0] : results);
 }
