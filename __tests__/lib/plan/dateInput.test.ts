@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isCommittablePlanDate,
   resolvePlanDateCellEdit,
+  syncLocalFieldFromServer,
   type PlanDateEditEvent,
 } from "@/lib/plan/dateInput";
 
@@ -144,5 +145,23 @@ describe("resolvePlanDateCellEdit", () => {
     cell.send("change", "2026-09-04");
     cell.send("blur", "2026-09-04");
     expect(cell.saves).toEqual(["2026-09-04"]);
+  });
+});
+
+describe("syncLocalFieldFromServer", () => {
+  it("takes the server value when the field has not been edited locally", () => {
+    expect(syncLocalFieldFromServer("2026-09-03", "2026-09-03", "2026-09-10")).toBe(
+      "2026-09-10"
+    );
+  });
+
+  it("keeps a local edit that has not been saved yet across a background refresh", () => {
+    expect(syncLocalFieldFromServer("2026-09-15", "2026-09-03", "2026-09-03")).toBe(
+      "2026-09-15"
+    );
+  });
+
+  it("uses the server value on the first load when there is no previous server value", () => {
+    expect(syncLocalFieldFromServer("", undefined, "2026-09-03")).toBe("2026-09-03");
   });
 });

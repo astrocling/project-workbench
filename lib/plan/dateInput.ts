@@ -65,3 +65,17 @@ export function resolvePlanDateCellEdit({
 
   return { save: inputValue, restore: null, nextLastSubmitted: inputValue };
 }
+
+/**
+ * Keep a local editor value across a background plan refresh unless it still matches the last
+ * saved server value. Used so a silent refetch cannot yank kickoff/end/assumptions out from
+ * under an in-progress edit.
+ */
+export function syncLocalFieldFromServer(
+  local: string,
+  previousServer: string | undefined,
+  nextServer: string
+): string {
+  if (previousServer === undefined || local === previousServer) return nextServer;
+  return local;
+}

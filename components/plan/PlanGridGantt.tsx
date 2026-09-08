@@ -141,12 +141,14 @@ function buildItemPatch(
  * from pulling the value out from under an edit in progress — and, since nothing remounts the
  * input, arrow-key stepping keeps its focus and caret.
  */
-function DateCell({
+export function DateCell({
   value,
   onCommit,
+  className = INPUT_CLASS,
 }: {
   value: string;
   onCommit: (nextValue: string) => void;
+  className?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const focusedRef = useRef(false);
@@ -178,7 +180,7 @@ function DateCell({
       ref={inputRef}
       type="date"
       defaultValue={value}
-      className={INPUT_CLASS}
+      className={className}
       onClick={(e) => e.stopPropagation()}
       onFocus={() => {
         focusedRef.current = true;
@@ -329,9 +331,11 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
   async function apiCall(
     url: string,
     method: string,
-    body?: Record<string, unknown>
+    body?: Record<string, unknown>,
+    options?: { indicateBusy?: boolean }
   ): Promise<unknown | null> {
-    setBusy(true);
+    const indicateBusy = options?.indicateBusy !== false;
+    if (indicateBusy) setBusy(true);
     setError(null);
     try {
       const res = await fetch(url, {
@@ -347,7 +351,7 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
       onMutated();
       return json;
     } finally {
-      setBusy(false);
+      if (indicateBusy) setBusy(false);
     }
   }
 
@@ -385,7 +389,7 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
     item: PlanItemJson,
     dates: { startDate: string } | { endDate: string }
   ) {
-    return apiCall(`${apiBase}/items/${item.id}`, "PATCH", dates);
+    return apiCall(`${apiBase}/items/${item.id}`, "PATCH", dates, { indicateBusy: false });
   }
 
   async function handleAddPhase() {

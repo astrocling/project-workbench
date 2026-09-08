@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { LocalTime } from "@/components/LocalTime";
-import { PlanGridGantt } from "@/components/plan/PlanGridGantt";
+import { DateCell, PlanGridGantt } from "@/components/plan/PlanGridGantt";
 import { expandYmdRange } from "@/lib/plan/businessDays";
+import { syncLocalFieldFromServer } from "@/lib/plan/dateInput";
 import type { PlanJson } from "@/lib/plan/serialize";
 
 const INPUT_CLASS =
@@ -48,8 +49,14 @@ export function PlanTab({
 
   const [kickoffDate, setKickoffDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [headerSaving, setHeaderSaving] = useState(false);
   const [headerError, setHeaderError] = useState<string | null>(null);
+  const dataRef = useRef<PlanResponse | null>(null);
+  const loadGenRef = useRef(0);
+  const kickoffDateRef = useRef(kickoffDate);
+  const endDateRef = useRef(endDate);
+  dataRef.current = data;
+  kickoffDateRef.current = kickoffDate;
+  endDateRef.current = endDate;
 
   const [assumptionsText, setAssumptionsText] = useState("");
   const [assumptionsSaving, setAssumptionsSaving] = useState(false);
@@ -66,8 +73,10 @@ export function PlanTab({
     setPendingReportDefault(null);
   }, [planReportDefault]);
 
-  const load = useCallback(() => {
-    setLoading(true);
+  const load = useCallback((options?: { showSpinner?: boolean }) => {
+    const gen = ++loadGenRef.current;
+    const showSpinner = options?.showSpinner === true && !dataRef.current;
+    if (showSpinner) setLoading(true);
     setError(null);
     fetch(apiBase)
       .then((r) => {
@@ -75,19 +84,37 @@ export function PlanTab({
         return r.json() as Promise<PlanResponse>;
       })
       .then((json) => {
+        if (gen !== loadGenRef.current) return;
+        const prevPlan = dataRef.current?.plan;
         setData(json);
         if (json.plan) {
-          setKickoffDate(json.plan.kickoffDate);
-          setEndDate(json.plan.endDate);
-          setAssumptionsText(json.plan.assumptions.join("\n"));
+          setKickoffDate((k) =>
+            syncLocalFieldFromServer(k, prevPlan?.kickoffDate, json.plan!.kickoffDate)
+          );
+          setEndDate((e) =>
+            syncLocalFieldFromServer(e, prevPlan?.endDate, json.plan!.endDate)
+          );
+          setAssumptionsText((t) =>
+            syncLocalFieldFromServer(
+              t,
+              prevPlan?.assumptions.join("\n"),
+              json.plan!.assumptions.join("\n")
+            )
+          );
         }
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
-      .finally(() => setLoading(false));
+      .catch((e) => {
+        if (gen !== loadGenRef.current) return;
+        setError(e instanceof Error ? e.message : "Failed to load");
+      })
+      .finally(() => {
+        if (gen !== loadGenRef.current) return;
+        if (showSpinner) setLoading(false);
+      });
   }, [apiBase]);
 
   useEffect(() => {
-    load();
+    load({ showSpinner: true });
   }, [load]);
 
   async function handleCreateBlank() {
@@ -111,27 +138,51 @@ export function PlanTab({
     }
   }
 
-  async function saveHeaderDates() {
+  function applyPlanPatch(json: PlanJson & { dateMismatch?: boolean }) {
+    const { dateMismatch, kickoffDate, endDate, assumptions, updatedAt, updatedByName, updatedByUserId } =
+      json;
+    setData((prev) => {
+      if (!prev?.plan) return prev;
+      return {
+        ...prev,
+        plan: {
+          ...prev.plan,
+          kickoffDate,
+          endDate,
+          assumptions,
+          updatedAt,
+          updatedByName,
+          updatedByUserId,
+        },
+        dateMismatch: typeof dateMismatch === "boolean" ? dateMismatch : prev.dateMismatch,
+      };
+    });
+  }
+
+  async function saveHeaderDates(nextKickoff: string, nextEnd: string) {
     if (!canEdit || !data?.plan) return;
-    if (kickoffDate === data.plan.kickoffDate && endDate === data.plan.endDate) return;
-    setHeaderSaving(true);
+    if (nextKickoff === data.plan.kickoffDate && nextEnd === data.plan.endDate) return;
     setHeaderError(null);
     try {
       const res = await fetch(apiBase, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kickoffDate, endDate }),
+        body: JSON.stringify({ kickoffDate: nextKickoff, endDate: nextEnd }),
       });
-      const json = await res.json().catch(() => ({}));
+      const json = (await res.json().catch(() => ({}))) as
+        | (PlanJson & { dateMismatch?: boolean; error?: string })
+        | { error?: string };
       if (!res.ok) {
-        setHeaderError(json.error ?? "Failed to update dates");
+        setHeaderError(("error" in json && json.error) || "Failed to update dates");
         setKickoffDate(data.plan.kickoffDate);
         setEndDate(data.plan.endDate);
         return;
       }
-      load();
-    } finally {
-      setHeaderSaving(false);
+      applyPlanPatch(json as PlanJson & { dateMismatch?: boolean });
+    } catch {
+      setHeaderError("Failed to update dates");
+      setKickoffDate(data.plan.kickoffDate);
+      setEndDate(data.plan.endDate);
     }
   }
 
@@ -149,7 +200,12 @@ export function PlanTab({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ assumptions }),
       });
-      if (res.ok) load();
+      if (res.ok) {
+        const json = (await res.json().catch(() => null)) as
+          | (PlanJson & { dateMismatch?: boolean })
+          | null;
+        if (json) applyPlanPatch(json);
+      }
     } finally {
       setAssumptionsSaving(false);
     }
@@ -182,7 +238,7 @@ export function PlanTab({
     }
   }
 
-  if (loading) {
+  if (loading && !data) {
     return <p className="text-body-sm text-surface-700 dark:text-surface-200">Loading plan…</p>;
   }
   if (error && !data) {
@@ -236,7 +292,10 @@ export function PlanTab({
     );
   }
 
-  const durationDays = planDurationDays(plan.kickoffDate, plan.endDate);
+  const durationDays = planDurationDays(
+    kickoffDate || plan.kickoffDate,
+    endDate || plan.endDate
+  );
 
   return (
     <div className="space-y-6">
@@ -282,13 +341,13 @@ export function PlanTab({
               Kickoff date
             </label>
             {canEdit ? (
-              <input
-                type="date"
+              <DateCell
                 value={kickoffDate}
-                onChange={(e) => setKickoffDate(e.target.value)}
-                onBlur={saveHeaderDates}
-                disabled={headerSaving}
                 className={`${INPUT_CLASS} w-auto`}
+                onCommit={(next) => {
+                  setKickoffDate(next);
+                  void saveHeaderDates(next, endDateRef.current);
+                }}
               />
             ) : (
               <p className="text-body-sm text-surface-800 dark:text-surface-100 mt-1">
@@ -301,13 +360,13 @@ export function PlanTab({
               End date
             </label>
             {canEdit ? (
-              <input
-                type="date"
+              <DateCell
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                onBlur={saveHeaderDates}
-                disabled={headerSaving}
                 className={`${INPUT_CLASS} w-auto`}
+                onCommit={(next) => {
+                  setEndDate(next);
+                  void saveHeaderDates(kickoffDateRef.current, next);
+                }}
               />
             ) : (
               <p className="text-body-sm text-surface-800 dark:text-surface-100 mt-1">
@@ -396,7 +455,6 @@ export function PlanTab({
               onBlur={saveAssumptions}
               rows={5}
               placeholder={"Client feedback assumed within 2 business days\nDesign review assumed the week of Mar 10\nLaunch pushed to Mon Apr 6 - Apr 3 is a holiday"}
-              disabled={assumptionsSaving}
               className={`${INPUT_CLASS} h-auto py-2`}
             />
             {assumptionsSaving && (
