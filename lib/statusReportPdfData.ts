@@ -9,6 +9,10 @@ import { getPlanForProject } from "@/lib/plan/api";
 import { serializePlan } from "@/lib/plan/serialize";
 import type { PlanReportDensity } from "@/lib/plan/reportSchedule";
 import {
+  applyTimelineLayout,
+  type TimelineLayoutOverlay,
+} from "@/lib/statusReportTimelineLayout";
+import {
   buildLegacyTimeline,
   buildPlanTimelineCandidate,
   resolveReportTimelineAxis,
@@ -57,6 +61,8 @@ export type StatusReportSnapshot = {
   scheduleSource?: ScheduleSource;
   /** Plan report density when scheduleSource is plan. */
   planDensity?: PlanReportDensity;
+  /** Per-report visual overlay on the locked compact schedule. */
+  timelineLayout?: TimelineLayoutOverlay;
 };
 
 export {
@@ -89,6 +95,11 @@ export type BuildStatusReportPdfDataOptions = {
   scheduleSource?: ScheduleSource;
   /** Plan report density when scheduleSource is plan. */
   planDensity?: PlanReportDensity;
+  /**
+   * When false, return the compact/raw snapshot timeline without applying
+   * `timelineLayout` (used when persisting a refresh so overlays can be re-applied later).
+   */
+  applyTimelineLayoutOverlay?: boolean;
 };
 
 export function resolveScheduleSource(
@@ -494,6 +505,10 @@ export async function buildStatusReportPdfData(
   }
 
   const showBudget = resolveShowBudget(snapshot);
+
+  if (timeline && options?.applyTimelineLayoutOverlay !== false) {
+    timeline = applyTimelineLayout(timeline, snapshot?.timelineLayout);
+  }
 
   return {
     report: {

@@ -38,6 +38,9 @@ import {
   type ScheduleSource,
 } from "@/lib/statusReportFlags";
 import type { PlanReportDensity } from "@/lib/statusReportPdfData";
+import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument";
+import type { TimelineLayoutOverlay } from "@/lib/statusReportTimelineLayout";
+import { ArrangeScheduleFields } from "@/components/ArrangeScheduleFields";
 
 type RagValue = "Red" | "Amber" | "Green";
 
@@ -66,6 +69,8 @@ type StatusReportRecord = {
     showBudget?: boolean;
     scheduleSource?: ScheduleSource;
     planDensity?: PlanReportDensity;
+    timeline?: NonNullable<StatusReportPDFData["timeline"]>;
+    timelineLayout?: TimelineLayoutOverlay;
   } | null;
 };
 
@@ -381,6 +386,10 @@ export function StatusReportsTab({
   const [formScheduleSource, setFormScheduleSource] = useState<ScheduleSource>("timeline");
   const [formPlanDensity, setFormPlanDensity] = useState<PlanReportDensity>("phases_and_key_dates");
   const [editingScheduleSource, setEditingScheduleSource] = useState<ScheduleSource>("timeline");
+  const [formTimeline, setFormTimeline] = useState<NonNullable<StatusReportPDFData["timeline"]> | null>(
+    null
+  );
+  const [formTimelineLayout, setFormTimelineLayout] = useState<TimelineLayoutOverlay>({});
   const [formCompleted, setFormCompleted] = useState("");
   const [formUpcoming, setFormUpcoming] = useState("");
   const [formRisks, setFormRisks] = useState("");
@@ -532,6 +541,8 @@ export function StatusReportsTab({
         setFormScheduleSource(scheduleDefaults.scheduleSource);
         setFormPlanDensity(scheduleDefaults.planDensity);
         setEditingScheduleSource("timeline");
+        setFormTimeline(null);
+        setFormTimelineLayout({});
         if (prev) {
           applyPreviousReport(prev);
         } else {
@@ -564,6 +575,8 @@ export function StatusReportsTab({
         setFormScheduleSource(scheduleDefaults.scheduleSource);
         setFormPlanDensity(scheduleDefaults.planDensity);
         setEditingScheduleSource("timeline");
+        setFormTimeline(null);
+        setFormTimelineLayout({});
         setFormCompleted("");
         setFormUpcoming("");
         setFormRisks("");
@@ -603,6 +616,8 @@ export function StatusReportsTab({
     setFormPlanDensity(
       r.snapshot?.planDensity === "phases" ? "phases" : "phases_and_key_dates"
     );
+    setFormTimeline(r.snapshot?.timeline ?? null);
+    setFormTimelineLayout(r.snapshot?.timelineLayout ?? {});
     setFormCompleted(r.completedActivities ?? "");
     setFormUpcoming(r.upcomingActivities ?? "");
     setFormRisks(r.risksIssuesDecisions ?? "");
@@ -749,11 +764,32 @@ export function StatusReportsTab({
         setPreviewDataKey((k) => k + 1);
       }
       loadReports();
+      const refreshed = await fetch(`/api/projects/${projectId}/status-reports/${editingReportId}`);
+      const refreshedJson = (await refreshed.json().catch(() => null)) as StatusReportRecord | null;
+      if (refreshedJson?.snapshot?.timeline) {
+        setFormTimeline(refreshedJson.snapshot.timeline);
+        setFormTimelineLayout(refreshedJson.snapshot.timelineLayout ?? {});
+      }
       setTimeout(() => setTimelineRefreshSuccess(null), 4000);
     } finally {
       setRefreshTimelineLoading(false);
     }
   }, [editingReportId, editingScheduleSource, projectId, previewReportId, loadReports]);
+
+  const saveTimelineLayout = useCallback(
+    async (next: TimelineLayoutOverlay) => {
+      setFormTimelineLayout(next);
+      if (!editingReportId) return;
+      const res = await fetch(`/api/projects/${projectId}/status-reports/${editingReportId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ timelineLayout: next }),
+      });
+      if (!res.ok) return;
+      setPreviewDataKey((k) => k + 1);
+    },
+    [editingReportId, projectId]
+  );
 
   const confirmRefreshBudget = useCallback(async () => {
     if (!editingReportId) return;
@@ -1466,6 +1502,15 @@ export function StatusReportsTab({
                       >
                         {timelineRefreshSuccess}
                       </p>
+                    )}
+                    {editingScheduleSource === "plan" && formTimeline && canEdit && (
+                      <ArrangeScheduleFields
+                        timeline={formTimeline}
+                        layout={formTimelineLayout}
+                        onChange={(next) => {
+                          void saveTimelineLayout(next);
+                        }}
+                      />
                     )}
                   </div>
                 )}

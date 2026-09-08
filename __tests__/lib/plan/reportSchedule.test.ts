@@ -69,6 +69,7 @@ describe("compactPlanToSchedule", () => {
     );
     expect(order0?.bars).toEqual([
       {
+        phaseId: "p1",
         rowIndex: 1,
         label: "Discovery",
         startDate: "2026-03-01",
@@ -122,6 +123,7 @@ describe("compactPlanToSchedule", () => {
     expect(result).toEqual({
       bars: [
         {
+          phaseId: "p1",
           rowIndex: 1,
           label: "Build",
           startDate: "2026-03-01",
@@ -207,6 +209,7 @@ describe("compactPlanToSchedule", () => {
 
     expect(result?.bars).toEqual([
       {
+        phaseId: "p1",
         rowIndex: 2,
         label: "Delivery",
         startDate: "2026-04-01",
@@ -215,10 +218,10 @@ describe("compactPlanToSchedule", () => {
       },
     ]);
     expect(result?.markers).toEqual([
-      { label: "Alpha", date: "2026-04-05", shape: "Pin", rowIndex: 2 },
-      { label: "Client sign-off", date: "2026-04-08", shape: "ThumbsUp", rowIndex: 2 },
-      { label: "Launch deadline", date: "2026-04-15", shape: "BadgeAlert", rowIndex: 2 },
-      { label: "Kickoff call", date: "2026-04-02", shape: "Rocket", rowIndex: 2 },
+      { itemId: "milestone", label: "Alpha", date: "2026-04-05", shape: "Pin", rowIndex: 2 },
+      { itemId: "signoff", label: "Client sign-off", date: "2026-04-08", shape: "ThumbsUp", rowIndex: 2 },
+      { itemId: "deadline", label: "Launch deadline", date: "2026-04-15", shape: "BadgeAlert", rowIndex: 2 },
+      { itemId: "meeting", label: "Kickoff call", date: "2026-04-02", shape: "Rocket", rowIndex: 2 },
     ]);
   });
 
@@ -266,6 +269,7 @@ describe("compactPlanToSchedule", () => {
 
     expect(result?.bars).toEqual([
       {
+        phaseId: "p1",
         rowIndex: 3,
         label: "Development",
         startDate: "2026-05-01",
@@ -274,7 +278,7 @@ describe("compactPlanToSchedule", () => {
       },
     ]);
     expect(result?.markers).toEqual([
-      { label: "Code complete", date: "2026-05-15", shape: "Pin", rowIndex: 3 },
+      { itemId: "milestone", label: "Code complete", date: "2026-05-15", shape: "Pin", rowIndex: 3 },
     ]);
   });
 
@@ -318,7 +322,7 @@ describe("compactPlanToSchedule", () => {
     const result = compactPlanToSchedule([pointOnlyPhase], "phases_and_key_dates");
     expect(result?.bars).toEqual([]);
     expect(result?.markers).toEqual([
-      { label: "Go live", date: "2026-06-01", shape: "Pin", rowIndex: 1 },
+      { itemId: "m1", label: "Go live", date: "2026-06-01", shape: "Pin", rowIndex: 1 },
     ]);
     expect(
       timelineHasVisibleSchedule({
@@ -328,6 +332,147 @@ describe("compactPlanToSchedule", () => {
         markers: result!.markers,
       })
     ).toBe(true);
+  });
+
+  it("skips phases with showOnReports false and uses Plan names on the schedule", () => {
+    const result = compactPlanToSchedule(
+      [
+        phase({
+          id: "hidden",
+          name: "Internal only",
+          order: 0,
+          showOnReports: false,
+          items: [item({ id: "t1", phaseId: "hidden", label: "Task" })],
+        }),
+        phase({
+          id: "shown",
+          name: "Very Long Discovery Phase Name",
+          reportLabel: "Discovery",
+          order: 1,
+          items: [
+            item({
+              id: "m1",
+              phaseId: "shown",
+              label: "Kickoff workshop with stakeholders",
+              reportLabel: "Kickoff",
+              type: "milestone",
+              startDate: "2026-03-03",
+              endDate: "2026-03-03",
+            }),
+            item({ id: "t1", phaseId: "shown", label: "Work", startDate: "2026-03-01", endDate: "2026-03-10" }),
+          ],
+        }),
+      ],
+      "phases_and_key_dates"
+    );
+
+    expect(result?.bars).toEqual([
+      {
+        phaseId: "shown",
+        rowIndex: 2,
+        label: "Very Long Discovery Phase Name",
+        startDate: "2026-03-01",
+        endDate: "2026-03-10",
+        color: null,
+      },
+    ]);
+    expect(result?.markers).toEqual([
+      {
+        itemId: "m1",
+        label: "Kickoff workshop with stakeholders",
+        date: "2026-03-03",
+        shape: "Pin",
+        rowIndex: 2,
+      },
+    ]);
+  });
+
+  it("omits key dates with showOnReports false but still uses them for phase bar span", () => {
+    const result = compactPlanToSchedule(
+      [
+        phase({
+          id: "p1",
+          name: "Build",
+          order: 0,
+          items: [
+            item({
+              id: "m-hidden",
+              phaseId: "p1",
+              label: "Internal gate",
+              type: "milestone",
+              showOnReports: false,
+              startDate: "2026-03-12",
+              endDate: "2026-03-12",
+            }),
+            item({
+              id: "m-shown",
+              phaseId: "p1",
+              label: "Alpha",
+              type: "milestone",
+              startDate: "2026-03-05",
+              endDate: "2026-03-05",
+            }),
+            item({
+              id: "t1",
+              phaseId: "p1",
+              label: "Work",
+              startDate: "2026-03-01",
+              endDate: "2026-03-10",
+            }),
+          ],
+        }),
+      ],
+      "phases_and_key_dates"
+    );
+
+    expect(result?.bars[0]?.endDate).toBe("2026-03-12");
+    expect(result?.markers).toEqual([
+      { itemId: "m-shown", label: "Alpha", date: "2026-03-05", shape: "Pin", rowIndex: 1 },
+    ]);
+  });
+
+  it("mutes completed key dates and fully completed phase bars", () => {
+    const result = compactPlanToSchedule(
+      [
+        phase({
+          id: "p1",
+          name: "Done phase",
+          order: 0,
+          items: [
+            item({
+              id: "t1",
+              phaseId: "p1",
+              label: "Work",
+              status: "complete",
+              startDate: "2026-03-01",
+              endDate: "2026-03-10",
+            }),
+            item({
+              id: "m1",
+              phaseId: "p1",
+              label: "Ship",
+              type: "milestone",
+              status: "complete",
+              startDate: "2026-03-10",
+              endDate: "2026-03-10",
+            }),
+          ],
+        }),
+      ],
+      "phases_and_key_dates"
+    );
+
+    expect(result?.bars[0]?.muted).toBe(true);
+    expect(result?.markers).toEqual([
+      {
+        itemId: "m1",
+        label: "Ship",
+        date: "2026-03-10",
+        shape: "Pin",
+        rowIndex: 1,
+        muted: true,
+      },
+    ]);
   });
 });
 

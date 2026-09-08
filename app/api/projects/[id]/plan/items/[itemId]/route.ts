@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import {
   dateString,
   getPlanItemsForValidation,
   getSessionUserId,
   normalizeItemDates,
+  optionalReportLabel,
   parseDate,
+  planItemStatusEnum,
   planItemTypeEnum,
   planMeetingStatusEnum,
   requireSession,
@@ -19,6 +22,8 @@ import { reindexSiblingOrders, validateInsertBefore } from "@/lib/plan/itemDrop"
 import { collectDescendantIds } from "@/lib/plan/tree";
 import { serializePlanItem } from "@/lib/plan/serialize";
 import { touchPlan } from "@/lib/plan/touchPlan";
+import { defaultShowOnReports } from "@/lib/plan/reportVisibility";
+import { completedAtForStatus } from "@/lib/plan/completion";
 
 const patchSchema = z.object({
   phaseId: z.string().min(1).optional(),
@@ -31,6 +36,9 @@ const patchSchema = z.object({
   insertBeforeItemId: z.string().min(1).nullable().optional(),
   meetingStatus: planMeetingStatusEnum.nullable().optional(),
   scheduledTime: z.string().nullable().optional(),
+  showOnReports: z.boolean().optional(),
+  reportLabel: optionalReportLabel,
+  status: planItemStatusEnum.optional(),
 });
 
 export async function PATCH(
@@ -90,6 +98,13 @@ export async function PATCH(
         ? parsed.data.scheduledTime
         : item.scheduledTime
       : null;
+  const nextShowOnReports =
+    parsed.data.showOnReports !== undefined
+      ? parsed.data.showOnReports
+      : parsed.data.type !== undefined || parsed.data.meetingStatus !== undefined
+        ? defaultShowOnReports(nextType, nextMeetingStatus)
+        : item.showOnReports;
+  const nextStatus = parsed.data.status ?? item.status;
   const nextParentItemId =
     parsed.data.parentItemId !== undefined
       ? parsed.data.parentItemId
@@ -164,45 +179,59 @@ export async function PATCH(
       )
     : null;
 
-  const updated = await prisma.$transaction(async (tx) => {
-    if (descendantIds.length > 0) {
-      await tx.planItem.updateMany({
-        where: { id: { in: descendantIds } },
-        data: { phaseId: nextPhaseId },
-      });
-    }
+  const movedOrder = siblingOrders?.find((row) => row.id === itemId)?.order;
 
-    if (siblingOrders) {
-      for (const row of siblingOrders) {
-        if (row.id === itemId) continue;
-        await tx.planItem.update({
-          where: { id: row.id },
-          data: { order: row.order },
-        });
-      }
-    }
+  const data: Prisma.PlanItemUpdateInput = {
+    type: nextType,
+    startDate,
+    endDate,
+    meetingStatus: nextMeetingStatus,
+    scheduledTime: nextScheduledTime,
+    ...(nextPhaseId !== item.phaseId ? { phase: { connect: { id: nextPhaseId } } } : {}),
+    ...(nextParentItemId !== item.parentItemId
+      ? {
+          parent: nextParentItemId
+            ? { connect: { id: nextParentItemId } }
+            : { disconnect: true },
+        }
+      : {}),
+    ...(parsed.data.label !== undefined ? { label: parsed.data.label } : {}),
+    ...(movedOrder !== undefined
+      ? { order: movedOrder }
+      : parsed.data.order !== undefined
+        ? { order: parsed.data.order }
+        : {}),
+    ...(nextShowOnReports !== undefined ? { showOnReports: nextShowOnReports } : {}),
+    ...(parsed.data.reportLabel !== undefined ? { reportLabel: parsed.data.reportLabel } : {}),
+    ...(nextStatus !== undefined
+      ? {
+          status: nextStatus,
+          completedAt: completedAtForStatus(nextStatus, item.completedAt) ?? null,
+        }
+      : {}),
+  };
 
-    const movedOrder = siblingOrders?.find((row) => row.id === itemId)?.order;
-
-    return tx.planItem.update({
-      where: { id: itemId },
-      data: {
-        phaseId: nextPhaseId,
-        type: nextType,
-        ...(parsed.data.label !== undefined ? { label: parsed.data.label } : {}),
-        startDate,
-        endDate,
-        ...(movedOrder !== undefined
-          ? { order: movedOrder }
-          : parsed.data.order !== undefined
-            ? { order: parsed.data.order }
-            : {}),
-        parentItemId: nextParentItemId,
-        meetingStatus: nextMeetingStatus,
-        scheduledTime: nextScheduledTime,
-      },
-    });
-  });
+  const needsMoveTx = descendantIds.length > 0 || siblingOrders != null;
+  const updated = needsMoveTx
+    ? await prisma.$transaction(async (tx) => {
+        if (descendantIds.length > 0) {
+          await tx.planItem.updateMany({
+            where: { id: { in: descendantIds } },
+            data: { phaseId: nextPhaseId },
+          });
+        }
+        if (siblingOrders) {
+          for (const row of siblingOrders) {
+            if (row.id === itemId) continue;
+            await tx.planItem.update({
+              where: { id: row.id },
+              data: { order: row.order },
+            });
+          }
+        }
+        return tx.planItem.update({ where: { id: itemId }, data });
+      })
+    : await prisma.planItem.update({ where: { id: itemId }, data });
 
   await touchPlan(item.phase.planId, getSessionUserId(planAuth.session));
 

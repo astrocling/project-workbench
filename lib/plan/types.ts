@@ -17,6 +17,10 @@ export const PLAN_MEETING_STATUSES = ["assumed", "scheduled"] as const;
 
 export type PlanMeetingStatus = (typeof PLAN_MEETING_STATUSES)[number];
 
+export const PLAN_ITEM_STATUSES = ["not_started", "in_progress", "complete"] as const;
+
+export type PlanItemStatus = (typeof PLAN_ITEM_STATUSES)[number];
+
 export const MAX_ITEM_DEPTH = 3;
 
 export function isPointType(

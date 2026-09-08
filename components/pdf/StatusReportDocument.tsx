@@ -860,8 +860,23 @@ export type StatusReportPDFData = {
   timeline?: {
     startDate: string;
     endDate: string;
-    bars: Array<{ rowIndex: number; label: string; startDate: string; endDate: string; color?: string | null }>;
-    markers: Array<{ label: string; date: string; shape?: string; rowIndex?: number }>;
+    bars: Array<{
+      phaseId?: string;
+      rowIndex: number;
+      label: string;
+      startDate: string;
+      endDate: string;
+      color?: string | null;
+      muted?: boolean;
+    }>;
+    markers: Array<{
+      itemId?: string;
+      label: string;
+      date: string;
+      shape?: string;
+      rowIndex?: number;
+      muted?: boolean;
+    }>;
   };
   /** When true, CDA Overall table omits Budget ($) row; first chart uses hours completion. */
   cdaReportHoursOnly?: boolean;
@@ -1078,6 +1093,7 @@ function TimelineBlock({
                     left: `${positionPercent(visibleStart)}%`,
                     width: `${renderedWidth}%`,
                     backgroundColor: bar.color ?? TIMELINE_BAR_BG,
+                    opacity: bar.muted ? 0.45 : 1,
                   },
                 ]}
               >
@@ -1100,6 +1116,7 @@ function TimelineBlock({
                     flexDirection: "column",
                     alignItems: hangLeft ? "flex-end" : "flex-start",
                     zIndex: 2,
+                    opacity: m.muted ? 0.45 : 1,
                   },
                 ]}
               >

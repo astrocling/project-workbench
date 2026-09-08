@@ -9,6 +9,7 @@ import { DateCell, PlanGridGantt } from "@/components/plan/PlanGridGantt";
 import { expandYmdRange } from "@/lib/plan/businessDays";
 import { syncLocalFieldFromServer } from "@/lib/plan/dateInput";
 import type { PlanJson } from "@/lib/plan/serialize";
+import { countPlanCompletion } from "@/lib/plan/completion";
 
 const INPUT_CLASS =
   "mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-surface border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100";
@@ -333,6 +334,16 @@ export function PlanTab({
           <LocalTime isoDate={plan.updatedAt} />
         </p>
       )}
+
+      {(() => {
+        const completion = countPlanCompletion(plan.phases);
+        if (completion.total === 0) return null;
+        return (
+          <p className="text-body-sm text-surface-600 dark:text-surface-400">
+            {completion.completed} of {completion.total} items complete ({completion.percent}%)
+          </p>
+        );
+      })()}
 
       <section className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border p-4">
         <div className="flex flex-wrap items-end gap-4">

@@ -29,6 +29,14 @@ const patchSchema = z.object({
   ragBudgetExplanation: z.string().nullable().optional(),
   /** When false, Standard report omits bottom budget table and burn chart. */
   showBudget: z.boolean().optional(),
+  timelineLayout: z
+    .object({
+      hiddenBarIds: z.array(z.string()).optional(),
+      hiddenMarkerIds: z.array(z.string()).optional(),
+      labels: z.record(z.string(), z.string()).optional(),
+      rows: z.record(z.string(), z.number().int().min(1).max(4)).optional(),
+    })
+    .optional(),
   panels: z.array(z.any()).optional(),
 });
 
@@ -113,18 +121,23 @@ export async function PATCH(
   if (Object.prototype.hasOwnProperty.call(parsed.data, "ragBudgetExplanation")) data.ragBudgetExplanation = parsed.data.ragBudgetExplanation ?? null;
 
   let snapshotUpdate: Prisma.InputJsonValue | undefined;
-  if (Object.prototype.hasOwnProperty.call(parsed.data, "showBudget")) {
-    const showBudget = parsed.data.showBudget ?? true;
+  const patchShowBudget = Object.prototype.hasOwnProperty.call(parsed.data, "showBudget");
+  const patchLayout = Object.prototype.hasOwnProperty.call(parsed.data, "timelineLayout");
+  if (patchShowBudget || patchLayout) {
+    const showBudget = patchShowBudget ? parsed.data.showBudget ?? true : undefined;
+    const timelineLayout = patchLayout ? parsed.data.timelineLayout : undefined;
     if (isStatusReportSnapshot(existing.snapshot)) {
       snapshotUpdate = {
         ...existing.snapshot,
-        showBudget,
+        ...(patchShowBudget ? { showBudget } : {}),
+        ...(patchLayout ? { timelineLayout } : {}),
       } as Prisma.InputJsonValue;
     } else {
       const minimal: StatusReportSnapshot = {
         period: "",
         today: "",
-        showBudget,
+        ...(patchShowBudget ? { showBudget: showBudget ?? true } : {}),
+        ...(patchLayout ? { timelineLayout } : {}),
       };
       snapshotUpdate = minimal as Prisma.InputJsonValue;
     }

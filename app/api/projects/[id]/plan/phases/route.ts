@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   getSessionUserId,
   optionalHexColor,
+  optionalReportLabel,
   requireSession,
   resolveProjectId,
 } from "@/lib/plan/api";
@@ -15,6 +16,8 @@ const postSchema = z.object({
   name: z.string().min(1),
   color: optionalHexColor,
   order: z.number().int().optional(),
+  showOnReports: z.boolean().optional(),
+  reportLabel: optionalReportLabel,
 });
 
 export async function POST(
@@ -57,6 +60,8 @@ export async function POST(
         name: parsed.data.name,
         color: parsed.data.color ?? "#1941FA",
         order,
+        showOnReports: parsed.data.showOnReports ?? true,
+        reportLabel: parsed.data.reportLabel ?? null,
       },
       include: { items: { orderBy: { order: "asc" } } },
     });

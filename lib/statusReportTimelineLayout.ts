@@ -20,3 +20,170 @@ export const SR_TIMELINE_MARKER_TOP_PX =
 export function timelineMarkerHangsLeft(indexInRow: number): boolean {
   return indexInRow % 2 === 0;
 }
+
+export type TimelineLayoutOverlay = {
+  hiddenBarIds?: string[];
+  hiddenMarkerIds?: string[];
+  labels?: Record<string, string>;
+  rows?: Record<string, number>;
+};
+
+type LayoutBar = {
+  phaseId?: string;
+  rowIndex: number;
+  label: string;
+  startDate: string;
+  endDate: string;
+  color?: string | null;
+  muted?: boolean;
+};
+
+type LayoutMarker = {
+  itemId?: string;
+  label: string;
+  date: string;
+  shape?: string;
+  rowIndex?: number;
+  muted?: boolean;
+};
+
+export type LayoutTimelineSlice = {
+  startDate: string;
+  endDate: string;
+  bars: LayoutBar[];
+  markers: LayoutMarker[];
+};
+
+function clampRow(row: number): number | null {
+  if (!Number.isInteger(row) || row < 1 || row > 4) return null;
+  return row;
+}
+
+function overlayLabel(id: string | undefined, labels: Record<string, string> | undefined, fallback: string) {
+  if (!id || !labels) return fallback;
+  const next = labels[id]?.trim();
+  return next ? next : fallback;
+}
+
+function listWithId(ids: string[] | undefined, id: string, hidden: boolean): string[] | undefined {
+  const set = new Set(ids ?? []);
+  if (hidden) set.add(id);
+  else set.delete(id);
+  const next = [...set];
+  return next.length > 0 ? next : undefined;
+}
+
+export function toggleTimelineHiddenId(
+  ids: string[] | undefined,
+  id: string,
+  hidden: boolean
+): string[] | undefined {
+  return listWithId(ids, id, hidden);
+}
+
+export function setTimelineLayoutLabel(
+  labels: Record<string, string> | undefined,
+  id: string,
+  original: string,
+  value: string
+): Record<string, string> | undefined {
+  const next = { ...(labels ?? {}) };
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === original) {
+    delete next[id];
+  } else {
+    next[id] = trimmed;
+  }
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+export function setTimelineLayoutRow(
+  rows: Record<string, number> | undefined,
+  id: string,
+  original: number,
+  value: number
+): Record<string, number> | undefined {
+  const next = { ...(rows ?? {}) };
+  const clamped = clampRow(value);
+  if (clamped == null || clamped === original) delete next[id];
+  else next[id] = clamped;
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** Hide, rename, and re-row compact bars/markers by Plan source id. Dates are never changed. */
+export function applyTimelineLayout<T extends LayoutTimelineSlice>(
+  timeline: T,
+  layout?: TimelineLayoutOverlay | null
+): T {
+  if (!layout) return timeline;
+  const hiddenBars = new Set(layout.hiddenBarIds ?? []);
+  const hiddenMarkers = new Set(layout.hiddenMarkerIds ?? []);
+  const bars = timeline.bars
+    .filter((bar) => !bar.phaseId || !hiddenBars.has(bar.phaseId))
+    .map((bar) => {
+      const row = bar.phaseId ? clampRow(layout.rows?.[bar.phaseId] ?? bar.rowIndex) : bar.rowIndex;
+      return {
+        ...bar,
+        label: overlayLabel(bar.phaseId, layout.labels, bar.label),
+        rowIndex: row ?? bar.rowIndex,
+      };
+    });
+  const markers = timeline.markers
+    .filter((marker) => !marker.itemId || !hiddenMarkers.has(marker.itemId))
+    .map((marker) => {
+      const currentRow = marker.rowIndex ?? 1;
+      const row = marker.itemId ? clampRow(layout.rows?.[marker.itemId] ?? currentRow) : currentRow;
+      return {
+        ...marker,
+        label: overlayLabel(marker.itemId, layout.labels, marker.label),
+        rowIndex: row ?? currentRow,
+      };
+    });
+  return { ...timeline, bars, markers };
+}
+
+function pickExisting(
+  record: Record<string, string | number> | undefined,
+  ids: Set<string>
+): Record<string, string> | Record<string, number> | undefined {
+  if (!record) return undefined;
+  const next: Record<string, string | number> = {};
+  for (const [id, value] of Object.entries(record)) {
+    if (ids.has(id)) next[id] = value;
+  }
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** Keep layout keys that still exist on the rebuilt compact schedule. */
+export function pruneTimelineLayout(
+  layout: TimelineLayoutOverlay | undefined,
+  timeline: Pick<LayoutTimelineSlice, "bars" | "markers">
+): TimelineLayoutOverlay | undefined {
+  if (!layout) return undefined;
+  const barIds = new Set(timeline.bars.map((bar) => bar.phaseId).filter((id): id is string => !!id));
+  const markerIds = new Set(
+    timeline.markers.map((marker) => marker.itemId).filter((id): id is string => !!id)
+  );
+  const hiddenBarIds = (layout.hiddenBarIds ?? []).filter((id) => barIds.has(id));
+  const hiddenMarkerIds = (layout.hiddenMarkerIds ?? []).filter((id) => markerIds.has(id));
+  const labels = pickExisting(layout.labels, new Set([...barIds, ...markerIds])) as
+    | Record<string, string>
+    | undefined;
+  const rows = pickExisting(layout.rows, new Set([...barIds, ...markerIds])) as
+    | Record<string, number>
+    | undefined;
+  if (
+    hiddenBarIds.length === 0 &&
+    hiddenMarkerIds.length === 0 &&
+    !labels &&
+    !rows
+  ) {
+    return undefined;
+  }
+  return {
+    ...(hiddenBarIds.length > 0 ? { hiddenBarIds } : {}),
+    ...(hiddenMarkerIds.length > 0 ? { hiddenMarkerIds } : {}),
+    ...(labels ? { labels } : {}),
+    ...(rows ? { rows } : {}),
+  };
+}

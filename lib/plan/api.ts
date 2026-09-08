@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { getProjectId } from "@/lib/slug";
 import { z } from "zod";
-import { PLAN_ITEM_TYPES, PLAN_MEETING_STATUSES } from "@/lib/plan/types";
+import { PLAN_ITEM_STATUSES, PLAN_ITEM_TYPES, PLAN_MEETING_STATUSES } from "@/lib/plan/types";
 import { normalizeItemDates, validateItemPayload } from "@/lib/plan/itemRules";
 
 export { normalizeItemDates, validateItemPayload };
@@ -22,6 +22,8 @@ export const optionalHexColor = hexColor.optional();
 
 export const planItemTypeEnum = z.enum(PLAN_ITEM_TYPES);
 export const planMeetingStatusEnum = z.enum(PLAN_MEETING_STATUSES);
+export const planItemStatusEnum = z.enum(PLAN_ITEM_STATUSES);
+export const optionalReportLabel = z.string().trim().max(80).nullable().optional();
 
 export function getSessionUserId(session: Session): string | undefined {
   return (session.user as { id?: string }).id;

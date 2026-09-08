@@ -19,6 +19,7 @@ import {
   resolveScheduleRebuildError,
 } from "@/lib/plan/reportScheduleErrors";
 import { isValidPlanTimeline } from "@/lib/statusReportScheduleBuild";
+import { pruneTimelineLayout } from "@/lib/statusReportTimelineLayout";
 
 export async function POST(
   _req: NextRequest,
@@ -61,6 +62,7 @@ export async function POST(
 
   const pdfData = await buildStatusReportPdfData(projectId, reportId, {
     rebuildTimelineFromProject: true,
+    applyTimelineLayoutOverlay: false,
   });
   if (!pdfData) {
     return NextResponse.json({ error: "Failed to build report data" }, { status: 500 });
@@ -81,9 +83,20 @@ export async function POST(
     );
   }
 
+  if (!pdfData.timeline) {
+    return NextResponse.json(
+      { error: resolveScheduleRebuildError(scheduleSource, { hasProjectEndDate, planDensity }) },
+      { status: 400 }
+    );
+  }
+
   const nextSnapshot: StatusReportSnapshot = {
     ...existingSnapshot,
     timeline: pdfData.timeline,
+    timelineLayout: pruneTimelineLayout(existingSnapshot.timelineLayout, {
+      bars: pdfData.timeline.bars,
+      markers: pdfData.timeline.markers,
+    }),
   };
 
   await prisma.statusReport.update({

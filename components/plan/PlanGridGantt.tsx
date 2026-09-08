@@ -44,18 +44,23 @@ import {
 import {
   isPointType,
   MAX_ITEM_DEPTH,
+  PLAN_ITEM_STATUSES,
   PLAN_ITEM_TYPES,
+  type PlanItemStatus,
   type PlanItemType,
   type PlanMeetingStatus,
 } from "@/lib/plan/types";
+import { defaultShowOnReports } from "@/lib/plan/reportVisibility";
 
 const MEETING_VIOLET = "#6d28d9";
 const ROW_HEIGHT = 36;
-const GRID_WIDTH = 560;
+const GRID_WIDTH = 700;
 const EXPAND_COL = 28;
 const TYPE_COL = 120;
 const DATE_COL = 108;
 const DURATION_COL = 56;
+const REPORT_CHECK_COL = 32;
+const STATUS_COL = 108;
 const MIN_COL_WIDTH = 12;
 const DROP_EDGE_PX = 10;
 const PLAN_ITEM_DRAG = "text/plan-item";
@@ -66,6 +71,12 @@ const BTN_TOOLBAR =
   "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-body-sm font-medium bg-surface-200 dark:bg-dark-muted text-surface-800 dark:text-surface-200 hover:bg-surface-300 dark:hover:bg-dark-border disabled:opacity-50 disabled:cursor-not-allowed";
 const BTN_PRIMARY =
   "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-body-sm font-medium bg-jblue-500 text-white hover:bg-jblue-600 disabled:opacity-50";
+
+const ITEM_STATUS_LABELS: Record<PlanItemStatus, string> = {
+  not_started: "Not started",
+  in_progress: "In progress",
+  complete: "Complete",
+};
 
 const ITEM_TYPE_LABELS: Record<PlanItemType, string> = {
   task: "Task",
@@ -114,6 +125,9 @@ function buildItemPatch(
     scheduledTime: string | null;
     parentItemId: string | null;
     phaseId: string;
+    showOnReports: boolean;
+    reportLabel: string | null;
+    status: PlanItemStatus;
   }>
 ): Record<string, unknown> {
   const type = changes.type ?? item.type;
@@ -142,6 +156,9 @@ function buildItemPatch(
       changes.scheduledTime !== undefined ? changes.scheduledTime : item.scheduledTime,
     ...(changes.parentItemId !== undefined ? { parentItemId: changes.parentItemId } : {}),
     ...(changes.phaseId !== undefined ? { phaseId: changes.phaseId } : {}),
+    ...(changes.showOnReports !== undefined ? { showOnReports: changes.showOnReports } : {}),
+    ...(changes.reportLabel !== undefined ? { reportLabel: changes.reportLabel } : {}),
+    ...(changes.status !== undefined ? { status: changes.status } : {}),
   };
 }
 
@@ -422,6 +439,9 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
       meetingStatus: PlanMeetingStatus | null;
       scheduledTime: string | null;
       parentItemId: string | null;
+      showOnReports: boolean;
+      reportLabel: string | null;
+      status: PlanItemStatus;
     }>
   ) {
     const body = buildItemPatch(item, changes);
@@ -580,6 +600,28 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
     }
   }
 
+  const handleDeleteRef = useRef(handleDelete);
+  handleDeleteRef.current = handleDelete;
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      void handleDeleteRef.current();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   async function handleIndent() {
     if (!selectedRow || selectedRow.kind !== "item" || !selectedRow.item) return;
     const result = indentItem(allItems, selectedRow.item.id);
@@ -671,6 +713,11 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
               onClick={handleDelete}
               disabled={busy || !selectedRow}
               className={BTN_TOOLBAR}
+              title={
+                selectedRow
+                  ? "Delete the selected phase or item (Delete key)"
+                  : "Select a phase or item first"
+              }
             >
               <Trash2 size={14} aria-hidden />
               Delete
@@ -789,8 +836,8 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
                     const id = row.kind === "phase" ? row.phase.id : row.item!.id;
                     registerNameInput(id, input);
                   }}
-                  onPatchPhase={async (phase, name) => {
-                    await apiCall(`${apiBase}/phases/${phase.id}`, "PATCH", { name });
+                  onPatchPhase={async (phase, changes) => {
+                    await apiCall(`${apiBase}/phases/${phase.id}`, "PATCH", changes);
                   }}
                   onPatchItem={patchItem}
                   onPatchItemDates={patchItemDates}
@@ -964,6 +1011,16 @@ function GridHeader() {
       >
         Days
       </div>
+      <div
+        style={{ width: REPORT_CHECK_COL }}
+        className="shrink-0 px-1 text-center"
+        title="Show on status-report schedule"
+      >
+        Rpt
+      </div>
+      <div style={{ width: STATUS_COL }} className="shrink-0 px-1">
+        Status
+      </div>
     </div>
   );
 }
@@ -992,7 +1049,10 @@ function GridRow({
   onSelect: () => void;
   onToggleCollapse: (id: string) => void;
   nameInputRef: (input: HTMLInputElement | null) => void;
-  onPatchPhase: (phase: PlanPhaseJson, name: string) => Promise<void>;
+  onPatchPhase: (
+    phase: PlanPhaseJson,
+    changes: Partial<{ name: string; showOnReports: boolean; reportLabel: string | null }>
+  ) => Promise<void>;
   onPatchItem: (
     item: PlanItemJson,
     changes: Partial<{
@@ -1004,6 +1064,9 @@ function GridRow({
       scheduledTime: string | null;
       parentItemId: string | null;
       phaseId: string;
+      showOnReports: boolean;
+      reportLabel: string | null;
+      status: PlanItemStatus;
     }>
   ) => Promise<unknown | null>;
   onPatchItemDates: (
@@ -1077,7 +1140,7 @@ function GridRow({
               onClick={(e) => e.stopPropagation()}
               onBlur={(e) => {
                 const name = e.target.value.trim();
-                if (name && name !== phase.name) onPatchPhase(phase, name);
+                if (name && name !== phase.name) onPatchPhase(phase, { name });
               }}
             />
           ) : (
@@ -1092,6 +1155,20 @@ function GridRow({
         <div style={{ width: DATE_COL }} className="shrink-0" />
         <div style={{ width: DATE_COL }} className="shrink-0" />
         <div style={{ width: DURATION_COL }} className="shrink-0" />
+        <div style={{ width: REPORT_CHECK_COL }} className="shrink-0 px-1 flex justify-center">
+          {canEdit ? (
+            <input
+              type="checkbox"
+              checked={phase.showOnReports !== false}
+              aria-label="Show phase on status reports"
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => onPatchPhase(phase, { showOnReports: e.target.checked })}
+            />
+          ) : (
+            <span className="text-body-sm text-surface-500">{phase.showOnReports !== false ? "Yes" : "No"}</span>
+          )}
+        </div>
+        <div style={{ width: STATUS_COL }} className="shrink-0" />
       </div>
     );
   }
@@ -1254,6 +1331,41 @@ function GridRow({
         className="shrink-0 px-1 text-center text-body-sm tabular-nums text-surface-600 dark:text-surface-400"
       >
         {duration}
+      </div>
+      <div style={{ width: REPORT_CHECK_COL }} className="shrink-0 px-1 flex justify-center">
+        {canEdit ? (
+          <input
+            type="checkbox"
+            checked={item.showOnReports ?? defaultShowOnReports(item.type, item.meetingStatus)}
+            aria-label="Show item on status reports"
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => onPatchItem(item, { showOnReports: e.target.checked })}
+          />
+        ) : (
+          <span className="text-body-sm text-surface-500">
+            {(item.showOnReports ?? defaultShowOnReports(item.type, item.meetingStatus)) ? "Yes" : "No"}
+          </span>
+        )}
+      </div>
+      <div style={{ width: STATUS_COL }} className="shrink-0 px-1">
+        {canEdit ? (
+          <select
+            value={item.status ?? "not_started"}
+            className={INPUT_CLASS}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => onPatchItem(item, { status: e.target.value as PlanItemStatus })}
+          >
+            {PLAN_ITEM_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {ITEM_STATUS_LABELS[status]}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span className="text-body-sm text-surface-600 dark:text-surface-400">
+            {ITEM_STATUS_LABELS[item.status ?? "not_started"]}
+          </span>
+        )}
       </div>
     </div>
   );

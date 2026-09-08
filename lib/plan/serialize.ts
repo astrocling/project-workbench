@@ -1,7 +1,4 @@
-import type {
-  PlanItemType,
-  PlanMeetingStatus,
-} from "@/lib/plan/types";
+import type { PlanItemStatus, PlanItemType, PlanMeetingStatus } from "@/lib/plan/types";
 
 export function toIsoDate(d: Date | null | undefined): string {
   return d ? d.toISOString().slice(0, 10) : "";
@@ -18,6 +15,10 @@ export type PlanItemJson = {
   parentItemId: string | null;
   meetingStatus: PlanMeetingStatus | null;
   scheduledTime: string | null;
+  showOnReports?: boolean;
+  reportLabel?: string | null;
+  status?: PlanItemStatus;
+  completedAt?: string | null;
 };
 
 export type PlanPhaseJson = {
@@ -26,6 +27,8 @@ export type PlanPhaseJson = {
   name: string;
   color: string;
   order: number;
+  showOnReports?: boolean;
+  reportLabel?: string | null;
   items: PlanItemJson[];
 };
 
@@ -78,6 +81,10 @@ type PlanItemRecord = {
   parentItemId?: string | null;
   meetingStatus?: PlanMeetingStatus | null;
   scheduledTime?: string | null;
+  showOnReports?: boolean;
+  reportLabel?: string | null;
+  status?: PlanItemStatus;
+  completedAt?: Date | null;
 };
 
 type PlanPhaseRecord = {
@@ -86,6 +93,8 @@ type PlanPhaseRecord = {
   name: string;
   color: string;
   order: number;
+  showOnReports?: boolean;
+  reportLabel?: string | null;
   items?: PlanItemRecord[];
 };
 
@@ -113,6 +122,10 @@ export function serializePlanItem(item: PlanItemRecord): PlanItemJson {
     parentItemId: item.parentItemId ?? null,
     meetingStatus: item.meetingStatus ?? null,
     scheduledTime: item.scheduledTime ?? null,
+    showOnReports: item.showOnReports ?? false,
+    reportLabel: item.reportLabel ?? null,
+    status: item.status ?? "not_started",
+    completedAt: item.completedAt ? item.completedAt.toISOString() : null,
   };
 }
 
@@ -128,6 +141,8 @@ export function serializePlanPhase(phase: PlanPhaseRecord): PlanPhaseJson {
     name: phase.name,
     color: phase.color,
     order: phase.order,
+    showOnReports: phase.showOnReports ?? true,
+    reportLabel: phase.reportLabel ?? null,
     items,
   };
 }

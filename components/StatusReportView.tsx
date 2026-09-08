@@ -394,6 +394,7 @@ function TimelineBlock({
                       left: `${positionPercent(visibleStart)}%`,
                       width: `${renderedWidth}%`,
                       backgroundColor: bar.color ?? TIMELINE_BAR_BG,
+                      opacity: bar.muted ? 0.45 : 1,
                     }}
                   >
                     <span
@@ -423,6 +424,7 @@ function TimelineBlock({
                       width: SR_TIMELINE_MARKER_COL_PX,
                       marginLeft: hangLeft ? -SR_TIMELINE_MARKER_COL_PX : 0,
                       alignItems: hangLeft ? "flex-end" : "flex-start",
+                      opacity: m.muted ? 0.45 : 1,
                     }}
                   >
                     <svg

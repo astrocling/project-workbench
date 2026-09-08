@@ -83,6 +83,9 @@ When an Admin has enabled **Plan**, the tab is a Smartsheet-style grid (left) an
 
 - **Dates on the Gantt** — Drag a task or assumed-meeting bar to move it (duration stays the same). Drag the left or right edge to resize. Drag a milestone, sign-off, hard-deadline, or scheduled-meeting diamond to change that single date. Dates snap to calendar days (the same as the Start/End cells). Child rows do not move when you drag a parent bar. **Escape** cancels a drag in progress.
 - **Reorder and nest** — Drag the grip on an item row. Drop **on another item** to nest under it (up to three levels). Drop on the **top edge** of a row to insert as a sibling before it. Drop on a **phase** row (or that phase’s **Add item** row) to make it a top-level item in that phase. Nested children travel with the item when it changes phase. Indent/Outdent still work.
+- **Delete** — Select a phase or item, then **Delete** on the toolbar (or **Delete** / **Backspace** when you are not typing in a field). Deleting a phase removes all of its items. Nested children are removed with their parent.
+- **Status reports columns** — **Rpt** chooses whether that phase or item appears on Plan-sourced status-report schedules. Short names for a specific slide are set on that report’s **Arrange this report’s schedule** board, not here. New key dates and scheduled meetings default to shown; tasks, waiting-on-client, and assumed meetings default to hidden as markers (they still stretch the phase bar).
+- **Status** — Mark items **Not started**, **In progress**, or **Complete**. The Plan header shows how many items are complete. Completed key dates still appear on new reports (when **Rpt** is on) but are drawn faded.
 - Viewers without edit permission see the grid and Gantt without grips or bar handles.
 
 ### Settings tab (editors)
@@ -241,11 +244,11 @@ When an Admin has enabled **Plan** for the project (**Settings → Enable Plan t
 | Field | Purpose |
 |-------|---------|
 | **Schedule source** | **Project timeline** (bars and markers from the **Timeline** tab) or **Project Plan** (compact phase bars and key-date markers from the **Plan** tab). Defaults to the value set on the **Plan** tab (**New status reports use**). |
-| **Plan density** | Shown when source is **Project Plan**: **Phases only** or **Phases + key dates** (default). |
+| **Plan density** | Shown when source is **Project Plan**: **Phases only** or **Phases + key dates** (default). Fine-grained show/hide lives on the **Plan** tab (**Rpt**), then freeze into the report snapshot at create time. Short names for that slide are edited on **Arrange this report’s schedule**. |
 
 **CDA** and **Modular** variations do not show these fields. Projects with Plan **off** always use **Project timeline** (legacy behavior).
 
-On **edit**, schedule source and plan density are **locked** (read-only), same as report date and **Previous months on schedule**. Use **Refresh timeline** or **Refresh schedule** (below) to update the stored bars/markers after changing the Timeline or Plan tab. If Plan is later disabled on the project, reports that used **Project Plan** still show their locked schedule source and density when you edit them, and the saved schedule keeps showing on the slide — but **Refresh schedule** fails with *“Plan is not enabled for this project.”* until an Admin turns Plan back on in **Settings**.
+On **edit**, schedule source and plan density are **locked** (read-only), same as report date and **Previous months on schedule**. Editing the Plan tab does **not** change saved reports. Use **Refresh timeline** or **Refresh schedule** (below) to replace the stored bars/markers after changing the Timeline or Plan tab. For Plan-source reports you can also **Arrange this report’s schedule**: a mini Gantt of the snapshot where you **drag** phase bars and key dates between rows (or into Hidden). Dates do not change. Click an item to rename it for this slide. If Plan is later disabled on the project, reports that used **Project Plan** still show their locked schedule source and density when you edit them, and the saved schedule keeps showing on the slide — but **Refresh schedule** fails with *“Plan is not enabled for this project.”* until an Admin turns Plan back on in **Settings**.
 
 ### Modular variation (Story Points / Velocity)
 
@@ -297,9 +300,9 @@ When you **save a new** status report, Workbench stores a **snapshot** with the 
 
 **Modular** reports store sprint/story-point/donut content separately in the report’s **panels** field (not in the budget/timeline snapshot). The snapshot for Modular holds only the reporting **period** and **today** date. Panel data is editable on **Update** and is what preview and PDF use for the bottom section.
 
-- **What you can still edit** on an existing report: narrative fields (completed / upcoming / risks / meeting notes), RAG values and explanations, **variation** where the form allows it, **Show project budget on report** for **Standard** reports (see above), and sprint schedule / story points / donut KPI **panels** for **Modular** reports.
+- **What you can still edit** on an existing report: narrative fields (completed / upcoming / risks / meeting notes), RAG values and explanations, **variation** where the form allows it, **Show project budget on report** for **Standard** reports (see above), **Arrange this report’s schedule** for Plan-source reports (mini Gantt: drag between rows or Hidden; click to rename), and sprint schedule / story points / donut KPI **panels** for **Modular** reports.
 - **Meeting notes with formatting**: If you paste content that includes **HTML** from another tool, the preview, HTML view, and **Download PDF** keep **allowed** formatting (paragraphs, lists, links, basic styles) and drop unsafe markup automatically. Plain-text notes support line breaks and clickable URLs (paste `https://…` or use `[label](url)`). If client-side PDF generation fails, the preview offers **Download PDF (server)** as a fallback; that path may not preserve HTML formatting in meeting notes.
-- **What stays locked** unless you use **Refresh timeline**, **Refresh schedule**, **Refresh budget**, or **Refresh milestones on report** (below): **report date**, **reporting period**, **schedule source** and **plan density** (when Plan is enabled or the report used Plan), **Previous months on schedule** (the 1–4 month window chosen at create time), budget/CDA monthly snapshot, **CDA milestone dates** (on CDA reports), and—by default—the **timeline** bars and markers (from Timeline or Plan, depending on source).
+- **What stays locked** unless you use **Refresh timeline**, **Refresh schedule**, **Refresh budget**, or **Refresh milestones on report** (below): **report date**, **reporting period**, **schedule source** and **plan density** (when Plan is enabled or the report used Plan), **Previous months on schedule** (the 1–4 month window chosen at create time), budget/CDA monthly snapshot, **CDA milestone dates** (on CDA reports), and—by default—the **timeline** bars and markers (from Timeline or Plan, depending on source). Plan-tab edits never rewrite a saved report until you refresh.
 
 ### Refresh budget (Standard, Milestones, and CDA; editors only)
 
@@ -317,7 +320,7 @@ If you updated the project **Timeline** tab **after** a report was saved with **
 
 1. Open **Edit report** for that row (pencil).
 2. Under **Previous months on schedule** (read-only on edit), click **Refresh timeline** (Timeline source) or **Refresh schedule** (Plan source).
-3. Read the confirmation dialog: it explains that the **schedule stored on this report** will be **replaced** with your project’s **current** Timeline bars/markers or **current** Plan phases/key dates. Your **report date** and **how many previous months** are shown do **not** change; other snapshot data (for example budget) is **not** affected.
+3. Read the confirmation dialog: it explains that the **schedule stored on this report** will be **replaced** with your project’s **current** Timeline bars/markers or **current** Plan phases/key dates (including current **Rpt** settings). Per-report arrange tweaks (row, hide, short names) are kept when the same phase or item still exists. Your **report date** and **how many previous months** are shown do **not** change; other snapshot data (for example budget) is **not** affected.
 4. Confirm to apply, or cancel to keep the existing stored schedule.
 
 If the project has **no** schedule the app can render (for example **no end date**, or Plan with no dated phases when source is Plan), the action may fail with an error message—set the project end date and add content on the **Timeline** or **Plan** tab first. **Refresh schedule** also fails if **Plan** has been disabled on the project since the report was created.

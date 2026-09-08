@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   getSessionUserId,
   optionalHexColor,
+  optionalReportLabel,
   requireSession,
   resolveProjectId,
 } from "@/lib/plan/api";
@@ -15,6 +16,8 @@ const patchSchema = z.object({
   name: z.string().min(1).optional(),
   color: optionalHexColor,
   order: z.number().int().optional(),
+  showOnReports: z.boolean().optional(),
+  reportLabel: optionalReportLabel,
 });
 
 export async function PATCH(
@@ -50,6 +53,8 @@ export async function PATCH(
       ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
       ...(parsed.data.color !== undefined ? { color: parsed.data.color } : {}),
       ...(parsed.data.order !== undefined ? { order: parsed.data.order } : {}),
+      ...(parsed.data.showOnReports !== undefined ? { showOnReports: parsed.data.showOnReports } : {}),
+      ...(parsed.data.reportLabel !== undefined ? { reportLabel: parsed.data.reportLabel } : {}),
     },
     include: { items: { orderBy: { order: "asc" } } },
   });

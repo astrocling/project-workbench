@@ -6,7 +6,9 @@ import {
   getPlanItemsForValidation,
   getSessionUserId,
   normalizeItemDates,
+  optionalReportLabel,
   parseDate,
+  planItemStatusEnum,
   planItemTypeEnum,
   planMeetingStatusEnum,
   requireSession,
@@ -17,6 +19,8 @@ import {
 import { requirePlanEditSessionForProject } from "@/lib/plan/feature";
 import { serializePlanItem } from "@/lib/plan/serialize";
 import { touchPlan } from "@/lib/plan/touchPlan";
+import { defaultShowOnReports } from "@/lib/plan/reportVisibility";
+import { completedAtForStatus } from "@/lib/plan/completion";
 
 const postSchema = z.object({
   phaseId: z.string().min(1),
@@ -28,6 +32,9 @@ const postSchema = z.object({
   parentItemId: z.string().min(1).nullable().optional(),
   meetingStatus: planMeetingStatusEnum.nullable().optional(),
   scheduledTime: z.string().nullable().optional(),
+  showOnReports: z.boolean().optional(),
+  reportLabel: optionalReportLabel,
+  status: planItemStatusEnum.optional(),
 });
 
 export async function POST(
@@ -62,6 +69,9 @@ export async function POST(
 
   const meetingStatus = parsed.data.type === "meeting" ? parsed.data.meetingStatus ?? null : null;
   const scheduledTime = parsed.data.type === "meeting" ? parsed.data.scheduledTime ?? null : null;
+  const showOnReports =
+    parsed.data.showOnReports ?? defaultShowOnReports(parsed.data.type, meetingStatus);
+  const status = parsed.data.status ?? "not_started";
   const parentItemId = parsed.data.parentItemId ?? null;
   const dates = normalizeItemDates({
     type: parsed.data.type,
@@ -111,6 +121,10 @@ export async function POST(
         parentItemId,
         meetingStatus,
         scheduledTime,
+        showOnReports,
+        reportLabel: parsed.data.reportLabel ?? null,
+        status,
+        completedAt: completedAtForStatus(status, null),
       },
     });
 

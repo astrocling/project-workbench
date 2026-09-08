@@ -1,21 +1,34 @@
 import type { PlanItemJson, PlanPhaseJson } from "@/lib/plan/serialize";
+import {
+  itemShowsOnReports,
+  phaseShowsOnReports,
+} from "@/lib/plan/reportVisibility";
+import { isPlanItemComplete } from "@/lib/plan/completion";
 
 export type PlanReportDensity = "phases" | "phases_and_key_dates";
 
+export type ReportScheduleBar = {
+  phaseId?: string;
+  rowIndex: number;
+  label: string;
+  startDate: string;
+  endDate: string;
+  color: string | null;
+  muted?: boolean;
+};
+
+export type ReportScheduleMarker = {
+  itemId?: string;
+  label: string;
+  date: string;
+  shape: string;
+  rowIndex: number;
+  muted?: boolean;
+};
+
 export type ReportScheduleSlice = {
-  bars: Array<{
-    rowIndex: number;
-    label: string;
-    startDate: string;
-    endDate: string;
-    color: string | null;
-  }>;
-  markers: Array<{
-    label: string;
-    date: string;
-    shape: string;
-    rowIndex: number;
-  }>;
+  bars: ReportScheduleBar[];
+  markers: ReportScheduleMarker[];
 };
 
 function phaseRowIndex(order: number): number {
@@ -56,7 +69,9 @@ export function compactPlanToSchedule(
   phases: PlanPhaseJson[],
   density: PlanReportDensity
 ): ReportScheduleSlice | null {
-  const datedPhases = phases.filter((phase) => phase.items.length > 0);
+  const datedPhases = phases.filter(
+    (phase) => phaseShowsOnReports(phase) && phase.items.length > 0
+  );
   if (datedPhases.length === 0) {
     return null;
   }
@@ -71,12 +86,15 @@ export function compactPlanToSchedule(
       if (startDate >= endDate) {
         return null;
       }
+      const muted = phase.items.every((item) => isPlanItemComplete(item));
       return {
+        phaseId: phase.id,
         rowIndex: phaseRowIndex(phase.order),
         label: phase.name,
         startDate,
         endDate,
         color: null,
+        ...(muted ? { muted: true } : {}),
       };
     })
     .filter((bar): bar is NonNullable<typeof bar> => bar != null);
@@ -88,13 +106,18 @@ export function compactPlanToSchedule(
   const markers = datedPhases.flatMap((phase) => {
     const rowIndex = phaseRowIndex(phase.order);
     return phase.items
-      .filter(isKeyDateMarker)
-      .map((item) => ({
-        label: item.label,
-        date: item.startDate,
-        shape: markerShape(item),
-        rowIndex,
-      }));
+      .filter((item) => isKeyDateMarker(item) && itemShowsOnReports(item))
+      .map((item) => {
+        const muted = isPlanItemComplete(item);
+        return {
+          itemId: item.id,
+          label: item.label,
+          date: item.startDate,
+          shape: markerShape(item),
+          rowIndex,
+          ...(muted ? { muted: true } : {}),
+        };
+      });
   });
 
   return bars.length === 0 && markers.length === 0 ? null : { bars, markers };
