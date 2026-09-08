@@ -2,13 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent } from "react";
 import {
+  Calendar,
   ChevronDown,
   ChevronRight,
+  Clock,
+  Diamond,
+  Flag,
   GripVertical,
   Indent,
+  ListTodo,
   Outdent,
+  PenLine,
   Plus,
   Trash2,
+  type LucideIcon,
 } from "lucide-react";
 import { expandYmdRange, isWeekendYmd } from "@/lib/plan/businessDays";
 import {
@@ -51,17 +58,25 @@ import {
   type PlanMeetingStatus,
 } from "@/lib/plan/types";
 import { defaultShowOnReports } from "@/lib/plan/reportVisibility";
+import {
+  fitGanttColWidth,
+  formatCompactYmd,
+  readableGanttColWidth,
+} from "@/lib/plan/ganttColWidth";
 
 const MEETING_VIOLET = "#6d28d9";
 const ROW_HEIGHT = 36;
-const GRID_WIDTH = 700;
+const COMPACT_GRID_WIDTH = 400;
+const FULL_GRID_INNER_WIDTH = 906;
 const EXPAND_COL = 28;
-const TYPE_COL = 120;
-const DATE_COL = 108;
+const NAME_COL = 220;
+const TYPE_COL = 160;
+const DATE_COL = 140;
 const DURATION_COL = 56;
 const REPORT_CHECK_COL = 32;
-const STATUS_COL = 108;
-const MIN_COL_WIDTH = 12;
+const STATUS_COL = 130;
+const COMPACT_DATE_COL = 88;
+const COMPACT_STATUS_COL = 72;
 const DROP_EDGE_PX = 10;
 const PLAN_ITEM_DRAG = "text/plan-item";
 
@@ -87,8 +102,37 @@ const ITEM_TYPE_LABELS: Record<PlanItemType, string> = {
   meeting: "Meeting",
 };
 
+const ITEM_TYPE_ICONS: Record<PlanItemType, LucideIcon> = {
+  task: ListTodo,
+  milestone: Diamond,
+  sign_off: PenLine,
+  hard_deadline: Flag,
+  waiting_on_client: Clock,
+  meeting: Calendar,
+};
+
 type RowKey = string;
 type ZoomMode = "fit" | PlanScale;
+type GridDensity = "compact" | "full";
+
+function compactDateLabel(item: PlanItemJson): { text: string; title: string } {
+  const start = formatCompactYmd(item.startDate);
+  if (isPointType(item.type, item.meetingStatus) || item.startDate === item.endDate) {
+    return { text: start, title: item.startDate };
+  }
+  return {
+    text: `${start}–${formatCompactYmd(item.endDate)}`,
+    title: `${item.startDate} – ${item.endDate}`,
+  };
+}
+
+function itemTypeTitle(item: PlanItemJson): string {
+  const label = ITEM_TYPE_LABELS[item.type];
+  if (item.type === "meeting" && item.meetingStatus) {
+    return `${label} (${item.meetingStatus})`;
+  }
+  return label;
+}
 
 type DisplayRow =
   | { kind: "data"; row: PlanVisibleRow }
@@ -226,12 +270,6 @@ export function DateCell({
   );
 }
 
-function columnPixelWidth(scale: ReturnType<typeof getPlanScale>): number {
-  if (scale === "day") return 28;
-  if (scale === "week") return 48;
-  return 72;
-}
-
 type PlanGridGanttProps = {
   plan: PlanJson;
   canEdit: boolean;
@@ -245,6 +283,7 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [zoomMode, setZoomMode] = useState<ZoomMode>("fit");
+  const [density, setDensity] = useState<GridDensity>("compact");
   const [paneWidth, setPaneWidth] = useState(0);
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
 
@@ -284,9 +323,10 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
     [axisRange, scale]
   );
   const colWidth =
-    zoomMode === "fit" && paneWidth > 0
-      ? Math.max(MIN_COL_WIDTH, paneWidth / Math.max(columns.length, 1))
-      : columnPixelWidth(scale);
+    zoomMode === "fit"
+      ? fitGanttColWidth(paneWidth, columns.length, scale)
+      : readableGanttColWidth(scale);
+  const leftGridWidth = density === "compact" ? COMPACT_GRID_WIDTH : FULL_GRID_INNER_WIDTH;
   const ganttWidth = columns.length * colWidth;
   const axisWidened =
     axisRange.startYmd < plan.kickoffDate || axisRange.endYmd > plan.endDate;
@@ -665,6 +705,8 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
     selectedRow.item.type === "meeting" &&
     selectedRow.item.meetingStatus === "assumed";
 
+  const bodyHeight = Math.min(480, Math.max(200, displayRows.length * ROW_HEIGHT + 8));
+
   return (
     <section className="space-y-2">
       <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 py-1 bg-white dark:bg-dark-surface">
@@ -726,25 +768,47 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
         ) : (
           <div />
         )}
-        <div
-          className="inline-flex rounded-md border border-surface-300 dark:border-dark-muted overflow-hidden"
-          aria-label="Gantt zoom"
-        >
-          {(["fit", "day", "week", "month"] as ZoomMode[]).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => setZoomMode(mode)}
-              className={`px-2.5 py-1 text-body-sm font-medium capitalize ${
-                zoomMode === mode
-                  ? "bg-surface-800 text-white dark:bg-surface-200 dark:text-surface-900"
-                  : "bg-white text-surface-700 hover:bg-surface-100 dark:bg-dark-surface dark:text-surface-300 dark:hover:bg-dark-raised"
-              }`}
-              aria-pressed={zoomMode === mode}
-            >
-              {mode}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <div
+            className="inline-flex rounded-md border border-surface-300 dark:border-dark-muted overflow-hidden"
+            aria-label="Grid density"
+          >
+            {(["compact", "full"] as GridDensity[]).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setDensity(mode)}
+                className={`px-2.5 py-1 text-body-sm font-medium capitalize ${
+                  density === mode
+                    ? "bg-surface-800 text-white dark:bg-surface-200 dark:text-surface-900"
+                    : "bg-white text-surface-700 hover:bg-surface-100 dark:bg-dark-surface dark:text-surface-300 dark:hover:bg-dark-raised"
+                }`}
+                aria-pressed={density === mode}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+          <div
+            className="inline-flex rounded-md border border-surface-300 dark:border-dark-muted overflow-hidden"
+            aria-label="Gantt zoom"
+          >
+            {(["fit", "day", "week", "month"] as ZoomMode[]).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setZoomMode(mode)}
+                className={`px-2.5 py-1 text-body-sm font-medium capitalize ${
+                  zoomMode === mode
+                    ? "bg-surface-800 text-white dark:bg-surface-200 dark:text-surface-900"
+                    : "bg-white text-surface-700 hover:bg-surface-100 dark:bg-dark-surface dark:text-surface-300 dark:hover:bg-dark-raised"
+                }`}
+                aria-pressed={zoomMode === mode}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -758,32 +822,25 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
       <div
         className="rounded-lg border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface overflow-hidden"
       >
-        <div className="flex border-b border-surface-200 dark:border-dark-border bg-surface-50 dark:bg-dark-raised">
-          <div className="shrink-0 border-r border-surface-200 dark:border-dark-border" style={{ width: GRID_WIDTH }}>
-            <GridHeader />
-          </div>
+        <div className="flex" style={{ height: bodyHeight + ROW_HEIGHT }}>
           <div
-            ref={headerScrollRef}
-            className="flex-1 overflow-hidden"
-            style={{ minWidth: 0 }}
+            className="shrink-0 overflow-x-auto overflow-y-hidden border-r border-surface-200 dark:border-dark-border"
+            style={{ width: leftGridWidth, maxWidth: "55%" }}
           >
-            <div style={{ width: ganttWidth }}>
-              <GanttHeader columns={columns} colWidth={colWidth} scale={scale} />
-            </div>
-          </div>
-        </div>
-
-        <div className="flex" style={{ height: Math.min(480, Math.max(200, displayRows.length * ROW_HEIGHT + 8)) }}>
-          <div
-            ref={leftScrollRef}
-            className="shrink-0 overflow-y-auto overflow-x-hidden border-r border-surface-200 dark:border-dark-border"
-            style={{ width: GRID_WIDTH }}
-            onScroll={(e) => {
-              if (rightScrollRef.current) {
-                syncVerticalScroll(e.currentTarget, rightScrollRef.current);
-              }
-            }}
-          >
+            <div style={{ minWidth: leftGridWidth }}>
+              <div className="bg-surface-50 dark:bg-dark-raised">
+                <GridHeader density={density} />
+              </div>
+              <div
+                ref={leftScrollRef}
+                className="overflow-y-auto overflow-x-hidden"
+                style={{ height: bodyHeight }}
+                onScroll={(e) => {
+                  if (rightScrollRef.current) {
+                    syncVerticalScroll(e.currentTarget, rightScrollRef.current);
+                  }
+                }}
+              >
             {displayRows.map((displayRow) => {
               if (displayRow.kind === "add-item") {
                 return (
@@ -827,6 +884,7 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
                 <GridRow
                   key={key}
                   row={row}
+                  density={density}
                   canEdit={canEdit}
                   isSelected={isSelected}
                   collapsedIds={collapsedIds}
@@ -863,9 +921,21 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
                 />
               );
             })}
+              </div>
+            </div>
           </div>
 
-          <div
+          <div className="flex-1 min-w-0 flex flex-col">
+            <div
+              ref={headerScrollRef}
+              className="overflow-hidden shrink-0 bg-surface-50 dark:bg-dark-raised"
+              style={{ minWidth: 0 }}
+            >
+              <div style={{ width: ganttWidth }}>
+                <GanttHeader columns={columns} colWidth={colWidth} scale={scale} />
+              </div>
+            </div>
+            <div
             ref={rightScrollRef}
             className="flex-1 overflow-x-auto overflow-y-auto"
             style={{ minWidth: 0 }}
@@ -941,6 +1011,7 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
                 )
               )}
             </div>
+            </div>
           </div>
         </div>
       </div>
@@ -994,21 +1065,44 @@ function GanttSpacerRow() {
   );
 }
 
-function GridHeader() {
+function GridHeader({ density }: { density: GridDensity }) {
+  if (density === "compact") {
+    return (
+      <div
+        className="flex items-center text-label-sm font-semibold uppercase tracking-wide text-surface-600 dark:text-surface-400 border-b border-surface-200 dark:border-dark-border"
+        style={{ height: ROW_HEIGHT, minWidth: COMPACT_GRID_WIDTH }}
+      >
+        <div style={{ width: EXPAND_COL }} className="shrink-0" />
+        <div className="flex-1 min-w-0 px-2">Name</div>
+        <div style={{ width: COMPACT_DATE_COL }} className="shrink-0 px-1">
+          Dates
+        </div>
+        <div style={{ width: COMPACT_STATUS_COL }} className="shrink-0 px-1">
+          Status
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className="flex items-center h-9 text-label-sm font-semibold uppercase tracking-wide text-surface-600 dark:text-surface-400 border-b border-surface-200 dark:border-dark-border"
-      style={{ height: ROW_HEIGHT }}
+      className="flex items-center text-label-sm font-semibold uppercase tracking-wide text-surface-600 dark:text-surface-400 border-b border-surface-200 dark:border-dark-border"
+      style={{ height: ROW_HEIGHT, minWidth: FULL_GRID_INNER_WIDTH }}
     >
       <div style={{ width: EXPAND_COL }} className="shrink-0" />
-      <div className="flex-1 min-w-0 px-2">Name</div>
-      <div style={{ width: TYPE_COL }} className="shrink-0 px-1">Type</div>
-      <div style={{ width: DATE_COL }} className="shrink-0 px-1">Start</div>
-      <div style={{ width: DATE_COL }} className="shrink-0 px-1">End</div>
-      <div
-        style={{ width: DURATION_COL }}
-        className="shrink-0 px-1 text-center"
-      >
+      <div className="px-2 shrink-0" style={{ minWidth: NAME_COL }}>
+        Name
+      </div>
+      <div style={{ width: TYPE_COL }} className="shrink-0 px-1">
+        Type
+      </div>
+      <div style={{ width: DATE_COL }} className="shrink-0 px-1">
+        Start
+      </div>
+      <div style={{ width: DATE_COL }} className="shrink-0 px-1">
+        End
+      </div>
+      <div style={{ width: DURATION_COL }} className="shrink-0 px-1 text-center">
         Days
       </div>
       <div
@@ -1025,8 +1119,19 @@ function GridHeader() {
   );
 }
 
+function TypeGlyph({ item }: { item: PlanItemJson }) {
+  const Icon = ITEM_TYPE_ICONS[item.type];
+  const title = itemTypeTitle(item);
+  return (
+    <span className="shrink-0 text-surface-500 dark:text-surface-400" title={title}>
+      <Icon size={14} aria-label={title} />
+    </span>
+  );
+}
+
 function GridRow({
   row,
+  density,
   canEdit,
   isSelected,
   collapsedIds,
@@ -1043,6 +1148,7 @@ function GridRow({
   onDropTarget,
 }: {
   row: PlanVisibleRow;
+  density: GridDensity;
   canEdit: boolean;
   isSelected: boolean;
   collapsedIds: Set<string>;
@@ -1079,6 +1185,10 @@ function GridRow({
   onDragLeaveRow: () => void;
   onDropTarget: (event: DragEvent<HTMLDivElement>, target: ItemDropTarget) => void;
 }) {
+  const compact = density === "compact";
+  const editColumns = !compact && canEdit;
+  const rowMinWidth = compact ? COMPACT_GRID_WIDTH : FULL_GRID_INNER_WIDTH;
+
   if (row.kind === "phase") {
     const phase = row.phase;
     const hasChildren = phase.items.length > 0;
@@ -1092,7 +1202,7 @@ function GridRow({
         className={`flex items-center border-b border-surface-100 dark:border-dark-border cursor-pointer ${
           isSelected ? "bg-jblue-50 dark:bg-jblue-900/20" : "hover:bg-surface-50 dark:hover:bg-dark-raised"
         } ${phaseDrop ? "ring-1 ring-inset ring-jblue-500 bg-jblue-50/80 dark:bg-jblue-900/30" : ""}`}
-        style={{ height: ROW_HEIGHT }}
+        style={{ height: ROW_HEIGHT, minWidth: rowMinWidth }}
         onClick={onSelect}
         onDragOver={canEdit ? (event) => onPhaseDragOver(event, phase.id) : undefined}
         onDragLeave={
@@ -1124,13 +1234,16 @@ function GridRow({
             </button>
           ) : null}
         </div>
-        <div className="flex-1 min-w-0 px-2 flex items-center gap-2">
+        <div
+          className={`px-2 flex items-center gap-2 ${compact ? "flex-1 min-w-0" : "shrink-0"}`}
+          style={compact ? undefined : { minWidth: NAME_COL }}
+        >
           <span
             className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
             style={{ backgroundColor: phase.color }}
             aria-hidden
           />
-          {canEdit ? (
+          {editColumns ? (
             <input
               ref={nameInputRef}
               type="text"
@@ -1144,31 +1257,45 @@ function GridRow({
               }}
             />
           ) : (
-            <span className="text-body-sm font-semibold text-surface-800 dark:text-surface-100 truncate">
+            <span
+              className={`text-body-sm font-semibold text-surface-800 dark:text-surface-100 ${
+                compact ? "truncate" : "whitespace-nowrap"
+              }`}
+              title={phase.name}
+            >
               {phase.name}
             </span>
           )}
         </div>
-        <div style={{ width: TYPE_COL }} className="shrink-0 px-1 text-body-sm text-surface-500">
-          Phase
-        </div>
-        <div style={{ width: DATE_COL }} className="shrink-0" />
-        <div style={{ width: DATE_COL }} className="shrink-0" />
-        <div style={{ width: DURATION_COL }} className="shrink-0" />
-        <div style={{ width: REPORT_CHECK_COL }} className="shrink-0 px-1 flex justify-center">
-          {canEdit ? (
-            <input
-              type="checkbox"
-              checked={phase.showOnReports !== false}
-              aria-label="Show phase on status reports"
-              onClick={(e) => e.stopPropagation()}
-              onChange={(e) => onPatchPhase(phase, { showOnReports: e.target.checked })}
-            />
-          ) : (
-            <span className="text-body-sm text-surface-500">{phase.showOnReports !== false ? "Yes" : "No"}</span>
-          )}
-        </div>
-        <div style={{ width: STATUS_COL }} className="shrink-0" />
+        {compact ? (
+          <>
+            <div style={{ width: COMPACT_DATE_COL }} className="shrink-0" />
+            <div style={{ width: COMPACT_STATUS_COL }} className="shrink-0" />
+          </>
+        ) : (
+          <>
+            <div style={{ width: TYPE_COL }} className="shrink-0 px-1 text-body-sm text-surface-500 whitespace-nowrap">
+              Phase
+            </div>
+            <div style={{ width: DATE_COL }} className="shrink-0" />
+            <div style={{ width: DATE_COL }} className="shrink-0" />
+            <div style={{ width: DURATION_COL }} className="shrink-0" />
+            <div style={{ width: REPORT_CHECK_COL }} className="shrink-0 px-1 flex justify-center">
+              {canEdit ? (
+                <input
+                  type="checkbox"
+                  checked={phase.showOnReports !== false}
+                  aria-label="Show phase on status reports"
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => onPatchPhase(phase, { showOnReports: e.target.checked })}
+                />
+              ) : (
+                <span className="text-body-sm text-surface-500">{phase.showOnReports !== false ? "Yes" : "No"}</span>
+              )}
+            </div>
+            <div style={{ width: STATUS_COL }} className="shrink-0" />
+          </>
+        )}
       </div>
     );
   }
@@ -1179,196 +1306,225 @@ function GridRow({
     const depth = row.depth;
     const hasChildren = phase.items.some((i: PlanItemJson) => i.parentItemId === item.id);
     const collapsed = collapsedIds.has(item.id);
-  const point = isPointType(item.type, item.meetingStatus);
-  const duration = calendarDays(item.startDate, item.endDate);
-  // A point item's end date follows its start date; the API derives that from the stored type,
-  // so neither cell has to send the other date back.
-  const saveStartDate = (startDate: string) => onPatchItemDates(item, { startDate });
-  const saveEndDate = (endDate: string) => onPatchItemDates(item, { endDate });
+    const point = isPointType(item.type, item.meetingStatus);
+    const duration = calendarDays(item.startDate, item.endDate);
+    const saveStartDate = (startDate: string) => onPatchItemDates(item, { startDate });
+    const saveEndDate = (endDate: string) => onPatchItemDates(item, { endDate });
+    const compactDates = compactDateLabel(item);
+    const statusLabel = ITEM_STATUS_LABELS[item.status ?? "not_started"];
 
-  const nestDrop = dropHover?.kind === "nest" && dropHover.itemId === item.id;
-  const beforeDrop = dropHover?.kind === "before" && dropHover.itemId === item.id;
+    const nestDrop = dropHover?.kind === "nest" && dropHover.itemId === item.id;
+    const beforeDrop = dropHover?.kind === "before" && dropHover.itemId === item.id;
 
-  return (
-    <div
-      className={`flex items-center border-b border-surface-100 dark:border-dark-border cursor-pointer ${
-        isSelected ? "bg-jblue-50 dark:bg-jblue-900/20" : "hover:bg-surface-50 dark:hover:bg-dark-raised"
-      } ${nestDrop ? "ring-1 ring-inset ring-jblue-500 bg-jblue-50/80 dark:bg-jblue-900/30" : ""} ${
-        beforeDrop ? "border-t-2 border-t-jblue-500" : ""
-      }`}
-      style={{ height: ROW_HEIGHT }}
-      onClick={onSelect}
-      onDragOver={canEdit ? (event) => onItemDragOver(event, item.id) : undefined}
-      onDragLeave={
-        canEdit
-          ? (event) => {
-              if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-              onDragLeaveRow();
-            }
-          : undefined
-      }
-      onDrop={
-        canEdit
-          ? (event) => {
-              const rect = event.currentTarget.getBoundingClientRect();
-              const edge = event.clientY - rect.top < DROP_EDGE_PX;
-              onDropTarget(
-                event,
-                edge ? { kind: "before", itemId: item.id } : { kind: "nest", itemId: item.id }
-              );
-            }
-          : undefined
-      }
-    >
-      <div style={{ width: EXPAND_COL }} className="shrink-0 flex justify-center">
-        {hasChildren ? (
-          <button
-            type="button"
-            className="p-0.5 text-surface-500"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleCollapse(item.id);
-            }}
-            aria-label={collapsed ? "Expand" : "Collapse"}
-          >
-            {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-          </button>
-        ) : null}
-      </div>
+    return (
       <div
-        className="flex-1 min-w-0 px-2 flex items-center gap-1"
-        style={{ paddingLeft: 8 + depth * 16 }}
+        className={`flex items-center border-b border-surface-100 dark:border-dark-border cursor-pointer ${
+          isSelected ? "bg-jblue-50 dark:bg-jblue-900/20" : "hover:bg-surface-50 dark:hover:bg-dark-raised"
+        } ${nestDrop ? "ring-1 ring-inset ring-jblue-500 bg-jblue-50/80 dark:bg-jblue-900/30" : ""} ${
+          beforeDrop ? "border-t-2 border-t-jblue-500" : ""
+        }`}
+        style={{ height: ROW_HEIGHT, minWidth: rowMinWidth }}
+        onClick={onSelect}
+        onDragOver={canEdit ? (event) => onItemDragOver(event, item.id) : undefined}
+        onDragLeave={
+          canEdit
+            ? (event) => {
+                if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+                onDragLeaveRow();
+              }
+            : undefined
+        }
+        onDrop={
+          canEdit
+            ? (event) => {
+                const rect = event.currentTarget.getBoundingClientRect();
+                const edge = event.clientY - rect.top < DROP_EDGE_PX;
+                onDropTarget(
+                  event,
+                  edge ? { kind: "before", itemId: item.id } : { kind: "nest", itemId: item.id }
+                );
+              }
+            : undefined
+        }
       >
-        {canEdit ? (
-          <button
-            type="button"
-            draggable
-            className="shrink-0 p-0.5 text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 cursor-grab active:cursor-grabbing"
-            title="Drag to reorder or move"
-            aria-label="Drag to reorder"
-            onClick={(e) => e.stopPropagation()}
-            onDragStart={(event) => {
-              event.dataTransfer.setData(PLAN_ITEM_DRAG, item.id);
-              event.dataTransfer.setData("text/plain", item.id);
-              event.dataTransfer.effectAllowed = "move";
-            }}
-            onDragEnd={onDragLeaveRow}
-          >
-            <GripVertical size={14} aria-hidden />
-          </button>
-        ) : null}
-        {canEdit ? (
-          <input
-            ref={nameInputRef}
-            type="text"
-            defaultValue={item.label}
-            key={item.id + item.label}
-            className={INPUT_CLASS}
-            onClick={(e) => e.stopPropagation()}
-            onBlur={(e) => {
-              const label = e.target.value.trim();
-              if (label && label !== item.label) onPatchItem(item, { label });
-            }}
-          />
+        <div style={{ width: EXPAND_COL }} className="shrink-0 flex justify-center">
+          {hasChildren ? (
+            <button
+              type="button"
+              className="p-0.5 text-surface-500"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleCollapse(item.id);
+              }}
+              aria-label={collapsed ? "Expand" : "Collapse"}
+            >
+              {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+            </button>
+          ) : null}
+        </div>
+        <div
+          className={`px-2 flex items-center gap-1 ${compact ? "flex-1 min-w-0" : "shrink-0"}`}
+          style={{
+            paddingLeft: 8 + depth * 16,
+            ...(compact ? {} : { minWidth: NAME_COL }),
+          }}
+        >
+          {canEdit ? (
+            <button
+              type="button"
+              draggable
+              className="shrink-0 p-0.5 text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 cursor-grab active:cursor-grabbing"
+              title="Drag to reorder or move"
+              aria-label="Drag to reorder"
+              onClick={(e) => e.stopPropagation()}
+              onDragStart={(event) => {
+                event.dataTransfer.setData(PLAN_ITEM_DRAG, item.id);
+                event.dataTransfer.setData("text/plain", item.id);
+                event.dataTransfer.effectAllowed = "move";
+              }}
+              onDragEnd={onDragLeaveRow}
+            >
+              <GripVertical size={14} aria-hidden />
+            </button>
+          ) : null}
+          {compact ? <TypeGlyph item={item} /> : null}
+          {editColumns ? (
+            <input
+              ref={nameInputRef}
+              type="text"
+              defaultValue={item.label}
+              key={item.id + item.label}
+              className={INPUT_CLASS}
+              onClick={(e) => e.stopPropagation()}
+              onBlur={(e) => {
+                const label = e.target.value.trim();
+                if (label && label !== item.label) onPatchItem(item, { label });
+              }}
+            />
+          ) : (
+            <span
+              className={`text-body-sm text-surface-800 dark:text-surface-100 ${
+                compact ? "truncate block min-w-0" : "whitespace-nowrap"
+              }`}
+              title={item.label}
+            >
+              {item.label}
+            </span>
+          )}
+        </div>
+        {compact ? (
+          <>
+            <div
+              style={{ width: COMPACT_DATE_COL }}
+              className="shrink-0 px-1 text-body-sm tabular-nums text-surface-600 dark:text-surface-400 truncate"
+              title={compactDates.title}
+            >
+              {compactDates.text}
+            </div>
+            <div
+              style={{ width: COMPACT_STATUS_COL }}
+              className="shrink-0 px-1 text-body-sm text-surface-600 dark:text-surface-400 truncate"
+              title={statusLabel}
+            >
+              {statusLabel}
+            </div>
+          </>
         ) : (
-          <span className="text-body-sm text-surface-800 dark:text-surface-100 truncate block">
-            {item.label}
-          </span>
+          <>
+            <div style={{ width: TYPE_COL }} className="shrink-0 px-1">
+              {canEdit ? (
+                <select
+                  value={item.type}
+                  className={INPUT_CLASS}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => {
+                    const type = e.target.value as PlanItemType;
+                    const meetingStatus: PlanMeetingStatus | null =
+                      type === "meeting" ? "assumed" : null;
+                    onPatchItem(item, { type, meetingStatus });
+                  }}
+                >
+                  {PLAN_ITEM_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {ITEM_TYPE_LABELS[t]}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="text-body-sm text-surface-600 dark:text-surface-400 whitespace-nowrap">
+                  {itemTypeTitle(item)}
+                </span>
+              )}
+            </div>
+            <div style={{ width: DATE_COL }} className="shrink-0 px-1">
+              {canEdit ? (
+                <DateCell value={item.startDate} onCommit={saveStartDate} />
+              ) : (
+                <span className="text-body-sm tabular-nums text-surface-700 dark:text-surface-300 whitespace-nowrap">
+                  {item.startDate}
+                </span>
+              )}
+            </div>
+            <div style={{ width: DATE_COL }} className="shrink-0 px-1">
+              {canEdit && !point ? (
+                <DateCell value={item.endDate} onCommit={saveEndDate} />
+              ) : (
+                <span
+                  className={`text-body-sm tabular-nums whitespace-nowrap ${
+                    point
+                      ? "text-surface-400 dark:text-surface-500"
+                      : "text-surface-700 dark:text-surface-300"
+                  }`}
+                >
+                  {point ? "—" : item.endDate}
+                </span>
+              )}
+            </div>
+            <div
+              style={{ width: DURATION_COL }}
+              className="shrink-0 px-1 text-center text-body-sm tabular-nums text-surface-600 dark:text-surface-400"
+            >
+              {duration}
+            </div>
+            <div style={{ width: REPORT_CHECK_COL }} className="shrink-0 px-1 flex justify-center">
+              {canEdit ? (
+                <input
+                  type="checkbox"
+                  checked={item.showOnReports ?? defaultShowOnReports(item.type, item.meetingStatus)}
+                  aria-label="Show item on status reports"
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => onPatchItem(item, { showOnReports: e.target.checked })}
+                />
+              ) : (
+                <span className="text-body-sm text-surface-500">
+                  {(item.showOnReports ?? defaultShowOnReports(item.type, item.meetingStatus)) ? "Yes" : "No"}
+                </span>
+              )}
+            </div>
+            <div style={{ width: STATUS_COL }} className="shrink-0 px-1">
+              {canEdit ? (
+                <select
+                  value={item.status ?? "not_started"}
+                  className={INPUT_CLASS}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => onPatchItem(item, { status: e.target.value as PlanItemStatus })}
+                >
+                  {PLAN_ITEM_STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {ITEM_STATUS_LABELS[status]}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="text-body-sm text-surface-600 dark:text-surface-400 whitespace-nowrap">
+                  {statusLabel}
+                </span>
+              )}
+            </div>
+          </>
         )}
       </div>
-      <div style={{ width: TYPE_COL }} className="shrink-0 px-1">
-        {canEdit ? (
-          <select
-            value={item.type}
-            className={INPUT_CLASS}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => {
-              const type = e.target.value as PlanItemType;
-              const meetingStatus: PlanMeetingStatus | null =
-                type === "meeting" ? "assumed" : null;
-              onPatchItem(item, { type, meetingStatus });
-            }}
-          >
-            {PLAN_ITEM_TYPES.map((t) => (
-              <option key={t} value={t}>{ITEM_TYPE_LABELS[t]}</option>
-            ))}
-          </select>
-        ) : (
-          <span className="text-body-sm text-surface-600 dark:text-surface-400">
-            {ITEM_TYPE_LABELS[item.type]}
-            {item.type === "meeting" && item.meetingStatus
-              ? ` (${item.meetingStatus})`
-              : ""}
-          </span>
-        )}
-      </div>
-      <div style={{ width: DATE_COL }} className="shrink-0 px-1">
-        {canEdit ? (
-          <DateCell value={item.startDate} onCommit={saveStartDate} />
-        ) : (
-          <span className="text-body-sm tabular-nums text-surface-700 dark:text-surface-300">
-            {item.startDate}
-          </span>
-        )}
-      </div>
-      <div style={{ width: DATE_COL }} className="shrink-0 px-1">
-        {canEdit && !point ? (
-          <DateCell value={item.endDate} onCommit={saveEndDate} />
-        ) : (
-          <span
-            className={`text-body-sm tabular-nums ${
-              point
-                ? "text-surface-400 dark:text-surface-500"
-                : "text-surface-700 dark:text-surface-300"
-            }`}
-          >
-            {point ? "—" : item.endDate}
-          </span>
-        )}
-      </div>
-      <div
-        style={{ width: DURATION_COL }}
-        className="shrink-0 px-1 text-center text-body-sm tabular-nums text-surface-600 dark:text-surface-400"
-      >
-        {duration}
-      </div>
-      <div style={{ width: REPORT_CHECK_COL }} className="shrink-0 px-1 flex justify-center">
-        {canEdit ? (
-          <input
-            type="checkbox"
-            checked={item.showOnReports ?? defaultShowOnReports(item.type, item.meetingStatus)}
-            aria-label="Show item on status reports"
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => onPatchItem(item, { showOnReports: e.target.checked })}
-          />
-        ) : (
-          <span className="text-body-sm text-surface-500">
-            {(item.showOnReports ?? defaultShowOnReports(item.type, item.meetingStatus)) ? "Yes" : "No"}
-          </span>
-        )}
-      </div>
-      <div style={{ width: STATUS_COL }} className="shrink-0 px-1">
-        {canEdit ? (
-          <select
-            value={item.status ?? "not_started"}
-            className={INPUT_CLASS}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => onPatchItem(item, { status: e.target.value as PlanItemStatus })}
-          >
-            {PLAN_ITEM_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {ITEM_STATUS_LABELS[status]}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span className="text-body-sm text-surface-600 dark:text-surface-400">
-            {ITEM_STATUS_LABELS[item.status ?? "not_started"]}
-          </span>
-        )}
-      </div>
-    </div>
-  );
+    );
   }
 
   return null;
@@ -1394,7 +1550,7 @@ function GanttHeader({
         return (
           <div
             key={col.key}
-            className={`shrink-0 text-center text-label-sm font-bold uppercase tracking-wide text-white truncate px-0.5 ${
+            className={`shrink-0 text-center text-label-sm font-bold uppercase tracking-wide text-white px-0.5 ${
               i < columns.length - 1 ? "border-r border-white/30" : ""
             } ${weekend ? "opacity-90" : ""}`}
             style={{
