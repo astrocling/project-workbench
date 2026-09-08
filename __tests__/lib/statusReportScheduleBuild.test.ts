@@ -4,8 +4,10 @@ import {
   buildLegacyTimeline,
   buildPlanTimelineCandidate,
   isValidPlanTimeline,
+  resolveReportTimelineAxis,
   shouldBuildTimelineFromLegacy,
   shouldBuildTimelineFromPlan,
+  shouldClipLockedTimelineToPreviousMonths,
   shouldUseLockedTimeline,
 } from "@/lib/statusReportScheduleBuild";
 import { timelineHasVisibleSchedule } from "@/lib/plan/reportSchedule";
@@ -124,6 +126,80 @@ describe("statusReportScheduleBuild", () => {
       );
       // The renderers gate on the same helper, so a marker-only legacy snapshot still draws.
       expect(timelineHasVisibleSchedule(timeline)).toBe(true);
+    });
+  });
+
+  describe("resolveReportTimelineAxis", () => {
+    const projectStart = "2026-03-02";
+    const projectEnd = "2026-08-31";
+    const reportDate = new Date("2026-09-08T00:00:00.000Z");
+
+    it("clips Timeline-source axis to previous months before the report date", () => {
+      expect(
+        resolveReportTimelineAxis({
+          scheduleSource: "timeline",
+          projectStartYmd: projectStart,
+          projectEndYmd: projectEnd,
+          reportDate,
+          previousMonths: 1,
+        })
+      ).toEqual({ startDate: "2026-08-01", endDate: projectEnd });
+    });
+
+    it("keeps the full project range for Plan-source so earlier phases stay visible", () => {
+      expect(
+        resolveReportTimelineAxis({
+          scheduleSource: "plan",
+          projectStartYmd: projectStart,
+          projectEndYmd: projectEnd,
+          reportDate,
+          previousMonths: 1,
+        })
+      ).toEqual({ startDate: projectStart, endDate: projectEnd });
+    });
+
+    it("makes a Plan with only early-phase work valid on a late report date", () => {
+      const phases: PlanPhaseJson[] = [
+        phase("Discovery", [
+          {
+            id: "t1",
+            phaseId: "phase-Discovery",
+            type: "task",
+            label: "Workshop Prep",
+            startDate: "2026-03-02",
+            endDate: "2026-04-02",
+            order: 0,
+            parentItemId: null,
+            meetingStatus: null,
+            scheduledTime: null,
+          },
+        ]),
+      ];
+      const clipped = resolveReportTimelineAxis({
+        scheduleSource: "timeline",
+        projectStartYmd: projectStart,
+        projectEndYmd: projectEnd,
+        reportDate,
+        previousMonths: 1,
+      });
+      const full = resolveReportTimelineAxis({
+        scheduleSource: "plan",
+        projectStartYmd: projectStart,
+        projectEndYmd: projectEnd,
+        reportDate,
+        previousMonths: 1,
+      });
+      expect(isValidPlanTimeline(buildPlanTimelineCandidate(phases, "phases", clipped))).toBe(
+        false
+      );
+      expect(isValidPlanTimeline(buildPlanTimelineCandidate(phases, "phases", full))).toBe(true);
+    });
+  });
+
+  describe("shouldClipLockedTimelineToPreviousMonths", () => {
+    it("clips locked Timeline snapshots and leaves Plan snapshots on their stored axis", () => {
+      expect(shouldClipLockedTimelineToPreviousMonths("timeline")).toBe(true);
+      expect(shouldClipLockedTimelineToPreviousMonths("plan")).toBe(false);
     });
   });
 });

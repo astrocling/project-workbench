@@ -11,8 +11,10 @@ import type { PlanReportDensity } from "@/lib/plan/reportSchedule";
 import {
   buildLegacyTimeline,
   buildPlanTimelineCandidate,
+  resolveReportTimelineAxis,
   shouldBuildTimelineFromLegacy,
   shouldBuildTimelineFromPlan,
+  shouldClipLockedTimelineToPreviousMonths,
   shouldUseLockedTimeline,
 } from "@/lib/statusReportScheduleBuild";
 
@@ -269,20 +271,18 @@ export async function buildStatusReportPdfData(
       snapshot.timelinePreviousMonths <= 4
         ? snapshot.timelinePreviousMonths
         : null;
-    if (prevMonths != null) {
-      const reportDate = new Date(report.reportDate);
-      const minStartDate = new Date(
-        Date.UTC(
-          reportDate.getUTCFullYear(),
-          reportDate.getUTCMonth() - prevMonths,
-          1
-        )
-      );
-      const minStartStr = minStartDate.toISOString().slice(0, 10);
-      const projectStartStr = project.startDate.toISOString().slice(0, 10);
-      const effectiveStartStr =
-        projectStartStr < minStartStr ? minStartStr : projectStartStr;
-      timeline = { ...timeline, startDate: effectiveStartStr };
+    if (
+      prevMonths != null &&
+      shouldClipLockedTimelineToPreviousMonths(resolveScheduleSource(snapshot))
+    ) {
+      const clipped = resolveReportTimelineAxis({
+        scheduleSource: "timeline",
+        projectStartYmd: project.startDate.toISOString().slice(0, 10),
+        projectEndYmd: (timeline.endDate ?? "").slice(0, 10),
+        reportDate: new Date(report.reportDate),
+        previousMonths: prevMonths,
+      });
+      timeline = { ...timeline, startDate: clipped.startDate };
     }
     // Ensure bar colors are present (snapshots created before color existed may lack them)
     if (timeline && (project.timelineBars ?? []).length > 0) {
@@ -441,19 +441,19 @@ export async function buildStatusReportPdfData(
   if (timeline === undefined && project.endDate != null) {
     const startStr = project.startDate.toISOString().slice(0, 10);
     const endStr = project.endDate.toISOString().slice(0, 10);
-    // On status report, limit how many months before the report date are shown (1–4)
     const previousMonths = Math.min(
       4,
       Math.max(1, options?.timelinePreviousMonths ?? snapshot?.timelinePreviousMonths ?? 1)
     );
-    const reportDate = new Date(report.reportDate);
-    const minStartDate = new Date(Date.UTC(reportDate.getUTCFullYear(), reportDate.getUTCMonth() - previousMonths, 1));
-    const minStartStr = minStartDate.toISOString().slice(0, 10);
-    const effectiveStartStr = startStr < minStartStr ? minStartStr : startStr;
-    const axis = { startDate: effectiveStartStr, endDate: endStr };
-
     const timelineLocked = shouldUseLockedTimeline(snapshot, options?.rebuildTimelineFromProject);
     const scheduleSource = resolveScheduleSource(snapshot, options);
+    const axis = resolveReportTimelineAxis({
+      scheduleSource,
+      projectStartYmd: startStr,
+      projectEndYmd: endStr,
+      reportDate: new Date(report.reportDate),
+      previousMonths,
+    });
 
     if (shouldBuildTimelineFromPlan(scheduleSource, timelineLocked)) {
       const plan = await getPlanForProject(projectId);

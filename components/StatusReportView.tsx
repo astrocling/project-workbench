@@ -27,6 +27,18 @@ import {
   getVisibleMarkersForRow,
   timelineHasVisibleSchedule,
 } from "@/lib/plan/reportSchedule";
+import {
+  SR_TIMELINE_BAR_FONT_PX,
+  SR_TIMELINE_BAR_HEIGHT_PX,
+  SR_TIMELINE_BAR_TOP_PX,
+  SR_TIMELINE_MARKER_COL_PX,
+  SR_TIMELINE_MARKER_FONT_PX,
+  SR_TIMELINE_MARKER_ICON_PX,
+  SR_TIMELINE_MARKER_TOP_PX,
+  SR_TIMELINE_MONTH_FONT_PX,
+  SR_TIMELINE_ROW_HEIGHT_PX,
+  timelineMarkerHangsLeft,
+} from "@/lib/statusReportTimelineLayout";
 
 // Mirror PDF layout: 16:9 slide, same colors and structure
 const BIO_TITLE_COLOR = "#220088";
@@ -302,7 +314,7 @@ function TimelineBlock({
     endMs
   );
 
-  const ROW_HEIGHT_PX = 14;
+  const ROW_HEIGHT_PX = SR_TIMELINE_ROW_HEIGHT_PX;
 
   // Rows, bar segments, and markers all come from the shared helpers that back the render gate.
   const activeRows = getActiveTimelineRows(timeline);
@@ -328,7 +340,10 @@ function TimelineBlock({
       >
         {months.map((monthKey) => (
           <div key={monthKey} className="py-px px-0.5 text-center">
-            <span className="text-[6px] font-bold text-white uppercase">
+            <span
+              className="font-bold text-white uppercase"
+              style={{ fontSize: SR_TIMELINE_MONTH_FONT_PX }}
+            >
               {getMonthFullName(monthKey).toUpperCase()}
             </span>
           </div>
@@ -347,12 +362,14 @@ function TimelineBlock({
         )}
         {activeRows.map((row) => {
           const clipped = getVisibleBarSegmentsForRow(timeline.bars, row, startYmd, endYmd);
-          const markersInRow = getVisibleMarkersForRow(timeline.markers, row, startYmd, endYmd);
+          const markersInRow = getVisibleMarkersForRow(timeline.markers, row, startYmd, endYmd)
+            .slice()
+            .sort((a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label));
           return (
             <div
               key={row}
-              className="border-b border-[#d1d5db] relative"
-              style={{ minHeight: ROW_HEIGHT_PX }}
+              className="border-b border-[#d1d5db] relative overflow-hidden"
+              style={{ height: ROW_HEIGHT_PX }}
             >
               <div className="absolute inset-0 pointer-events-none">
                 {monthBoundaryPositions.map((leftPct, i) => (
@@ -363,23 +380,30 @@ function TimelineBlock({
                   />
                 ))}
               </div>
-              <div className="absolute inset-0">
+              <div className="absolute inset-0 z-[1]">
                 {clipped.map(({ bar, visibleStart, visibleEnd }, i) => {
                   const rawWidth = widthPercent(visibleStart, visibleEnd);
                   const renderedWidth = Math.max(rawWidth, 4);
                   return (
                   <div
                     key={`bar-${i}`}
-                    className="absolute top-[2px] bottom-[2px] rounded flex items-center px-1.5 overflow-hidden min-w-0"
+                    className="absolute rounded flex items-center px-1.5 overflow-hidden min-w-0"
                     style={{
+                      top: SR_TIMELINE_BAR_TOP_PX,
+                      height: SR_TIMELINE_BAR_HEIGHT_PX,
                       left: `${positionPercent(visibleStart)}%`,
                       width: `${renderedWidth}%`,
                       backgroundColor: bar.color ?? TIMELINE_BAR_BG,
                     }}
                   >
                     <span
-                      className="text-[5px] text-white font-semibold leading-none block w-full"
-                      style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                      className="text-white font-semibold leading-none block w-full"
+                      style={{
+                        fontSize: SR_TIMELINE_BAR_FONT_PX,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
                     >
                       {bar.label}
                     </span>
@@ -387,16 +411,23 @@ function TimelineBlock({
                   );
                 })}
               </div>
-              {markersInRow
-                .map((m, i) => (
+              {markersInRow.map((m, i) => {
+                const hangLeft = timelineMarkerHangsLeft(i);
+                return (
                   <div
                     key={`m-${i}`}
-                    className="absolute flex flex-col items-center min-w-[11px]"
-                    style={{ left: `calc(${positionPercent(m.date)}% - 5.5px)` }}
+                    className="absolute z-[2] flex flex-col"
+                    style={{
+                      left: `${positionPercent(m.date)}%`,
+                      top: SR_TIMELINE_MARKER_TOP_PX,
+                      width: SR_TIMELINE_MARKER_COL_PX,
+                      marginLeft: hangLeft ? -SR_TIMELINE_MARKER_COL_PX : 0,
+                      alignItems: hangLeft ? "flex-end" : "flex-start",
+                    }}
                   >
                     <svg
-                      width={11}
-                      height={11}
+                      width={SR_TIMELINE_MARKER_ICON_PX}
+                      height={SR_TIMELINE_MARKER_ICON_PX}
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="#FF2020"
@@ -413,11 +444,23 @@ function TimelineBlock({
                         )
                       )}
                     </svg>
-                    <span className="text-[5px] font-medium text-gray-600 bg-gray-100 px-0.5 rounded max-w-[52px] truncate">
+                    <span
+                      className="font-medium text-gray-700 bg-white px-0.5 rounded leading-tight text-right"
+                      style={{
+                        fontSize: SR_TIMELINE_MARKER_FONT_PX,
+                        maxWidth: SR_TIMELINE_MARKER_COL_PX,
+                        textAlign: hangLeft ? "right" : "left",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                      }}
+                    >
                       {m.label}
                     </span>
                   </div>
-                ))}
+                );
+              })}
             </div>
           );
         })}

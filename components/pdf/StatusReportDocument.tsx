@@ -28,6 +28,18 @@ import {
   getVisibleMarkersForRow,
   timelineHasVisibleSchedule,
 } from "@/lib/plan/reportSchedule";
+import {
+  SR_TIMELINE_BAR_FONT_PX,
+  SR_TIMELINE_BAR_HEIGHT_PX,
+  SR_TIMELINE_BAR_TOP_PX,
+  SR_TIMELINE_MARKER_COL_PX,
+  SR_TIMELINE_MARKER_FONT_PX,
+  SR_TIMELINE_MARKER_ICON_PX,
+  SR_TIMELINE_MARKER_TOP_PX,
+  SR_TIMELINE_MONTH_FONT_PX,
+  SR_TIMELINE_ROW_HEIGHT_PX,
+  timelineMarkerHangsLeft,
+} from "@/lib/statusReportTimelineLayout";
 
 /**
  * Call registerStatusReportFonts(baseUrl) before rendering this document.
@@ -69,7 +81,6 @@ const TIMELINE_BAR_BG = "#1941FA"; // jblue-500
 const TIMELINE_REPORT_DATE = "#FF2020"; // jred-600
 const TIMELINE_MARKER = "#FF2020"; // jred-600 (matches marker icon color in tab)
 const TIMELINE_MARKER_LABEL = "#374151"; // surface-700
-const TIMELINE_MARKER_LABEL_BG = "#f3f4f6"; // white/90 equivalent for label pill
 const TIMELINE_ROW_BORDER = "#d1d5db"; // surface-300 — stronger than surface-200 for visibility
 const TIMELINE_MONTH_DIVIDER = "#9ca3af"; // vertical month boundaries (surface-400)
 
@@ -110,7 +121,7 @@ const TIMELINE_MARKER_ICONS: Record<string, IconNode[]> = {
     { type: "path", d: "M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" },
   ],
 };
-const TIMELINE_MARKER_ICON_SIZE = 11;
+const TIMELINE_MARKER_ICON_SIZE = SR_TIMELINE_MARKER_ICON_PX;
 
 const styles = StyleSheet.create({
   page: {
@@ -443,7 +454,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   timelineMonthText: {
-    fontSize: 6,
+    fontSize: SR_TIMELINE_MONTH_FONT_PX,
     fontWeight: "bold",
     color: "#fff",
     textTransform: "uppercase",
@@ -474,23 +485,24 @@ const styles = StyleSheet.create({
   },
   timelineBarRow: {
     flexDirection: "row",
-    minHeight: 16,
+    height: SR_TIMELINE_ROW_HEIGHT_PX,
     borderBottomWidth: 1,
     borderBottomColor: TIMELINE_ROW_BORDER,
     position: "relative",
     zIndex: 1,
+    overflow: "hidden",
   },
   timelineBar: {
     position: "absolute",
-    top: 1,
-    bottom: 1,
+    height: SR_TIMELINE_BAR_HEIGHT_PX,
+    top: SR_TIMELINE_BAR_TOP_PX,
     backgroundColor: TIMELINE_BAR_BG,
     borderRadius: 2,
     paddingHorizontal: 3,
     justifyContent: "center",
   },
   timelineBarText: {
-    fontSize: 5,
+    fontSize: SR_TIMELINE_BAR_FONT_PX,
     color: "#fff",
     fontWeight: 600,
   },
@@ -501,20 +513,21 @@ const styles = StyleSheet.create({
     borderBottomColor: TIMELINE_ROW_BORDER,
   },
   timelineMarkerText: {
-    fontSize: 5,
+    fontSize: SR_TIMELINE_MARKER_FONT_PX,
     color: TIMELINE_MARKER_LABEL,
     fontWeight: 500,
+    lineHeight: 1.15,
   },
   timelineMarkerLabelWrap: {
     flexDirection: "row",
-    flexWrap: "nowrap",
+    flexWrap: "wrap",
     overflow: "hidden",
-    backgroundColor: TIMELINE_MARKER_LABEL_BG,
+    backgroundColor: "#ffffff",
     paddingHorizontal: 2,
     paddingVertical: 0,
     borderRadius: 1,
     marginTop: 0,
-    maxWidth: 52,
+    maxWidth: SR_TIMELINE_MARKER_COL_PX,
     alignItems: "center",
   },
   timelineReportDateLine: {
@@ -981,9 +994,7 @@ function TimelineBlock({
     endMs
   );
 
-  const ROW_HEIGHT = 14;
-  const ROW_BAR_TOP = 1;
-  const ROW_BAR_BOTTOM = 1;
+  const ROW_HEIGHT = SR_TIMELINE_ROW_HEIGHT_PX;
 
   // Rows, bar segments, and markers all come from the shared helpers that back the render gate.
   const activeRows = getActiveTimelineRows(timeline);
@@ -1033,11 +1044,13 @@ function TimelineBlock({
         <View style={styles.timelineBarRowsContent}>
         {activeRows.map((row) => {
         const clipped = getVisibleBarSegmentsForRow(timeline.bars, row, startYmd, endYmd);
-        const markersInRow = getVisibleMarkersForRow(timeline.markers, row, startYmd, endYmd);
+        const markersInRow = getVisibleMarkersForRow(timeline.markers, row, startYmd, endYmd)
+          .slice()
+          .sort((a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label));
         return (
           <View
             key={row}
-            style={[styles.timelineBarRow, { minHeight: ROW_HEIGHT }]}
+            style={styles.timelineBarRow}
           >
             {/* Vertical month lines as first child so they paint behind bars and markers */}
             <View style={styles.timelineRowMonthLinesLayer}>
@@ -1064,8 +1077,6 @@ function TimelineBlock({
                   {
                     left: `${positionPercent(visibleStart)}%`,
                     width: `${renderedWidth}%`,
-                    top: ROW_BAR_TOP,
-                    bottom: ROW_BAR_BOTTOM,
                     backgroundColor: bar.color ?? TIMELINE_BAR_BG,
                   },
                 ]}
@@ -1074,27 +1085,38 @@ function TimelineBlock({
               </View>
               );
             })}
-            {markersInRow.map((m, i) => (
+            {markersInRow.map((m, i) => {
+              const hangLeft = timelineMarkerHangsLeft(i);
+              return (
               <View
                 key={`m-${i}`}
                 style={[
                   {
                     position: "absolute",
                     left: `${positionPercent(m.date)}%`,
-                    marginLeft: -TIMELINE_MARKER_ICON_SIZE / 2,
-                    top: 0,
+                    marginLeft: hangLeft ? -SR_TIMELINE_MARKER_COL_PX : 0,
+                    top: SR_TIMELINE_MARKER_TOP_PX,
+                    width: SR_TIMELINE_MARKER_COL_PX,
                     flexDirection: "column",
-                    alignItems: "center",
-                    minWidth: TIMELINE_MARKER_ICON_SIZE,
+                    alignItems: hangLeft ? "flex-end" : "flex-start",
+                    zIndex: 2,
                   },
                 ]}
               >
                 <TimelineMarkerIconPdf shape={m.shape ?? "Pin"} />
                 <View style={styles.timelineMarkerLabelWrap}>
-                  <Text style={styles.timelineMarkerText} wrap={false}>{m.label}</Text>
+                  <Text
+                    style={[
+                      styles.timelineMarkerText,
+                      { textAlign: hangLeft ? "right" : "left" },
+                    ]}
+                  >
+                    {m.label}
+                  </Text>
                 </View>
               </View>
-            ))}
+              );
+            })}
           </View>
         );
       })}

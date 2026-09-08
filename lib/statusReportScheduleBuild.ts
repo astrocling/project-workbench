@@ -48,6 +48,36 @@ export function shouldBuildTimelineFromLegacy(
   return !timelineLocked && scheduleSource === "timeline";
 }
 
+export function shouldClipLockedTimelineToPreviousMonths(
+  scheduleSource: ScheduleSource
+): boolean {
+  return scheduleSource === "timeline";
+}
+
+/**
+ * Timeline-tab reports zoom to recent months. Plan-source reports keep the full
+ * project start→end so earlier phases are not clipped out of the create/render gate.
+ */
+export function resolveReportTimelineAxis(opts: {
+  scheduleSource: ScheduleSource;
+  projectStartYmd: string;
+  projectEndYmd: string;
+  reportDate: Date;
+  previousMonths: number;
+}): TimelineAxisInput {
+  if (opts.scheduleSource === "plan") {
+    return { startDate: opts.projectStartYmd, endDate: opts.projectEndYmd };
+  }
+  const months = Math.min(4, Math.max(1, opts.previousMonths));
+  const minStartDate = new Date(
+    Date.UTC(opts.reportDate.getUTCFullYear(), opts.reportDate.getUTCMonth() - months, 1)
+  );
+  const minStartStr = minStartDate.toISOString().slice(0, 10);
+  const startDate =
+    opts.projectStartYmd < minStartStr ? minStartStr : opts.projectStartYmd;
+  return { startDate, endDate: opts.projectEndYmd };
+}
+
 export function buildPlanTimelineCandidate(
   phases: PlanPhaseJson[],
   density: PlanReportDensity,

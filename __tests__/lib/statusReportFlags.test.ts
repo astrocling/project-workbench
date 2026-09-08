@@ -7,6 +7,7 @@ import {
   planDensityLabel,
   scheduleSourceLabel,
   shouldResetScheduleDefaultsOnVariationChange,
+  shouldShowPreviousMonthsOnSchedule,
   shouldShowScheduleSourceFields,
 } from "@/lib/statusReportFlags";
 
@@ -135,5 +136,12 @@ describe("planDensityLabel", () => {
 describe("PREVIOUS_MONTHS_ON_SCHEDULE_LABEL", () => {
   it("uses schedule-neutral copy", () => {
     expect(PREVIOUS_MONTHS_ON_SCHEDULE_LABEL).toBe("Previous months on schedule");
+  });
+});
+
+describe("shouldShowPreviousMonthsOnSchedule", () => {
+  it("is only for Project timeline source", () => {
+    expect(shouldShowPreviousMonthsOnSchedule("timeline")).toBe(true);
+    expect(shouldShowPreviousMonthsOnSchedule("plan")).toBe(false);
   });
 });

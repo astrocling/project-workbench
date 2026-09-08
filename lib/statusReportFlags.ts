@@ -96,6 +96,10 @@ export function buildScheduleSourceCreatePayload(
   };
 }
 
+export function shouldShowPreviousMonthsOnSchedule(scheduleSource: ScheduleSource): boolean {
+  return scheduleSource === "timeline";
+}
+
 export function scheduleSourceLabel(source: ScheduleSource): string {
   return source === "plan" ? "Project Plan" : "Project timeline";
 }

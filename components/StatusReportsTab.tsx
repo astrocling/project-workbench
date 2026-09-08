@@ -32,6 +32,7 @@ import {
   planDensityLabel,
   scheduleSourceLabel,
   shouldResetScheduleDefaultsOnVariationChange,
+  shouldShowPreviousMonthsOnSchedule,
   shouldShowRefreshBudget,
   shouldShowScheduleSourceFields,
   type ScheduleSource,
@@ -1418,54 +1419,56 @@ export function StatusReportsTab({
                     )}
                   </div>
                 )}
-                <div>
-                  <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">
-                    {PREVIOUS_MONTHS_ON_SCHEDULE_LABEL}
-                    {editingReportId ? " (locked)" : ""}
-                  </label>
-                  {editingReportId ? (
-                    <p className="text-body-sm text-surface-600 dark:text-surface-300 pt-1.5">
-                      {formTimelinePreviousMonths}{" "}
-                      {formTimelinePreviousMonths === 1 ? "month" : "months"}
-                    </p>
-                  ) : (
-                    <select
-                      value={formTimelinePreviousMonths}
-                      onChange={(e) => setFormTimelinePreviousMonths(Number(e.target.value))}
-                      className="block w-full max-w-xs h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
-                    >
-                      {[1, 2, 3, 4].map((n) => (
-                        <option key={n} value={n}>
-                          {n} {n === 1 ? "month" : "months"} before report date
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  {editingReportId && canEdit && (
-                    <div className="mt-3 space-y-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRefreshTimelineModalError(null);
-                          setShowRefreshTimelineModal(true);
-                        }}
-                        className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-800 dark:text-surface-100 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                {shouldShowPreviousMonthsOnSchedule(formScheduleSource) && (
+                  <div>
+                    <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">
+                      {PREVIOUS_MONTHS_ON_SCHEDULE_LABEL}
+                      {editingReportId ? " (locked)" : ""}
+                    </label>
+                    {editingReportId ? (
+                      <p className="text-body-sm text-surface-600 dark:text-surface-300 pt-1.5">
+                        {formTimelinePreviousMonths}{" "}
+                        {formTimelinePreviousMonths === 1 ? "month" : "months"}
+                      </p>
+                    ) : (
+                      <select
+                        value={formTimelinePreviousMonths}
+                        onChange={(e) => setFormTimelinePreviousMonths(Number(e.target.value))}
+                        className="block w-full max-w-xs h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
                       >
-                        {editingScheduleSource === "plan"
-                          ? "Refresh schedule"
-                          : "Refresh timeline"}
-                      </button>
-                      {timelineRefreshSuccess && (
-                        <p
-                          className="text-body-sm text-emerald-700 dark:text-emerald-400"
-                          role="status"
-                        >
-                          {timelineRefreshSuccess}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
+                        {[1, 2, 3, 4].map((n) => (
+                          <option key={n} value={n}>
+                            {n} {n === 1 ? "month" : "months"} before report date
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
+                {editingReportId && canEdit && (
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRefreshTimelineModalError(null);
+                        setShowRefreshTimelineModal(true);
+                      }}
+                      className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-800 dark:text-surface-100 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                    >
+                      {editingScheduleSource === "plan"
+                        ? "Refresh schedule"
+                        : "Refresh timeline"}
+                    </button>
+                    {timelineRefreshSuccess && (
+                      <p
+                        className="text-body-sm text-emerald-700 dark:text-emerald-400"
+                        role="status"
+                      >
+                        {timelineRefreshSuccess}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {formVariation === "Modular" && (() => {
