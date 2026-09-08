@@ -82,6 +82,34 @@ export function countBusinessDays(
   return count;
 }
 
+/** Signed calendar days from `fromYmd` to `toYmd` (0 when equal). */
+export function calendarDayDelta(fromYmd: string, toYmd: string): number {
+  return Math.round((parseYmd(toYmd).getTime() - parseYmd(fromYmd).getTime()) / MS_PER_DAY);
+}
+
+/** Shift an inclusive date range by calendar days (duration preserved). */
+export function shiftYmdRange(
+  startYmd: string,
+  endYmd: string,
+  deltaDays: number
+): { startDate: string; endDate: string } {
+  return {
+    startDate: addCalendarDays(startYmd, deltaDays),
+    endDate: addCalendarDays(endYmd, deltaDays),
+  };
+}
+
+/** Keep a 1-day minimum when a resize would invert the range. */
+export function clampYmdRange(
+  startYmd: string,
+  endYmd: string,
+  resized: "start" | "end"
+): { startDate: string; endDate: string } {
+  if (startYmd <= endYmd) return { startDate: startYmd, endDate: endYmd };
+  if (resized === "start") return { startDate: endYmd, endDate: endYmd };
+  return { startDate: startYmd, endDate: startYmd };
+}
+
 /** Inclusive UTC `YYYY-MM-DD` dates from start through end. */
 export function expandYmdRange(start: string, end: string): string[] {
   const d0 = parseYmd(start);

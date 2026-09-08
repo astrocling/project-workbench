@@ -89,7 +89,7 @@ export const planInclude = {
 export async function getPlanItemsForValidation(planId: string) {
   return prisma.planItem.findMany({
     where: { phase: { planId } },
-    select: { id: true, phaseId: true, parentItemId: true },
+    select: { id: true, phaseId: true, parentItemId: true, order: true },
   });
 }
 

@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   addBusinessDays,
   addCalendarDays,
+  calendarDayDelta,
+  clampYmdRange,
   countBusinessDays,
   expandYmdRange,
   isWeekendYmd,
+  shiftYmdRange,
 } from "@/lib/plan/businessDays";
 
 describe("addBusinessDays", () => {
@@ -68,5 +71,49 @@ describe("expandYmdRange", () => {
 describe("addCalendarDays", () => {
   it("adds calendar days across month boundaries", () => {
     expect(addCalendarDays("2025-01-30", 3)).toBe("2025-02-02");
+  });
+});
+
+describe("calendarDayDelta", () => {
+  it("counts signed inclusive-exclusive calendar days between two dates", () => {
+    expect(calendarDayDelta("2026-03-01", "2026-03-01")).toBe(0);
+    expect(calendarDayDelta("2026-03-01", "2026-03-04")).toBe(3);
+    expect(calendarDayDelta("2026-03-04", "2026-03-01")).toBe(-3);
+  });
+});
+
+describe("shiftYmdRange", () => {
+  it("moves start and end by the same calendar delta", () => {
+    expect(shiftYmdRange("2026-03-01", "2026-03-05", 2)).toEqual({
+      startDate: "2026-03-03",
+      endDate: "2026-03-07",
+    });
+    expect(shiftYmdRange("2026-03-03", "2026-03-03", -1)).toEqual({
+      startDate: "2026-03-02",
+      endDate: "2026-03-02",
+    });
+  });
+});
+
+describe("clampYmdRange", () => {
+  it("pins start to end when resizing the start past the end", () => {
+    expect(clampYmdRange("2026-03-08", "2026-03-05", "start")).toEqual({
+      startDate: "2026-03-05",
+      endDate: "2026-03-05",
+    });
+  });
+
+  it("pins end to start when resizing the end before the start", () => {
+    expect(clampYmdRange("2026-03-05", "2026-03-01", "end")).toEqual({
+      startDate: "2026-03-05",
+      endDate: "2026-03-05",
+    });
+  });
+
+  it("leaves a valid range unchanged", () => {
+    expect(clampYmdRange("2026-03-01", "2026-03-05", "start")).toEqual({
+      startDate: "2026-03-01",
+      endDate: "2026-03-05",
+    });
   });
 });

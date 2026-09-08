@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Project Plan (beta)** — New per-project **Plan** tab: a grid + Gantt schedule builder with phases, nested items (up to 3 levels), types (task, milestone, sign-off, hard deadline, waiting on client, meeting), assumed vs scheduled meetings, business-day durations, project non-working days, and fit/day/week/month zoom. Everyone who can open the project sees the tab; editors can change it. Model: `ProjectPlan` / `PlanPhase` / `PlanItem` (+ `PlanNonWorkingDay`). API: `/api/projects/[id]/plan` (+ `plan/phases`, `plan/items`, `plan/non-working-days`), **404** when Plan is off. UI: `components/PlanTab.tsx`, `components/plan/PlanGridGantt.tsx`. The **Timeline** tab is unchanged and still the default source for status reports.
+- **Project Plan (beta)** — New per-project **Plan** tab: a grid + Gantt schedule builder with phases, nested items (up to 3 levels), types (task, milestone, sign-off, hard deadline, waiting on client, meeting), assumed vs scheduled meetings, business-day durations, project non-working days, and fit/day/week/month zoom. Editors can **drag Gantt bars** (move/resize; calendar-day snap) and **drag item rows** (reorder, nest, or move across phases). Everyone who can open the project sees the tab; editors can change it. Model: `ProjectPlan` / `PlanPhase` / `PlanItem` (+ `PlanNonWorkingDay`). API: `/api/projects/[id]/plan` (+ `plan/phases`, `plan/items`, `plan/non-working-days`), **404** when Plan is off. UI: `components/PlanTab.tsx`, `components/plan/PlanGridGantt.tsx`. The **Timeline** tab is unchanged and still the default source for status reports.
 
 - **Admin gate per project** — **Settings → Enable Plan tab (beta)** (`Project.planEnabled`, default **off**). Only **Admins** see the toggle, and only an Admin `PATCH /api/projects/[id]` may send `planEnabled` (**403** otherwise). Saving it refreshes the project nav so the Plan tab appears or disappears without a reload.
 
@@ -23,8 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
-- **User Guide** — Refresh budget covers CDA hours/actuals; troubleshooting when Update does not change the slide. **Plan** tab, **Schedule source (Plan enabled)**, **Refresh schedule**, and what happens to Plan-sourced reports if Plan is later disabled.
-- **Technical Reference** — Refresh budget replaces full CDA budget fields, not only `overallBudget` dollars. Plan schema/routes/gating helpers, `scheduleSource` / `planDensity` snapshot fields, the shared timeline render gate, and the Settings autosave rules for the Plan nav refresh.
+- **User Guide** — Refresh budget covers CDA hours/actuals; troubleshooting when Update does not change the slide. **Plan** tab (Gantt drag/resize, row grip to reorder/nest/move phase), **Schedule source (Plan enabled)**, **Refresh schedule**, and what happens to Plan-sourced reports if Plan is later disabled.
+- **Technical Reference** — Refresh budget replaces full CDA budget fields, not only `overallBudget` dollars. Plan schema/routes/gating helpers, `insertBeforeItemId` sibling reindex, Gantt `applyGanttDrag` / `ymdAtPercent`, `scheduleSource` / `planDensity` snapshot fields, the shared timeline render gate, and the Settings autosave rules for the Plan nav refresh.
 
 ## [1.2.8] - 2026-08-18
 

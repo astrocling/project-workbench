@@ -15,6 +15,7 @@ import {
   validateItemPayload,
 } from "@/lib/plan/api";
 import { requirePlanEditSessionForProject } from "@/lib/plan/feature";
+import { reindexSiblingOrders, validateInsertBefore } from "@/lib/plan/itemDrop";
 import { collectDescendantIds } from "@/lib/plan/tree";
 import { serializePlanItem } from "@/lib/plan/serialize";
 import { touchPlan } from "@/lib/plan/touchPlan";
@@ -27,6 +28,7 @@ const patchSchema = z.object({
   endDate: dateString.optional(),
   order: z.number().int().optional(),
   parentItemId: z.string().min(1).nullable().optional(),
+  insertBeforeItemId: z.string().min(1).nullable().optional(),
   meetingStatus: planMeetingStatusEnum.nullable().optional(),
   scheduledTime: z.string().nullable().optional(),
 });
@@ -136,6 +138,31 @@ export async function PATCH(
 
   const phaseChanged = nextPhaseId !== item.phaseId;
   const descendantIds = phaseChanged ? collectDescendantIds(siblings, itemId) : [];
+  const placeRequested = parsed.data.insertBeforeItemId !== undefined;
+  const insertBeforeItemId = placeRequested ? parsed.data.insertBeforeItemId ?? null : null;
+
+  if (placeRequested) {
+    const placeError = validateInsertBefore(
+      siblings,
+      itemId,
+      nextPhaseId,
+      nextParentItemId,
+      insertBeforeItemId
+    );
+    if (placeError) {
+      return NextResponse.json({ error: placeError }, { status: 400 });
+    }
+  }
+
+  const siblingOrders = placeRequested
+    ? reindexSiblingOrders(
+        siblings,
+        itemId,
+        nextPhaseId,
+        nextParentItemId,
+        insertBeforeItemId
+      )
+    : null;
 
   const updated = await prisma.$transaction(async (tx) => {
     if (descendantIds.length > 0) {
@@ -145,6 +172,18 @@ export async function PATCH(
       });
     }
 
+    if (siblingOrders) {
+      for (const row of siblingOrders) {
+        if (row.id === itemId) continue;
+        await tx.planItem.update({
+          where: { id: row.id },
+          data: { order: row.order },
+        });
+      }
+    }
+
+    const movedOrder = siblingOrders?.find((row) => row.id === itemId)?.order;
+
     return tx.planItem.update({
       where: { id: itemId },
       data: {
@@ -153,7 +192,11 @@ export async function PATCH(
         ...(parsed.data.label !== undefined ? { label: parsed.data.label } : {}),
         startDate,
         endDate,
-        ...(parsed.data.order !== undefined ? { order: parsed.data.order } : {}),
+        ...(movedOrder !== undefined
+          ? { order: movedOrder }
+          : parsed.data.order !== undefined
+            ? { order: parsed.data.order }
+            : {}),
         parentItemId: nextParentItemId,
         meetingStatus: nextMeetingStatus,
         scheduledTime: nextScheduledTime,
