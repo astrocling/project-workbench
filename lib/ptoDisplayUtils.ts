@@ -32,3 +32,41 @@ export function getInitials(name: string): string {
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
   return (parts[0]!.charAt(0) + parts[parts.length - 1]!.charAt(0)).toUpperCase();
 }
+
+const UTC_WEEKDAY_LETTERS = ["S", "M", "T", "W", "R", "F", "S"] as const;
+
+/** Single-letter weekday for a UTC calendar day `YYYY-MM-DD`. */
+export function utcWeekdayLetter(dateYmd: string): string {
+  const dt = new Date(dateYmd + "T12:00:00.000Z");
+  return UTC_WEEKDAY_LETTERS[dt.getUTCDay()] ?? "";
+}
+
+/** Sorted unique weekday letters, e.g. `M, T, W`. */
+export function formatWeekdayLetters(dates: string[]): string {
+  const unique = [...new Set(dates.filter(Boolean))].sort();
+  return unique.map(utcWeekdayLetter).filter(Boolean).join(", ");
+}
+
+function weekdaySuffix(dates: string[]): string {
+  const letters = formatWeekdayLetters(dates);
+  return letters ? ` (${letters})` : "";
+}
+
+export function formatPtoHoverLine(
+  name: string,
+  entries: { date: string; hours: number | null; isPartial: boolean }[]
+): string {
+  const suffix = weekdaySuffix(entries.map((e) => e.date));
+  const dayCount = entries.length;
+  const hoursPartial = entries
+    .filter((e) => e.isPartial)
+    .reduce((s, e) => s + (e.hours ?? 0), 0);
+  if (entries.some((e) => e.isPartial)) {
+    return `${name}: partial PTO (${hoursPartial}h this week)${suffix}`;
+  }
+  return `${name}: ${dayCount} day(s) PTO${suffix}`;
+}
+
+export function formatHolidayHoverLine(label: string, dates: string[]): string {
+  return `${label}${weekdaySuffix(dates)}`;
+}

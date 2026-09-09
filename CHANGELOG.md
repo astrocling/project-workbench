@@ -29,7 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Plan Gantt — kickoff gutter and today line** — The chart keeps a small pad left of kickoff (and matching pad on the right) so kickoff-day diamonds and bars are not clipped. A red **Today** line is drawn on the axis (`todayMarkerPercent` in `lib/plan/positioning.ts`); if today is before kickoff or after plan end, the line sits on that edge.
 
+- **Resourcing — PTO/holiday hover weekdays** — Hovering **PTO** or **HOL** on the **Project Planning** grid (header pills and planned-hour cells) lists the UTC weekday for each day as a single letter: **M, T, W, R, F** (**R** = Thursday, so it is distinct from Tuesday **T**). Examples: `Alexandru Cracea: 3 day(s) PTO (M, T, W)`, `Labor Day (F)`. Formatters: `formatPtoHoverLine` / `formatHolidayHoverLine` / `formatWeekdayLetters` in **`lib/ptoDisplayUtils.ts`**. UI: **`components/ResourcingGrids.tsx`**. Tests: **`__tests__/lib/ptoDisplayUtils.test.ts`**.
+
 ### Fixed
+
+- **Resourcing — PTO hover text overflow** — PTO/holiday hover cards no longer cap at a short max width; the box grows with the longest line (`w-max`, `whitespace-nowrap`) so names such as “Matthew Cannon: partial PTO …” are not clipped.
+
+- **Resourcing — PTO/holiday hover under the row above** — Hover cards open **below** the pill or cell (not above into the previous row) and raise stacking on hover so they paint over neighboring grid rows.
 
 - **Status reports — CDA Refresh budget left hours stuck** — **Refresh budget** on a CDA report updated `snapshot.budget` and overall **dollar** totals, but the slide’s hours still came from locked **`snapshot.cda.totalMtdActuals`** / monthly rows. Correcting Resourcing actuals (e.g. +0.25h) showed the right total in the edit-form summary, while **Update** and even **Refresh budget** left the slide on the old figure. Refresh now rebuilds CDA monthly hours and overall hours actuals (milestones unchanged). Helpers: `shouldRebuildCdaBudgetFromProject`, `applyCdaBudgetRefresh`. Tests: `__tests__/lib/statusReportPdfData.test.ts`.
 
@@ -42,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Technical Reference** — Refresh budget replaces full CDA budget fields, not only `overallBudget` dollars. Plan schema/routes/gating helpers, `insertBeforeItemId` / **`insertBeforePhaseId`** reindex, Gantt `applyGanttDrag` / `ymdAtPercent` / `todayMarkerPercent`, `scheduleSource` / `planDensity` snapshot fields, the shared timeline render gate, and the Settings autosave rules for the Plan nav refresh.
 - **Plan tab how-to** — Confluence-ready editor guide in `docs/PLAN_TAB_HOWTO.md` (enable Plan, grid/Gantt, drag phases and items, dates, reports). **View** status is icons with hover for the full name; Gantt has a kickoff gutter and **Today** line.
 - **User Guide / Technical Reference** — Plan **View** status icons vs **Edit** status select.
+- **User Guide / Technical Reference / README** — Resourcing **PTO** / **HOL** hover: weekday letters **M T W R F** (Thursday **R**), tooltip sizes to content, cards open below the pill so they are not hidden under the row above.
 
 ## [1.2.8] - 2026-08-18
 

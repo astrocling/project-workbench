@@ -429,7 +429,7 @@ All project and admin routes require an authenticated session; admin routes addi
 - **All project assignments**, each with **`hiddenFromGrid`** (boolean). The Resourcing tab **renders rows** only where **`hiddenFromGrid === false`**, but **column totals** sum hours for **every** assigned person (including hidden).
 - Planned hours, actual hours, Float scheduled hours
 - **`monthSplits`** — `ActualHoursMonthSplit` rows for split weeks (same week window as other hour data)
-- **`ptoHolidayByWeek`** — map of week start key → PTO/holiday entries for **all** assignees (Float column pills / tooltips)
+- **`ptoHolidayByWeek`** — map of week start key (`YYYY-MM-DD` Monday) → day-level PTO/holiday entries for **all** assignees. Each entry: `{ personId, type: "PTO" | "HOLIDAY", date: "YYYY-MM-DD", hours, label, isPartial }`. Used by the **Project Planning** grid **HOL** / **PTO** header pills, planned-cell borders, and hover cards (`components/ResourcingGrids.tsx`). Weekend **HOLIDAY** rows are omitted from this payload (`isUtcWeekdayDate`).
 - Ready-for-Float flags
 - Grid cell comments (Planned/Actual)
 
@@ -445,6 +445,8 @@ All project and admin routes require an authenticated session; admin routes addi
 - The cache key includes the project id and the `fromWeek/toWeek` window, so different ranges cache independently.
 
 **Resourcing grid UI:** The column for the UTC week where `isCurrentWeek()` is true (`lib/weekUtils.ts`, same Monday 00:00 UTC week boundaries as the rest of the app) gets a subtle inset tint via the `resourcing-current-week` class on `th`/`td`, styled in `app/globals.css` and applied in `components/ResourcingGrids.tsx` for headers, body cells, and total/variance rows.
+
+**PTO/holiday hover cards (planning grid):** `ResourcingGrids` formats hover copy with **`lib/ptoDisplayUtils.ts`** (`formatPtoHoverLine`, `formatHolidayHoverLine`, `formatWeekdayLetters`). Weekday letters are UTC **`S M T W R F S`** with **Thursday = R** (distinct from Tuesday **T**). Cards use `w-max` / `whitespace-nowrap` (no short max-width) so the box matches the longest line, and they open **below** the trigger (`top-full`) with hover `z-index` so they are not painted under the previous table row. Tests: `__tests__/lib/ptoDisplayUtils.test.ts`.
 
 **Hidden from grid vs column totals:** **`ProjectAssignment.hiddenFromGrid`** hides a person’s **rows** in Planned / Actual / Float (and from **Ready** / resourcing-request UI, PTO tab person lists, and dashboard **`requestOpen`**—see `lib/portfolioMetrics.ts`). Their planned, actual, and float hours **still contribute** to each week’s **column total** and variance footer rows. The client builds **`allPersonIdsForRollup`** from **`assignments`** (all person ids), not from orphan hour rows that lack an assignment. **`sortedAssignments`** filters to **`!hiddenFromGrid`** for row rendering; **`syncPlanFromFloat`** on the Resourcing tab uses the same visible set.
 

@@ -528,14 +528,14 @@ export function ProjectDetailTabs({
                   type="button"
                   onClick={() => void postWeeklyLookahead()}
                   disabled={weeklySlackPosting}
-                  className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 disabled:opacity-60 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
+                  className="inline-flex items-center justify-center gap-2 h-8 px-3 rounded text-label-sm border border-jblue-500 text-jblue-500 font-medium hover:bg-jblue-50 dark:hover:bg-jblue-950 focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1 disabled:opacity-60"
                 >
                   <SlackIcon className="h-4 w-4" />
                   {weeklySlackPosting ? "Posting…" : "Post week to Slack"}
                 </button>
               ) : (
                 <span
-                  className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md bg-surface-200 dark:bg-dark-raised text-surface-500 dark:text-surface-400 font-semibold text-body-sm cursor-not-allowed select-none"
+                  className="inline-flex items-center justify-center gap-2 h-8 px-3 rounded text-label-sm border border-surface-300 dark:border-dark-muted text-surface-500 dark:text-surface-400 font-medium cursor-not-allowed select-none"
                   aria-disabled="true"
                   title="Set a Slack channel in Settings → Links"
                 >

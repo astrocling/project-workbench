@@ -19,6 +19,11 @@ import {
   hasMissingActualsSplitWeek,
 } from "@/lib/budgetCalculations";
 import { Toggle } from "@/components/Toggle";
+import {
+  formatHolidayHoverLine,
+  formatPtoHoverLine,
+  formatWeekdayLetters,
+} from "@/lib/ptoDisplayUtils";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 
 /** Round to nearest 0.25 for resourcing hours. */
@@ -42,28 +47,36 @@ type ReadyRow = { projectId: string; personId: string; ready: boolean };
 type PtoHolidayEntry = {
   personId: string;
   type: "PTO" | "HOLIDAY";
+  /** UTC calendar day YYYY-MM-DD (day-level PTO/holiday). */
+  date: string;
   hours: number | null;
   label: string | null;
   isPartial: boolean;
 };
 type PtoHolidayByWeek = Record<string, PtoHolidayEntry[]>;
 
+function collectHolidayLabels(
+  list: PtoHolidayEntry[],
+  personId?: string
+): { label: string; dates: string[] }[] {
+  const byLabel = new Map<string, string[]>();
+  for (const e of list) {
+    if (e.type !== "HOLIDAY") continue;
+    if (personId !== undefined && e.personId !== personId) continue;
+    const label = e.label != null && e.label.trim() !== "" ? e.label.trim() : "Holiday";
+    const dates = byLabel.get(label) ?? [];
+    if (e.date && !dates.includes(e.date)) dates.push(e.date);
+    byLabel.set(label, dates);
+  }
+  return [...byLabel.entries()].map(([label, dates]) => ({ label, dates }));
+}
+
 /** Distinct holiday labels for a week across all people (banner row / column dot). */
 function getHolidaysForWeek(
   ptoHolidayByWeek: PtoHolidayByWeek,
   weekKey: string
-): { label: string }[] {
-  const list = ptoHolidayByWeek[weekKey] ?? [];
-  const seen = new Set<string>();
-  const out: { label: string }[] = [];
-  for (const e of list) {
-    if (e.type !== "HOLIDAY") continue;
-    const label = e.label != null && e.label.trim() !== "" ? e.label.trim() : "Holiday";
-    if (seen.has(label)) continue;
-    seen.add(label);
-    out.push({ label });
-  }
-  return out;
+): { label: string; dates: string[] }[] {
+  return collectHolidayLabels(ptoHolidayByWeek[weekKey] ?? []);
 }
 
 /** Distinct holiday labels for one person in a week (cell border + cell tooltip). */
@@ -71,19 +84,12 @@ function getHolidaysForPersonWeek(
   ptoHolidayByWeek: PtoHolidayByWeek,
   weekKey: string,
   personId: string
-): { label: string }[] {
-  const list = ptoHolidayByWeek[weekKey] ?? [];
-  const seen = new Set<string>();
-  const out: { label: string }[] = [];
-  for (const e of list) {
-    if (e.type !== "HOLIDAY" || e.personId !== personId) continue;
-    const label = e.label != null && e.label.trim() !== "" ? e.label.trim() : "Holiday";
-    if (seen.has(label)) continue;
-    seen.add(label);
-    out.push({ label });
-  }
-  return out;
+): { label: string; dates: string[] }[] {
+  return collectHolidayLabels(ptoHolidayByWeek[weekKey] ?? [], personId);
 }
+
+const PTO_HOLIDAY_TOOLTIP_BOX =
+  "pointer-events-none absolute left-1/2 top-full z-[80] mt-1 hidden w-max -translate-x-1/2 whitespace-nowrap rounded border border-surface-200 bg-white px-2.5 py-1.5 text-left text-xs leading-snug text-surface-800 shadow-md dark:border-dark-border dark:bg-dark-surface dark:text-surface-200";
 
 function getPtoForWeek(
   ptoHolidayByWeek: PtoHolidayByWeek,
@@ -938,6 +944,7 @@ export function ResourcingGrids({
         assignments.find((x) => x.personId === personId)?.person.name ?? "Unknown";
       const hasPersonHoliday = personHolidays.length > 0;
       const hasPersonPto = ptoEntries.length > 0;
+      const personPtoWeekdays = formatWeekdayLetters(ptoEntries.map((e) => e.date));
       const shellBorder =
         hasPersonPto && hasPersonHoliday
           ? "border-[1.5px] border-dashed border-jred-300 dark:border-jred-500 border-t-2 border-t-solid border-t-jblue-500 dark:border-t-jblue-400"
@@ -950,10 +957,10 @@ export function ResourcingGrids({
       return (
         <td
           key={weekKey}
-          className={`relative z-0 p-1 border overflow-hidden min-w-0 text-center border-surface-200 dark:border-dark-border ${mismatch ? "bg-jred-100 dark:bg-jred-900/20" : ""} ${isCurrWeek ? "resourcing-current-week" : ""}`}
+          className={`relative z-0 p-1 border min-w-0 text-center border-surface-200 dark:border-dark-border ${showIndicatorTooltip ? "overflow-visible hover:z-50" : "overflow-hidden"} ${mismatch ? "bg-jred-100 dark:bg-jred-900/20" : ""} ${isCurrWeek ? "resourcing-current-week" : ""}`}
         >
           <div className="group relative min-h-[1.5rem]">
-            <div className={showIndicatorTooltip ? "group/input-tip relative" : "relative"}>
+            <div className={showIndicatorTooltip ? "group/input-tip relative overflow-visible" : "relative"}>
               {editable && canEdit ? (
                 <input
                   type="text"
@@ -991,7 +998,7 @@ export function ResourcingGrids({
               )}
               {showIndicatorTooltip ? (
                 <div
-                  className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 hidden w-max max-w-[16rem] -translate-x-1/2 rounded border border-surface-200 bg-white px-2 py-1.5 text-left text-xs text-surface-800 shadow-md group-hover/input-tip:block dark:border-dark-border dark:bg-dark-surface dark:text-surface-200"
+                  className={`${PTO_HOLIDAY_TOOLTIP_BOX} group-hover/input-tip:block`}
                   role="tooltip"
                 >
                   <div className="mb-1 font-medium text-surface-900 dark:text-white">
@@ -1000,12 +1007,12 @@ export function ResourcingGrids({
                   {hasPersonHoliday ? (
                     <ul className="space-y-0.5">
                       {personHolidays.map((h) => (
-                        <li key={h.label} className="flex items-start gap-1.5">
+                        <li key={h.label} className="flex items-center gap-1.5">
                           <span
-                            className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-jblue-500 dark:bg-jblue-400"
+                            className="h-1.5 w-1.5 shrink-0 rounded-full bg-jblue-500 dark:bg-jblue-400"
                             aria-hidden
                           />
-                          <span>{h.label}</span>
+                          <span>{formatHolidayHoverLine(h.label, h.dates)}</span>
                         </li>
                       ))}
                     </ul>
@@ -1014,12 +1021,16 @@ export function ResourcingGrids({
                     <div className="my-1 border-t border-surface-200 dark:border-dark-border" />
                   ) : null}
                   {hasPersonPto ? (
-                    <div className="flex items-start gap-1.5">
+                    <div className="flex items-center gap-1.5">
                       <span
-                        className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-jred-400 dark:bg-jred-500"
+                        className="h-1.5 w-1.5 shrink-0 rounded-full bg-jred-400 dark:bg-jred-500"
                         aria-hidden
                       />
-                      <span>{`${firstNameFromDisplayName(personNameForPto)} on PTO`}</span>
+                      <span>
+                        {`${firstNameFromDisplayName(personNameForPto)} on PTO${
+                          personPtoWeekdays ? ` (${personPtoWeekdays})` : ""
+                        }`}
+                      </span>
                     </div>
                   ) : null}
                 </div>
@@ -1507,7 +1518,7 @@ export function ResourcingGrids({
           className={`inline-block align-top ${actualsCollapsed ? "space-y-2" : "space-y-6"}`}
           style={{ paddingRight: "2rem", minWidth: tableWrapperMinWidth }}
         >
-        <div className="rounded-lg border border-surface-200 dark:border-dark-border overflow-clip shadow-card-light dark:shadow-card-dark bg-white dark:bg-dark-surface" style={{ minWidth: tableWrapperMinWidth, paddingRight: gridCardEndPadding }}>
+        <div className="rounded-lg border border-surface-200 dark:border-dark-border overflow-visible shadow-card-light dark:shadow-card-dark bg-white dark:bg-dark-surface" style={{ minWidth: tableWrapperMinWidth, paddingRight: gridCardEndPadding }}>
           <table className="border-separate border-spacing-0 text-sm w-full" style={{ tableLayout: "fixed", minWidth: tableMinWidth }}>
             <colgroup>
               <col style={{ width: colReady }} />
@@ -1518,7 +1529,7 @@ export function ResourcingGrids({
                 <col key={formatWeekKey(w)} style={{ width: colWeek, minWidth: colWeek }} />
               ))}
             </colgroup>
-            <thead>
+            <thead className="relative z-20">
               <tr>
                 <th
                   colSpan={4}
@@ -1600,16 +1611,16 @@ export function ResourcingGrids({
                   return (
                     <th
                       key={`hol-${wk}`}
-                      className={`p-1 border text-center align-middle w-16 border-surface-200 dark:border-dark-border ${currentWeekColClass(w)}`}
+                      className={`relative p-1 border text-center align-middle w-16 overflow-visible border-surface-200 dark:border-dark-border hover:z-50 ${currentWeekColClass(w)}`}
                     >
                       {holidays.length > 0 ? (
-                        <div className="group/hol-tip relative flex min-h-[1.25rem] items-center justify-center py-0.5">
-                          <div className="relative inline-flex">
+                        <div className="group/hol-tip relative flex min-h-[1.25rem] items-center justify-center overflow-visible py-0.5">
+                          <div className="relative inline-flex overflow-visible">
                             <span className="inline-flex h-4 shrink-0 items-center justify-center rounded-full bg-jblue-500 px-2 text-[8px] font-bold uppercase leading-none tracking-wide text-white dark:bg-jblue-400">
                               HOL
                             </span>
                             <div
-                              className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 hidden w-max max-w-[14rem] -translate-x-1/2 rounded border border-surface-200 bg-white px-2 py-1.5 text-left text-xs text-surface-800 shadow-md group-hover/hol-tip:block dark:border-dark-border dark:bg-dark-surface dark:text-surface-200"
+                              className={`${PTO_HOLIDAY_TOOLTIP_BOX} group-hover/hol-tip:block`}
                               role="tooltip"
                             >
                               <ul className="space-y-1">
@@ -1619,7 +1630,7 @@ export function ResourcingGrids({
                                       className="h-1.5 w-1.5 shrink-0 rounded-full bg-jblue-500 dark:bg-jblue-400"
                                       aria-hidden
                                     />
-                                    {h.label}
+                                    {formatHolidayHoverLine(h.label, h.dates)}
                                   </li>
                                 ))}
                               </ul>
@@ -1659,37 +1670,28 @@ export function ResourcingGrids({
                   return (
                     <th
                       key={`pto-${wk}`}
-                      className={`p-1 border text-center align-middle text-xs whitespace-nowrap w-16 border-surface-200 dark:border-dark-border ${currentWeekColClass(w)}`}
+                      className={`relative p-1 border text-center align-middle text-xs whitespace-nowrap w-16 overflow-visible border-surface-200 dark:border-dark-border hover:z-50 ${currentWeekColClass(w)}`}
                     >
                       {hasPto ? (
-                        <div className="group/pto-tip relative flex min-h-[1.25rem] items-center justify-center py-0.5">
-                          <div className="relative inline-flex">
+                        <div className="group/pto-tip relative flex min-h-[1.25rem] items-center justify-center overflow-visible py-0.5">
+                          <div className="relative inline-flex overflow-visible">
                             <span className="inline-flex h-4 shrink-0 items-center justify-center rounded-full border border-jred-300 bg-jred-50 px-2 text-[8px] font-bold uppercase leading-none tracking-wide text-jred-900 dark:border-jred-600 dark:bg-jred-900/30 dark:text-jred-100">
                               PTO
                             </span>
                             <div
-                              className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 hidden w-max max-w-[14rem] -translate-x-1/2 rounded border border-surface-200 bg-white px-2 py-1.5 text-left text-xs text-surface-800 shadow-md group-hover/pto-tip:block dark:border-dark-border dark:bg-dark-surface dark:text-surface-200"
+                              className={`${PTO_HOLIDAY_TOOLTIP_BOX} group-hover/pto-tip:block`}
                               role="tooltip"
                             >
                               <ul className="space-y-1">
-                                {peopleWithPto.map((p) => {
-                                  const dayCount = p.entries.length;
-                                  const hoursPartial = p.entries
-                                    .filter((e) => e.isPartial)
-                                    .reduce((s, e) => s + (e.hours ?? 0), 0);
-                                  const line = p.entries.some((e) => e.isPartial)
-                                    ? `${p.name}: partial PTO (${hoursPartial}h this week)`
-                                    : `${p.name}: ${dayCount} day(s) PTO`;
-                                  return (
-                                    <li key={p.personId} className="flex items-start gap-1.5">
-                                      <span
-                                        className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-jred-400 dark:bg-jred-500"
-                                        aria-hidden
-                                      />
-                                      <span>{line}</span>
-                                    </li>
-                                  );
-                                })}
+                                {peopleWithPto.map((p) => (
+                                  <li key={p.personId} className="flex items-center gap-1.5">
+                                    <span
+                                      className="h-1.5 w-1.5 shrink-0 rounded-full bg-jred-400 dark:bg-jred-500"
+                                      aria-hidden
+                                    />
+                                    <span>{formatPtoHoverLine(p.name, p.entries)}</span>
+                                  </li>
+                                ))}
                               </ul>
                             </div>
                           </div>
