@@ -11,11 +11,13 @@ import {
 import { requirePlanEditSessionForProject } from "@/lib/plan/feature";
 import { serializePlanPhase } from "@/lib/plan/serialize";
 import { touchPlan } from "@/lib/plan/touchPlan";
+import { reindexPhaseOrders, validateInsertBeforePhase } from "@/lib/plan/phaseDrop";
 
 const patchSchema = z.object({
   name: z.string().min(1).optional(),
   color: optionalHexColor,
   order: z.number().int().optional(),
+  insertBeforePhaseId: z.string().min(1).nullable().optional(),
   showOnReports: z.boolean().optional(),
   reportLabel: optionalReportLabel,
 });
@@ -47,17 +49,59 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });
   }
 
-  const updated = await prisma.planPhase.update({
-    where: { id: phaseId },
-    data: {
-      ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
-      ...(parsed.data.color !== undefined ? { color: parsed.data.color } : {}),
-      ...(parsed.data.order !== undefined ? { order: parsed.data.order } : {}),
-      ...(parsed.data.showOnReports !== undefined ? { showOnReports: parsed.data.showOnReports } : {}),
-      ...(parsed.data.reportLabel !== undefined ? { reportLabel: parsed.data.reportLabel } : {}),
-    },
-    include: { items: { orderBy: { order: "asc" } } },
-  });
+  const placeRequested = parsed.data.insertBeforePhaseId !== undefined;
+  const insertBeforePhaseId = placeRequested ? parsed.data.insertBeforePhaseId ?? null : null;
+  const siblingPhases = placeRequested
+    ? await prisma.planPhase.findMany({
+        where: { planId: phase.planId },
+        select: { id: true, order: true },
+      })
+    : [];
+
+  if (placeRequested) {
+    const placeError = validateInsertBeforePhase(siblingPhases, phaseId, insertBeforePhaseId);
+    if (placeError) {
+      return NextResponse.json({ error: placeError }, { status: 400 });
+    }
+  }
+
+  const phaseOrders = placeRequested
+    ? reindexPhaseOrders(siblingPhases, phaseId, insertBeforePhaseId)
+    : null;
+  const movedOrder = phaseOrders?.find((row) => row.id === phaseId)?.order;
+
+  const data = {
+    ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+    ...(parsed.data.color !== undefined ? { color: parsed.data.color } : {}),
+    ...(movedOrder !== undefined
+      ? { order: movedOrder }
+      : parsed.data.order !== undefined
+        ? { order: parsed.data.order }
+        : {}),
+    ...(parsed.data.showOnReports !== undefined ? { showOnReports: parsed.data.showOnReports } : {}),
+    ...(parsed.data.reportLabel !== undefined ? { reportLabel: parsed.data.reportLabel } : {}),
+  };
+
+  const updated = phaseOrders
+    ? await prisma.$transaction(async (tx) => {
+        for (const row of phaseOrders) {
+          if (row.id === phaseId) continue;
+          await tx.planPhase.update({
+            where: { id: row.id },
+            data: { order: row.order },
+          });
+        }
+        return tx.planPhase.update({
+          where: { id: phaseId },
+          data,
+          include: { items: { orderBy: { order: "asc" } } },
+        });
+      })
+    : await prisma.planPhase.update({
+        where: { id: phaseId },
+        data,
+        include: { items: { orderBy: { order: "asc" } } },
+      });
 
   await touchPlan(phase.planId, getSessionUserId(planAuth.session));
 

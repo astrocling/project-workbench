@@ -9,9 +9,7 @@ import {
   Diamond,
   Flag,
   GripVertical,
-  Indent,
   ListTodo,
-  Outdent,
   PenLine,
   Plus,
   Trash2,
@@ -37,20 +35,14 @@ import {
   type ScaleColumn,
 } from "@/lib/plan/scale";
 import type { PlanItemJson, PlanJson, PlanPhaseJson } from "@/lib/plan/serialize";
-import {
-  flattenVisibleRows,
-  getItemDepth,
-  indentItem,
-  outdentItem,
-  type PlanVisibleRow,
-} from "@/lib/plan/tree";
+import { flattenVisibleRows, type PlanVisibleRow } from "@/lib/plan/tree";
 import {
   resolveItemDrop,
   type ItemDropTarget,
 } from "@/lib/plan/itemDrop";
+import { resolvePhaseDrop, type PhaseDropTarget } from "@/lib/plan/phaseDrop";
 import {
   isPointType,
-  MAX_ITEM_DEPTH,
   PLAN_ITEM_STATUSES,
   PLAN_ITEM_TYPES,
   type PlanItemStatus,
@@ -66,8 +58,9 @@ import {
 
 const MEETING_VIOLET = "#6d28d9";
 const ROW_HEIGHT = 36;
-const COMPACT_GRID_WIDTH = 400;
-const FULL_GRID_INNER_WIDTH = 906;
+const VIEW_GRID_WIDTH = 400;
+const ACTIONS_COL = 52;
+const FULL_GRID_INNER_WIDTH = 906 + ACTIONS_COL;
 const EXPAND_COL = 28;
 const NAME_COL = 220;
 const TYPE_COL = 160;
@@ -79,13 +72,33 @@ const COMPACT_DATE_COL = 88;
 const COMPACT_STATUS_COL = 72;
 const DROP_EDGE_PX = 10;
 const PLAN_ITEM_DRAG = "text/plan-item";
+const PLAN_PHASE_DRAG = "text/plan-phase";
+const DEFAULT_PHASE_COLOR = "#1941FA";
+const PHASE_COLORS = [
+  { value: "#1941FA", label: "Blue" },
+  { value: "#15803d", label: "Green" },
+  { value: "#b45309", label: "Amber" },
+  { value: "#0f766e", label: "Teal" },
+  { value: "#475569", label: "Slate" },
+  { value: "#6d28d9", label: "Violet" },
+] as const;
+
+function normalizeHexColor(value: string): string {
+  const hex = value.trim();
+  if (/^#[0-9A-Fa-f]{6}$/.test(hex)) return hex.toLowerCase();
+  if (/^#[0-9A-Fa-f]{3}$/.test(hex)) {
+    const [, r, g, b] = hex;
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+  }
+  return DEFAULT_PHASE_COLOR.toLowerCase();
+}
 
 const INPUT_CLASS =
   "block w-full h-7 px-2 rounded text-body-sm bg-white dark:bg-dark-surface border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100";
-const BTN_TOOLBAR =
-  "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-body-sm font-medium bg-surface-200 dark:bg-dark-muted text-surface-800 dark:text-surface-200 hover:bg-surface-300 dark:hover:bg-dark-border disabled:opacity-50 disabled:cursor-not-allowed";
-const BTN_PRIMARY =
-  "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-body-sm font-medium bg-jblue-500 text-white hover:bg-jblue-600 disabled:opacity-50";
+const ROW_ICON_BTN =
+  "p-0.5 rounded text-surface-400 hover:text-surface-800 hover:bg-surface-100 dark:hover:text-surface-100 dark:hover:bg-dark-muted disabled:opacity-40 disabled:cursor-not-allowed";
+const ROW_ACTIONS_REVEAL =
+  "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100";
 
 const ITEM_STATUS_LABELS: Record<PlanItemStatus, string> = {
   not_started: "Not started",
@@ -113,7 +126,50 @@ const ITEM_TYPE_ICONS: Record<PlanItemType, LucideIcon> = {
 
 type RowKey = string;
 type ZoomMode = "fit" | PlanScale;
-type GridDensity = "compact" | "full";
+type GridMode = "view" | "edit";
+type GridDropHover =
+  | ItemDropTarget
+  | { kind: "phase-before"; phaseId: string }
+  | { kind: "phase-append" };
+
+function dragTypes(event: DragEvent): string[] {
+  return Array.from(event.dataTransfer.types);
+}
+
+function droppedKind(event: DragEvent): "item" | "phase" | null {
+  const types = dragTypes(event);
+  if (types.includes(PLAN_PHASE_DRAG)) return "phase";
+  if (types.includes(PLAN_ITEM_DRAG)) return "item";
+  const plain = event.dataTransfer.getData("text/plain");
+  if (plain.startsWith("phase:")) return "phase";
+  if (plain) return "item";
+  return null;
+}
+
+function isPhaseDrag(event: DragEvent): boolean {
+  return dragTypes(event).includes(PLAN_PHASE_DRAG);
+}
+
+function isItemDrag(event: DragEvent): boolean {
+  return dragTypes(event).includes(PLAN_ITEM_DRAG);
+}
+
+function readDraggedId(event: DragEvent, mime: string): string {
+  const raw = event.dataTransfer.getData(mime) || event.dataTransfer.getData("text/plain");
+  return raw.replace(/^phase:/, "");
+}
+
+function nextSiblingInsertBeforeId(items: PlanItemJson[], item: PlanItemJson): string | null {
+  const siblings = items
+    .filter(
+      (candidate) =>
+        candidate.phaseId === item.phaseId && candidate.parentItemId === item.parentItemId
+    )
+    .slice()
+    .sort((a, b) => a.order - b.order || a.startDate.localeCompare(b.startDate));
+  const index = siblings.findIndex((candidate) => candidate.id === item.id);
+  return siblings[index + 1]?.id ?? null;
+}
 
 function compactDateLabel(item: PlanItemJson): { text: string; title: string } {
   const start = formatCompactYmd(item.startDate);
@@ -134,10 +190,7 @@ function itemTypeTitle(item: PlanItemJson): string {
   return label;
 }
 
-type DisplayRow =
-  | { kind: "data"; row: PlanVisibleRow }
-  | { kind: "add-item"; phase: PlanPhaseJson }
-  | { kind: "add-phase" };
+type DisplayRow = { kind: "data"; row: PlanVisibleRow } | { kind: "add-phase" };
 
 function rowKey(row: PlanVisibleRow): RowKey {
   return row.kind === "phase" ? `phase:${row.phase.id}` : `item:${row.item!.id}`;
@@ -283,7 +336,7 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [zoomMode, setZoomMode] = useState<ZoomMode>("fit");
-  const [density, setDensity] = useState<GridDensity>("compact");
+  const [gridMode, setGridMode] = useState<GridMode>("view");
   const [paneWidth, setPaneWidth] = useState(0);
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
 
@@ -308,7 +361,7 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
   } | null>(null);
   const datePreviewRef = useRef(datePreview);
   datePreviewRef.current = datePreview;
-  const [dropHover, setDropHover] = useState<ItemDropTarget | null>(null);
+  const [dropHover, setDropHover] = useState<GridDropHover | null>(null);
 
   const axisRange = useMemo(() => getPlanAxisRange(plan), [plan]);
   const scale = useMemo(
@@ -326,7 +379,8 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
     zoomMode === "fit"
       ? fitGanttColWidth(paneWidth, columns.length, scale)
       : readableGanttColWidth(scale);
-  const leftGridWidth = density === "compact" ? COMPACT_GRID_WIDTH : FULL_GRID_INNER_WIDTH;
+  const editing = canEdit && gridMode === "edit";
+  const leftGridWidth = gridMode === "view" ? VIEW_GRID_WIDTH : FULL_GRID_INNER_WIDTH;
   const ganttWidth = columns.length * colWidth;
   const axisWidened =
     axisRange.startYmd < plan.kickoffDate || axisRange.endYmd > plan.endDate;
@@ -336,18 +390,10 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
     [plan.phases, collapsedIds]
   );
   const displayRows = useMemo<DisplayRow[]>(() => {
-    const output: DisplayRow[] = [];
-    rows.forEach((row, index) => {
-      output.push({ kind: "data", row });
-      const nextRow = rows[index + 1];
-      const phaseEnds = !nextRow || nextRow.phase.id !== row.phase.id;
-      if (canEdit && phaseEnds && !collapsedIds.has(row.phase.id)) {
-        output.push({ kind: "add-item", phase: row.phase });
-      }
-    });
-    if (canEdit) output.push({ kind: "add-phase" });
+    const output: DisplayRow[] = rows.map((row) => ({ kind: "data", row }));
+    if (editing) output.push({ kind: "add-phase" });
     return output;
-  }, [canEdit, collapsedIds, rows]);
+  }, [editing, rows]);
 
   const allItems = useMemo(
     () => plan.phases.flatMap((p) => p.items),
@@ -505,6 +551,14 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
   }
 
   function acceptItemDrag(event: DragEvent) {
+    if (!isItemDrag(event)) return false;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    return true;
+  }
+
+  function acceptPhaseDrag(event: DragEvent) {
+    if (!isPhaseDrag(event)) return false;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
     return true;
@@ -512,10 +566,9 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
 
   async function handleItemDrop(event: DragEvent, target: ItemDropTarget) {
     event.preventDefault();
-    const draggedId =
-      event.dataTransfer.getData(PLAN_ITEM_DRAG) || event.dataTransfer.getData("text/plain");
+    const draggedId = readDraggedId(event, PLAN_ITEM_DRAG);
     setDropHover(null);
-    if (!draggedId) return;
+    if (droppedKind(event) !== "item" || !draggedId) return;
     const result = resolveItemDrop(allItems, draggedId, target);
     if (!result) return;
     if (!result.ok) {
@@ -526,6 +579,22 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
       phaseId: result.placement.phaseId,
       parentItemId: result.placement.parentItemId,
       insertBeforeItemId: result.placement.insertBeforeItemId,
+    });
+  }
+
+  async function handlePhaseDrop(event: DragEvent, target: PhaseDropTarget) {
+    event.preventDefault();
+    const draggedId = readDraggedId(event, PLAN_PHASE_DRAG);
+    setDropHover(null);
+    if (droppedKind(event) !== "phase" || !draggedId) return;
+    const result = resolvePhaseDrop(
+      plan.phases.map((phase) => ({ id: phase.id, order: phase.order })),
+      draggedId,
+      target
+    );
+    if (!result) return;
+    await apiCall(`${apiBase}/phases/${result.phaseId}`, "PATCH", {
+      insertBeforePhaseId: result.insertBeforePhaseId,
     });
   }
 
@@ -559,51 +628,11 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
   }, [datePreview]);
 
   async function handleAddPhase() {
+    if (!editing) return;
     const name = `Phase ${plan.phases.length + 1}`;
     const created = await apiCall(`${apiBase}/phases`, "POST", {
       name,
-      color: "#1941FA",
-    });
-    if (created && typeof created === "object" && "id" in created) {
-      setPendingFocusId(String(created.id));
-    }
-  }
-
-  async function handleAddItem() {
-    if (!canEdit) return;
-    let phaseId: string;
-    let parentItemId: string | null = null;
-    let startDate = plan.kickoffDate;
-    let endDate = plan.kickoffDate;
-
-    if (selectedRow?.kind === "phase") {
-      phaseId = selectedRow.phase.id;
-    } else if (selectedRow?.kind === "item" && selectedRow.item) {
-      phaseId = selectedRow.phase.id;
-      const depth = getItemDepth(allItems, selectedRow.item.id);
-      if (depth < MAX_ITEM_DEPTH) {
-        parentItemId = selectedRow.item.id;
-      } else {
-        parentItemId = selectedRow.item.parentItemId;
-      }
-      startDate = selectedRow.item.startDate;
-      endDate = selectedRow.item.endDate;
-    } else if (plan.phases.length > 0) {
-      phaseId = plan.phases[0].id;
-    } else {
-      setError("Add a phase first");
-      return;
-    }
-
-    const created = await apiCall(`${apiBase}/items`, "POST", {
-      phaseId,
-      parentItemId,
-      type: "task",
-      label: "New item",
-      startDate,
-      endDate,
-      meetingStatus: null,
-      scheduledTime: null,
+      color: DEFAULT_PHASE_COLOR,
     });
     if (created && typeof created === "object" && "id" in created) {
       setPendingFocusId(String(created.id));
@@ -611,7 +640,7 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
   }
 
   async function handleAddItemToPhase(phase: PlanPhaseJson) {
-    if (!canEdit) return;
+    if (!editing) return;
     const created = await apiCall(`${apiBase}/items`, "POST", {
       phaseId: phase.id,
       parentItemId: null,
@@ -627,21 +656,43 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
     }
   }
 
-  async function handleDelete() {
-    if (!selectedRow || !canEdit) return;
-    if (selectedRow.kind === "phase") {
+  async function handleAddItemAfter(item: PlanItemJson) {
+    if (!editing) return;
+    const created = await apiCall(`${apiBase}/items`, "POST", {
+      phaseId: item.phaseId,
+      parentItemId: item.parentItemId,
+      insertBeforeItemId: nextSiblingInsertBeforeId(allItems, item),
+      type: "task",
+      label: "New item",
+      startDate: item.startDate,
+      endDate: item.endDate,
+      meetingStatus: null,
+      scheduledTime: null,
+    });
+    if (created && typeof created === "object" && "id" in created) {
+      setPendingFocusId(String(created.id));
+    }
+  }
+
+  async function handleDeleteRow(row: PlanVisibleRow) {
+    if (!editing) return;
+    if (row.kind === "phase") {
       if (!window.confirm("Delete this phase and all its items?")) return;
-      await apiCall(`${apiBase}/phases/${selectedRow.phase.id}`, "DELETE");
+      await apiCall(`${apiBase}/phases/${row.phase.id}`, "DELETE");
       setSelectedKey(null);
-    } else if (selectedRow.item) {
+    } else if (row.item) {
       if (!window.confirm("Delete this item?")) return;
-      await apiCall(`${apiBase}/items/${selectedRow.item.id}`, "DELETE");
+      await apiCall(`${apiBase}/items/${row.item.id}`, "DELETE");
       setSelectedKey(null);
     }
   }
 
-  const handleDeleteRef = useRef(handleDelete);
-  handleDeleteRef.current = handleDelete;
+  const handleDeleteRef = useRef(() => {
+    if (selectedRow) void handleDeleteRow(selectedRow);
+  });
+  handleDeleteRef.current = () => {
+    if (selectedRow) void handleDeleteRow(selectedRow);
+  };
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -662,26 +713,7 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  async function handleIndent() {
-    if (!selectedRow || selectedRow.kind !== "item" || !selectedRow.item) return;
-    const result = indentItem(allItems, selectedRow.item.id);
-    if (!result) {
-      setError("Cannot indent this item");
-      return;
-    }
-    await patchItem(selectedRow.item, { parentItemId: result.parentItemId });
-  }
-
-  async function handleOutdent() {
-    if (!selectedRow || selectedRow.kind !== "item" || !selectedRow.item) return;
-    const result = outdentItem(allItems, selectedRow.item.id);
-    if (!result) return;
-    await patchItem(selectedRow.item, { parentItemId: result.parentItemId });
-  }
-
-  async function handleScheduleMeeting() {
-    if (!selectedRow || selectedRow.kind !== "item" || !selectedRow.item) return;
-    const item = selectedRow.item;
+  async function handleScheduleMeeting(item: PlanItemJson) {
     if (item.type !== "meeting" || item.meetingStatus !== "assumed") return;
     await patchItem(item, {
       meetingStatus: "scheduled",
@@ -689,106 +721,34 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
     });
   }
 
-  const canIndent =
-    selectedRow?.kind === "item" &&
-    selectedRow.item &&
-    indentItem(allItems, selectedRow.item.id) !== null;
-
-  const canOutdent =
-    selectedRow?.kind === "item" &&
-    selectedRow.item &&
-    outdentItem(allItems, selectedRow.item.id) !== null;
-
-  const canSchedule =
-    selectedRow?.kind === "item" &&
-    selectedRow.item &&
-    selectedRow.item.type === "meeting" &&
-    selectedRow.item.meetingStatus === "assumed";
-
   const bodyHeight = Math.min(480, Math.max(200, displayRows.length * ROW_HEIGHT + 8));
 
   return (
     <section className="space-y-2">
-      <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 py-1 bg-white dark:bg-dark-surface">
-        {canEdit ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={handleAddPhase} disabled={busy} className={BTN_PRIMARY}>
-              <Plus size={14} aria-hidden />
-              Add phase
-            </button>
-            <button type="button" onClick={handleAddItem} disabled={busy} className={BTN_TOOLBAR}>
-              <Plus size={14} aria-hidden />
-              Add item
-            </button>
-            <button
-              type="button"
-              onClick={handleIndent}
-              disabled={busy || !canIndent}
-              className={BTN_TOOLBAR}
-              title="Indent"
-            >
-              <Indent size={14} aria-hidden />
-              Indent
-            </button>
-            <button
-              type="button"
-              onClick={handleOutdent}
-              disabled={busy || !canOutdent}
-              className={BTN_TOOLBAR}
-              title="Outdent"
-            >
-              <Outdent size={14} aria-hidden />
-              Outdent
-            </button>
-            {canSchedule && (
-              <button
-                type="button"
-                onClick={handleScheduleMeeting}
-                disabled={busy}
-                className={BTN_TOOLBAR}
-              >
-                Schedule meeting
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={busy || !selectedRow}
-              className={BTN_TOOLBAR}
-              title={
-                selectedRow
-                  ? "Delete the selected phase or item (Delete key)"
-                  : "Select a phase or item first"
-              }
-            >
-              <Trash2 size={14} aria-hidden />
-              Delete
-            </button>
-          </div>
-        ) : (
-          <div />
-        )}
+      <div className="sticky top-0 z-10 flex flex-wrap items-center justify-end gap-2 py-1 bg-white dark:bg-dark-surface">
         <div className="flex flex-wrap items-center gap-2">
-          <div
-            className="inline-flex rounded-md border border-surface-300 dark:border-dark-muted overflow-hidden"
-            aria-label="Grid density"
-          >
-            {(["compact", "full"] as GridDensity[]).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setDensity(mode)}
-                className={`px-2.5 py-1 text-body-sm font-medium capitalize ${
-                  density === mode
-                    ? "bg-surface-800 text-white dark:bg-surface-200 dark:text-surface-900"
-                    : "bg-white text-surface-700 hover:bg-surface-100 dark:bg-dark-surface dark:text-surface-300 dark:hover:bg-dark-raised"
-                }`}
-                aria-pressed={density === mode}
-              >
-                {mode}
-              </button>
-            ))}
-          </div>
+          {canEdit ? (
+            <div
+              className="inline-flex rounded-md border border-surface-300 dark:border-dark-muted overflow-hidden"
+              aria-label="Grid mode"
+            >
+              {(["view", "edit"] as GridMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setGridMode(mode)}
+                  className={`px-2.5 py-1 text-body-sm font-medium capitalize ${
+                    gridMode === mode
+                      ? "bg-surface-800 text-white dark:bg-surface-200 dark:text-surface-900"
+                      : "bg-white text-surface-700 hover:bg-surface-100 dark:bg-dark-surface dark:text-surface-300 dark:hover:bg-dark-raised"
+                  }`}
+                  aria-pressed={gridMode === mode}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <div
             className="inline-flex rounded-md border border-surface-300 dark:border-dark-muted overflow-hidden"
             aria-label="Gantt zoom"
@@ -829,7 +789,7 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
           >
             <div style={{ minWidth: leftGridWidth }}>
               <div className="bg-surface-50 dark:bg-dark-raised">
-                <GridHeader density={density} />
+                <GridHeader gridMode={gridMode} editing={editing} />
               </div>
               <div
                 ref={leftScrollRef}
@@ -842,37 +802,26 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
                 }}
               >
             {displayRows.map((displayRow) => {
-              if (displayRow.kind === "add-item") {
-                return (
-                  <InlineAddRow
-                    key={`add-item:${displayRow.phase.id}`}
-                    label="Add item"
-                    disabled={busy}
-                    dropHover={
-                      dropHover?.kind === "phase" && dropHover.phaseId === displayRow.phase.id
-                    }
-                    onDragOver={(event) => {
-                      if (!canEdit) return;
-                      acceptItemDrag(event);
-                      setDropHover({ kind: "phase", phaseId: displayRow.phase.id });
-                    }}
-                    onDragLeave={(event) => {
-                      if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-                      clearDropHover();
-                    }}
-                    onDrop={(event) => {
-                      void handleItemDrop(event, { kind: "phase", phaseId: displayRow.phase.id });
-                    }}
-                    onClick={() => handleAddItemToPhase(displayRow.phase)}
-                  />
-                );
-              }
               if (displayRow.kind === "add-phase") {
                 return (
                   <InlineAddRow
                     key="add-phase"
                     label="Add phase"
                     disabled={busy}
+                    dropHover={dropHover?.kind === "phase-append"}
+                    onDragOver={(event) => {
+                      if (!editing || !acceptPhaseDrag(event)) return;
+                      setDropHover({ kind: "phase-append" });
+                    }}
+                    onDragLeave={(event) => {
+                      if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+                      clearDropHover();
+                    }}
+                    onDrop={(event) => {
+                      if (droppedKind(event) === "phase") {
+                        void handlePhaseDrop(event, { kind: "append" });
+                      }
+                    }}
                     onClick={handleAddPhase}
                   />
                 );
@@ -884,8 +833,9 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
                 <GridRow
                   key={key}
                   row={row}
-                  density={density}
-                  canEdit={canEdit}
+                  gridMode={gridMode}
+                  editing={editing}
+                  busy={busy}
                   isSelected={isSelected}
                   collapsedIds={collapsedIds}
                   onSelect={() => setSelectedKey(key)}
@@ -899,9 +849,19 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
                   }}
                   onPatchItem={patchItem}
                   onPatchItemDates={patchItemDates}
+                  onAddItem={() => {
+                    if (row.kind === "phase") void handleAddItemToPhase(row.phase);
+                    else if (row.item) void handleAddItemAfter(row.item);
+                  }}
+                  onDelete={() => void handleDeleteRow(row)}
+                  onScheduleMeeting={
+                    row.kind === "item" && row.item
+                      ? () => void handleScheduleMeeting(row.item!)
+                      : undefined
+                  }
                   dropHover={dropHover}
                   onItemDragOver={(event, itemId) => {
-                    acceptItemDrag(event);
+                    if (!acceptItemDrag(event)) return;
                     const rect = event.currentTarget.getBoundingClientRect();
                     const edge = event.clientY - rect.top < DROP_EDGE_PX;
                     setDropHover(
@@ -911,12 +871,23 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
                     );
                   }}
                   onPhaseDragOver={(event, phaseId) => {
-                    acceptItemDrag(event);
+                    if (acceptPhaseDrag(event)) {
+                      setDropHover({ kind: "phase-before", phaseId });
+                      return;
+                    }
+                    if (!acceptItemDrag(event)) return;
                     setDropHover({ kind: "phase", phaseId });
                   }}
                   onDragLeaveRow={clearDropHover}
                   onDropTarget={(event, target) => {
-                    void handleItemDrop(event, target);
+                    const kind = droppedKind(event);
+                    if (kind === "phase" && target.kind === "phase") {
+                      void handlePhaseDrop(event, { kind: "before", phaseId: target.phaseId });
+                      return;
+                    }
+                    if (kind === "item" && (target.kind === "nest" || target.kind === "before" || target.kind === "phase")) {
+                      void handleItemDrop(event, target);
+                    }
                   }}
                 />
               );
@@ -957,7 +928,7 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
                     columns={columns}
                     colWidth={colWidth}
                     scale={scale}
-                    canEdit={canEdit}
+                    canEdit={editing}
                     datePreview={datePreview}
                     onGanttPointerDown={(item, kind, clientX) => {
                       const ymd = ymdFromPointer(clientX);
@@ -1001,13 +972,7 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
                     }}
                   />
                 ) : (
-                  <GanttSpacerRow
-                    key={
-                      displayRow.kind === "add-item"
-                        ? `add-item:${displayRow.phase.id}`
-                        : "add-phase"
-                    }
-                  />
+                  <GanttSpacerRow key="add-phase" />
                 )
               )}
             </div>
@@ -1065,12 +1030,12 @@ function GanttSpacerRow() {
   );
 }
 
-function GridHeader({ density }: { density: GridDensity }) {
-  if (density === "compact") {
+function GridHeader({ gridMode, editing }: { gridMode: GridMode; editing: boolean }) {
+  if (gridMode === "view") {
     return (
       <div
         className="flex items-center text-label-sm font-semibold uppercase tracking-wide text-surface-600 dark:text-surface-400 border-b border-surface-200 dark:border-dark-border"
-        style={{ height: ROW_HEIGHT, minWidth: COMPACT_GRID_WIDTH }}
+        style={{ height: ROW_HEIGHT, minWidth: VIEW_GRID_WIDTH }}
       >
         <div style={{ width: EXPAND_COL }} className="shrink-0" />
         <div className="flex-1 min-w-0 px-2">Name</div>
@@ -1115,6 +1080,7 @@ function GridHeader({ density }: { density: GridDensity }) {
       <div style={{ width: STATUS_COL }} className="shrink-0 px-1">
         Status
       </div>
+      {editing ? <div style={{ width: ACTIONS_COL }} className="shrink-0" /> : null}
     </div>
   );
 }
@@ -1129,10 +1095,99 @@ function TypeGlyph({ item }: { item: PlanItemJson }) {
   );
 }
 
+function PhaseColorControl({
+  color,
+  name,
+  editing,
+  onChange,
+}: {
+  color: string;
+  name: string;
+  editing: boolean;
+  onChange: (color: string) => void;
+}) {
+  const hex = normalizeHexColor(color);
+  if (!editing) {
+    return (
+      <span
+        className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
+        style={{ backgroundColor: hex }}
+        aria-hidden
+      />
+    );
+  }
+
+  return (
+    <label
+      className="relative inline-flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-sm border border-surface-300 dark:border-dark-muted overflow-hidden"
+      style={{ backgroundColor: hex }}
+      title="Change phase color"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <input
+        type="color"
+        value={hex}
+        aria-label={`Color for ${name}`}
+        className="absolute inset-0 cursor-pointer opacity-0"
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </label>
+  );
+}
+
+function RowActions({
+  addLabel,
+  deleteLabel,
+  busy,
+  onAdd,
+  onDelete,
+}: {
+  addLabel: string;
+  deleteLabel: string;
+  busy: boolean;
+  onAdd: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div
+      className={`shrink-0 flex items-center justify-end gap-0.5 px-1 ${ROW_ACTIONS_REVEAL}`}
+      style={{ width: ACTIONS_COL }}
+    >
+      <button
+        type="button"
+        className={ROW_ICON_BTN}
+        title={addLabel}
+        aria-label={addLabel}
+        disabled={busy}
+        onClick={(e) => {
+          e.stopPropagation();
+          onAdd();
+        }}
+      >
+        <Plus size={14} aria-hidden />
+      </button>
+      <button
+        type="button"
+        className={ROW_ICON_BTN}
+        title={deleteLabel}
+        aria-label={deleteLabel}
+        disabled={busy}
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
+      >
+        <Trash2 size={14} aria-hidden />
+      </button>
+    </div>
+  );
+}
+
 function GridRow({
   row,
-  density,
-  canEdit,
+  gridMode,
+  editing,
+  busy,
   isSelected,
   collapsedIds,
   onSelect,
@@ -1141,6 +1196,9 @@ function GridRow({
   onPatchPhase,
   onPatchItem,
   onPatchItemDates,
+  onAddItem,
+  onDelete,
+  onScheduleMeeting,
   dropHover,
   onItemDragOver,
   onPhaseDragOver,
@@ -1148,8 +1206,9 @@ function GridRow({
   onDropTarget,
 }: {
   row: PlanVisibleRow;
-  density: GridDensity;
-  canEdit: boolean;
+  gridMode: GridMode;
+  editing: boolean;
+  busy: boolean;
   isSelected: boolean;
   collapsedIds: Set<string>;
   onSelect: () => void;
@@ -1157,7 +1216,7 @@ function GridRow({
   nameInputRef: (input: HTMLInputElement | null) => void;
   onPatchPhase: (
     phase: PlanPhaseJson,
-    changes: Partial<{ name: string; showOnReports: boolean; reportLabel: string | null }>
+    changes: Partial<{ name: string; color: string; showOnReports: boolean; reportLabel: string | null }>
   ) => Promise<void>;
   onPatchItem: (
     item: PlanItemJson,
@@ -1179,34 +1238,41 @@ function GridRow({
     item: PlanItemJson,
     dates: { startDate?: string; endDate?: string }
   ) => Promise<unknown | null>;
-  dropHover: ItemDropTarget | null;
+  onAddItem: () => void;
+  onDelete: () => void;
+  onScheduleMeeting?: () => void;
+  dropHover: GridDropHover | null;
   onItemDragOver: (event: DragEvent<HTMLDivElement>, itemId: string) => void;
   onPhaseDragOver: (event: DragEvent<HTMLDivElement>, phaseId: string) => void;
   onDragLeaveRow: () => void;
   onDropTarget: (event: DragEvent<HTMLDivElement>, target: ItemDropTarget) => void;
 }) {
-  const compact = density === "compact";
-  const editColumns = !compact && canEdit;
-  const rowMinWidth = compact ? COMPACT_GRID_WIDTH : FULL_GRID_INNER_WIDTH;
+  const compact = gridMode === "view";
+  const editColumns = editing;
+  const rowMinWidth = compact ? VIEW_GRID_WIDTH : FULL_GRID_INNER_WIDTH;
 
   if (row.kind === "phase") {
     const phase = row.phase;
     const hasChildren = phase.items.length > 0;
     const collapsed = collapsedIds.has(phase.id);
 
-    const phaseDrop =
+    const phaseItemDrop =
       dropHover?.kind === "phase" && dropHover.phaseId === phase.id;
+    const phaseBeforeDrop =
+      dropHover?.kind === "phase-before" && dropHover.phaseId === phase.id;
 
     return (
       <div
-        className={`flex items-center border-b border-surface-100 dark:border-dark-border cursor-pointer ${
+        className={`group flex items-center border-b border-surface-100 dark:border-dark-border cursor-pointer ${
           isSelected ? "bg-jblue-50 dark:bg-jblue-900/20" : "hover:bg-surface-50 dark:hover:bg-dark-raised"
-        } ${phaseDrop ? "ring-1 ring-inset ring-jblue-500 bg-jblue-50/80 dark:bg-jblue-900/30" : ""}`}
+        } ${phaseItemDrop ? "ring-1 ring-inset ring-jblue-500 bg-jblue-50/80 dark:bg-jblue-900/30" : ""} ${
+          phaseBeforeDrop ? "border-t-2 border-t-jblue-500" : ""
+        }`}
         style={{ height: ROW_HEIGHT, minWidth: rowMinWidth }}
         onClick={onSelect}
-        onDragOver={canEdit ? (event) => onPhaseDragOver(event, phase.id) : undefined}
+        onDragOver={editing ? (event) => onPhaseDragOver(event, phase.id) : undefined}
         onDragLeave={
-          canEdit
+          editing
             ? (event) => {
                 if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
                 onDragLeaveRow();
@@ -1214,7 +1280,7 @@ function GridRow({
             : undefined
         }
         onDrop={
-          canEdit
+          editing
             ? (event) => onDropTarget(event, { kind: "phase", phaseId: phase.id })
             : undefined
         }
@@ -1238,10 +1304,31 @@ function GridRow({
           className={`px-2 flex items-center gap-2 ${compact ? "flex-1 min-w-0" : "shrink-0"}`}
           style={compact ? undefined : { minWidth: NAME_COL }}
         >
-          <span
-            className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
-            style={{ backgroundColor: phase.color }}
-            aria-hidden
+          {editing ? (
+            <button
+              type="button"
+              draggable
+              className="shrink-0 p-0.5 text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 cursor-grab active:cursor-grabbing"
+              title="Drag to reorder phase"
+              aria-label="Drag to reorder phase"
+              onClick={(e) => e.stopPropagation()}
+              onDragStart={(event) => {
+                event.dataTransfer.setData(PLAN_PHASE_DRAG, phase.id);
+                event.dataTransfer.setData("text/plain", `phase:${phase.id}`);
+                event.dataTransfer.effectAllowed = "move";
+              }}
+              onDragEnd={onDragLeaveRow}
+            >
+              <GripVertical size={14} aria-hidden />
+            </button>
+          ) : null}
+          <PhaseColorControl
+            color={phase.color}
+            name={phase.name}
+            editing={editing}
+            onChange={(color) => {
+              if (color !== normalizeHexColor(phase.color)) onPatchPhase(phase, { color });
+            }}
           />
           {editColumns ? (
             <input
@@ -1274,14 +1361,42 @@ function GridRow({
           </>
         ) : (
           <>
-            <div style={{ width: TYPE_COL }} className="shrink-0 px-1 text-body-sm text-surface-500 whitespace-nowrap">
-              Phase
+            <div style={{ width: TYPE_COL }} className="shrink-0 px-1">
+              {editing ? (
+                <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                  {PHASE_COLORS.map((swatch) => {
+                    const selected = normalizeHexColor(phase.color) === swatch.value.toLowerCase();
+                    return (
+                      <button
+                        key={swatch.value}
+                        type="button"
+                        title={swatch.label}
+                        aria-label={`${swatch.label} phase color`}
+                        aria-pressed={selected}
+                        className={`h-5 w-5 rounded-sm border ${
+                          selected
+                            ? "border-surface-800 dark:border-white ring-1 ring-offset-1 ring-surface-400 dark:ring-surface-500"
+                            : "border-surface-300 dark:border-dark-muted"
+                        }`}
+                        style={{ backgroundColor: swatch.value }}
+                        onClick={() => {
+                          if (normalizeHexColor(phase.color) !== swatch.value.toLowerCase()) {
+                            onPatchPhase(phase, { color: swatch.value });
+                          }
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              ) : (
+                <span className="text-body-sm text-surface-500 whitespace-nowrap">Phase</span>
+              )}
             </div>
             <div style={{ width: DATE_COL }} className="shrink-0" />
             <div style={{ width: DATE_COL }} className="shrink-0" />
             <div style={{ width: DURATION_COL }} className="shrink-0" />
             <div style={{ width: REPORT_CHECK_COL }} className="shrink-0 px-1 flex justify-center">
-              {canEdit ? (
+              {editing ? (
                 <input
                   type="checkbox"
                   checked={phase.showOnReports !== false}
@@ -1294,6 +1409,15 @@ function GridRow({
               )}
             </div>
             <div style={{ width: STATUS_COL }} className="shrink-0" />
+            {editing ? (
+              <RowActions
+                addLabel="Add item to phase"
+                deleteLabel="Delete phase"
+                busy={busy}
+                onAdd={onAddItem}
+                onDelete={onDelete}
+              />
+            ) : null}
           </>
         )}
       </div>
@@ -1312,22 +1436,24 @@ function GridRow({
     const saveEndDate = (endDate: string) => onPatchItemDates(item, { endDate });
     const compactDates = compactDateLabel(item);
     const statusLabel = ITEM_STATUS_LABELS[item.status ?? "not_started"];
+    const canSchedule =
+      item.type === "meeting" && item.meetingStatus === "assumed" && onScheduleMeeting;
 
     const nestDrop = dropHover?.kind === "nest" && dropHover.itemId === item.id;
     const beforeDrop = dropHover?.kind === "before" && dropHover.itemId === item.id;
 
     return (
       <div
-        className={`flex items-center border-b border-surface-100 dark:border-dark-border cursor-pointer ${
+        className={`group flex items-center border-b border-surface-100 dark:border-dark-border cursor-pointer ${
           isSelected ? "bg-jblue-50 dark:bg-jblue-900/20" : "hover:bg-surface-50 dark:hover:bg-dark-raised"
         } ${nestDrop ? "ring-1 ring-inset ring-jblue-500 bg-jblue-50/80 dark:bg-jblue-900/30" : ""} ${
           beforeDrop ? "border-t-2 border-t-jblue-500" : ""
         }`}
         style={{ height: ROW_HEIGHT, minWidth: rowMinWidth }}
         onClick={onSelect}
-        onDragOver={canEdit ? (event) => onItemDragOver(event, item.id) : undefined}
+        onDragOver={editing ? (event) => onItemDragOver(event, item.id) : undefined}
         onDragLeave={
-          canEdit
+          editing
             ? (event) => {
                 if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
                 onDragLeaveRow();
@@ -1335,8 +1461,12 @@ function GridRow({
             : undefined
         }
         onDrop={
-          canEdit
+          editing
             ? (event) => {
+                if (droppedKind(event) === "phase") {
+                  event.preventDefault();
+                  return;
+                }
                 const rect = event.currentTarget.getBoundingClientRect();
                 const edge = event.clientY - rect.top < DROP_EDGE_PX;
                 onDropTarget(
@@ -1369,7 +1499,7 @@ function GridRow({
             ...(compact ? {} : { minWidth: NAME_COL }),
           }}
         >
-          {canEdit ? (
+          {editing ? (
             <button
               type="button"
               draggable
@@ -1432,7 +1562,7 @@ function GridRow({
         ) : (
           <>
             <div style={{ width: TYPE_COL }} className="shrink-0 px-1">
-              {canEdit ? (
+              {editing ? (
                 <select
                   value={item.type}
                   className={INPUT_CLASS}
@@ -1457,7 +1587,7 @@ function GridRow({
               )}
             </div>
             <div style={{ width: DATE_COL }} className="shrink-0 px-1">
-              {canEdit ? (
+              {editing ? (
                 <DateCell value={item.startDate} onCommit={saveStartDate} />
               ) : (
                 <span className="text-body-sm tabular-nums text-surface-700 dark:text-surface-300 whitespace-nowrap">
@@ -1466,7 +1596,7 @@ function GridRow({
               )}
             </div>
             <div style={{ width: DATE_COL }} className="shrink-0 px-1">
-              {canEdit && !point ? (
+              {editing && !point ? (
                 <DateCell value={item.endDate} onCommit={saveEndDate} />
               ) : (
                 <span
@@ -1487,7 +1617,7 @@ function GridRow({
               {duration}
             </div>
             <div style={{ width: REPORT_CHECK_COL }} className="shrink-0 px-1 flex justify-center">
-              {canEdit ? (
+              {editing ? (
                 <input
                   type="checkbox"
                   checked={item.showOnReports ?? defaultShowOnReports(item.type, item.meetingStatus)}
@@ -1501,26 +1631,51 @@ function GridRow({
                 </span>
               )}
             </div>
-            <div style={{ width: STATUS_COL }} className="shrink-0 px-1">
-              {canEdit ? (
-                <select
-                  value={item.status ?? "not_started"}
-                  className={INPUT_CLASS}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => onPatchItem(item, { status: e.target.value as PlanItemStatus })}
-                >
-                  {PLAN_ITEM_STATUSES.map((status) => (
-                    <option key={status} value={status}>
-                      {ITEM_STATUS_LABELS[status]}
-                    </option>
-                  ))}
-                </select>
+            <div style={{ width: STATUS_COL }} className="shrink-0 px-1 flex items-center gap-1">
+              {editing ? (
+                <>
+                  <select
+                    value={item.status ?? "not_started"}
+                    className={INPUT_CLASS}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => onPatchItem(item, { status: e.target.value as PlanItemStatus })}
+                  >
+                    {PLAN_ITEM_STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {ITEM_STATUS_LABELS[status]}
+                      </option>
+                    ))}
+                  </select>
+                  {canSchedule ? (
+                    <button
+                      type="button"
+                      className={ROW_ICON_BTN}
+                      title="Schedule meeting"
+                      aria-label="Schedule meeting"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onScheduleMeeting();
+                      }}
+                    >
+                      <Calendar size={14} aria-hidden />
+                    </button>
+                  ) : null}
+                </>
               ) : (
                 <span className="text-body-sm text-surface-600 dark:text-surface-400 whitespace-nowrap">
                   {statusLabel}
                 </span>
               )}
             </div>
+            {editing ? (
+              <RowActions
+                addLabel="Add item after"
+                deleteLabel="Delete item"
+                busy={busy}
+                onAdd={onAddItem}
+                onDelete={onDelete}
+              />
+            ) : null}
           </>
         )}
       </div>

@@ -21,6 +21,7 @@ import { serializePlanItem } from "@/lib/plan/serialize";
 import { touchPlan } from "@/lib/plan/touchPlan";
 import { defaultShowOnReports } from "@/lib/plan/reportVisibility";
 import { completedAtForStatus } from "@/lib/plan/completion";
+import { reindexSiblingOrders, validateInsertBefore } from "@/lib/plan/itemDrop";
 
 const postSchema = z.object({
   phaseId: z.string().min(1),
@@ -30,6 +31,7 @@ const postSchema = z.object({
   endDate: dateString,
   order: z.number().int().optional(),
   parentItemId: z.string().min(1).nullable().optional(),
+  insertBeforeItemId: z.string().min(1).nullable().optional(),
   meetingStatus: planMeetingStatusEnum.nullable().optional(),
   scheduledTime: z.string().nullable().optional(),
   showOnReports: z.boolean().optional(),
@@ -103,6 +105,21 @@ export async function POST(
     return NextResponse.json({ error: rangeError }, { status: 400 });
   }
 
+  const placeRequested = parsed.data.insertBeforeItemId !== undefined;
+  const insertBeforeItemId = placeRequested ? parsed.data.insertBeforeItemId ?? null : null;
+  if (placeRequested) {
+    const placeError = validateInsertBefore(
+      siblings,
+      "__new__",
+      phase.id,
+      parentItemId,
+      insertBeforeItemId
+    );
+    if (placeError) {
+      return NextResponse.json({ error: placeError }, { status: 400 });
+    }
+  }
+
   const maxOrder = await prisma.planItem.aggregate({
     where: { phaseId: phase.id, parentItemId },
     _max: { order: true },
@@ -110,7 +127,7 @@ export async function POST(
   const order = parsed.data.order ?? (maxOrder._max.order ?? -1) + 1;
 
   try {
-    const item = await prisma.planItem.create({
+    const created = await prisma.planItem.create({
       data: {
         phaseId: phase.id,
         type: parsed.data.type,
@@ -128,7 +145,30 @@ export async function POST(
       },
     });
 
+    if (placeRequested) {
+      const siblingOrders = reindexSiblingOrders(
+        [...siblings, { id: created.id, phaseId: phase.id, parentItemId, order: created.order }],
+        created.id,
+        phase.id,
+        parentItemId,
+        insertBeforeItemId
+      );
+      await prisma.$transaction(
+        siblingOrders.map((row) =>
+          prisma.planItem.update({
+            where: { id: row.id },
+            data: { order: row.order },
+          })
+        )
+      );
+    }
+
     await touchPlan(phase.planId, getSessionUserId(planAuth.session));
+
+    const item =
+      placeRequested
+        ? await prisma.planItem.findUniqueOrThrow({ where: { id: created.id } })
+        : created;
 
     return NextResponse.json(serializePlanItem(item));
   } catch (err) {
