@@ -19,12 +19,10 @@ Everyone who can open the project can **see** Plan. Only editors get grips, date
 ## Open Plan and choose a grid density
 
 1. Open the project and click **Plan**.
-2. Use **Compact** to scan names, types, shortened dates, and status.
-3. Switch to **Full** to edit Type, Start, End, Days, **Rpt**, and Status.
+2. Use **View** to scan names, types, shortened dates, and status icons (hover an icon for **Not started**, **In progress**, or **Complete**). The left grid does not scroll sideways in View or Edit.
+3. Switch to **Edit** to see Type, Start, End, Days, **Rpt**, Status, and row actions. Every edit column stays on screen; the Gantt uses the remaining space.
 
-If Full columns need more room than the pane, scroll the grid horizontally so labels are not clipped.
-
-**Gantt zoom:** **Fit** sizes date columns to the pane when they still fit, but never shrinks a column so the header date is cut off — the chart scrolls sideways instead. **Day**, **Week**, and **Month** use the same readable column widths.
+**Gantt zoom:** **Fit** sizes date columns to the pane when they still fit, but never shrinks a column so the header date is cut off — the chart scrolls sideways instead. **Day**, **Week**, and **Month** use the same readable column widths. There is a small gap before the first date so kickoff items are not clipped, and a red **Today** line (on the start or end edge if today is outside the plan).
 
 ---
 
@@ -90,7 +88,7 @@ You can also type dates in **Full** grid Start/End cells.
 
 ## Status and status reports (Rpt)
 
-- Set item **Status** to **Not started**, **In progress**, or **Complete**. The Plan header shows how many items are complete.
+- Set item **Status** to **Not started**, **In progress**, or **Complete** (in **Edit**; **View** shows the same states as icons — hover for the full name). The Plan header shows how many items are complete.
 - **Rpt** chooses whether that phase or item appears on **Plan-sourced** status-report schedules.
 - Short names for a **specific slide** are set on that report’s **Arrange this report’s schedule** board, not on Plan.
 - New key dates and scheduled meetings default to **shown**; tasks, waiting-on-client, and assumed meetings default to **hidden** as markers (they still stretch the phase bar).

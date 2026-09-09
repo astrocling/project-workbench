@@ -26,6 +26,17 @@ export function positionPercent(
   return Math.max(0, Math.min(100, ((t - startMs) / totalMs) * 100));
 }
 
+/** Axis percent for a today marker, clamped to the plan when the date is outside. */
+export function todayMarkerPercent(
+  todayYmd: string,
+  planStartYmd: string,
+  planEndYmd: string
+): number {
+  if (todayYmd < planStartYmd) return 0;
+  if (todayYmd > planEndYmd) return 100;
+  return positionPercent(todayYmd, planStartYmd, planEndYmd);
+}
+
 /** Bar width (0–100) for an inclusive start/end range on the plan axis. */
 export function widthPercent(
   startYmd: string,

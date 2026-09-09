@@ -19,15 +19,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Status reports — Plan as schedule source** — **Standard** and **Milestones** reports can be created from **Project timeline** or **Project Plan**, with density **Phases only** or **Phases + key dates** (`snapshot.scheduleSource` / `snapshot.planDensity`; per-project default `Project.planReportDefault`, set on the Plan tab). Plan phases map to compact bars and key dates to markers in the existing report timeline block, so preview, client PDF, and server PDF are unchanged visually. Source and density are locked on edit; **Refresh schedule** re-reads the Plan tab the way **Refresh timeline** re-reads the Timeline tab.
 
+### Changed
+
+- **Plan grid — View status icons** — Compact **View** no longer truncates **Not started** / **In progress**. Item status is a Lucide icon (`Circle` / `CircleDot` / `CircleCheck`); hover and the accessible name keep the full label. The compact **Status** column is wide enough for the **STATUS** header with no left-pane sideways scroll. **Edit** still uses the status select. `components/plan/PlanGridGantt.tsx`.
+
+- **Plan Gantt — kickoff gutter and today line** — The chart keeps a small pad left of kickoff (and matching pad on the right) so kickoff-day diamonds and bars are not clipped. A red **Today** line is drawn on the axis (`todayMarkerPercent` in `lib/plan/positioning.ts`); if today is before kickoff or after plan end, the line sits on that edge.
+
 ### Fixed
 
 - **Status reports — CDA Refresh budget left hours stuck** — **Refresh budget** on a CDA report updated `snapshot.budget` and overall **dollar** totals, but the slide’s hours still came from locked **`snapshot.cda.totalMtdActuals`** / monthly rows. Correcting Resourcing actuals (e.g. +0.25h) showed the right total in the edit-form summary, while **Update** and even **Refresh budget** left the slide on the old figure. Refresh now rebuilds CDA monthly hours and overall hours actuals (milestones unchanged). Helpers: `shouldRebuildCdaBudgetFromProject`, `applyCdaBudgetRefresh`. Tests: `__tests__/lib/statusReportPdfData.test.ts`.
 
+- **Plan grid — Edit clipped columns behind a horizontal scroll** — **Edit** used `max-width: 55%` on the left pane, so Type / Start / End / Days / Rpt / Status sat behind a scrollbar. Edit now sizes to the full column set with no horizontal scroll; **View** still caps at 55% so Compact shares space with the Gantt.
+
 ### Documentation
 
-- **User Guide** — Refresh budget covers CDA hours/actuals; troubleshooting when Update does not change the slide. **Plan** tab (Gantt drag/resize, **phase grip** to reorder phases, **item grip** to reorder/nest/move phase), **Schedule source (Plan enabled)**, **Refresh schedule**, and what happens to Plan-sourced reports if Plan is later disabled. Troubleshooting for missing Plan grips and reports that do not pick up Plan reorder until refresh.
-- **Technical Reference** — Refresh budget replaces full CDA budget fields, not only `overallBudget` dollars. Plan schema/routes/gating helpers, `insertBeforeItemId` / **`insertBeforePhaseId`** reindex, Gantt `applyGanttDrag` / `ymdAtPercent`, `scheduleSource` / `planDensity` snapshot fields, the shared timeline render gate, and the Settings autosave rules for the Plan nav refresh.
-- **Plan tab how-to** — Confluence-ready editor guide in `docs/PLAN_TAB_HOWTO.md` (enable Plan, grid/Gantt, drag phases and items, dates, reports).
+- **User Guide** — Refresh budget covers CDA hours/actuals; troubleshooting when Update does not change the slide. **Plan** tab (Gantt drag/resize, **phase grip** to reorder phases, **item grip** to reorder/nest/move phase, **View and Edit** without left-grid sideways scroll, Gantt kickoff pad and **Today** line), **Schedule source (Plan enabled)**, **Refresh schedule**, and what happens to Plan-sourced reports if Plan is later disabled. Troubleshooting for missing Plan grips and reports that do not pick up Plan reorder until refresh.
+- **Technical Reference** — Refresh budget replaces full CDA budget fields, not only `overallBudget` dollars. Plan schema/routes/gating helpers, `insertBeforeItemId` / **`insertBeforePhaseId`** reindex, Gantt `applyGanttDrag` / `ymdAtPercent` / `todayMarkerPercent`, `scheduleSource` / `planDensity` snapshot fields, the shared timeline render gate, and the Settings autosave rules for the Plan nav refresh.
+- **Plan tab how-to** — Confluence-ready editor guide in `docs/PLAN_TAB_HOWTO.md` (enable Plan, grid/Gantt, drag phases and items, dates, reports). **View** status is icons with hover for the full name; Gantt has a kickoff gutter and **Today** line.
+- **User Guide / Technical Reference** — Plan **View** status icons vs **Edit** status select.
 
 ## [1.2.8] - 2026-08-18
 

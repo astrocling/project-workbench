@@ -5,6 +5,9 @@ import {
   Calendar,
   ChevronDown,
   ChevronRight,
+  Circle,
+  CircleCheck,
+  CircleDot,
   Clock,
   Diamond,
   Flag,
@@ -23,6 +26,7 @@ import {
 import {
   applyGanttDrag,
   positionPercent,
+  todayMarkerPercent,
   widthPercent,
   ymdAtClientX,
   type GanttDragKind,
@@ -58,6 +62,7 @@ import {
 
 const MEETING_VIOLET = "#6d28d9";
 const ROW_HEIGHT = 36;
+const GANTT_AXIS_PAD_PX = 16;
 const VIEW_GRID_WIDTH = 400;
 const ACTIONS_COL = 52;
 const FULL_GRID_INNER_WIDTH = 906 + ACTIONS_COL;
@@ -94,7 +99,7 @@ function normalizeHexColor(value: string): string {
 }
 
 const INPUT_CLASS =
-  "block w-full h-7 px-2 rounded text-body-sm bg-white dark:bg-dark-surface border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100";
+  "block w-full min-w-0 h-7 px-2 rounded text-body-sm bg-white dark:bg-dark-surface border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100";
 const ROW_ICON_BTN =
   "p-0.5 rounded text-surface-400 hover:text-surface-800 hover:bg-surface-100 dark:hover:text-surface-100 dark:hover:bg-dark-muted disabled:opacity-40 disabled:cursor-not-allowed";
 const ROW_ACTIONS_REVEAL =
@@ -122,6 +127,18 @@ const ITEM_TYPE_ICONS: Record<PlanItemType, LucideIcon> = {
   hard_deadline: Flag,
   waiting_on_client: Clock,
   meeting: Calendar,
+};
+
+const ITEM_STATUS_ICONS: Record<PlanItemStatus, LucideIcon> = {
+  not_started: Circle,
+  in_progress: CircleDot,
+  complete: CircleCheck,
+};
+
+const ITEM_STATUS_ICON_CLASS: Record<PlanItemStatus, string> = {
+  not_started: "text-surface-400 dark:text-surface-500",
+  in_progress: "text-amber-700 dark:text-amber-400",
+  complete: "text-emerald-700 dark:text-emerald-400",
 };
 
 type RowKey = string;
@@ -382,6 +399,9 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
   const editing = canEdit && gridMode === "edit";
   const leftGridWidth = gridMode === "view" ? VIEW_GRID_WIDTH : FULL_GRID_INNER_WIDTH;
   const ganttWidth = columns.length * colWidth;
+  const ganttTrackWidth = ganttWidth + GANTT_AXIS_PAD_PX * 2;
+  const todayYmd = new Date().toISOString().slice(0, 10);
+  const todayPercent = todayMarkerPercent(todayYmd, axisRange.startYmd, axisRange.endYmd);
   const axisWidened =
     axisRange.startYmd < plan.kickoffDate || axisRange.endYmd > plan.endDate;
 
@@ -784,10 +804,14 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
       >
         <div className="flex" style={{ height: bodyHeight + ROW_HEIGHT }}>
           <div
-            className="shrink-0 overflow-x-auto overflow-y-hidden border-r border-surface-200 dark:border-dark-border"
-            style={{ width: leftGridWidth, maxWidth: "55%" }}
+            className="shrink-0 overflow-x-hidden overflow-y-hidden border-r border-surface-200 dark:border-dark-border"
+            style={
+              gridMode === "view"
+                ? { width: leftGridWidth, maxWidth: "55%" }
+                : { width: leftGridWidth }
+            }
           >
-            <div style={{ minWidth: leftGridWidth }}>
+            <div style={gridMode === "view" ? { width: "100%" } : { minWidth: leftGridWidth }}>
               <div className="bg-surface-50 dark:bg-dark-raised">
                 <GridHeader gridMode={gridMode} editing={editing} />
               </div>
@@ -902,8 +926,15 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
               className="overflow-hidden shrink-0 bg-surface-50 dark:bg-dark-raised"
               style={{ minWidth: 0 }}
             >
-              <div style={{ width: ganttWidth }}>
-                <GanttHeader columns={columns} colWidth={colWidth} scale={scale} />
+              <div className="relative" style={{ width: ganttTrackWidth }}>
+                <div style={{ paddingLeft: GANTT_AXIS_PAD_PX, paddingRight: GANTT_AXIS_PAD_PX }}>
+                  <GanttHeader columns={columns} colWidth={colWidth} scale={scale} />
+                </div>
+                <GanttTodayLine
+                  percent={todayPercent}
+                  inset={GANTT_AXIS_PAD_PX}
+                  trackWidth={ganttWidth}
+                />
               </div>
             </div>
             <div
@@ -917,7 +948,17 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
               }
             }}
           >
-            <div ref={ganttAxisRef} style={{ width: ganttWidth }}>
+            <div className="relative" style={{ width: ganttTrackWidth }}>
+            <div
+              ref={ganttAxisRef}
+              className="relative"
+              style={{
+                width: ganttWidth,
+                marginLeft: GANTT_AXIS_PAD_PX,
+                marginRight: GANTT_AXIS_PAD_PX,
+              }}
+            >
+              <GanttTodayLine percent={todayPercent} />
               {displayRows.map((displayRow) =>
                 displayRow.kind === "data" ? (
                   <GanttRow
@@ -977,6 +1018,7 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
               )}
             </div>
             </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1030,19 +1072,43 @@ function GanttSpacerRow() {
   );
 }
 
+function GanttTodayLine({
+  percent,
+  inset = 0,
+  trackWidth,
+}: {
+  percent: number;
+  inset?: number;
+  trackWidth?: number;
+}) {
+  const left =
+    trackWidth != null ? inset + (percent / 100) * trackWidth : `${percent}%`;
+  return (
+    <div
+      className="absolute top-0 bottom-0 w-0.5 bg-jred-600 dark:bg-jred-500 pointer-events-none z-[2]"
+      style={{ left, marginLeft: -1 }}
+      title="Today"
+      aria-hidden
+    />
+  );
+}
+
 function GridHeader({ gridMode, editing }: { gridMode: GridMode; editing: boolean }) {
   if (gridMode === "view") {
     return (
       <div
         className="flex items-center text-label-sm font-semibold uppercase tracking-wide text-surface-600 dark:text-surface-400 border-b border-surface-200 dark:border-dark-border"
-        style={{ height: ROW_HEIGHT, minWidth: VIEW_GRID_WIDTH }}
+        style={{ height: ROW_HEIGHT }}
       >
         <div style={{ width: EXPAND_COL }} className="shrink-0" />
         <div className="flex-1 min-w-0 px-2">Name</div>
         <div style={{ width: COMPACT_DATE_COL }} className="shrink-0 px-1">
           Dates
         </div>
-        <div style={{ width: COMPACT_STATUS_COL }} className="shrink-0 px-1">
+        <div
+          style={{ width: COMPACT_STATUS_COL }}
+          className="shrink-0 px-1 text-center whitespace-nowrap"
+        >
           Status
         </div>
       </div>
@@ -1055,7 +1121,7 @@ function GridHeader({ gridMode, editing }: { gridMode: GridMode; editing: boolea
       style={{ height: ROW_HEIGHT, minWidth: FULL_GRID_INNER_WIDTH }}
     >
       <div style={{ width: EXPAND_COL }} className="shrink-0" />
-      <div className="px-2 shrink-0" style={{ minWidth: NAME_COL }}>
+      <div className="px-2 shrink-0 min-w-0" style={{ width: NAME_COL }}>
         Name
       </div>
       <div style={{ width: TYPE_COL }} className="shrink-0 px-1">
@@ -1091,6 +1157,23 @@ function TypeGlyph({ item }: { item: PlanItemJson }) {
   return (
     <span className="shrink-0 text-surface-500 dark:text-surface-400" title={title}>
       <Icon size={14} aria-label={title} />
+    </span>
+  );
+}
+
+function StatusGlyph({ status }: { status: PlanItemStatus }) {
+  const Icon = ITEM_STATUS_ICONS[status];
+  const title = ITEM_STATUS_LABELS[status];
+  return (
+    <span className={`relative inline-flex shrink-0 p-1 ${ITEM_STATUS_ICON_CLASS[status]}`}>
+      <Icon size={14} aria-hidden />
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute right-full top-1/2 z-30 mr-1 hidden -translate-y-1/2 whitespace-nowrap rounded border border-surface-200 bg-white px-1.5 py-0.5 text-xs font-normal normal-case tracking-normal text-surface-800 shadow-sm group-hover/status:block dark:border-dark-border dark:bg-dark-surface dark:text-surface-200"
+      >
+        {title}
+      </span>
+      <span className="sr-only">{title}</span>
     </span>
   );
 }
@@ -1249,7 +1332,7 @@ function GridRow({
 }) {
   const compact = gridMode === "view";
   const editColumns = editing;
-  const rowMinWidth = compact ? VIEW_GRID_WIDTH : FULL_GRID_INNER_WIDTH;
+  const rowMinWidth = compact ? undefined : FULL_GRID_INNER_WIDTH;
 
   if (row.kind === "phase") {
     const phase = row.phase;
@@ -1263,7 +1346,7 @@ function GridRow({
 
     return (
       <div
-        className={`group flex items-center border-b border-surface-100 dark:border-dark-border cursor-pointer ${
+        className={`group flex items-center overflow-hidden border-b border-surface-100 dark:border-dark-border cursor-pointer ${
           isSelected ? "bg-jblue-50 dark:bg-jblue-900/20" : "hover:bg-surface-50 dark:hover:bg-dark-raised"
         } ${phaseItemDrop ? "ring-1 ring-inset ring-jblue-500 bg-jblue-50/80 dark:bg-jblue-900/30" : ""} ${
           phaseBeforeDrop ? "border-t-2 border-t-jblue-500" : ""
@@ -1301,8 +1384,8 @@ function GridRow({
           ) : null}
         </div>
         <div
-          className={`px-2 flex items-center gap-2 ${compact ? "flex-1 min-w-0" : "shrink-0"}`}
-          style={compact ? undefined : { minWidth: NAME_COL }}
+          className={`px-2 flex items-center gap-2 ${compact ? "flex-1 min-w-0" : "shrink-0 min-w-0 overflow-hidden"}`}
+          style={compact ? undefined : { width: NAME_COL }}
         >
           {editing ? (
             <button
@@ -1445,10 +1528,10 @@ function GridRow({
     return (
       <div
         className={`group flex items-center border-b border-surface-100 dark:border-dark-border cursor-pointer ${
-          isSelected ? "bg-jblue-50 dark:bg-jblue-900/20" : "hover:bg-surface-50 dark:hover:bg-dark-raised"
-        } ${nestDrop ? "ring-1 ring-inset ring-jblue-500 bg-jblue-50/80 dark:bg-jblue-900/30" : ""} ${
-          beforeDrop ? "border-t-2 border-t-jblue-500" : ""
-        }`}
+          compact ? "overflow-visible hover:z-10" : "overflow-hidden"
+        } ${isSelected ? "bg-jblue-50 dark:bg-jblue-900/20" : "hover:bg-surface-50 dark:hover:bg-dark-raised"} ${
+          nestDrop ? "ring-1 ring-inset ring-jblue-500 bg-jblue-50/80 dark:bg-jblue-900/30" : ""
+        } ${beforeDrop ? "border-t-2 border-t-jblue-500" : ""}`}
         style={{ height: ROW_HEIGHT, minWidth: rowMinWidth }}
         onClick={onSelect}
         onDragOver={editing ? (event) => onItemDragOver(event, item.id) : undefined}
@@ -1493,10 +1576,10 @@ function GridRow({
           ) : null}
         </div>
         <div
-          className={`px-2 flex items-center gap-1 ${compact ? "flex-1 min-w-0" : "shrink-0"}`}
+          className={`px-2 flex items-center gap-1 ${compact ? "flex-1 min-w-0" : "shrink-0 min-w-0 overflow-hidden"}`}
           style={{
             paddingLeft: 8 + depth * 16,
-            ...(compact ? {} : { minWidth: NAME_COL }),
+            ...(compact ? {} : { width: NAME_COL }),
           }}
         >
           {editing ? (
@@ -1553,10 +1636,9 @@ function GridRow({
             </div>
             <div
               style={{ width: COMPACT_STATUS_COL }}
-              className="shrink-0 px-1 text-body-sm text-surface-600 dark:text-surface-400 truncate"
-              title={statusLabel}
+              className="group/status relative shrink-0 px-0.5 flex justify-center overflow-visible"
             >
-              {statusLabel}
+              <StatusGlyph status={item.status ?? "not_started"} />
             </div>
           </>
         ) : (

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyGanttDrag,
   positionPercent,
+  todayMarkerPercent,
   widthPercent,
   ymdAtClientX,
   ymdAtPercent,
@@ -36,6 +37,19 @@ describe("ymdAtClientX", () => {
 
   it("maps the right edge of the axis to the end date", () => {
     expect(ymdAtClientX(500, 100, 400, start, end)).toBe(end);
+  });
+});
+
+describe("todayMarkerPercent", () => {
+  it("returns the axis percent when today falls on the plan", () => {
+    expect(todayMarkerPercent("2026-03-05", start, end)).toBe(
+      positionPercent("2026-03-05", start, end)
+    );
+  });
+
+  it("clamps to the axis edges when today is outside the plan", () => {
+    expect(todayMarkerPercent("2026-02-28", start, end)).toBe(0);
+    expect(todayMarkerPercent("2026-03-11", start, end)).toBe(100);
   });
 });
 
