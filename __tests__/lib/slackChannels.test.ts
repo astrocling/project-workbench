@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveAccountSlackChannel } from "@/lib/slackChannels";
+import { resolveAccountSlackChannel, resolveProjectSlackChannel } from "@/lib/slackChannels";
 
 describe("resolveAccountSlackChannel", () => {
   it("returns account channel when set", () => {
@@ -61,5 +61,29 @@ describe("resolveAccountSlackChannel", () => {
       account: { slackChannelId: "C0123456789" },
     });
     expect(result).toEqual({ ok: true, channelId: "C0123456789" });
+  });
+});
+
+describe("resolveProjectSlackChannel", () => {
+  it("returns project channel when set", () => {
+    const result = resolveProjectSlackChannel({ slackChannelId: " C0PROJECT " });
+    expect(result).toEqual({ ok: true, channelId: "C0PROJECT" });
+  });
+
+  it("returns no_channel when slackChannelId is null", () => {
+    const result = resolveProjectSlackChannel({ slackChannelId: null });
+    expect(result).toEqual({
+      ok: false,
+      reason: "no_channel",
+      error: expect.stringContaining("Settings → Links"),
+    });
+  });
+
+  it("returns no_channel when slackChannelId is blank", () => {
+    const result = resolveProjectSlackChannel({ slackChannelId: "   " });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe("no_channel");
+    }
   });
 });

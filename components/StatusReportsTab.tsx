@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { SlackIcon } from "@/components/SlackIcon";
 import { BRAND_COLORS } from "@/lib/brandColors";
 import { StatusReportPreview } from "@/components/StatusReportPreview";
 import { RichTextEditor } from "@/components/RichTextEditor";
@@ -1128,6 +1129,7 @@ export function StatusReportsTab({
                   }}
                   className="inline-flex items-center justify-center gap-2 h-8 px-3 rounded text-label-sm border border-jblue-500 text-jblue-500 font-medium hover:bg-jblue-50 dark:hover:bg-jblue-950 focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
                 >
+                  <SlackIcon className="h-4 w-4" />
                   Post to Slack
                 </button>
               )}
@@ -2554,8 +2556,9 @@ export function StatusReportsTab({
                 type="button"
                 disabled={slackPosting || !reports[0]}
                 onClick={() => void submitSlackHealthUpdate()}
-                className="h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white text-body-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white text-body-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
+                <SlackIcon className="h-4 w-4" />
                 {slackPosting ? "Posting…" : "Post to Slack"}
               </button>
             </div>

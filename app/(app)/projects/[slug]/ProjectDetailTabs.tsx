@@ -12,6 +12,7 @@ import {
 import type { EditProjectInitial } from "@/app/(app)/projects/[slug]/edit/EditProjectDataContext";
 import type { DashboardPtoProjectPayload } from "@/lib/pgmPtoWidgetData";
 import AbsencePills from "@/components/AbsencePills";
+import { SlackIcon } from "@/components/SlackIcon";
 
 const ResourcingGrids = dynamic(() => import("@/components/ResourcingGrids").then((m) => ({ default: m.ResourcingGrids })), {
   loading: () => <div className="min-h-[200px] flex items-center justify-center text-surface-500 dark:text-surface-400">Loading…</div>,
@@ -70,6 +71,7 @@ type InitialProject = {
   estimateLink: string | null;
   floatLink: string | null;
   metricLink: string | null;
+  slackChannelId: string | null;
   useSingleRate: boolean;
   singleBillRate: number | null;
   projectKeyRoles: Array<{ type: string; person: { name: string } }>;
@@ -191,6 +193,12 @@ export function ProjectDetailTabs({
   const [estimateLink, setEstimateLink] = useState<string | null>(null);
   const [floatLink, setFloatLink] = useState<string | null>(null);
   const [metricLink, setMetricLink] = useState<string | null>(null);
+  const [slackChannelId, setSlackChannelId] = useState<string | null>(
+    initialProject?.slackChannelId ?? null
+  );
+  const [weeklySlackPosting, setWeeklySlackPosting] = useState(false);
+  const [weeklySlackError, setWeeklySlackError] = useState("");
+  const [weeklySlackSuccess, setWeeklySlackSuccess] = useState(false);
   const [keyRoleNames, setKeyRoleNames] = useState<{
     pm: string[];
     pgm: string | null;
@@ -290,6 +298,9 @@ export function ProjectDetailTabs({
       setEstimateLink(null);
       setFloatLink(null);
       setMetricLink(null);
+      setSlackChannelId(null);
+      setWeeklySlackError("");
+      setWeeklySlackSuccess(false);
       setKeyRoleNames({ pm: [], pgm: null, ad: null });
       return;
     }
@@ -301,6 +312,9 @@ export function ProjectDetailTabs({
       setEstimateLink(initialProject.estimateLink ?? null);
       setFloatLink(initialProject.floatLink ?? null);
       setMetricLink(initialProject.metricLink ?? null);
+      setSlackChannelId(initialProject.slackChannelId ?? null);
+      setWeeklySlackError("");
+      setWeeklySlackSuccess(false);
       setProjectNotesDirty(false);
       const keyRoles = initialProject.projectKeyRoles ?? [];
       const pm = keyRoles
@@ -369,6 +383,7 @@ export function ProjectDetailTabs({
         setEstimateLink(p.estimateLink ?? null);
         setFloatLink(p.floatLink ?? null);
         setMetricLink(p.metricLink ?? null);
+        setSlackChannelId(p.slackChannelId ?? null);
         setProjectNotesDirty(false);
         const keyRoles = p.projectKeyRoles ?? [];
         const pm = keyRoles
@@ -384,6 +399,7 @@ export function ProjectDetailTabs({
         setEstimateLink(null);
         setFloatLink(null);
         setMetricLink(null);
+        setSlackChannelId(null);
         setKeyRoleNames({ pm: [], pgm: null, ad: null });
       }
       setOverviewLoading(false);
@@ -405,6 +421,29 @@ export function ProjectDetailTabs({
       })
       .finally(() => setProjectNotesSaving(false));
   }, [projectId, projectNotes, projectNotesDirty, projectNotesSaving]);
+
+  const postWeeklyLookahead = useCallback(async () => {
+    if (!slackChannelId?.trim() || weeklySlackPosting) return;
+    setWeeklySlackError("");
+    setWeeklySlackSuccess(false);
+    setWeeklySlackPosting(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/slack/weekly-lookahead`, {
+        method: "POST",
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setWeeklySlackError(typeof data.error === "string" ? data.error : "Something went wrong");
+        return;
+      }
+      setWeeklySlackSuccess(true);
+      setTimeout(() => setWeeklySlackSuccess(false), 4000);
+    } catch {
+      setWeeklySlackError("Network error");
+    } finally {
+      setWeeklySlackPosting(false);
+    }
+  }, [projectId, slackChannelId, weeklySlackPosting]);
 
   useEffect(() => {
     if (initialBudgetStatus == null) refetchBudgetStatus();
@@ -448,7 +487,8 @@ export function ProjectDetailTabs({
           })}
         </nav>
         {tab !== "status-reports" && tab !== "settings" && tab !== "pto" && (
-        <div className="text-body-sm text-surface-700 dark:text-surface-200 space-y-1">
+        <div className="flex items-start justify-between gap-4">
+          <div className="text-body-sm text-surface-700 dark:text-surface-200 space-y-1 min-w-0">
           <p className="flex items-center gap-3 flex-wrap">
               <span>Float last updated: {floatLastUpdated ? new Date(floatLastUpdated).toLocaleString() : "Never"}</span>
               {freshnessWarning && (
@@ -480,6 +520,41 @@ export function ProjectDetailTabs({
               </span>
             )}
           </p>
+          </div>
+          {tab === "overview" && canEdit && (
+            <div className="shrink-0 flex flex-col items-end gap-1">
+              {slackChannelId?.trim() ? (
+                <button
+                  type="button"
+                  onClick={() => void postWeeklyLookahead()}
+                  disabled={weeklySlackPosting}
+                  className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 disabled:opacity-60 text-white font-semibold text-body-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jblue-400 focus-visible:ring-offset-2"
+                >
+                  <SlackIcon className="h-4 w-4" />
+                  {weeklySlackPosting ? "Posting…" : "Post week to Slack"}
+                </button>
+              ) : (
+                <span
+                  className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md bg-surface-200 dark:bg-dark-raised text-surface-500 dark:text-surface-400 font-semibold text-body-sm cursor-not-allowed select-none"
+                  aria-disabled="true"
+                  title="Set a Slack channel in Settings → Links"
+                >
+                  <SlackIcon className="h-4 w-4" />
+                  Post week to Slack
+                </span>
+              )}
+              {weeklySlackError ? (
+                <p className="text-body-sm text-red-600 dark:text-red-400 text-right" role="alert">
+                  {weeklySlackError}
+                </p>
+              ) : null}
+              {weeklySlackSuccess ? (
+                <p className="text-body-sm text-emerald-700 dark:text-emerald-400 text-right">
+                  Posted to the project Slack channel.
+                </p>
+              ) : null}
+            </div>
+          )}
         </div>
         )}
       </div>

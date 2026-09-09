@@ -107,6 +107,7 @@ export default async function ProjectDetailPage({
     estimateLink: project.estimateLink ?? null,
     floatLink: project.floatLink ?? null,
     metricLink: project.metricLink ?? null,
+    slackChannelId: project.slackChannelId ?? null,
     useSingleRate: project.useSingleRate ?? false,
     singleBillRate: project.singleBillRate != null ? Number(project.singleBillRate) : null,
     projectKeyRoles: project.projectKeyRoles.map((kr) => ({

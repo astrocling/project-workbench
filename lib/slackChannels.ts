@@ -29,3 +29,23 @@ export function resolveAccountSlackChannel(project: {
 
   return { ok: true, channelId };
 }
+
+export type ProjectSlackChannelResult =
+  | { ok: true; channelId: string }
+  | { ok: false; reason: "no_channel"; error: string };
+
+/** Slack channel for project-channel posts (weekly look-ahead, missing-actuals). */
+export function resolveProjectSlackChannel(project: {
+  slackChannelId?: string | null;
+}): ProjectSlackChannelResult {
+  const channelId = project.slackChannelId?.trim() || null;
+  if (!channelId) {
+    return {
+      ok: false,
+      reason: "no_channel",
+      error:
+        "No Slack channel configured for this project. Set one in Settings → Links.",
+    };
+  }
+  return { ok: true, channelId };
+}
