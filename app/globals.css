@@ -227,6 +227,22 @@
   }
 }
 
+/* Shared Holiday/PTO/date header sits above grid bodies while they scroll under it */
+.resourcing-shared-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background-color: #f7f8fa;
+}
+.dark .resourcing-shared-header {
+  background-color: #152035;
+}
+.resourcing-shared-header .resourcing-sticky-body,
+.resourcing-shared-header .resourcing-sticky-head,
+.resourcing-shared-header .resourcing-sticky-foot {
+  z-index: 32 !important;
+}
+
 /* Resourcing grid sticky columns - fully opaque, borders stay visible when scrolling */
 .resourcing-sticky-body,
 .resourcing-sticky-even,
