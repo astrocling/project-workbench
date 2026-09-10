@@ -27,7 +27,7 @@ Ran `npx tsx scripts/debug-backfill-match.ts stanford-ohs-spcs-2025-2026-2` and 
 
 **Verify prod DB:** `DATABASE_URL="<from Vercel production>" npx tsx scripts/debug-resourcing-payload.ts stanford-ohs-spcs-2025-2026-2 --skip-backfill`
 
-**Also deploy Trigger.dev** after app deploy (`npx trigger.dev@latest deploy`) — hourly `float-sync-*` tasks use the Trigger worker code, not Vercel; stale Trigger code skips duplicate mirroring.
+**Also deploy Trigger.dev** after app deploy (`npx trigger.dev@<sdk-version> deploy`, CLI matching `@trigger.dev/sdk`; keep **`runtime: "node-24"`**) — hourly `float-sync-*` tasks use the Trigger worker code, not Vercel; stale Trigger code skips duplicate mirroring.
 
 Likely causes: (1) **Vercel `DATABASE_URL` ≠ local `.env`**, (2) **Trigger.dev not redeployed** to v1.2.3, (3) duplicate linked project still present on prod, (4) resourcing cache until Admin sync / per-project revalidate.
 

@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Trigger.dev — Node 24 runtime** — `trigger.config.ts` sets **`runtime: "node-24"`** so workers are not left on Trigger.dev’s default Node 21 (new deploys of that runtime fail after 5 October 2026). Trigger workers are independent of Vercel: deploy with **`npx trigger.dev@<sdk-version> deploy`** matching `@trigger.dev/sdk` (do not use `@latest` when the CLI and SDK differ). Documented in [docs/TECHNICAL.md](docs/TECHNICAL.md) and README.
+
 - **Labels — Total Project and Resource Efficiency** — Budget **Average rates** now shows **Total Project** (was Used (project)). **Revenue recovery** is labeled **Resource Efficiency** on the Budget tab, project Overview, and PM/PGM/CAD dashboards (portfolio cards, monthly chart, and **1-wk / 4-wk efficiency** table columns).
 
 - **Budget — dollar buffer and remaining hours** — Buffer % is leftover **dollars** after projected burn vs the high dollar budget (Overview, Budget tab, PM/PGM/CAD tables), not leftover hours vs the hours cap. Projected remaining hours on the Budget tab are leftover dollars ÷ the project blended rate (actuals + remaining plan); past vs remaining-plan rates are shown so mix drift is visible. Projected burn **dollars** still use person rates. CDA hours-cap remaining is unchanged. Tests: `__tests__/lib/budgetCalculations.test.ts`.
