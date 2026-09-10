@@ -47,6 +47,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Navigation — scroll position leaked between pages** — Client navigations (e.g. project Budget → **PGM Dashboard**) kept the previous window scroll because **`AppShell`** stays mounted. New pages now start at the top; back/forward still skip the reset. `components/ScrollToTopOnNavigate.tsx`, `lib/scrollReset.ts`. Tests: `__tests__/lib/scrollReset.test.ts`.
+
 - **Resourcing — PTO hover text overflow** — PTO/holiday hover cards no longer cap at a short max width; the box grows with the longest line (`w-max`, `whitespace-nowrap`) so names such as “Matthew Cannon: partial PTO …” are not clipped.
 
 - **Resourcing — PTO/holiday hover stacking** — Hover cards render in a **fixed portal** below the trigger (`createPortal` + `hoverTip` in **`ResourcingGrids.tsx`**) instead of overflowing table cells. That keeps HOL/PTO details readable without `overflow-visible` / raised `z-index` on cells, which tore the sticky header when scrolling up. Cards dismiss when the grid pane scrolls.
@@ -57,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **User Guide / Technical Reference / README** — In-app navigations (sidebar, project tabs) start at the **top of the page**; **Back** / **Forward** can restore scroll. Root **`ScrollToTopOnNavigate`**, `lib/scrollReset.ts`. Troubleshooting when a new page opens already scrolled down.
 - **User Guide / Technical Reference / README** — Overview **Post week to Slack** (header placement, project vs account channel, digest rules, Slack icon), `POST .../slack/weekly-lookahead`, `resolveProjectSlackChannel`, `SlackIcon`, Settings → Links channel purposes, troubleshooting for a disabled weekly post.
 - **User Guide** — Refresh budget covers CDA hours/actuals; troubleshooting when Update does not change the slide. **Plan** tab (Gantt drag/resize, **phase grip** to reorder phases, **item grip** to reorder/nest/move phase, **View and Edit** without left-grid sideways scroll, Gantt kickoff pad and **Today** line), **Schedule source (Plan enabled)**, **Refresh schedule**, and what happens to Plan-sourced reports if Plan is later disabled. Troubleshooting for missing Plan grips and reports that do not pick up Plan reorder until refresh.
 - **Technical Reference** — Refresh budget replaces full CDA budget fields, not only `overallBudget` dollars. Plan schema/routes/gating helpers, `insertBeforeItemId` / **`insertBeforePhaseId`** reindex, Gantt `applyGanttDrag` / `ymdAtPercent` / `todayMarkerPercent`, `scheduleSource` / `planDensity` snapshot fields, the shared timeline render gate, and the Settings autosave rules for the Plan nav refresh.

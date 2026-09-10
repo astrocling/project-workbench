@@ -29,8 +29,23 @@ This document summarizes the technical stack, data model, environment, and APIs 
 Signed-in routes under `app/(app)/` use a shared chrome:
 
 - **`app/(app)/layout.tsx`** (server) — Session gate, **`AppShell`** props (`userDisplayName`, `isAdmin`, **`asOfDateLabel`**). Does **not** call **`getDashboardContext`** for layout; avoid blocking the shell on DB work that only dashboards or the projects list need.
-- **`components/AppShell.tsx`** (client) — Collapsible sidebar + main column (sticky **Project Workbench** header with as-of date, scrollable main).
+- **`components/AppShell.tsx`** (client) — Collapsible sidebar + main column (sticky **Project Workbench** header with as-of date). Page content scrolls on the **window** (`min-h-screen`, no overflow wrapper on `<main>`).
 - **`components/AppSidebar.tsx`** (client) — **Jakala** assets from **`public/brand/`** (`jakala-wordmark.png` / `jakala-wordmark-dark.png` when expanded, **`j512.png`** when collapsed). Expanded: larger wordmark beside the collapse control (header vertically centered in its block; wordmark **`object-left`** in the remaining width). **First nav row** when expanded: **`Hi <First name>`** (see `firstNameFromDisplay` — session **name** first token, else email local-part before `@`) plus Lucide **`Hand`**; row omitted when collapsed. Nav links, theme toggle, optional full **`userDisplayName`** in footer (expanded), **User Guide** (`/user-guide`), **Account** / **Admin** / **Sign out**. Persisted collapse: **`localStorage`** key `project-workbench-sidebar-collapsed` via **`AppShell`**.
+
+### Window scroll on in-app navigation
+
+**`app/(app)/layout.tsx`** and **`AppShell`** stay mounted across client-side `<Link>` navigations (project Budget → PGM Dashboard, project `?tab=` changes, sidebar routes). Next.js App Router then often **leaves `window.scrollY` unchanged**, so the next page opens mid-scroll.
+
+**`ScrollToTopOnNavigate`** (`components/ScrollToTopOnNavigate.tsx`) is mounted from **`app/layout.tsx`** (root, so admin and login share it). On pathname or query change it calls `window.scrollTo(0, 0)` when `shouldResetWindowScroll` in **`lib/scrollReset.ts`** is true:
+
+| Change | Reset window to top? |
+|--------|----------------------|
+| First mount / full page load | No (browser refresh restore can apply) |
+| PUSH to another route or `?tab=` | Yes |
+| `popstate` (Back / Forward) | No (history scroll can restore) |
+| Hash-only (User Guide in-page TOC) | No (`useSearchParams` does not include the hash) |
+
+Nested overflow panes (Resourcing `scrollContainerRef`, Plan Gantt) are independent of `window` and are not reset. A `requestAnimationFrame` follow-up scroll covers Next.js applying layout scroll restoration after the layout effect. Tests: **`__tests__/lib/scrollReset.test.ts`**.
 
 ### In-app User Guide
 

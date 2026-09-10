@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { AppFooter } from "@/components/AppFooter";
 import { EnvironmentBanner } from "@/components/EnvironmentBanner";
+import { ScrollToTopOnNavigate } from "@/components/ScrollToTopOnNavigate";
 import { SessionProvider } from "@/components/SessionProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
@@ -43,6 +44,7 @@ export default function RootLayout({
         className={`antialiased font-sans ${hasEnvBanner ? "has-env-banner" : ""}`}
       >
         <EnvironmentBanner />
+        <ScrollToTopOnNavigate />
         <ThemeProvider>
           <SessionProvider>{children}</SessionProvider>
           <AppFooter />
