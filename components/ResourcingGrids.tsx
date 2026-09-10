@@ -102,6 +102,26 @@ function getPtoForWeek(
   return pto.filter((e) => e.personId === personId);
 }
 
+function peopleWithPtoForWeek(
+  ptoHolidayByWeek: PtoHolidayByWeek,
+  weekKey: string,
+  assignments: Assignment[]
+): { personId: string; name: string; entries: PtoHolidayEntry[] }[] {
+  const byPerson = new Map<string, PtoHolidayEntry[]>();
+  for (const e of getPtoForWeek(ptoHolidayByWeek, weekKey)) {
+    const arr = byPerson.get(e.personId) ?? [];
+    arr.push(e);
+    byPerson.set(e.personId, arr);
+  }
+  return [...byPerson.entries()]
+    .map(([pid, ents]) => ({
+      personId: pid,
+      name: assignments.find((x) => x.personId === pid)?.person.name ?? pid,
+      entries: ents,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+}
+
 function firstNameFromDisplayName(name: string): string {
   const t = name.trim();
   if (!t) return "Person";
@@ -671,6 +691,7 @@ export function ResourcingGrids({
   const rowEvenBg = "bg-white dark:bg-dark-surface";
   const rowOddBg = "bg-surface-50 dark:bg-dark-raised/80";
   const stickyOpaqueBody = "resourcing-sticky-body";
+  const stickyOpaqueTitle = "resourcing-sticky-title";
   const stickyOpaqueHead = "resourcing-sticky-head";
   const stickyOpaqueFoot = "resourcing-sticky-foot";
   const stickyOpaqueEven = "resourcing-sticky-even";
@@ -1476,7 +1497,7 @@ export function ResourcingGrids({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {showRangeControls && (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-body-sm text-surface-600 dark:text-surface-300">
@@ -1503,28 +1524,6 @@ export function ResourcingGrids({
           </div>
         </div>
       )}
-      {scrollState.scrollable && (
-        <div className="flex items-center gap-2" role="group" aria-label="Scroll weeks">
-          <button
-            type="button"
-            aria-label="Scroll left"
-            disabled={!scrollState.canScrollLeft}
-            onClick={() => scrollHorizontal("left")}
-            className="inline-flex h-9 w-9 items-center justify-center rounded border border-surface-200 bg-white text-surface-700 shadow-sm transition hover:bg-surface-50 hover:text-surface-900 disabled:pointer-events-none disabled:opacity-50 dark:border-dark-border dark:bg-dark-surface dark:text-surface-200 dark:hover:bg-dark-raised dark:hover:text-white"
-          >
-            <ChevronLeft className="h-5 w-5" aria-hidden />
-          </button>
-          <button
-            type="button"
-            aria-label="Scroll right"
-            disabled={!scrollState.canScrollRight}
-            onClick={() => scrollHorizontal("right")}
-            className="inline-flex h-9 w-9 items-center justify-center rounded border border-surface-200 bg-white text-surface-700 shadow-sm transition hover:bg-surface-50 hover:text-surface-900 disabled:pointer-events-none disabled:opacity-50 dark:border-dark-border dark:bg-dark-surface dark:text-surface-200 dark:hover:bg-dark-raised dark:hover:text-white"
-          >
-            <ChevronRight className="h-5 w-5" aria-hidden />
-          </button>
-        </div>
-      )}
       <div
         ref={scrollContainerRef}
         className="overflow-auto overscroll-contain"
@@ -1535,7 +1534,7 @@ export function ResourcingGrids({
           style={{ paddingRight: "2rem", minWidth: tableWrapperMinWidth }}
         >
         <div
-          className="resourcing-shared-header rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark"
+          className="resourcing-shared-header"
           style={{ minWidth: tableWrapperMinWidth, paddingRight: gridCardEndPadding }}
         >
           <table className="border-separate border-spacing-0 text-sm w-full" style={{ tableLayout: "fixed", minWidth: tableMinWidth }}>
@@ -1552,14 +1551,38 @@ export function ResourcingGrids({
               <tr className={stickyBgHead}>
                 <th
                   colSpan={4}
-                  className={`p-1 border text-left text-xs text-surface-600 dark:text-surface-400 ${sticky} ${stickyOpaqueHead} ${stickyEdge} border-surface-200 dark:border-dark-border`}
+                  className={`px-1 py-0 text-left align-bottom ${sticky} resourcing-sticky-head-plain`}
                   style={{ left: 0, width: stickyColsWidth, minWidth: stickyColsWidth }}
                 >
-                  Holiday
+                  <span className="sr-only">PTO and holidays</span>
+                  {scrollState.scrollable ? (
+                    <div className="flex items-center gap-1 pb-0.5" role="group" aria-label="Scroll weeks">
+                      <button
+                        type="button"
+                        aria-label="Scroll left"
+                        disabled={!scrollState.canScrollLeft}
+                        onClick={() => scrollHorizontal("left")}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded border border-surface-200 bg-white text-surface-700 shadow-sm transition hover:bg-surface-50 hover:text-surface-900 disabled:pointer-events-none disabled:opacity-50 dark:border-dark-border dark:bg-dark-surface dark:text-surface-200 dark:hover:bg-dark-raised dark:hover:text-white"
+                      >
+                        <ChevronLeft className="h-4 w-4" aria-hidden />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Scroll right"
+                        disabled={!scrollState.canScrollRight}
+                        onClick={() => scrollHorizontal("right")}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded border border-surface-200 bg-white text-surface-700 shadow-sm transition hover:bg-surface-50 hover:text-surface-900 disabled:pointer-events-none disabled:opacity-50 dark:border-dark-border dark:bg-dark-surface dark:text-surface-200 dark:hover:bg-dark-raised dark:hover:text-white"
+                      >
+                        <ChevronRight className="h-4 w-4" aria-hidden />
+                      </button>
+                    </div>
+                  ) : null}
                 </th>
                 {weeks.map((w) => {
                   const wk = formatWeekKey(w);
                   const holidays = getHolidaysForWeek(ptoHolidayByWeek, wk);
+                  const peopleWithPto = peopleWithPtoForWeek(ptoHolidayByWeek, wk, assignments);
+                  const hasPto = peopleWithPto.length > 0;
                   const holTip =
                     holidays.length > 0 ? (
                       <ul className="space-y-1">
@@ -1574,51 +1597,6 @@ export function ResourcingGrids({
                         ))}
                       </ul>
                     ) : null;
-                  return (
-                    <th
-                      key={`hol-${wk}`}
-                      className={`relative p-1 border text-center align-middle w-16 overflow-hidden border-surface-200 dark:border-dark-border ${stickyBgHead} ${currentWeekColClass(w)}`}
-                    >
-                      {holidays.length > 0 ? (
-                        <div className="flex min-h-[1.25rem] items-center justify-center py-0.5">
-                          <span
-                            className="inline-flex h-4 shrink-0 items-center justify-center rounded-full bg-jblue-500 px-2 text-[8px] font-bold uppercase leading-none tracking-wide text-white dark:bg-jblue-400"
-                            onMouseEnter={(e) => holTip && showHoverTip(e.currentTarget, holTip)}
-                            onMouseLeave={hideHoverTip}
-                          >
-                            HOL
-                          </span>
-                        </div>
-                      ) : null}
-                    </th>
-                  );
-                })}
-              </tr>
-              <tr className={stickyBgHead}>
-                <th
-                  colSpan={4}
-                  className={`p-1 border text-left text-xs text-surface-600 dark:text-surface-400 ${sticky} ${stickyOpaqueHead} ${stickyEdge} border-surface-200 dark:border-dark-border`}
-                  style={{ left: 0, width: stickyColsWidth, minWidth: stickyColsWidth }}
-                >
-                  PTO
-                </th>
-                {weeks.map((w) => {
-                  const wk = formatWeekKey(w);
-                  const ptoEntries = getPtoForWeek(ptoHolidayByWeek, wk);
-                  const byPerson = new Map<string, PtoHolidayEntry[]>();
-                  for (const e of ptoEntries) {
-                    const arr = byPerson.get(e.personId) ?? [];
-                    arr.push(e);
-                    byPerson.set(e.personId, arr);
-                  }
-                  const peopleWithPto = [...byPerson.entries()]
-                    .map(([pid, ents]) => {
-                      const name =
-                        assignments.find((x) => x.personId === pid)?.person.name ?? pid;
-                      return { personId: pid, name, entries: ents };
-                    })
-                    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
-                  const hasPto = peopleWithPto.length > 0;
                   const ptoTip = hasPto ? (
                     <ul className="space-y-1">
                       {peopleWithPto.map((p) => (
@@ -1634,20 +1612,33 @@ export function ResourcingGrids({
                   ) : null;
                   return (
                     <th
-                      key={`pto-${wk}`}
-                      className={`relative p-1 border text-center align-middle text-xs whitespace-nowrap w-16 overflow-hidden border-surface-200 dark:border-dark-border ${stickyBgHead} ${currentWeekColClass(w)}`}
+                      key={`abs-${wk}`}
+                      className={`relative px-0.5 py-0 text-center align-bottom w-16 ${stickyBgHead}`}
                     >
-                      {hasPto ? (
-                        <div className="flex min-h-[1.25rem] items-center justify-center py-0.5">
-                          <span
-                            className="inline-flex h-4 shrink-0 items-center justify-center rounded-full border border-jred-300 bg-jred-50 px-2 text-[8px] font-bold uppercase leading-none tracking-wide text-jred-900 dark:border-jred-600 dark:bg-jred-900/30 dark:text-jred-100"
-                            onMouseEnter={(e) => ptoTip && showHoverTip(e.currentTarget, ptoTip)}
-                            onMouseLeave={hideHoverTip}
-                          >
-                            PTO
-                          </span>
+                      <div className="flex flex-col items-center justify-end gap-px pb-0.5">
+                        <div className="flex h-4 items-center justify-center">
+                          {holidays.length > 0 ? (
+                            <span
+                              className="inline-flex h-4 shrink-0 items-center justify-center rounded-full bg-jblue-500 px-2 text-[8px] font-bold uppercase leading-none tracking-wide text-white dark:bg-jblue-400"
+                              onMouseEnter={(e) => holTip && showHoverTip(e.currentTarget, holTip)}
+                              onMouseLeave={hideHoverTip}
+                            >
+                              HOL
+                            </span>
+                          ) : null}
                         </div>
-                      ) : null}
+                        <div className="flex h-4 items-center justify-center">
+                          {hasPto ? (
+                            <span
+                              className="inline-flex h-4 shrink-0 items-center justify-center rounded-full border border-jred-300 bg-jred-50 px-2 text-[8px] font-bold uppercase leading-none tracking-wide text-jred-900 dark:border-jred-600 dark:bg-jred-900/30 dark:text-jred-100"
+                              onMouseEnter={(e) => ptoTip && showHoverTip(e.currentTarget, ptoTip)}
+                              onMouseLeave={hideHoverTip}
+                            >
+                              PTO
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
                     </th>
                   );
                 })}
@@ -1687,7 +1678,7 @@ export function ResourcingGrids({
               <tr>
                 <th
                   colSpan={4}
-                  className={`p-2 border text-left ${sticky} ${stickyOpaqueBody} ${stickyEdge} border-surface-200 dark:border-dark-border`}
+                  className={`p-2 pb-1 text-left ${sticky} ${stickyOpaqueTitle}`}
                   style={{ left: 0, width: stickyColsWidth, minWidth: stickyColsWidth }}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 pr-2">
@@ -1830,7 +1821,7 @@ export function ResourcingGrids({
               <tr>
                 <th
                   colSpan={4}
-                  className={`relative p-2 border text-left ${sticky} ${stickyOpaqueBody} ${stickyEdge} border-surface-200 dark:border-dark-border`}
+                  className={`relative p-2 pb-1 text-left ${sticky} ${stickyOpaqueTitle}`}
                   style={{ left: 0, width: stickyColsWidth, minWidth: stickyColsWidth }}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 pr-10">
@@ -1981,7 +1972,7 @@ export function ResourcingGrids({
               <tr>
                 <th
                   colSpan={4}
-                  className={`p-2 border text-left ${sticky} ${stickyOpaqueBody} ${stickyEdge} border-surface-200 dark:border-dark-border`}
+                  className={`p-2 pb-1 text-left ${sticky} ${stickyOpaqueTitle}`}
                   style={{ left: 0, width: stickyColsWidth, minWidth: stickyColsWidth }}
                 >
                   <div className="flex items-center gap-3 flex-wrap">
