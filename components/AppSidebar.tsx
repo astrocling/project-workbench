@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { ThemeToggle } from "@/components/ThemeProvider";
-import { CalendarOff, Hand, Network, Users } from "lucide-react";
+import { BookOpen, CalendarOff, Hand, Network, Users } from "lucide-react";
 
 const navItems = [
   { href: "/pm-dashboard", label: "PM Dashboard", active: true },
@@ -267,6 +267,18 @@ export function AppSidebar({
             Signed in as {userDisplayName}
           </span>
         )}
+        <Link
+          href="/user-guide"
+          title="User Guide"
+          className={`flex items-center rounded-md text-body-sm ${
+            pathname === "/user-guide"
+              ? "bg-surface-200 font-medium text-surface-900 dark:bg-dark-muted dark:text-white"
+              : "text-surface-700 hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-dark-muted"
+          } ${collapsed ? "w-10 justify-center py-2" : "gap-2 px-3 py-2"}`}
+        >
+          <BookOpen className="h-5 w-5 shrink-0" aria-hidden strokeWidth={2} />
+          <span className={collapsed ? "sr-only" : ""}>User Guide</span>
+        </Link>
         <Link
           href="/account"
           title="Account"
