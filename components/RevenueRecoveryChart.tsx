@@ -49,7 +49,7 @@ export function RevenueRecoveryChart({
     return (
       <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5">
         <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-2">
-          Revenue recovery by month
+          Resource efficiency by month
         </p>
         <p className="text-body-sm text-surface-500 dark:text-surface-400">
           No monthly data yet
@@ -81,7 +81,7 @@ export function RevenueRecoveryChart({
   return (
     <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5">
       <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-5">
-        Revenue recovery by month
+        Resource efficiency by month
       </p>
       <div className="w-full" style={{ height: 320 }}>
         <ResponsiveContainer width="100%" height="100%">
@@ -141,14 +141,14 @@ export function RevenueRecoveryChart({
             />
             <Bar
               dataKey="recoveryPercent"
-              name="Recovery %"
+              name="Efficiency %"
               fill={CHART_COLORS.bar}
               radius={[2, 2, 0, 0]}
             />
             <Line
               type="monotone"
               dataKey="overallRecoveryPercent"
-              name="Overall recovery %"
+              name="Overall efficiency %"
               stroke={CHART_COLORS.line}
               strokeWidth={2}
               dot={{ fill: CHART_COLORS.line, r: 3 }}

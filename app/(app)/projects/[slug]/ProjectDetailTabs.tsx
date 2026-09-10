@@ -803,7 +803,7 @@ export function ProjectDetailTabs({
               )}
             </div>
             <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 flex flex-col items-center">
-              <RevenueRecoveryPieChart recoveryPercent={revenueRecoveryToDate} label="Revenue recovery to date" />
+              <RevenueRecoveryPieChart recoveryPercent={revenueRecoveryToDate} label="Resource efficiency to date" />
             </div>
             {(() => {
               const weeks = revenueRecoveryData?.weeks ?? [];
@@ -821,7 +821,7 @@ export function ProjectDetailTabs({
                 prevFour.f > 0 ? (prevFour.a / prevFour.f) * 100 : null;
               return (
                 <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 flex flex-col items-center">
-                  <RevenueRecoveryPieChart recoveryPercent={fourWeekRecovery} label="4-week revenue recovery" />
+                  <RevenueRecoveryPieChart recoveryPercent={fourWeekRecovery} label="4-week resource efficiency" />
                 </div>
               );
             })()}

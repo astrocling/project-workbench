@@ -185,7 +185,7 @@ export default async function CADDashboardPage({
       </section>
 
       {portfolioMetrics.revenueRecovery != null ? (
-        <section aria-label="Portfolio revenue recovery" className="mt-8">
+        <section aria-label="Portfolio resource efficiency" className="mt-8">
           {portfolioMetrics.staleActuals && (
             <p className="text-body-sm text-surface-600 dark:text-surface-400 mb-3 flex flex-wrap items-center gap-2">
               <span
@@ -199,7 +199,7 @@ export default async function CADDashboardPage({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
               <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-2">
-                Portfolio revenue recovery
+                Portfolio resource efficiency
               </p>
               <p className="text-body-sm text-surface-500 dark:text-surface-400 mb-3 flex items-center gap-2 flex-wrap">
                 To date
@@ -208,7 +208,7 @@ export default async function CADDashboardPage({
             </div>
             <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
               <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-2">
-                Portfolio revenue recovery
+                Portfolio resource efficiency
               </p>
               <p className="text-body-sm text-surface-500 dark:text-surface-400 mb-3 flex items-center gap-2 flex-wrap">
                 This week {formatWeekLabelShort(portfolioMetrics.revenueRecovery.thisWeek.weekStartDate)}
@@ -217,7 +217,7 @@ export default async function CADDashboardPage({
             </div>
             <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
               <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-2">
-                Portfolio revenue recovery
+                Portfolio resource efficiency
               </p>
               <p className="text-body-sm text-surface-500 dark:text-surface-400 mb-3 flex items-center gap-2 flex-wrap">
                 Previous 4 weeks

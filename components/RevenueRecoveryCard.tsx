@@ -43,7 +43,7 @@ export function RevenueRecoveryCard({ projectId }: { projectId: string }) {
     return (
       <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
         <p className="text-body-sm text-surface-500 dark:text-surface-400">
-          Loading revenue recovery…
+          Loading resource efficiency…
         </p>
       </div>
     );
@@ -83,7 +83,7 @@ export function RevenueRecoveryCard({ projectId }: { projectId: string }) {
       {toDateData && (
         <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
           <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-2">
-            Revenue recovery
+            Resource Efficiency
           </p>
           <p className="text-body-sm text-surface-500 dark:text-surface-400 mb-3 flex items-center gap-2 flex-wrap">
             To date
@@ -94,7 +94,7 @@ export function RevenueRecoveryCard({ projectId }: { projectId: string }) {
       {thisWeek && (
         <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
           <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-2">
-            Revenue recovery
+            Resource Efficiency
           </p>
           <p className="text-body-sm text-surface-500 dark:text-surface-400 mb-3 flex items-center gap-2 flex-wrap">
             This week {formatWeekLabelShort(thisWeek.weekStartDate)}
@@ -104,7 +104,7 @@ export function RevenueRecoveryCard({ projectId }: { projectId: string }) {
       )}
       <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
         <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-2">
-          Revenue recovery
+          Resource Efficiency
         </p>
         <p className="text-body-sm text-surface-500 dark:text-surface-400 mb-3 flex items-center gap-2 flex-wrap">
           Previous 4 weeks

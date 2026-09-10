@@ -279,7 +279,7 @@ export function BudgetTab({
               </MetricBlock>
               <MetricBlock label="Average rates" className="mt-4">
                 <div className="mt-2 space-y-1.5">
-                  <RateRow label="Used (project)" rate={rollups.blendedRateForRemainingHours} />
+                  <RateRow label="Total Project" rate={rollups.blendedRateForRemainingHours} />
                   <RateRow label="To date" rate={rollups.blendedRatePast} />
                   <RateRow label="Remaining plan" rate={rollups.blendedRateFuture} />
                 </div>
@@ -346,10 +346,10 @@ export function BudgetTab({
         )}
       </section>
 
-      {/* Revenue Recovery section: 3 cards + horizontal chart */}
+      {/* Resource Efficiency section: 3 cards + horizontal chart */}
       <section className="space-y-4">
         <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100 border-b border-surface-200 dark:border-dark-border pb-2 flex items-center gap-2 flex-wrap">
-          Revenue Recovery
+          Resource Efficiency
           {missingActuals && actualsStalePill}
         </h2>
         <RevenueRecoveryCard projectId={projectId} />

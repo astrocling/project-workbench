@@ -106,7 +106,7 @@ export type RecoveryCardData = {
 
 export function RevenueRecoveryPieChart({
   recoveryPercent,
-  label = "Recovery",
+  label = "Efficiency",
   size = 120,
 }: {
   recoveryPercent: number | null;
