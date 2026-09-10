@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { getProjectId } from "@/lib/slug";
 import { z } from "zod";
-import { computeBudgetRollups } from "@/lib/budgetCalculations";
+import { computeBudgetRollups, computeBudgetBurndownSeries } from "@/lib/budgetCalculations";
 
 const budgetLineSchema = z.object({
   id: z.string().optional(),
@@ -22,6 +22,7 @@ const budgetLineSchema = z.object({
 type BudgetResponse = {
   budgetLines: unknown[];
   rollups: unknown;
+  burndown: unknown;
   lastWeekWithActuals: string | null;
   peopleSummary: Array<{
     personName: string;
@@ -136,6 +137,12 @@ const getCachedBudget = unstable_cache(
       weeklyRows,
       budgetLines
     );
+    const burndown = computeBudgetBurndownSeries(
+      project.startDate,
+      project.endDate,
+      weeklyRows,
+      budgetLines
+    );
 
     const weeksWithActuals = weeklyRows
       .filter((r) => r.actualHours != null)
@@ -187,6 +194,7 @@ const getCachedBudget = unstable_cache(
     return {
       budgetLines: project.budgetLines,
       rollups,
+      burndown,
       lastWeekWithActuals,
       peopleSummary,
     };

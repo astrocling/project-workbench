@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Budget Burndown** — Budget and Overview tabs: week/month chart (`BudgetBurndownChart.tsx`) of period $ bars and running **Actual + Plan** / **Plan** lines vs **Contract high** (label top-left). Legend order: Actual + Plan, Plan, Period burn. Series: `computeBudgetBurndownSeries` in `lib/budgetCalculations.ts`; `GET /api/projects/[id]/budget` includes **`burndown`**. Default grain Week; Month buckets by week-start UTC month. Missing actuals use planned $ (not $0). Float excluded. Tests: `__tests__/lib/budgetCalculations.test.ts`.
+
 - **In-app User Guide** — Signed-in **`/user-guide`** renders **`docs/USER_GUIDE.md`** with H2 section navigation (sticky **On this page** on desktop, **Jump to section** on small screens) and a link to additional resources in Confluence. Sidebar footer **User Guide**; site footer next to Changelog. Shared markdown renderer: **`components/MarkdownDoc.tsx`**. Heading slugs: **`lib/markdownHeadings.ts`**.
 
 - **Overview — Post week to Slack** — Editors can post a current-week look-ahead to the **project** Slack channel (**Settings → Links**). The control sits on the **right** of the **Float last updated / Actuals through** header (not with SOW/Estimate/Float/Metric). The message lists people with planned or Float hours this week (Float-only tagged **(Not in Plan)**) and Plan / Timeline items whose start or end date falls in the Monday–Sunday UTC week. API: `POST /api/projects/[id]/slack/weekly-lookahead`. Helpers: `resolveProjectSlackChannel`, `lib/slack/weeklyLookahead.ts`. UI: `ProjectDetailTabs.tsx`, Slack mark in `components/SlackIcon.tsx`.

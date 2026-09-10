@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   computeBudgetRollups,
+  computeBudgetBurndownSeries,
   weeklyUtilization,
   hasPlanningMismatch,
   hasMissingActuals,
@@ -451,5 +452,111 @@ describe("hasMissingActualsSplitWeek", () => {
         { hasRowFirst: true, hasRowSecond: true }
       )
     ).toBe(false);
+  });
+});
+
+describe("computeBudgetBurndownSeries", () => {
+  const projectStart = new Date("2025-02-03T00:00:00.000Z");
+  const projectEnd = new Date("2025-03-10T00:00:00.000Z");
+  const asOf = new Date("2025-02-16T23:59:59.999Z");
+  const budgetLines = [
+    { lowHours: 200, highHours: 200, lowDollars: 30000, highDollars: 30000 },
+  ];
+
+  it("builds weekly period burn, plan vs actual+forecast cumulatives, and as-of split", () => {
+    const weeklyRows = [
+      { weekStartDate: new Date("2025-02-03T00:00:00.000Z"), plannedHours: 40, actualHours: 38, rate: 150 },
+      { weekStartDate: new Date("2025-02-10T00:00:00.000Z"), plannedHours: 40, actualHours: 42, rate: 150 },
+      { weekStartDate: new Date("2025-02-17T00:00:00.000Z"), plannedHours: 40, actualHours: null, rate: 150 },
+      { weekStartDate: new Date("2025-02-24T00:00:00.000Z"), plannedHours: 20, actualHours: null, rate: 150 },
+    ];
+
+    const series = computeBudgetBurndownSeries(
+      projectStart,
+      projectEnd,
+      weeklyRows,
+      budgetLines,
+      asOf
+    );
+
+    const w0 = series.weeks.find((w) => w.weekStartDate === "2025-02-03")!;
+    const w1 = series.weeks.find((w) => w.weekStartDate === "2025-02-10")!;
+    const w2 = series.weeks.find((w) => w.weekStartDate === "2025-02-17")!;
+
+    expect(w0.isCompleted).toBe(true);
+    expect(w0.isProjected).toBe(false);
+    expect(w0.periodDollars).toBe(38 * 150);
+    expect(w0.actualDollars).toBe(38 * 150);
+    expect(w0.cumulativePlanDollars).toBe(40 * 150);
+    expect(w0.cumulativeActualForecastDollars).toBe(38 * 150);
+
+    expect(w1.periodDollars).toBe(42 * 150);
+    expect(w1.cumulativePlanDollars).toBe(80 * 150);
+    expect(w1.cumulativeActualForecastDollars).toBe(80 * 150);
+
+    expect(w2.isProjected).toBe(true);
+    expect(w2.periodDollars).toBe(40 * 150);
+    expect(w2.actualDollars).toBeNull();
+    expect(w2.cumulativeActualForecastDollars).toBe(80 * 150 + 40 * 150);
+    expect(w2.remainingVsHighDollars).toBe(30000 - (80 * 150 + 40 * 150));
+
+    expect(series.asOfWeekStart).toBe("2025-02-10");
+    expect(series.asOfMonthKey).toBe("2025-02");
+    expect(series.contractHighDollars).toBe(30000);
+  });
+
+  it("does not treat missing actuals as $0 period burn", () => {
+    const weeklyRows = [
+      { weekStartDate: new Date("2025-02-03T00:00:00.000Z"), plannedHours: 40, actualHours: null, rate: 100 },
+      { weekStartDate: new Date("2025-02-10T00:00:00.000Z"), plannedHours: 40, actualHours: 40, rate: 100 },
+    ];
+
+    const series = computeBudgetBurndownSeries(
+      projectStart,
+      null,
+      weeklyRows,
+      budgetLines,
+      asOf
+    );
+
+    const missing = series.weeks.find((w) => w.weekStartDate === "2025-02-03")!;
+    expect(missing.isMissingActuals).toBe(true);
+    expect(missing.actualDollars).toBeNull();
+    expect(missing.actualHours).toBeNull();
+    expect(missing.periodDollars).toBe(40 * 100);
+    expect(missing.cumulativeActualForecastDollars).toBe(40 * 100);
+  });
+
+  it("rolls weeks into months and flags a mixed as-of month", () => {
+    const weeklyRows = [
+      { weekStartDate: new Date("2025-02-03T00:00:00.000Z"), plannedHours: 40, actualHours: 40, rate: 100 },
+      { weekStartDate: new Date("2025-02-10T00:00:00.000Z"), plannedHours: 40, actualHours: 40, rate: 100 },
+      { weekStartDate: new Date("2025-02-17T00:00:00.000Z"), plannedHours: 30, actualHours: null, rate: 100 },
+      { weekStartDate: new Date("2025-02-24T00:00:00.000Z"), plannedHours: 10, actualHours: null, rate: 100 },
+      { weekStartDate: new Date("2025-03-03T00:00:00.000Z"), plannedHours: 50, actualHours: null, rate: 100 },
+    ];
+
+    const series = computeBudgetBurndownSeries(
+      projectStart,
+      projectEnd,
+      weeklyRows,
+      budgetLines,
+      asOf
+    );
+
+    const feb = series.months.find((m) => m.monthKey === "2025-02")!;
+    const mar = series.months.find((m) => m.monthKey === "2025-03")!;
+
+    expect(feb.isMixed).toBe(true);
+    expect(feb.isCompleted).toBe(false);
+    expect(feb.isProjected).toBe(false);
+    expect(feb.periodDollars).toBe(40 * 100 + 40 * 100 + 30 * 100 + 10 * 100);
+    expect(feb.cumulativeActualForecastDollars).toBe(12000);
+
+    expect(mar.isProjected).toBe(true);
+    expect(mar.isMixed).toBe(false);
+    expect(mar.periodDollars).toBe(50 * 100);
+    expect(mar.cumulativeActualForecastDollars).toBe(17000);
+    expect(mar.cumulativePlanDollars).toBe(17000);
   });
 });

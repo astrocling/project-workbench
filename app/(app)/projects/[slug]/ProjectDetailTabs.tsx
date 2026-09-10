@@ -9,6 +9,8 @@ import {
   BudgetBurnDonut,
   RevenueRecoveryPieChart,
 } from "@/components/RevenueRecoveryShared";
+import { BudgetBurndownChart } from "@/components/BudgetBurndownChart";
+import type { BudgetBurndownSeries } from "@/lib/budgetCalculations";
 import type { EditProjectInitial } from "@/app/(app)/projects/[slug]/edit/EditProjectDataContext";
 import type { DashboardPtoProjectPayload } from "@/lib/pgmPtoWidgetData";
 import AbsencePills from "@/components/AbsencePills";
@@ -133,6 +135,7 @@ export function ProjectDetailTabs({
     budgetLines: Array<{ id: string; type: string; label: string; lowHours: number; highHours: number; lowDollars: number; highDollars: number }>;
     rollups: unknown;
     lastWeekWithActuals: string | null;
+    burndown?: BudgetBurndownSeries | null;
     peopleSummary: Array<{ personName: string; roleName: string; rate: number; projectedHours: number; projectedRevenue: number; actualHours: number; actualRevenue: number }>;
   };
   initialSettingsProject: EditProjectInitial | null;
@@ -275,6 +278,7 @@ export function ProjectDetailTabs({
           budgetLines: d.budgetLines ?? [],
           rollups: d.rollups ?? null,
           lastWeekWithActuals: d.lastWeekWithActuals ?? null,
+          burndown: d.burndown ?? null,
           peopleSummary: d.peopleSummary ?? [],
         });
       })
@@ -826,6 +830,7 @@ export function ProjectDetailTabs({
               );
             })()}
           </div>
+          <BudgetBurndownChart series={budgetData?.burndown ?? null} compact />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {(() => {
               const rollups = budgetStatus?.rollups;

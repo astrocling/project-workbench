@@ -233,6 +233,7 @@ export default async function ProjectDetailPage({
     })),
     rollups: initialBudgetStatus.rollups,
     lastWeekWithActuals: initialBudgetStatus.lastWeekWithActuals,
+    burndown: initialBudgetStatus.burndown,
     peopleSummary,
   };
 

@@ -6,6 +6,8 @@
 
 import { isPastLastUtcDayOfMonthInWeek } from "./monthUtils";
 import {
+  formatWeekShort,
+  getAllWeeks,
   getAsOfDate,
   getCompletedWeeks,
   getFutureWeeks,
@@ -396,8 +398,19 @@ export function getBudgetStatusForDisplay(
   projectEnd: Date | null | undefined,
   weeklyRows: WeeklyHoursRow[],
   budgetLines: BudgetLineInput[]
-): { lastWeekWithActuals: string | null; missingActuals: boolean; rollups: BudgetResult } {
+): {
+  lastWeekWithActuals: string | null;
+  missingActuals: boolean;
+  rollups: BudgetResult;
+  burndown: BudgetBurndownSeries;
+} {
   const rollups = computeBudgetRollups(projectStart, projectEnd, weeklyRows, budgetLines);
+  const burndown = computeBudgetBurndownSeries(
+    projectStart,
+    projectEnd,
+    weeklyRows,
+    budgetLines
+  );
   const weeksWithActuals = weeklyRows
     .filter((r) => r.actualHours != null)
     .map((r) => r.weekStartDate.getTime());
@@ -409,5 +422,242 @@ export function getBudgetStatusForDisplay(
     lastWeekWithActuals,
     missingActuals: rollups.missingActuals,
     rollups,
+    burndown,
+  };
+}
+
+export type BudgetBurndownWeekPoint = {
+  weekStartDate: string;
+  label: string;
+  monthKey: string;
+  plannedHours: number;
+  plannedDollars: number;
+  actualHours: number | null;
+  actualDollars: number | null;
+  periodHours: number;
+  periodDollars: number;
+  isCompleted: boolean;
+  isProjected: boolean;
+  isMissingActuals: boolean;
+  cumulativePlanHours: number;
+  cumulativePlanDollars: number;
+  cumulativeActualForecastHours: number;
+  cumulativeActualForecastDollars: number;
+  remainingVsHighDollars: number | null;
+};
+
+export type BudgetBurndownMonthPoint = {
+  monthKey: string;
+  label: string;
+  plannedHours: number;
+  plannedDollars: number;
+  actualHours: number | null;
+  actualDollars: number | null;
+  periodHours: number;
+  periodDollars: number;
+  isCompleted: boolean;
+  isProjected: boolean;
+  isMixed: boolean;
+  isMissingActuals: boolean;
+  cumulativePlanHours: number;
+  cumulativePlanDollars: number;
+  cumulativeActualForecastHours: number;
+  cumulativeActualForecastDollars: number;
+  remainingVsHighDollars: number | null;
+};
+
+export type BudgetBurndownSeries = {
+  weeks: BudgetBurndownWeekPoint[];
+  months: BudgetBurndownMonthPoint[];
+  contractHighDollars: number;
+  asOfWeekStart: string | null;
+  asOfMonthKey: string | null;
+};
+
+function weekKeyUtc(d: Date): string {
+  return getWeekStartDate(d).toISOString().slice(0, 10);
+}
+
+function monthKeyFromWeekStart(d: Date): string {
+  const w = getWeekStartDate(d);
+  return `${w.getUTCFullYear()}-${String(w.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabelFromKey(monthKey: string): string {
+  const [y, m] = monthKey.split("-");
+  return `${m}/${y}`;
+}
+
+/**
+ * Weekly (and month-rolled) budget burndown series. Float excluded.
+ * Period burn: actual $ on completed weeks with full actuals; planned $ on
+ * projected weeks and on completed weeks with missing actuals (not $0).
+ * Cumulative actual + forecast uses actualHours ?? plannedHours per row (same as projected burn).
+ */
+export function computeBudgetBurndownSeries(
+  projectStart: Date,
+  projectEnd: Date | null | undefined,
+  weeklyRows: WeeklyHoursRow[],
+  budgetLines: BudgetLineInput[],
+  asOf?: Date
+): BudgetBurndownSeries {
+  const asOfDate = asOf ?? getAsOfDate();
+  const spine = getAllWeeks(projectStart, projectEnd);
+  const completedWeeks = getCompletedWeeks(projectStart, projectEnd, asOfDate);
+  const lastCompleted =
+    completedWeeks.length > 0 ? completedWeeks[completedWeeks.length - 1]! : null;
+  const asOfWeekStart = lastCompleted ? weekKeyUtc(lastCompleted) : null;
+  const asOfMonthKey = lastCompleted ? monthKeyFromWeekStart(lastCompleted) : null;
+
+  const contractHighDollars = budgetLines.reduce((s, b) => s + b.highDollars, 0);
+
+  type Agg = {
+    plannedHours: number;
+    plannedDollars: number;
+    actualHoursSum: number;
+    actualDollarsSum: number;
+    forecastHours: number;
+    forecastDollars: number;
+    isMissingActuals: boolean;
+  };
+  const byWeek = new Map<string, Agg>();
+  for (const row of weeklyRows) {
+    const key = weekKeyUtc(row.weekStartDate);
+    const cur = byWeek.get(key) ?? {
+      plannedHours: 0,
+      plannedDollars: 0,
+      actualHoursSum: 0,
+      actualDollarsSum: 0,
+      forecastHours: 0,
+      forecastDollars: 0,
+      isMissingActuals: false,
+    };
+    cur.plannedHours += row.plannedHours;
+    cur.plannedDollars += row.plannedHours * row.rate;
+    const forecastH = row.actualHours ?? row.plannedHours;
+    cur.forecastHours += forecastH;
+    cur.forecastDollars += forecastH * row.rate;
+    if (row.actualHours !== null) {
+      cur.actualHoursSum += row.actualHours;
+      cur.actualDollarsSum += row.actualHours * row.rate;
+    }
+    const completed = isCompletedWeek(row.weekStartDate, asOfDate);
+    if (completed && row.plannedHours > 0 && row.actualHours === null) {
+      cur.isMissingActuals = true;
+    }
+    byWeek.set(key, cur);
+  }
+
+  const weeks: BudgetBurndownWeekPoint[] = [];
+  let cumulativePlanHours = 0;
+  let cumulativePlanDollars = 0;
+  let cumulativeActualForecastHours = 0;
+  let cumulativeActualForecastDollars = 0;
+
+  for (const weekDate of spine) {
+    const key = weekKeyUtc(weekDate);
+    const agg = byWeek.get(key) ?? {
+      plannedHours: 0,
+      plannedDollars: 0,
+      actualHoursSum: 0,
+      actualDollarsSum: 0,
+      forecastHours: 0,
+      forecastDollars: 0,
+      isMissingActuals: false,
+    };
+    const isCompleted = isCompletedWeek(weekDate, asOfDate);
+    const isProjected = !isCompleted;
+    const isMissingActuals = isCompleted && agg.isMissingActuals;
+    const actualHours = !isCompleted || isMissingActuals ? null : agg.actualHoursSum;
+    const actualDollars = !isCompleted || isMissingActuals ? null : agg.actualDollarsSum;
+    const periodHours = isCompleted && !isMissingActuals ? agg.actualHoursSum : agg.plannedHours;
+    const periodDollars =
+      isCompleted && !isMissingActuals ? agg.actualDollarsSum : agg.plannedDollars;
+
+    cumulativePlanHours += agg.plannedHours;
+    cumulativePlanDollars += agg.plannedDollars;
+    cumulativeActualForecastHours += agg.forecastHours;
+    cumulativeActualForecastDollars += agg.forecastDollars;
+
+    weeks.push({
+      weekStartDate: key,
+      label: formatWeekShort(weekDate),
+      monthKey: monthKeyFromWeekStart(weekDate),
+      plannedHours: agg.plannedHours,
+      plannedDollars: agg.plannedDollars,
+      actualHours,
+      actualDollars,
+      periodHours,
+      periodDollars,
+      isCompleted,
+      isProjected,
+      isMissingActuals,
+      cumulativePlanHours,
+      cumulativePlanDollars,
+      cumulativeActualForecastHours,
+      cumulativeActualForecastDollars,
+      remainingVsHighDollars:
+        contractHighDollars > 0
+          ? contractHighDollars - cumulativeActualForecastDollars
+          : null,
+    });
+  }
+
+  const months: BudgetBurndownMonthPoint[] = [];
+  const monthOrder: string[] = [];
+  const weeksByMonth = new Map<string, BudgetBurndownWeekPoint[]>();
+  for (const w of weeks) {
+    if (!weeksByMonth.has(w.monthKey)) {
+      monthOrder.push(w.monthKey);
+      weeksByMonth.set(w.monthKey, []);
+    }
+    weeksByMonth.get(w.monthKey)!.push(w);
+  }
+
+  for (const mk of monthOrder) {
+    const group = weeksByMonth.get(mk)!;
+    const last = group[group.length - 1]!;
+    const plannedHours = group.reduce((s, w) => s + w.plannedHours, 0);
+    const plannedDollars = group.reduce((s, w) => s + w.plannedDollars, 0);
+    const periodHours = group.reduce((s, w) => s + w.periodHours, 0);
+    const periodDollars = group.reduce((s, w) => s + w.periodDollars, 0);
+    const isMissingActuals = group.some((w) => w.isMissingActuals);
+    const allCompleted = group.every((w) => w.isCompleted);
+    const allProjected = group.every((w) => w.isProjected);
+    const isMixed = !allCompleted && !allProjected;
+    const actualHours = isMissingActuals
+      ? null
+      : group.reduce((s, w) => s + (w.actualHours ?? 0), 0);
+    const actualDollars = isMissingActuals
+      ? null
+      : group.reduce((s, w) => s + (w.actualDollars ?? 0), 0);
+
+    months.push({
+      monthKey: mk,
+      label: monthLabelFromKey(mk),
+      plannedHours,
+      plannedDollars,
+      actualHours,
+      actualDollars,
+      periodHours,
+      periodDollars,
+      isCompleted: allCompleted,
+      isProjected: allProjected,
+      isMixed,
+      isMissingActuals,
+      cumulativePlanHours: last.cumulativePlanHours,
+      cumulativePlanDollars: last.cumulativePlanDollars,
+      cumulativeActualForecastHours: last.cumulativeActualForecastHours,
+      cumulativeActualForecastDollars: last.cumulativeActualForecastDollars,
+      remainingVsHighDollars: last.remainingVsHighDollars,
+    });
+  }
+
+  return {
+    weeks,
+    months,
+    contractHighDollars,
+    asOfWeekStart,
+    asOfMonthKey,
   };
 }

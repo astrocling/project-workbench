@@ -2,7 +2,9 @@
 
 import { useState, useEffect, type ReactNode } from "react";
 import { RevenueRecoveryCard } from "@/components/RevenueRecoveryCard";
+import { BudgetBurndownChart } from "@/components/BudgetBurndownChart";
 import { getBufferHealthClass } from "@/components/RevenueRecoveryShared";
+import type { BudgetBurndownSeries } from "@/lib/budgetCalculations";
 
 function roundToQuarter(hours: number): number {
   return Math.round(hours * 4) / 4;
@@ -161,6 +163,7 @@ type InitialBudgetData = {
   rollups: Rollups | null | unknown;
   lastWeekWithActuals: string | null;
   peopleSummary: PeopleSummaryRow[];
+  burndown?: BudgetBurndownSeries | null;
 };
 
 export function BudgetTab({
@@ -175,6 +178,9 @@ export function BudgetTab({
   const [budgetLines, setBudgetLines] = useState<BudgetLine[]>(initialBudgetData?.budgetLines ?? []);
   const [rollups, setRollups] = useState<Rollups | null>((initialBudgetData?.rollups as Rollups) ?? null);
   const [peopleSummary, setPeopleSummary] = useState<PeopleSummaryRow[]>(initialBudgetData?.peopleSummary ?? []);
+  const [burndown, setBurndown] = useState<BudgetBurndownSeries | null>(
+    initialBudgetData?.burndown ?? null
+  );
   const [newLabel, setNewLabel] = useState("");
   const [newType, setNewType] = useState<"SOW" | "CO" | "Other">("SOW");
   const [newLowHours, setNewLowHours] = useState("");
@@ -190,6 +196,7 @@ export function BudgetTab({
         setBudgetLines(d.budgetLines ?? []);
         setRollups(d.rollups ?? null);
         setPeopleSummary(d.peopleSummary ?? []);
+        setBurndown(d.burndown ?? null);
       })
       .finally(() => setLoading(false));
   }
@@ -345,6 +352,8 @@ export function BudgetTab({
           </div>
         )}
       </section>
+
+      <BudgetBurndownChart series={burndown} />
 
       {/* Resource Efficiency section: 3 cards + horizontal chart */}
       <section className="space-y-4">
