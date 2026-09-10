@@ -247,12 +247,7 @@ async function getPortfolioMetricsForRole(
     );
     if (rollups.missingActuals) staleActuals = true;
 
-    const totalBudgetHours =
-      rollups.remainingHoursHigh + rollups.actualHoursToDate;
-    const bufferPercent =
-      totalBudgetHours > 0
-        ? (rollups.remainingAfterProjectedBurnHoursHigh / totalBudgetHours) * 100
-        : null;
+    const bufferPercent = rollups.bufferPercentHighDollars;
     const sum4Forecast = recentWeeks
       .slice(0, 4)
       .reduce((s, w) => s + w.forecastDollars, 0);
@@ -292,7 +287,7 @@ async function getPortfolioMetricsForRole(
       slug: project.slug,
       clientName: project.clientName,
       cdaEnabled: project.cdaEnabled === true,
-      burnPercent: rollups.burnPercentHighHours,
+      burnPercent: rollups.burnPercentHighDollars,
       bufferPercent,
       recoveryThisWeekPercent,
       recovery4WeekPercent,

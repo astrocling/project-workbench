@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { RevenueRecoveryCard } from "@/components/RevenueRecoveryCard";
 import { getBufferHealthClass } from "@/components/RevenueRecoveryShared";
 
@@ -17,6 +17,42 @@ function formatDollars(dollars: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+function formatRate(rate: number | null | undefined): string {
+  if (rate == null) return "—";
+  return `$${formatDollars(rate)}/hr`;
+}
+
+const budgetCardClass =
+  "bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200";
+
+function MetricBlock({
+  label,
+  children,
+  className = "",
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider">
+        {label}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+function RateRow({ label, rate }: { label: string; rate: number | null | undefined }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 text-body-sm">
+      <span className="text-surface-500 dark:text-surface-400">{label}</span>
+      <span className="tabular-nums font-medium text-surface-900 dark:text-white">{formatRate(rate)}</span>
+    </div>
+  );
 }
 
 function BudgetBurnPieChart({ burnPercent }: { burnPercent: number | null }) {
@@ -102,6 +138,12 @@ type Rollups = {
   projectedBurnDollars?: number;
   remainingAfterProjectedBurnHoursHigh?: number;
   remainingAfterProjectedBurnDollarsHigh?: number;
+  blendedRatePast?: number | null;
+  blendedRateFuture?: number | null;
+  blendedRateProject?: number | null;
+  blendedRateForRemainingHours?: number | null;
+  remainingHoursFromDollarsHigh?: number | null;
+  bufferPercentHighDollars?: number | null;
 };
 
 type PeopleSummaryRow = {
@@ -214,19 +256,40 @@ export function BudgetTab({
           {missingActuals && actualsStalePill}
         </h2>
         {rollups && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 border-t-2 border-t-jblue-500">
-              <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider mt-1">To date</p>
-              <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
-                ${formatDollars(rollups.actualDollarsToDate ?? 0)} / ${formatDollars((rollups.remainingDollarsHigh ?? 0) + (rollups.actualDollarsToDate ?? 0))}
-              </p>
-              <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
-                {formatHours(rollups.actualHoursToDate ?? 0)} / {formatHours((rollups.remainingHoursHigh ?? 0) + (rollups.actualHoursToDate ?? 0))} hrs
-              </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
+            <div className={`${budgetCardClass} flex flex-col`}>
+              <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-3">Overview</p>
+              <MetricBlock label="Spent">
+                <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
+                  ${formatDollars(rollups.actualDollarsToDate ?? 0)}
+                  <span className="text-title-md font-semibold text-surface-400 dark:text-surface-500">
+                    {" "}
+                    / ${formatDollars((rollups.remainingDollarsHigh ?? 0) + (rollups.actualDollarsToDate ?? 0))}
+                  </span>
+                </p>
+              </MetricBlock>
+              <MetricBlock label="Hours" className="mt-4">
+                <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
+                  {formatHours(rollups.actualHoursToDate ?? 0)}
+                  <span className="text-title-md font-semibold text-surface-400 dark:text-surface-500">
+                    {" "}
+                    / {formatHours((rollups.remainingHoursHigh ?? 0) + (rollups.actualHoursToDate ?? 0))} hrs
+                  </span>
+                </p>
+              </MetricBlock>
+              <MetricBlock label="Average rates" className="mt-4">
+                <div className="mt-2 space-y-1.5">
+                  <RateRow label="Used (project)" rate={rollups.blendedRateForRemainingHours} />
+                  <RateRow label="To date" rate={rollups.blendedRatePast} />
+                  <RateRow label="Remaining plan" rate={rollups.blendedRateFuture} />
+                </div>
+              </MetricBlock>
             </div>
-            <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
+            <div className={`${budgetCardClass} flex flex-col`}>
               <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-3">% Budget Burn</p>
-              <BudgetBurnPieChart burnPercent={rollups.burnPercentHighDollars} />
+              <div className="flex-1 flex items-center justify-center">
+                <BudgetBurnPieChart burnPercent={rollups.burnPercentHighDollars} />
+              </div>
             </div>
             {(() => {
               const totalBudgetHours =
@@ -235,38 +298,47 @@ export function BudgetTab({
                 (rollups.remainingDollarsHigh ?? 0) + (rollups.actualDollarsToDate ?? 0);
               const projectedBurnHours = rollups.projectedBurnHours ?? 0;
               const projectedBurnDollars = rollups.projectedBurnDollars ?? 0;
-              const remainingHours = rollups.remainingAfterProjectedBurnHoursHigh ?? totalBudgetHours - projectedBurnHours;
               const remainingDollars = rollups.remainingAfterProjectedBurnDollarsHigh ?? totalBudgetDollars - projectedBurnDollars;
-              const bufferPercentHours =
-                totalBudgetHours > 0 ? (remainingHours / totalBudgetHours) * 100 : null;
+              const remainingHours =
+                rollups.remainingHoursFromDollarsHigh ??
+                (rollups.blendedRateForRemainingHours != null &&
+                rollups.blendedRateForRemainingHours > 0
+                  ? remainingDollars / rollups.blendedRateForRemainingHours
+                  : rollups.remainingAfterProjectedBurnHoursHigh ?? totalBudgetHours - projectedBurnHours);
+              const bufferPercent =
+                rollups.bufferPercentHighDollars ??
+                (totalBudgetDollars > 0 ? (remainingDollars / totalBudgetDollars) * 100 : null);
               const isLowBuffer =
-                bufferPercentHours != null && (bufferPercentHours < 7 || bufferPercentHours < 0);
+                bufferPercent != null && (bufferPercent < 7 || bufferPercent < 0);
               return (
-                <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5 hover:shadow-card-hover hover:border-jblue-200 dark:hover:border-jblue-500/30 transition-all duration-200">
+                <div className={`${budgetCardClass} flex flex-col`}>
                   <p className="text-title-md font-semibold text-surface-800 dark:text-surface-100 mb-3">Expected remaining</p>
-                  <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider mt-1">Projected burn</p>
-                  <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
-                    ${formatDollars(projectedBurnDollars)}
-                  </p>
-                  <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
-                    {formatHours(projectedBurnHours)} hrs
-                  </p>
-                  <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider mt-4">Projected remaining</p>
-                  <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
-                    ${formatDollars(remainingDollars)}
-                  </p>
-                  <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
-                    {formatHours(remainingHours)} hrs
-                  </p>
-                  <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider mt-4">Buffer</p>
-                  <p className={`text-display-md font-extrabold tabular-nums mt-1 ${getBufferHealthClass(bufferPercentHours)}`}>
-                    {bufferPercentHours != null ? `${bufferPercentHours.toFixed(1)}%` : "—"}
-                  </p>
-                  {isLowBuffer && (
-                    <p className={`text-body-sm font-semibold mt-2 ${bufferPercentHours != null && bufferPercentHours < 0 ? "text-jred-600 dark:text-jred-400" : "text-orange-600 dark:text-orange-400"}`}>
-                      {bufferPercentHours != null && bufferPercentHours < 0 ? "Over budget" : "Low buffer"}
+                  <MetricBlock label="Projected burn">
+                    <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
+                      ${formatDollars(projectedBurnDollars)}
                     </p>
-                  )}
+                    <p className="text-title-md font-semibold text-surface-500 dark:text-surface-400 tabular-nums mt-0.5">
+                      {formatHours(projectedBurnHours)} hrs
+                    </p>
+                  </MetricBlock>
+                  <MetricBlock label="Projected remaining" className="mt-4">
+                    <p className="text-display-md font-extrabold text-surface-900 dark:text-white tabular-nums mt-1">
+                      ${formatDollars(remainingDollars)}
+                    </p>
+                    <p className="text-title-md font-semibold text-surface-500 dark:text-surface-400 tabular-nums mt-0.5">
+                      {formatHours(remainingHours)} hrs
+                    </p>
+                  </MetricBlock>
+                  <MetricBlock label="Buffer ($)" className="mt-4">
+                    <p className={`text-display-md font-extrabold tabular-nums mt-1 ${getBufferHealthClass(bufferPercent)}`}>
+                      {bufferPercent != null ? `${bufferPercent.toFixed(1)}%` : "—"}
+                    </p>
+                    {isLowBuffer && (
+                      <p className={`text-body-sm font-semibold mt-2 ${bufferPercent != null && bufferPercent < 0 ? "text-jred-600 dark:text-jred-400" : "text-orange-600 dark:text-orange-400"}`}>
+                        {bufferPercent != null && bufferPercent < 0 ? "Over budget" : "Low buffer"}
+                      </p>
+                    )}
+                  </MetricBlock>
                 </div>
               );
             })()}

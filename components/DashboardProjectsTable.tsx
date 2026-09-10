@@ -32,8 +32,8 @@ export type DashboardProjectRow = {
 const SORT_KEYS = [
   ["name", "Project"],
   ["clientName", "Client"],
-  ["burnPercent", "Budget burn"],
-  ["bufferPercent", "Buffer"],
+  ["burnPercent", "Budget burn ($)"],
+  ["bufferPercent", "Buffer ($)"],
   ["recoveryThisWeekPercent", "1-wk recovery"],
   ["recovery4WeekPercent", "4-wk recovery"],
   ["requestOpen", "Request"],

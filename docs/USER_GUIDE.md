@@ -65,11 +65,11 @@ Each project has a detail page with several tabs. The header shows the **as-of d
 
 | Tab | Purpose |
 |-----|---------|
-| **Overview** | Summary, key roles (PM, PGM, CAD), project notes, SOW, Estimate, Float, and Metric links, and a snapshot of budget and revenue recovery. Editors can **Post week to Slack** from the right side of the **Float last updated** / **Actuals through** header (Slack mark on the button) when a **project Slack channel** is set in **Settings → Links**—see [Overview — Post week to Slack](#overview--post-week-to-slack). Shows the latest status report RAG and a **Status Report History** strip when reports exist; **View all →** (and **Create your first report →** when none exist) opens the **Status Reports** tab (`?tab=status-reports`). Click a report pill to open that report’s HTML view. When teammates have Float **time off** or a **regional holiday** in the rolling two-week window, small absence pills summarize who is out (see [PTO tab](#pto-tab)). |
+| **Overview** | Summary, key roles (PM, PGM, CAD), project notes, SOW, Estimate, Float, and Metric links, and a snapshot of **dollar** budget burn, **dollar** buffer, and revenue recovery. Editors can **Post week to Slack** from the right side of the **Float last updated** / **Actuals through** header (Slack mark on the button) when a **project Slack channel** is set in **Settings → Links**—see [Overview — Post week to Slack](#overview--post-week-to-slack). Shows the latest status report RAG and a **Status Report History** strip when reports exist; **View all →** (and **Create your first report →** when none exist) opens the **Status Reports** tab (`?tab=status-reports`). Click a report pill to open that report’s HTML view. When teammates have Float **time off** or a **regional holiday** in the rolling two-week window, small absence pills summarize who is out (see [PTO tab](#pto-tab)). |
 | **Resourcing** | Planned hours, actual hours, and Float scheduled hours by person and week. Use this to compare plan vs actual vs Float and spot gaps. You can **collapse Weekly Actuals** (chevron on that section) to bring Planned and Float closer on screen. When Slack is configured, use **Request Resourcing Changes** to notify the org resourcing channel (see [Resourcing tab](#resourcing-tab)). A **shared Holiday / PTO / week-date header** stays at the top of the grids as you scroll; hover **HOL** / **PTO** pills for names, days, and weekday letters (see [Resourcing tab](#resourcing-tab)). |
 | **PTO** | PTO and regional holidays for **project members** visible on the Resourcing grid across the project date range. Filter by week range and person; see who is on PTO or a holiday and whether a PTO day is full or partial. Data comes from Float sync (`PTOHolidayImpact`). See [PTO tab](#pto-tab). |
 | **CDA** | (When enabled in Settings) Monthly planned and actuals for CDA reporting. Month-to-date actuals for each month incorporate **split-week** hours when a week crosses a month boundary (see Resourcing below). Optional **Report hours only** hides budget dollars on the Overall row in status copy and CDA reports—see [CDA tab](#cda-tab). |
-| **Budget** | Budget lines (e.g. SOW, CO, Other) with low/high hours and dollars, and burn to date. |
+| **Budget** | Contract lines, **Overview** (spend, hours, average rates), dollar burn, and **Expected remaining**. See [Budget tab](#budget-tab). |
 | **Timeline** | High-level timeline with month columns and up to four rows of bars and markers. Each bar has a label, start/end dates, row (1–4), and an optional color (Blue, Green, Amber, Teal, Slate, or Violet). On **status report** slides the timeline uses the same week-proportional layout but is **more compact** than the Timeline tab: only rows that contain bars or markers are shown, bar labels truncate when space is tight, and markers use the same Lucide-style icons as the Timeline tab. The same timeline (with colors) appears in status report previews and PDFs. Each saved report stores its **own** copy of the timeline when the report is created from **Project timeline**; if you change bars or markers later, use **Refresh timeline** while **editing** that report (Standard or Milestones) on the Status Reports tab to update that copy—see [Status Reports tab](#status-reports-tab). |
 | **Plan** | (When enabled by an **Admin** in **Settings**) Beta schedule builder: a grid plus Gantt with phases and nested items. Editors drag **Gantt bars** (or milestone diamonds) to change dates, drag **bar edges** to resize ranges, drag a **phase grip** to reorder phases, and use an **item grip** to reorder, nest, or move items into another phase. Everyone who can open the project sees the tab. Editors set the **default schedule source** for new status reports (**Project timeline** or **Project Plan**). The **Timeline** tab remains available; Plan does not replace it. |
 | **Status Reports** | Summary table of estimated budget, $ spent, $ remaining, budgeted/actual/remaining hours, with copy-to-clipboard and a % budget used (high est.) circle chart. Create, edit, view, and export status reports. Choose a **variation**: **Standard** (timeline + budget), **Milestones**, **CDA**, or **Modular** (sprint schedule, story points, velocity KPIs)—see [Status Reports tab](#status-reports-tab). When **Plan** is enabled, **Standard** and **Milestones** reports can choose **Project timeline** or **Project Plan** (with **phases only** or **phases + key dates**) at create time—see [Schedule source (Plan enabled)](#schedule-source-plan-enabled). **Standard** reports include an optional **Show project budget on report** toggle (default on) to hide the budget table and burn chart on the exported slide. **New** reports cannot be saved while **actuals are stale** (completed weeks with planned hours but missing actuals)—update the Resourcing tab first; the block clears immediately once actuals are filled in. When Slack is configured, **Post to Slack** (Slack icon) sends the latest saved report summary to the linked account's Slack channel. Standard and Milestones reports can **refresh the stored timeline** from the Timeline tab or **refresh the stored schedule** from the Plan tab after the source changes. **Standard**, **Milestones**, and **CDA** reports can **Refresh budget** after Budget tab or Resourcing actuals change (on **CDA** that also refreshes locked monthly/overall hours)—see [Refresh budget](#refresh-budget-standard-milestones-and-cda-editors-only). **Update** alone does not change hours on the slide. **CDA** reports can **refresh stored milestone dates** after the CDA tab changes—see [Refresh milestones (CDA)](#refresh-milestones-cda-editors-only). |
@@ -186,13 +186,39 @@ The sidebar link **PTO & Holidays** opens **`/pto-holidays`**, a company-wide vi
 
 ---
 
+## Budget tab
+
+The **Budget** tab holds contract lines (SOW, CO, Other) with **low/high hours and dollars**, plus three summary cards:
+
+| Card | What it shows |
+|------|----------------|
+| **Overview** | Spent and hours through completed weeks vs the **high** totals, and **average rates**. |
+| **% Budget Burn** | Dollar burn donut (actual dollars to date ÷ high dollar budget). |
+| **Expected remaining** | Projected burn (person rates), leftover dollars, leftover hours at the project blended rate, and **Buffer ($)**. |
+
+Projected **dollar** burn uses each person’s resolved bill rate (override → single project rate → role rate) times hours (`actual` when present, otherwise `planned`). **Buffer** and **projected remaining hours** follow leftover **dollars**, not leftover hours vs the hours cap. Mixed role rates on the rate card are why those two leftovers used to disagree.
+
+| Metric | Meaning |
+|--------|---------|
+| **Spent / Hours** | Actual dollars and hours through completed weeks vs the **high** dollar and hours totals. |
+| **Budget burn ($)** | Actual dollars to date ÷ high dollar budget. Same unit as Overview **Overall budget burn ($)** and dashboard **Budget burn ($)**. |
+| **Projected burn** | Hours and dollars through the full plan (actuals where filled, otherwise planned), still at person rates. |
+| **Projected remaining $** | High dollar budget minus projected burn dollars. |
+| **Projected remaining hours** | Remaining dollars ÷ the **project blended rate** (not leftover vs the hours cap). With mixed rates this can be more or fewer hours than hours-cap leftover. |
+| **Buffer ($)** | Remaining dollars ÷ high dollar budget. Under 7% is low (orange); negative is over budget (red). Same definition on the project Overview tab and PM/PGM/CAD dashboards. |
+| **Average rates** | **Used (project)** is the hours-weighted mix of completed-week actuals plus remaining planned weeks—the rate used to convert leftover dollars to hours. **To date** is actuals only; **Remaining plan** is current + future planned hours. Those two can differ when the remaining mix is senior- or junior-heavy. If there are no hours to blend, the converter falls back to past, then remaining plan, then implied contract rate (high $ ÷ high hours). **Remaining plan** shows **—** when there is no current or future planned mix. |
+
+**CDA** remaining hours, projected surplus, and hours-only reports still use the **hours cap** (high hours). This tab’s remaining hours follow leftover **dollars**—they will not always match the CDA surplus figure. See [Budget burn, buffer, and blended rates](#budget-burn-buffer-and-blended-rates).
+
+---
+
 ## CDA tab
 
 The **CDA** tab appears when **Enable CDA tab** is turned on in **Settings** for the project. It is used for monthly planned vs actual hours, milestones, and material you paste into status reports.
 
 ### Projected hours (Budget sub-tab)
 
-On the **Budget** sub-tab, the card next to the monthly table shows two **forward-looking** figures (they use the same **budget high hours** as the Overall row when the Budget tab has hours; otherwise the sum of CDA planned hours). They differ from the **Overall** table’s **Remaining** hours, which is “as of today” using all month-to-date actuals including the current month.
+On the **Budget** sub-tab, the card next to the monthly table shows two **forward-looking** figures (they use the same **budget high hours** as the Overall row when the Budget tab has hours; otherwise the sum of CDA planned hours). They differ from the **Overall** table’s **Remaining** hours, which is “as of today” using all month-to-date actuals including the current month. They also differ from the project **Budget** tab’s **projected remaining hours**, which convert leftover **dollars** at a blended rate instead of leftover vs the hours cap.
 
 | Label | Meaning |
 |--------|---------|
@@ -521,8 +547,8 @@ The **Projects** table lists every active project in scope for that role. Column
 |--------|---------|
 | **Project** | Name (link), plus a **CDA** badge when the project has the CDA tab enabled. |
 | **Client** | Client name. |
-| **Budget burn** | Burn % (color indicates health vs thresholds). |
-| **Buffer** | Buffer %; negative values may show “(Over)”. |
+| **Budget burn ($)** | Dollar burn % vs the high dollar budget (color indicates health vs thresholds). |
+| **Buffer ($)** | Dollar buffer %: leftover dollars after projected burn vs the high dollar budget; negative values may show “(Over)”. |
 | **1-wk recovery** | Revenue recovery % for the **most recent completed week** only—the same week labeled on the portfolio **This week** recovery card. |
 | **4-wk recovery** | Revenue recovery % across the **rolling previous four completed weeks** (sum of actual vs forecast dollars for those weeks). |
 | **Request** | Whether an **open request** is active: **Ready** is on in the project Resourcing **Planned** grid for at least one person who is **not** hidden from the grid (amber dot = open, muted = none). Sort to group projects with open requests. |
@@ -555,6 +581,18 @@ Use the sidebar to open these dashboards. The **Account** page (sidebar) has two
 
 The Resourcing tab shows all three so you can compare plan, actual, and Float schedule.
 
+### Budget burn, buffer, and blended rates
+
+Workbench **health** (Budget tab, project Overview, PM/PGM/CAD tables) is dollar-based when role rates differ:
+
+- **Budget burn ($)** — actual dollars to date ÷ high dollar budget.
+- **Buffer ($)** — leftover dollars after projected burn ÷ high dollar budget (green ≥ 7%, orange under 7%, red if negative).
+- **Projected remaining hours** (Budget tab only) — leftover dollars ÷ the **project blended rate** (hours-weighted person rates: actuals on completed weeks plus planned on current/future weeks).
+
+Projected **dollar** burn still multiplies each person’s hours by that person’s rate. The blended rate is only for converting leftover dollars into hours and for display on the Budget **Overview** card.
+
+**CDA** (and hours-only status copy) still uses the **hours cap**. A CDA **projected surplus** of leftover high hours can be smaller than Budget remaining hours when cheaper mix has burned more hours than dollars.
+
 ### Key roles (PM, PGM, CAD)
 
 Each project can have people in **key roles**:
@@ -572,6 +610,8 @@ Your **My Projects** list (on `/projects`) uses the **Person** link described in
 | Issue | What to try |
 |-------|-------------|
 | **Invalid email or password** | Ensure the database has been seeded and your user exists. Ask an admin to run the seed or add your account in Admin → Users. |
+| **Budget remaining hours do not match CDA surplus** | That is expected. Budget remaining hours are leftover **dollars** ÷ blended rate. CDA surplus is leftover vs the **hours cap**. See [Budget burn, buffer, and blended rates](#budget-burn-buffer-and-blended-rates). |
+| **Remaining plan rate shows —** | There is no current or future **planned** mix to average. **Used (project)** still uses actuals (and planned fallbacks on past weeks). |
 | **Project names must match** (Float) | Create projects in Workbench with names that match Float, or run sync so `floatExternalId` is set. Add missing roles in Admin → Roles and sync again if needed. |
 | **New project has no Float people or hours** | Fixed in **v1.2.6**: create reads only the **latest** Float sync snapshot. Hard-refresh **Resourcing** (not Overview—Overview shows planned/actual hours, which stay 0 until you enter them or **Sync plan from Float**). If it is still empty, run **Admin → Float sync** then **Backfill** on the project. |
 | **Float hours look low vs Float** | Fixed in **v1.2.7**: if someone has **multiple allocations** on the same project (workstreams, or split days in a week), older syncs kept only the largest block per day. After this fix, run **Admin → Float sync** and hard-refresh **Resourcing**. |

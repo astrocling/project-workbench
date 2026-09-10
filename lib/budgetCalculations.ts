@@ -59,9 +59,39 @@ export type BudgetResult = {
   remainingAfterProjectedBurnHoursHigh: number;
   remainingAfterProjectedBurnDollarsLow: number;
   remainingAfterProjectedBurnDollarsHigh: number;
+  /** Hours-weighted person rates. Null when the hour denominator is 0. */
+  blendedRatePast: number | null;
+  blendedRateFuture: number | null;
+  blendedRateProject: number | null;
+  /** Project, then past, then future, then implied high$ / highHours. */
+  blendedRateForRemainingHours: number | null;
+  /** Leftover dollars converted at blendedRateForRemainingHours (not hours-cap leftover). */
+  remainingHoursFromDollarsLow: number | null;
+  remainingHoursFromDollarsHigh: number | null;
+  bufferPercentLowDollars: number | null;
+  bufferPercentHighDollars: number | null;
   /** Actuals freshness: up-to-date, 1 week behind, or more than 1 week behind. */
   actualsStatus: "up-to-date" | "1-week-behind" | "more-than-1-week-behind";
 };
+
+export function blendedRateFromTotals(dollars: number, hours: number): number | null {
+  if (hours <= 0) return null;
+  return dollars / hours;
+}
+
+export function resolveBlendedRateForRemainingHours(opts: {
+  blendedRateProject: number | null;
+  blendedRatePast: number | null;
+  blendedRateFuture: number | null;
+  impliedContractRate: number | null;
+}): number | null {
+  return (
+    opts.blendedRateProject ??
+    opts.blendedRatePast ??
+    opts.blendedRateFuture ??
+    opts.impliedContractRate
+  );
+}
 
 function toDateOnly(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -190,6 +220,43 @@ export function computeBudgetRollups(
         ? "1-week-behind"
         : "more-than-1-week-behind";
 
+  const remainingAfterProjectedBurnHoursLow = totalBudgetLowHours - projectedBurnHours;
+  const remainingAfterProjectedBurnHoursHigh = totalBudgetHighHours - projectedBurnHours;
+  const remainingAfterProjectedBurnDollarsLow = totalBudgetLowDollars - projectedBurnDollars;
+  const remainingAfterProjectedBurnDollarsHigh = totalBudgetHighDollars - projectedBurnDollars;
+
+  const futureHours = projectedCurrentWeekHours + projectedFutureWeeksHours;
+  const futureDollars = projectedCurrentWeekDollars + projectedFutureWeeksDollars;
+  const blendedRatePast = blendedRateFromTotals(actualDollarsToDate, actualHoursToDate);
+  const blendedRateFuture = blendedRateFromTotals(futureDollars, futureHours);
+  const blendedRateProject = blendedRateFromTotals(projectedBurnDollars, projectedBurnHours);
+  const impliedContractRateHigh = blendedRateFromTotals(
+    totalBudgetHighDollars,
+    totalBudgetHighHours
+  );
+  const blendedRateForRemainingHours = resolveBlendedRateForRemainingHours({
+    blendedRateProject,
+    blendedRatePast,
+    blendedRateFuture,
+    impliedContractRate: impliedContractRateHigh,
+  });
+  const remainingHoursFromDollarsLow =
+    blendedRateForRemainingHours != null
+      ? remainingAfterProjectedBurnDollarsLow / blendedRateForRemainingHours
+      : null;
+  const remainingHoursFromDollarsHigh =
+    blendedRateForRemainingHours != null
+      ? remainingAfterProjectedBurnDollarsHigh / blendedRateForRemainingHours
+      : null;
+  const bufferPercentLowDollars =
+    totalBudgetLowDollars > 0
+      ? (remainingAfterProjectedBurnDollarsLow / totalBudgetLowDollars) * 100
+      : null;
+  const bufferPercentHighDollars =
+    totalBudgetHighDollars > 0
+      ? (remainingAfterProjectedBurnDollarsHigh / totalBudgetHighDollars) * 100
+      : null;
+
   return {
     plannedHoursToDate,
     actualHoursToDate,
@@ -216,10 +283,18 @@ export function computeBudgetRollups(
     remainingAfterForecastDollarsHigh: totalBudgetHighDollars - forecastDollars,
     projectedBurnHours,
     projectedBurnDollars,
-    remainingAfterProjectedBurnHoursLow: totalBudgetLowHours - projectedBurnHours,
-    remainingAfterProjectedBurnHoursHigh: totalBudgetHighHours - projectedBurnHours,
-    remainingAfterProjectedBurnDollarsLow: totalBudgetLowDollars - projectedBurnDollars,
-    remainingAfterProjectedBurnDollarsHigh: totalBudgetHighDollars - projectedBurnDollars,
+    remainingAfterProjectedBurnHoursLow,
+    remainingAfterProjectedBurnHoursHigh,
+    remainingAfterProjectedBurnDollarsLow,
+    remainingAfterProjectedBurnDollarsHigh,
+    blendedRatePast,
+    blendedRateFuture,
+    blendedRateProject,
+    blendedRateForRemainingHours,
+    remainingHoursFromDollarsLow,
+    remainingHoursFromDollarsHigh,
+    bufferPercentLowDollars,
+    bufferPercentHighDollars,
     actualsStatus,
   };
 }

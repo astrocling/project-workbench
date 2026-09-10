@@ -784,12 +784,12 @@ export function ProjectDetailTabs({
               <BudgetBurnDonut
                 burnPercent={
                   budgetStatus?.rollups != null &&
-                  (budgetStatus.rollups.burnPercentHighHours as number) != null
-                    ? Number(budgetStatus.rollups.burnPercentHighHours)
+                  (budgetStatus.rollups.burnPercentHighDollars as number) != null
+                    ? Number(budgetStatus.rollups.burnPercentHighDollars)
                     : null
                 }
                 size={120}
-                label="Overall budget burn"
+                label="Overall budget burn ($)"
               />
               {budgetStatus?.rollups != null && (budgetStatus.rollups.actualsStatus as string) != null && (
                 <p className="text-body-sm text-surface-500 dark:text-surface-400 mt-1 text-center">
@@ -829,22 +829,24 @@ export function ProjectDetailTabs({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {(() => {
               const rollups = budgetStatus?.rollups;
-              const remainingHoursHigh = Number(rollups?.remainingHoursHigh) ?? 0;
-              const actualHoursToDate = Number(rollups?.actualHoursToDate) ?? 0;
-              const totalBudgetHours = remainingHoursHigh + actualHoursToDate;
               const remainingAfterProjected =
-                Number(rollups?.remainingAfterProjectedBurnHoursHigh) ?? 0;
+                Number(rollups?.remainingAfterProjectedBurnDollarsHigh) ?? 0;
+              const totalBudgetDollars =
+                (Number(rollups?.remainingDollarsHigh) ?? 0) +
+                (Number(rollups?.actualDollarsToDate) ?? 0);
               const bufferPercent =
-                totalBudgetHours > 0
-                  ? (remainingAfterProjected / totalBudgetHours) * 100
-                  : null;
+                rollups?.bufferPercentHighDollars != null
+                  ? Number(rollups.bufferPercentHighDollars)
+                  : totalBudgetDollars > 0
+                    ? (remainingAfterProjected / totalBudgetDollars) * 100
+                    : null;
               const isLowBuffer =
                 bufferPercent != null &&
                 (bufferPercent < 7 || bufferPercent < 0);
               return (
                 <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border shadow-card-light dark:shadow-card-dark p-5">
                   <p className="text-label-md uppercase text-surface-400 dark:text-surface-500 tracking-wider">
-                    Buffer %
+                    Buffer % ($)
                   </p>
                   <p className={`text-display-md font-extrabold tabular-nums mt-1 ${getBufferHealthClass(bufferPercent)}`}>
                     {bufferPercent != null ? `${bufferPercent.toFixed(1)}%` : "—"}

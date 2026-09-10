@@ -5,6 +5,7 @@ import {
   hasPlanningMismatch,
   hasMissingActuals,
   hasMissingActualsSplitWeek,
+  resolveBlendedRateForRemainingHours,
 } from "@/lib/budgetCalculations";
 
 describe("computeBudgetRollups", () => {
@@ -171,6 +172,95 @@ describe("computeBudgetRollups", () => {
       );
       expect(result.actualsStatus).toBe("more-than-1-week-behind");
     });
+  });
+});
+
+describe("blended rates, dollar buffer, remaining hours from dollars", () => {
+  const projectStart = new Date("2025-02-03");
+  const projectEnd = new Date("2025-03-31");
+  const asOf = new Date("2025-02-16T23:59:59Z"); // completed: 02-03, 02-10; current: 02-17
+
+  it("uses leftover dollars for buffer and remaining hours at the project-wide blend", () => {
+    const weeklyRows = [
+      { weekStartDate: new Date("2025-02-03"), plannedHours: 40, actualHours: 40, rate: 100 },
+      { weekStartDate: new Date("2025-02-10"), plannedHours: 40, actualHours: 40, rate: 100 },
+      { weekStartDate: new Date("2025-02-17"), plannedHours: 40, actualHours: null, rate: 200 },
+      { weekStartDate: new Date("2025-02-24"), plannedHours: 40, actualHours: null, rate: 200 },
+    ];
+    const result = computeBudgetRollups(
+      projectStart,
+      projectEnd,
+      weeklyRows,
+      [{ lowHours: 200, highHours: 200, lowDollars: 40000, highDollars: 40000 }],
+      asOf
+    );
+
+    expect(result.projectedBurnHours).toBe(160);
+    expect(result.projectedBurnDollars).toBe(40 * 100 * 2 + 40 * 200 * 2);
+    expect(result.remainingAfterProjectedBurnHoursHigh).toBe(40);
+    expect(result.remainingAfterProjectedBurnDollarsHigh).toBe(16000);
+
+    expect(result.blendedRatePast).toBe(100);
+    expect(result.blendedRateFuture).toBe(200);
+    expect(result.blendedRateProject).toBe(24000 / 160);
+    expect(result.blendedRateForRemainingHours).toBe(150);
+
+    expect(result.remainingHoursFromDollarsHigh).toBe(16000 / 150);
+    expect(result.bufferPercentHighDollars).toBe((16000 / 40000) * 100);
+    expect(result.remainingHoursFromDollarsHigh).toBeGreaterThan(
+      result.remainingAfterProjectedBurnHoursHigh
+    );
+  });
+
+  it("resolves remaining-hours rate project then past then future then contract", () => {
+    expect(
+      resolveBlendedRateForRemainingHours({
+        blendedRateProject: 150,
+        blendedRatePast: 100,
+        blendedRateFuture: 200,
+        impliedContractRate: 175,
+      })
+    ).toBe(150);
+    expect(
+      resolveBlendedRateForRemainingHours({
+        blendedRateProject: null,
+        blendedRatePast: 100,
+        blendedRateFuture: 200,
+        impliedContractRate: 175,
+      })
+    ).toBe(100);
+    expect(
+      resolveBlendedRateForRemainingHours({
+        blendedRateProject: null,
+        blendedRatePast: null,
+        blendedRateFuture: 200,
+        impliedContractRate: 175,
+      })
+    ).toBe(200);
+    expect(
+      resolveBlendedRateForRemainingHours({
+        blendedRateProject: null,
+        blendedRatePast: null,
+        blendedRateFuture: null,
+        impliedContractRate: 175,
+      })
+    ).toBe(175);
+  });
+
+  it("falls back to implied contract rate when there are no hours to blend", () => {
+    const result = computeBudgetRollups(
+      projectStart,
+      projectEnd,
+      [],
+      [{ lowHours: 50, highHours: 100, lowDollars: 5000, highDollars: 20000 }],
+      asOf
+    );
+    expect(result.blendedRatePast).toBeNull();
+    expect(result.blendedRateFuture).toBeNull();
+    expect(result.blendedRateProject).toBeNull();
+    expect(result.blendedRateForRemainingHours).toBe(200);
+    expect(result.remainingHoursFromDollarsHigh).toBe(20000 / 200);
+    expect(result.bufferPercentHighDollars).toBe(100);
   });
 });
 

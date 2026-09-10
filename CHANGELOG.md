@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Budget — dollar buffer and remaining hours** — Buffer % is leftover **dollars** after projected burn vs the high dollar budget (Overview, Budget tab, PM/PGM/CAD tables), not leftover hours vs the hours cap. Projected remaining hours on the Budget tab are leftover dollars ÷ the project blended rate (actuals + remaining plan); past vs remaining-plan rates are shown so mix drift is visible. Projected burn **dollars** still use person rates. CDA hours-cap remaining is unchanged. Tests: `__tests__/lib/budgetCalculations.test.ts`.
+
+- **Budget tab — Overview card** — Spend, hours, and average rates sit in an **Overview** card; **Expected remaining** is burn / remaining / buffer only. The three Budget cards share the same title and metric-label treatment.
+
 - **Slack post buttons — Slack mark** — Overview **Post week to Slack** and Status Reports **Post to Slack** (list + confirm) show a monochrome Slack icon (`components/SlackIcon.tsx`).
 
 - **Plan grid — View status icons** — Compact **View** no longer truncates **Not started** / **In progress**. Item status is a Lucide icon (`Circle` / `CircleDot` / `CircleCheck`); hover and the accessible name keep the full label. The compact **Status** column is wide enough for the **STATUS** header with no left-pane sideways scroll. **Edit** still uses the status select. `components/plan/PlanGridGantt.tsx`.
@@ -53,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Plan tab how-to** — Confluence-ready editor guide in `docs/PLAN_TAB_HOWTO.md` (enable Plan, grid/Gantt, drag phases and items, dates, reports). **View** status is icons with hover for the full name; Gantt has a kickoff gutter and **Today** line.
 - **User Guide / Technical Reference** — Plan **View** status icons vs **Edit** status select.
 - **User Guide / Technical Reference / README** — Resourcing **PTO** / **HOL** hover: weekday letters **M T W R F** (Thursday **R**), tooltip sizes to content, portal cards below the trigger. Shared sticky Holiday/PTO/week header across all three grids; one pane for vertical and horizontal week scroll so columns stay aligned.
+- **User Guide / Technical Reference / README** — Budget **buffer** and **remaining hours** are dollar-based; blended rates on the Budget **Overview** card; **Expected remaining** is burn / remaining / buffer; CDA hours cap unchanged. Dashboard **Budget burn ($)** / **Buffer ($)**. Troubleshooting when Budget remaining hours ≠ CDA surplus.
 
 ## [1.2.8] - 2026-08-18
 
