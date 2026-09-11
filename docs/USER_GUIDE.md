@@ -1,6 +1,6 @@
 # Project Workbench — User Guide
 
-This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.2.8** as a baseline and newer behavior documented in [CHANGELOG.md](../CHANGELOG.md) (including Slack integrations and **Industry groups** taxonomy when your deployment includes them). The same content is available in the app at **User Guide** (`/user-guide`). Additional FFW Agency materials are in the [Confluence User Guide folder](https://ffwagency.atlassian.net/wiki/spaces/PW/folder/6305710084/User+Guide). The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
+This guide explains how to use Project Workbench for project budget and resourcing. It reflects **release 1.3.0** as a baseline (including Slack integrations and **Industry groups** taxonomy when your deployment includes them). Newer behavior is documented in [CHANGELOG.md](../CHANGELOG.md). The same content is available in the app at **User Guide** (`/user-guide`). Additional FFW Agency materials are in the [Confluence User Guide folder](https://ffwagency.atlassian.net/wiki/spaces/PW/folder/6305710084/User+Guide). The content is written in standard Markdown so you can copy it into Confluence (paste as Markdown or use Confluence’s Markdown macro).
 
 ---
 

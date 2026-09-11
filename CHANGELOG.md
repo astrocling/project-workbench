@@ -9,7 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 How-to for these items is in the [User Guide](docs/USER_GUIDE.md). APIs, schema, and deploy details are in the [Technical Reference](docs/TECHNICAL.md).
 
-**Deploy:** new database migrations ship with this release (the app `build` already applies them). **Plan stays off** on every project until an Admin enables it in **Settings**. If you run scheduled Trigger.dev jobs, redeploy the worker on **Node 24** as described in the Technical Reference.
+## [1.3.0] - 2026-09-11
+
+Minor release: optional **Plan** tab (beta), **Budget Burndown**, in-app **User Guide**, Overview **Post week to Slack**, dollar-based buffer / **Resource Efficiency**, and Resourcing HOL/PTO header work. **Deploy:** new database migrations ship with this release (the app `build` already applies them): `20260903120000_add_project_plan`, `20260903140000_plan_items_meetings_nesting`, `20260903183710_add_project_plan_beta`, `20260908180000_plan_report_visibility_and_status`. **Plan stays off** on every project until an Admin enables it in **Settings**. If you run scheduled Trigger.dev jobs, redeploy the worker on **Node 24** as described in the Technical Reference.
 
 ### Added
 
@@ -40,9 +42,11 @@ How-to for these items is in the [User Guide](docs/USER_GUIDE.md). APIs, schema,
 
 ### Documentation
 
-- **User Guide** — How to use Plan, Budget Burndown, dollar buffer / Resource Efficiency, Post week to Slack, Resourcing HOL/PTO, and CDA **Refresh budget**.
-- **Technical Reference** — Plan APIs and schema, Trigger.dev Node 24, cache/scroll behavior, and related tests.
+- **CHANGELOG** — This release section.
+- **User Guide** — How to use Plan, Budget Burndown, dollar buffer / Resource Efficiency, Post week to Slack, Resourcing HOL/PTO, and CDA **Refresh budget**; release baseline **1.3.0**.
+- **Technical Reference** — Plan APIs and schema, Trigger.dev Node 24, cache/scroll behavior, and related tests; Plan migrations recorded as the **1.3.0** series.
 - **Plan tab how-to** — Confluence-ready editor guide in `docs/PLAN_TAB_HOWTO.md`.
+- **README** — Production release tag example **v1.3.0**.
 
 ## [1.2.8] - 2026-08-18
 
