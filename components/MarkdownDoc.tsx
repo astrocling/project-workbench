@@ -52,16 +52,18 @@ export function MarkdownDoc({
       <p className="text-body-md text-surface-700 dark:text-surface-200 mb-3">{children}</p>
     ),
     ul: ({ children }) => (
-      <ul className="list-disc list-inside text-body-md text-surface-700 dark:text-surface-200 mb-4 space-y-1">
+      <ul className="mb-4 list-outside list-disc space-y-1 pl-6 text-body-md text-surface-700 dark:text-surface-200 [ul_&]:mb-2 [ul_&]:mt-1">
         {children}
       </ul>
     ),
     ol: ({ children }) => (
-      <ol className="list-decimal list-inside text-body-md text-surface-700 dark:text-surface-200 mb-4 space-y-1">
+      <ol className="mb-4 list-outside list-decimal space-y-1 pl-6 text-body-md text-surface-700 dark:text-surface-200 [ol_&]:mb-2 [ol_&]:mt-1">
         {children}
       </ol>
     ),
-    li: ({ children }) => <li className="ml-2">{children}</li>,
+    li: ({ children }) => (
+      <li className="pl-1 [&>p]:mb-1 [&>p:last-child]:mb-0">{children}</li>
+    ),
     a: ({ href, children }) => {
       const external = href?.startsWith("http://") || href?.startsWith("https://");
       return (

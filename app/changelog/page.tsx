@@ -12,7 +12,7 @@ export const metadata = {
 function ChangelogContent() {
   const path = join(process.cwd(), "CHANGELOG.md");
   const content = readFileSync(path, "utf-8");
-  return <MarkdownDoc content={content} />;
+  return <MarkdownDoc content={content} hideH1 />;
 }
 
 export default function ChangelogPage() {
