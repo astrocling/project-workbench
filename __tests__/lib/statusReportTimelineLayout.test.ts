@@ -3,6 +3,7 @@ import {
   SR_TIMELINE_MARKER_TOP_PX,
   SR_TIMELINE_ROW_HEIGHT_PX,
   applyTimelineLayout,
+  getStatusReportTimelineMetrics,
   pruneTimelineLayout,
   setTimelineLayoutLabel,
   setTimelineLayoutRow,
@@ -12,9 +13,24 @@ import {
 } from "@/lib/statusReportTimelineLayout";
 
 describe("statusReportTimelineLayout", () => {
-  it("keeps the marker band below the bar inside the row", () => {
+  it("keeps the Plan marker band below the bar inside the Plan row", () => {
     expect(SR_TIMELINE_MARKER_TOP_PX).toBeGreaterThan(15);
     expect(SR_TIMELINE_MARKER_TOP_PX).toBeLessThan(SR_TIMELINE_ROW_HEIGHT_PX);
+  });
+
+  it("uses compact overlay rows for the project timeline so 4 rows fit the slide slot", () => {
+    const timeline = getStatusReportTimelineMetrics("timeline");
+    const omitted = getStatusReportTimelineMetrics(undefined);
+    expect(timeline.mode).toBe("overlay");
+    expect(timeline.rowHeightPx).toBe(14);
+    expect(timeline.rowHeightPx * 4).toBeLessThanOrEqual(56);
+    expect(omitted).toEqual(timeline);
+  });
+
+  it("keeps the taller bar-and-marker band only for Plan schedules", () => {
+    const plan = getStatusReportTimelineMetrics("plan");
+    expect(plan.mode).toBe("bands");
+    expect(plan.rowHeightPx).toBe(SR_TIMELINE_ROW_HEIGHT_PX);
   });
 
   it("alternates clustered marker columns left and right of the date", () => {

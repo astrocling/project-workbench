@@ -29,15 +29,12 @@ import {
   timelineHasVisibleSchedule,
 } from "@/lib/plan/reportSchedule";
 import {
+  getStatusReportTimelineMetrics,
   SR_TIMELINE_BAR_FONT_PX,
-  SR_TIMELINE_BAR_HEIGHT_PX,
-  SR_TIMELINE_BAR_TOP_PX,
   SR_TIMELINE_MARKER_COL_PX,
   SR_TIMELINE_MARKER_FONT_PX,
   SR_TIMELINE_MARKER_ICON_PX,
-  SR_TIMELINE_MARKER_TOP_PX,
   SR_TIMELINE_MONTH_FONT_PX,
-  SR_TIMELINE_ROW_HEIGHT_PX,
   timelineMarkerHangsLeft,
 } from "@/lib/statusReportTimelineLayout";
 
@@ -485,17 +482,13 @@ const styles = StyleSheet.create({
   },
   timelineBarRow: {
     flexDirection: "row",
-    height: SR_TIMELINE_ROW_HEIGHT_PX,
     borderBottomWidth: 1,
     borderBottomColor: TIMELINE_ROW_BORDER,
     position: "relative",
     zIndex: 1,
-    overflow: "hidden",
   },
   timelineBar: {
     position: "absolute",
-    height: SR_TIMELINE_BAR_HEIGHT_PX,
-    top: SR_TIMELINE_BAR_TOP_PX,
     backgroundColor: TIMELINE_BAR_BG,
     borderRadius: 2,
     paddingHorizontal: 3,
@@ -883,6 +876,8 @@ export type StatusReportPDFData = {
   /** When false, Standard report omits bottom budget table and burn chart. Default true. */
   showBudget?: boolean;
   panels?: ReportPanel[];
+  /** Locked schedule source; omitted on legacy reports (treated as project timeline). */
+  scheduleSource?: "timeline" | "plan";
 };
 
 const MODULAR_METRIC_LABELS: Record<string, string> = {
@@ -950,12 +945,12 @@ function getMonthsForTimeline(startDate: string, endDate: string): string[] {
 const TIMELINE_ICON_STROKE = { stroke: TIMELINE_MARKER, strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, fill: "none" };
 
 /** Renders a timeline marker icon (same Lucide icons as Timeline tab) for PDF. */
-function TimelineMarkerIconPdf({ shape }: { shape: string }) {
+function TimelineMarkerIconPdf({ shape, size = TIMELINE_MARKER_ICON_SIZE }: { shape: string; size?: number }) {
   const nodes = TIMELINE_MARKER_ICONS[shape] ?? TIMELINE_MARKER_ICONS.Pin;
   return (
     <Svg
-      width={TIMELINE_MARKER_ICON_SIZE}
-      height={TIMELINE_MARKER_ICON_SIZE}
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       style={{ flexShrink: 0 }}
     >
@@ -982,9 +977,11 @@ function TimelineMarkerIconPdf({ shape }: { shape: string }) {
 function TimelineBlock({
   timeline,
   reportDate,
+  scheduleSource,
 }: {
   timeline: NonNullable<StatusReportPDFData["timeline"]>;
   reportDate?: string;
+  scheduleSource?: StatusReportPDFData["scheduleSource"];
 }) {
   const startMs = new Date(timeline.startDate).getTime();
   const endMs = new Date(timeline.endDate).getTime();
@@ -1009,7 +1006,9 @@ function TimelineBlock({
     endMs
   );
 
-  const ROW_HEIGHT = SR_TIMELINE_ROW_HEIGHT_PX;
+  const metrics = getStatusReportTimelineMetrics(scheduleSource);
+  const overlay = metrics.mode === "overlay";
+  const ROW_HEIGHT = metrics.rowHeightPx;
 
   // Rows, bar segments, and markers all come from the shared helpers that back the render gate.
   const activeRows = getActiveTimelineRows(timeline);
@@ -1038,7 +1037,9 @@ function TimelineBlock({
             key={monthKey}
             style={[styles.timelineMonthCell, { flex: weeksInMonths[i] ?? 1 }]}
           >
-            <Text style={styles.timelineMonthText}>{getMonthFullName(monthKey).toUpperCase()}</Text>
+            <Text style={[styles.timelineMonthText, { fontSize: metrics.monthFontPx }]}>
+              {getMonthFullName(monthKey).toUpperCase()}
+            </Text>
           </View>
         ))}
       </View>
@@ -1065,7 +1066,12 @@ function TimelineBlock({
         return (
           <View
             key={row}
-            style={styles.timelineBarRow}
+            style={[
+              styles.timelineBarRow,
+              overlay
+                ? { minHeight: ROW_HEIGHT }
+                : { height: ROW_HEIGHT, overflow: "hidden" },
+            ]}
           >
             {/* Vertical month lines as first child so they paint behind bars and markers */}
             <View style={styles.timelineRowMonthLinesLayer}>
@@ -1089,6 +1095,9 @@ function TimelineBlock({
                 key={`bar-${i}`}
                 style={[
                   styles.timelineBar,
+                  overlay
+                    ? { top: 1, bottom: 1 }
+                    : { top: metrics.barTopPx, height: metrics.barHeightPx ?? undefined },
                   {
                     left: `${positionPercent(visibleStart)}%`,
                     width: `${renderedWidth}%`,
@@ -1097,36 +1106,50 @@ function TimelineBlock({
                   },
                 ]}
               >
-                <Text style={styles.timelineBarText}>{displayLabel}</Text>
+                <Text style={[styles.timelineBarText, { fontSize: metrics.barFontPx }]}>{displayLabel}</Text>
               </View>
               );
             })}
             {markersInRow.map((m, i) => {
-              const hangLeft = timelineMarkerHangsLeft(i);
+              const hangLeft = !overlay && timelineMarkerHangsLeft(i);
               return (
               <View
                 key={`m-${i}`}
-                style={[
-                  {
-                    position: "absolute",
-                    left: `${positionPercent(m.date)}%`,
-                    marginLeft: hangLeft ? -SR_TIMELINE_MARKER_COL_PX : 0,
-                    top: SR_TIMELINE_MARKER_TOP_PX,
-                    width: SR_TIMELINE_MARKER_COL_PX,
-                    flexDirection: "column",
-                    alignItems: hangLeft ? "flex-end" : "flex-start",
-                    zIndex: 2,
-                    opacity: m.muted ? 0.45 : 1,
-                  },
-                ]}
+                style={
+                  overlay
+                    ? {
+                        position: "absolute",
+                        left: `${positionPercent(m.date)}%`,
+                        marginLeft: -metrics.markerIconPx / 2,
+                        top: metrics.markerTopPx,
+                        flexDirection: "column",
+                        alignItems: "center",
+                        minWidth: metrics.markerIconPx,
+                        zIndex: 2,
+                        opacity: m.muted ? 0.45 : 1,
+                      }
+                    : {
+                        position: "absolute",
+                        left: `${positionPercent(m.date)}%`,
+                        marginLeft: hangLeft ? -metrics.markerColPx : 0,
+                        top: metrics.markerTopPx,
+                        width: metrics.markerColPx,
+                        flexDirection: "column",
+                        alignItems: hangLeft ? "flex-end" : "flex-start",
+                        zIndex: 2,
+                        opacity: m.muted ? 0.45 : 1,
+                      }
+                }
               >
-                <TimelineMarkerIconPdf shape={m.shape ?? "Pin"} />
-                <View style={styles.timelineMarkerLabelWrap}>
+                <TimelineMarkerIconPdf shape={m.shape ?? "Pin"} size={metrics.markerIconPx} />
+                <View style={[styles.timelineMarkerLabelWrap, { maxWidth: metrics.markerColPx }]}>
                   <Text
                     style={[
                       styles.timelineMarkerText,
-                      { textAlign: hangLeft ? "right" : "left" },
+                      { fontSize: metrics.markerFontPx },
+                      overlay ? undefined : { textAlign: hangLeft ? "right" : "left" },
                     ]}
+                    wrap={overlay ? false : undefined}
                   >
                     {m.label}
                   </Text>
@@ -1425,7 +1448,11 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
             data.timeline &&
             timelineHasVisibleSchedule(data.timeline) && (
             <View style={styles.timelineSlotFixed}>
-              <TimelineBlock timeline={data.timeline} reportDate={data.report.reportDate} />
+              <TimelineBlock
+                timeline={data.timeline}
+                reportDate={data.report.reportDate}
+                scheduleSource={data.scheduleSource}
+              />
             </View>
           )}
         </View>

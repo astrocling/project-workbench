@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PlanItemJson, PlanPhaseJson } from "@/lib/plan/serialize";
 import {
   buildItemTree,
+  buildPlanDisplayRows,
   flattenVisibleRows,
   getItemDepth,
   indentItem,
@@ -119,6 +120,89 @@ describe("flattenVisibleRows", () => {
       "p2",
       "e",
     ]);
+  });
+});
+
+describe("buildPlanDisplayRows", () => {
+  it("shows add-phase when editing an empty plan", () => {
+    expect(buildPlanDisplayRows([], { editing: true, collapsedIds: new Set() })).toEqual([
+      { kind: "add-phase" },
+    ]);
+  });
+
+  it("hides add rows in view mode", () => {
+    const emptyPhase = flattenVisibleRows(
+      [phase({ id: "p1", name: "Discovery", items: [] })],
+      new Set()
+    );
+    expect(buildPlanDisplayRows(emptyPhase, { editing: false, collapsedIds: new Set() })).toEqual([
+      { kind: "data", row: emptyPhase[0] },
+    ]);
+    expect(buildPlanDisplayRows([], { editing: false, collapsedIds: new Set() })).toEqual([]);
+  });
+
+  it("shows add-item after an empty expanded phase", () => {
+    const rows = flattenVisibleRows(
+      [phase({ id: "p1", name: "Discovery", items: [] })],
+      new Set()
+    );
+    expect(
+      buildPlanDisplayRows(rows, { editing: true, collapsedIds: new Set() }).map((row) =>
+        row.kind === "data" ? { kind: "data", id: row.row.phase.id } : row
+      )
+    ).toEqual([
+      { kind: "data", id: "p1" },
+      { kind: "add-item", phaseId: "p1" },
+      { kind: "add-phase" },
+    ]);
+  });
+
+  it("shows add-item after the last visible item in each expanded phase", () => {
+    const rows = flattenVisibleRows(
+      [
+        phase({
+          id: "p1",
+          name: "Discovery",
+          order: 0,
+          items: [item({ id: "a", phaseId: "p1", label: "A" })],
+        }),
+        phase({
+          id: "p2",
+          name: "Design",
+          order: 1,
+          items: [item({ id: "b", phaseId: "p2", label: "B" })],
+        }),
+      ],
+      new Set()
+    );
+    expect(
+      buildPlanDisplayRows(rows, { editing: true, collapsedIds: new Set() }).map((row) => {
+        if (row.kind === "add-phase") return row;
+        if (row.kind === "add-item") return row;
+        return {
+          kind: "data",
+          id: row.row.kind === "phase" ? row.row.phase.id : row.row.item!.id,
+        };
+      })
+    ).toEqual([
+      { kind: "data", id: "p1" },
+      { kind: "data", id: "a" },
+      { kind: "add-item", phaseId: "p1" },
+      { kind: "data", id: "p2" },
+      { kind: "data", id: "b" },
+      { kind: "add-item", phaseId: "p2" },
+      { kind: "add-phase" },
+    ]);
+  });
+
+  it("does not show add-item under a collapsed phase", () => {
+    const phases = [phase({ id: "p1", name: "Discovery", items: [] })];
+    const rows = flattenVisibleRows(phases, new Set(["p1"]));
+    expect(
+      buildPlanDisplayRows(rows, { editing: true, collapsedIds: new Set(["p1"]) }).map(
+        (row) => row.kind
+      )
+    ).toEqual(["data", "add-phase"]);
   });
 });
 

@@ -39,7 +39,12 @@ import {
   type ScaleColumn,
 } from "@/lib/plan/scale";
 import type { PlanItemJson, PlanJson, PlanPhaseJson } from "@/lib/plan/serialize";
-import { flattenVisibleRows, type PlanVisibleRow } from "@/lib/plan/tree";
+import {
+  buildPlanDisplayRows,
+  flattenVisibleRows,
+  type PlanDisplayRow,
+  type PlanVisibleRow,
+} from "@/lib/plan/tree";
 import {
   resolveItemDrop,
   type ItemDropTarget,
@@ -207,7 +212,6 @@ function itemTypeTitle(item: PlanItemJson): string {
   return label;
 }
 
-type DisplayRow = { kind: "data"; row: PlanVisibleRow } | { kind: "add-phase" };
 
 function rowKey(row: PlanVisibleRow): RowKey {
   return row.kind === "phase" ? `phase:${row.phase.id}` : `item:${row.item!.id}`;
@@ -353,7 +357,9 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [zoomMode, setZoomMode] = useState<ZoomMode>("fit");
-  const [gridMode, setGridMode] = useState<GridMode>("view");
+  const [gridMode, setGridMode] = useState<GridMode>(() =>
+    canEdit && plan.phases.length === 0 ? "edit" : "view"
+  );
   const [paneWidth, setPaneWidth] = useState(0);
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
 
@@ -409,11 +415,10 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
     () => flattenVisibleRows(plan.phases, collapsedIds),
     [plan.phases, collapsedIds]
   );
-  const displayRows = useMemo<DisplayRow[]>(() => {
-    const output: DisplayRow[] = rows.map((row) => ({ kind: "data", row }));
-    if (editing) output.push({ kind: "add-phase" });
-    return output;
-  }, [editing, rows]);
+  const displayRows = useMemo<PlanDisplayRow[]>(
+    () => buildPlanDisplayRows(rows, { editing, collapsedIds }),
+    [collapsedIds, editing, rows]
+  );
 
   const allItems = useMemo(
     () => plan.phases.flatMap((p) => p.items),
@@ -850,6 +855,19 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
                   />
                 );
               }
+              if (displayRow.kind === "add-item") {
+                const phase = plan.phases.find((candidate) => candidate.id === displayRow.phaseId);
+                if (!phase) return null;
+                return (
+                  <InlineAddRow
+                    key={`add-item-${phase.id}`}
+                    label="Add item"
+                    indent
+                    disabled={busy}
+                    onClick={() => void handleAddItemToPhase(phase)}
+                  />
+                );
+              }
               const { row } = displayRow;
               const key = rowKey(row);
               const isSelected = selectedKey === key;
@@ -1013,7 +1031,13 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
                     }}
                   />
                 ) : (
-                  <GanttSpacerRow key="add-phase" />
+                  <GanttSpacerRow
+                    key={
+                      displayRow.kind === "add-item"
+                        ? `add-item-${displayRow.phaseId}`
+                        : "add-phase"
+                    }
+                  />
                 )
               )}
             </div>
@@ -1030,6 +1054,7 @@ function InlineAddRow({
   label,
   disabled,
   onClick,
+  indent,
   dropHover,
   onDragOver,
   onDragLeave,
@@ -1038,6 +1063,7 @@ function InlineAddRow({
   label: string;
   disabled: boolean;
   onClick: () => void;
+  indent?: boolean;
   dropHover?: boolean;
   onDragOver?: (event: DragEvent<HTMLButtonElement>) => void;
   onDragLeave?: (event: DragEvent<HTMLButtonElement>) => void;
@@ -1051,9 +1077,9 @@ function InlineAddRow({
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
-      className={`flex w-full items-center gap-1 px-8 border-b border-surface-100 dark:border-dark-border text-body-sm text-surface-500 hover:bg-surface-50 hover:text-surface-800 dark:text-surface-400 dark:hover:bg-dark-raised dark:hover:text-surface-200 disabled:opacity-50 ${
-        dropHover ? "bg-jblue-50 dark:bg-jblue-900/30 ring-1 ring-inset ring-jblue-500" : ""
-      }`}
+      className={`flex w-full items-center gap-1 border-b border-surface-100 dark:border-dark-border text-body-sm text-surface-500 hover:bg-surface-50 hover:text-surface-800 dark:text-surface-400 dark:hover:bg-dark-raised dark:hover:text-surface-200 disabled:opacity-50 ${
+        indent ? "px-12" : "px-8"
+      } ${dropHover ? "bg-jblue-50 dark:bg-jblue-900/30 ring-1 ring-inset ring-jblue-500" : ""}`}
       style={{ height: ROW_HEIGHT }}
     >
       <Plus size={13} aria-hidden />

@@ -28,15 +28,7 @@ import {
   timelineHasVisibleSchedule,
 } from "@/lib/plan/reportSchedule";
 import {
-  SR_TIMELINE_BAR_FONT_PX,
-  SR_TIMELINE_BAR_HEIGHT_PX,
-  SR_TIMELINE_BAR_TOP_PX,
-  SR_TIMELINE_MARKER_COL_PX,
-  SR_TIMELINE_MARKER_FONT_PX,
-  SR_TIMELINE_MARKER_ICON_PX,
-  SR_TIMELINE_MARKER_TOP_PX,
-  SR_TIMELINE_MONTH_FONT_PX,
-  SR_TIMELINE_ROW_HEIGHT_PX,
+  getStatusReportTimelineMetrics,
   timelineMarkerHangsLeft,
 } from "@/lib/statusReportTimelineLayout";
 
@@ -291,9 +283,11 @@ function BudgetBurnDonut({
 function TimelineBlock({
   timeline,
   reportDate,
+  scheduleSource,
 }: {
   timeline: NonNullable<StatusReportPDFData["timeline"]>;
   reportDate?: string;
+  scheduleSource?: StatusReportPDFData["scheduleSource"];
 }) {
   const startMs = new Date(timeline.startDate).getTime();
   const endMs = new Date(timeline.endDate).getTime();
@@ -314,7 +308,9 @@ function TimelineBlock({
     endMs
   );
 
-  const ROW_HEIGHT_PX = SR_TIMELINE_ROW_HEIGHT_PX;
+  const metrics = getStatusReportTimelineMetrics(scheduleSource);
+  const ROW_HEIGHT_PX = metrics.rowHeightPx;
+  const overlay = metrics.mode === "overlay";
 
   // Rows, bar segments, and markers all come from the shared helpers that back the render gate.
   const activeRows = getActiveTimelineRows(timeline);
@@ -342,7 +338,7 @@ function TimelineBlock({
           <div key={monthKey} className="py-px px-0.5 text-center">
             <span
               className="font-bold text-white uppercase"
-              style={{ fontSize: SR_TIMELINE_MONTH_FONT_PX }}
+              style={{ fontSize: metrics.monthFontPx }}
             >
               {getMonthFullName(monthKey).toUpperCase()}
             </span>
@@ -368,8 +364,8 @@ function TimelineBlock({
           return (
             <div
               key={row}
-              className="border-b border-[#d1d5db] relative overflow-hidden"
-              style={{ height: ROW_HEIGHT_PX }}
+              className={`border-b border-[#d1d5db] relative${overlay ? "" : " overflow-hidden"}`}
+              style={overlay ? { minHeight: ROW_HEIGHT_PX } : { height: ROW_HEIGHT_PX }}
             >
               <div className="absolute inset-0 pointer-events-none">
                 {monthBoundaryPositions.map((leftPct, i) => (
@@ -387,10 +383,11 @@ function TimelineBlock({
                   return (
                   <div
                     key={`bar-${i}`}
-                    className="absolute rounded flex items-center px-1.5 overflow-hidden min-w-0"
+                    className={`absolute rounded flex items-center px-1.5 overflow-hidden min-w-0${overlay ? " top-[2px] bottom-[2px]" : ""}`}
                     style={{
-                      top: SR_TIMELINE_BAR_TOP_PX,
-                      height: SR_TIMELINE_BAR_HEIGHT_PX,
+                      ...(overlay
+                        ? {}
+                        : { top: metrics.barTopPx, height: metrics.barHeightPx ?? undefined }),
                       left: `${positionPercent(visibleStart)}%`,
                       width: `${renderedWidth}%`,
                       backgroundColor: bar.color ?? TIMELINE_BAR_BG,
@@ -400,7 +397,7 @@ function TimelineBlock({
                     <span
                       className="text-white font-semibold leading-none block w-full"
                       style={{
-                        fontSize: SR_TIMELINE_BAR_FONT_PX,
+                        fontSize: metrics.barFontPx,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
@@ -413,23 +410,31 @@ function TimelineBlock({
                 })}
               </div>
               {markersInRow.map((m, i) => {
-                const hangLeft = timelineMarkerHangsLeft(i);
+                const hangLeft = !overlay && timelineMarkerHangsLeft(i);
                 return (
                   <div
                     key={`m-${i}`}
-                    className="absolute z-[2] flex flex-col"
-                    style={{
-                      left: `${positionPercent(m.date)}%`,
-                      top: SR_TIMELINE_MARKER_TOP_PX,
-                      width: SR_TIMELINE_MARKER_COL_PX,
-                      marginLeft: hangLeft ? -SR_TIMELINE_MARKER_COL_PX : 0,
-                      alignItems: hangLeft ? "flex-end" : "flex-start",
-                      opacity: m.muted ? 0.45 : 1,
-                    }}
+                    className={`absolute z-[2] flex flex-col${overlay ? " items-center min-w-[11px]" : ""}`}
+                    style={
+                      overlay
+                        ? {
+                            left: `calc(${positionPercent(m.date)}% - ${metrics.markerIconPx / 2}px)`,
+                            top: metrics.markerTopPx,
+                            opacity: m.muted ? 0.45 : 1,
+                          }
+                        : {
+                            left: `${positionPercent(m.date)}%`,
+                            top: metrics.markerTopPx,
+                            width: metrics.markerColPx,
+                            marginLeft: hangLeft ? -metrics.markerColPx : 0,
+                            alignItems: hangLeft ? "flex-end" : "flex-start",
+                            opacity: m.muted ? 0.45 : 1,
+                          }
+                    }
                   >
                     <svg
-                      width={SR_TIMELINE_MARKER_ICON_PX}
-                      height={SR_TIMELINE_MARKER_ICON_PX}
+                      width={metrics.markerIconPx}
+                      height={metrics.markerIconPx}
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="#FF2020"
@@ -447,15 +452,23 @@ function TimelineBlock({
                       )}
                     </svg>
                     <span
-                      className="font-medium text-gray-700 bg-white px-0.5 rounded leading-tight text-right"
+                      className={
+                        overlay
+                          ? "font-medium text-gray-600 bg-gray-100 px-0.5 rounded truncate"
+                          : "font-medium text-gray-700 bg-white px-0.5 rounded leading-tight text-right"
+                      }
                       style={{
-                        fontSize: SR_TIMELINE_MARKER_FONT_PX,
-                        maxWidth: SR_TIMELINE_MARKER_COL_PX,
-                        textAlign: hangLeft ? "right" : "left",
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                        overflow: "hidden",
+                        fontSize: metrics.markerFontPx,
+                        maxWidth: metrics.markerColPx,
+                        ...(overlay
+                          ? {}
+                          : {
+                              textAlign: hangLeft ? "right" : "left",
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical",
+                              overflow: "hidden",
+                            }),
                       }}
                     >
                       {m.label}
@@ -637,7 +650,11 @@ export function StatusReportView({
             data.timeline &&
             timelineHasVisibleSchedule(data.timeline) && (
             <div className="mt-2 flex-shrink-0">
-              <TimelineBlock timeline={data.timeline} reportDate={data.report.reportDate} />
+              <TimelineBlock
+                timeline={data.timeline}
+                reportDate={data.report.reportDate}
+                scheduleSource={data.scheduleSource}
+              />
             </div>
           )}
 

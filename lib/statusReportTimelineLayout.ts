@@ -1,7 +1,10 @@
 /**
  * Shared Status Report TimelineBlock metrics (HTML preview + PDF fallback).
- * Rows are split into a bar band and a marker band so key-date labels never
- * paint on top of the next phase bar.
+ *
+ * Plan schedules use a taller row split into a bar band and a marker band so
+ * key-date labels never paint on top of the next phase bar.
+ * Project Timeline schedules keep the original compact overlay so 4 rows still
+ * fit the 16:9 slide (the Plan metrics would overflow and cover activities).
  */
 export const SR_TIMELINE_ROW_HEIGHT_PX = 38;
 export const SR_TIMELINE_BAR_TOP_PX = 2;
@@ -15,6 +18,51 @@ export const SR_TIMELINE_MONTH_FONT_PX = 7;
 /** Marker stack starts just below the bar so icons do not cover phase names. */
 export const SR_TIMELINE_MARKER_TOP_PX =
   SR_TIMELINE_BAR_TOP_PX + SR_TIMELINE_BAR_HEIGHT_PX + 1;
+
+export type StatusReportTimelineMetrics = {
+  mode: "overlay" | "bands";
+  rowHeightPx: number;
+  barTopPx: number;
+  barHeightPx: number | null;
+  markerIconPx: number;
+  markerColPx: number;
+  barFontPx: number;
+  markerFontPx: number;
+  monthFontPx: number;
+  markerTopPx: number;
+};
+
+const PLAN_TIMELINE_METRICS: StatusReportTimelineMetrics = {
+  mode: "bands",
+  rowHeightPx: SR_TIMELINE_ROW_HEIGHT_PX,
+  barTopPx: SR_TIMELINE_BAR_TOP_PX,
+  barHeightPx: SR_TIMELINE_BAR_HEIGHT_PX,
+  markerIconPx: SR_TIMELINE_MARKER_ICON_PX,
+  markerColPx: SR_TIMELINE_MARKER_COL_PX,
+  barFontPx: SR_TIMELINE_BAR_FONT_PX,
+  markerFontPx: SR_TIMELINE_MARKER_FONT_PX,
+  monthFontPx: SR_TIMELINE_MONTH_FONT_PX,
+  markerTopPx: SR_TIMELINE_MARKER_TOP_PX,
+};
+
+const PROJECT_TIMELINE_METRICS: StatusReportTimelineMetrics = {
+  mode: "overlay",
+  rowHeightPx: 14,
+  barTopPx: 2,
+  barHeightPx: null,
+  markerIconPx: 11,
+  markerColPx: 52,
+  barFontPx: 5,
+  markerFontPx: 5,
+  monthFontPx: 6,
+  markerTopPx: 0,
+};
+
+export function getStatusReportTimelineMetrics(
+  scheduleSource?: "timeline" | "plan" | null
+): StatusReportTimelineMetrics {
+  return scheduleSource === "plan" ? PLAN_TIMELINE_METRICS : PROJECT_TIMELINE_METRICS;
+}
 
 /** Alternate hanging left/right of the date so clustered key dates do not stack. */
 export function timelineMarkerHangsLeft(indexInRow: number): boolean {

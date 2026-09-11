@@ -547,5 +547,6 @@ export async function buildStatusReportPdfData(
     cdaReportHoursOnly,
     showBudget,
     panels: Array.isArray(report.panels) ? (report.panels as ReportPanel[]) : undefined,
+    scheduleSource: snapshot != null ? resolveScheduleSource(snapshot) : "timeline",
   };
 }

@@ -11,6 +11,35 @@ export type PlanVisibleRow = {
   parentId: string | null;
 };
 
+export type PlanDisplayRow =
+  | { kind: "data"; row: PlanVisibleRow }
+  | { kind: "add-phase" }
+  | { kind: "add-item"; phaseId: string };
+
+export function buildPlanDisplayRows(
+  rows: PlanVisibleRow[],
+  options: { editing: boolean; collapsedIds: Set<string> }
+): PlanDisplayRow[] {
+  if (!options.editing) {
+    return rows.map((row) => ({ kind: "data", row }));
+  }
+
+  const output: PlanDisplayRow[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    output.push({ kind: "data", row });
+    const phaseId = row.phase.id;
+    if (options.collapsedIds.has(phaseId)) continue;
+    const next = rows[i + 1];
+    const nextIsSamePhaseItem = next?.kind === "item" && next.phase.id === phaseId;
+    if (!nextIsSamePhaseItem) {
+      output.push({ kind: "add-item", phaseId });
+    }
+  }
+  output.push({ kind: "add-phase" });
+  return output;
+}
+
 type ItemLink = {
   id: string;
   parentItemId: string | null;
