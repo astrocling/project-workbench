@@ -19,8 +19,9 @@ Everyone who can open the project can **see** Plan. Only editors get grips, date
 ## Open Plan and choose a grid density
 
 1. Open the project and click **Plan**.
-2. Use **View** to scan names, types, shortened dates, and status icons (hover an icon for **Not started**, **In progress**, or **Complete**). The left grid does not scroll sideways in View or Edit.
-3. Switch to **Edit** to see Type, Start, End, Days, **Rpt**, Status, and row actions. Every edit column stays on screen; the Gantt uses the remaining space.
+2. If there is **no plan yet**, click **Start from blank**. The grid opens in **Edit**.
+3. Use **View** to scan names, types, shortened dates, and status icons (hover an icon for **Not started**, **In progress**, or **Complete**). Plans that already have phases open in View. The left grid does not scroll sideways in View or Edit.
+4. Switch to **Edit** to see Type, Start, End, Days, **Rpt**, Status, add rows, and row actions. Every edit column stays on screen; the Gantt uses the remaining space.
 
 **Gantt zoom:** **Fit** sizes date columns to the pane when they still fit, but never shrinks a column so the header date is cut off — the chart scrolls sideways instead. **Day**, **Week**, and **Month** use the same readable column widths. There is a small gap before the first date so kickoff items are not clipped, and a red **Today** line (on the start or end edge if today is outside the plan).
 
@@ -28,10 +29,15 @@ Everyone who can open the project can **see** Plan. Only editors get grips, date
 
 ## Add phases and items
 
-1. Click **Add phase** at the bottom of the grid (or use the toolbar if your build shows an add-phase control).
+You must be in **Edit**. **View** hides add rows.
+
+1. Click **+ Add phase** at the bottom of the grid.
 2. Name the phase. Optionally set a color.
-3. On a phase row, add items (tasks, milestones, sign-offs, hard deadlines, waiting-on-client, meetings).
-4. Nest items with **Indent** / **Outdent**, or by dragging (next section). Nesting is limited to **three** levels.
+3. Click **+ Add item** under that phase (this row is there even when the phase has no items yet). New items start as tasks on the kickoff date; change type, dates, and status in the row.
+4. To add another item after an existing one, use that item’s plus icon, or click **+ Add item** again to append a top-level item in the phase.
+5. Nest items with **Indent** / **Outdent**, or by dragging (next section). Nesting is limited to **three** levels.
+
+Collapsed phases hide **+ Add item**. Expand the phase (chevron) first.
 
 **Delete:** Select a phase or item, then **Delete** on the toolbar (or **Delete** / **Backspace** when you are not typing in a field). Deleting a phase removes all of its items. Nested children are removed with their parent.
 
@@ -127,6 +133,7 @@ If Plan has been turned **off** since the report was created, **Refresh schedule
 | Problem | What to try |
 |---------|-------------|
 | No **Plan** tab | **Settings → Enable Plan tab (beta)** |
+| Blank grid, no **Add phase** / **Add item** | Switch to **Edit**. A brand-new plan opens in Edit; a plan that already has phases opens in View. |
 | No grips | You are view-only, or you are not dragging from the grip |
 | Phase will not move | You dropped on an item, on itself, or it is already in that position |
 | Item will not nest | Nesting is capped at three levels; you cannot create a cycle (parent under its own child) |

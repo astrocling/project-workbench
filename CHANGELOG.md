@@ -15,14 +15,16 @@ How-to for these items is in the [User Guide](docs/USER_GUIDE.md). APIs, schema,
 
 ### Fixed
 
+- **Plan tab — blank plan had no way to add an item** — After **Start from blank**, the grid opened in **View**, which hides **Add phase**. Empty phases also had no labeled **Add item** row (only a hover plus on the phase). A plan with no phases now opens in **Edit**. Each expanded phase shows **+ Add item** under its items. Tests: `__tests__/lib/plan/tree.test.ts`.
 - **Status reports — project timeline overflowed the 16:9 slide** — After Plan compact-schedule work, Standard/Milestones reports that use **Project timeline** rendered every row at **38px** (thin bar plus a marker band). Four rows covered Completed / Upcoming / Risks and made the report unusable. **Project timeline** again uses the original **14px** overlay rows (full-height bars, markers on the bar). Reports saved with **Project Plan** still use the taller band layout so key-date labels sit under phase names. Preview and the server PDF fallback both follow `snapshot.scheduleSource` (`StatusReportPDFData.scheduleSource`). Tests: `__tests__/lib/statusReportTimelineLayout.test.ts`.
 - **Vercel build — `runtime: "node-24"` TypeScript error** — `@trigger.dev/sdk` is pinned to **4.5.12**, which types `node-24`. The lockfile previously installed **4.4.5**, whose config types only allow `node` / `node-22` / `bun`. After this ships, redeploy Trigger workers with `npx trigger.dev@4.5.12 deploy`.
 
 ### Documentation
 
+- **User Guide**, **Plan tab how-to** — Blank Plan opens in Edit; **+ Add phase** / **+ Add item**.
 - **CHANGELOG** — Status report project-timeline height regression.
 - **User Guide** — Status report timeline strip: compact Project timeline vs taller Project Plan rows.
-- **Technical Reference** — `getStatusReportTimelineMetrics()`, `scheduleSource` on PDF data; Plan band metrics vs Timeline overlay metrics.
+- **Technical Reference** — `getStatusReportTimelineMetrics()`, `scheduleSource` on PDF data; Plan band metrics vs Timeline overlay metrics; Plan **`buildPlanDisplayRows()`** (Add phase / Add item).
 - **User Guide**, **Plan tab how-to**, **Technical Reference** — Enable Plan is no longer Admin-only.
 
 ## [1.3.0] - 2026-09-11
