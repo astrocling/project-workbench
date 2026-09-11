@@ -1144,11 +1144,15 @@ function TimelineBlock({
                 <TimelineMarkerIconPdf shape={m.shape ?? "Pin"} size={metrics.markerIconPx} />
                 <View style={[styles.timelineMarkerLabelWrap, { maxWidth: metrics.markerColPx }]}>
                   <Text
-                    style={[
-                      styles.timelineMarkerText,
-                      { fontSize: metrics.markerFontPx },
-                      overlay ? undefined : { textAlign: hangLeft ? "right" : "left" },
-                    ]}
+                    style={
+                      overlay
+                        ? [styles.timelineMarkerText, { fontSize: metrics.markerFontPx }]
+                        : [
+                            styles.timelineMarkerText,
+                            { fontSize: metrics.markerFontPx },
+                            { textAlign: hangLeft ? "right" : "left" },
+                          ]
+                    }
                     wrap={overlay ? false : undefined}
                   >
                     {m.label}
