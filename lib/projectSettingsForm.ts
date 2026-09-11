@@ -67,7 +67,7 @@ export type ProjectSettingsPayload = {
   endDate: string | null;
   status: "Active" | "Closed";
   cdaEnabled: boolean;
-  planEnabled?: boolean;
+  planEnabled: boolean;
   pmPersonIds: string[];
   pgmPersonId: string | null;
   cadPersonId: string | null;
@@ -125,8 +125,7 @@ export function projectToSettingsFormFields(p: ProjectSettingsSource): ProjectSe
 }
 
 export function buildProjectSettingsPayload(
-  fields: ProjectSettingsFormFields,
-  { isAdmin }: { isAdmin: boolean }
+  fields: ProjectSettingsFormFields
 ): ProjectSettingsPayload {
   return {
     name: fields.name,
@@ -135,7 +134,7 @@ export function buildProjectSettingsPayload(
     endDate: fields.endDate ? new Date(fields.endDate).toISOString() : null,
     status: fields.status,
     cdaEnabled: fields.cdaEnabled,
-    ...(isAdmin ? { planEnabled: fields.planEnabled } : {}),
+    planEnabled: fields.planEnabled,
     pmPersonIds: fields.pmPersonIds.filter(Boolean),
     pgmPersonId: fields.pgmPersonId || null,
     cadPersonId: fields.cadPersonId || null,
@@ -154,11 +153,8 @@ export function buildProjectSettingsPayload(
 }
 
 /** The payload the server is known to hold for `p`; the autosave baseline after hydration. */
-export function projectToSettingsPayload(
-  p: ProjectSettingsSource,
-  opts: { isAdmin: boolean }
-): ProjectSettingsPayload {
-  return buildProjectSettingsPayload(projectToSettingsFormFields(p), opts);
+export function projectToSettingsPayload(p: ProjectSettingsSource): ProjectSettingsPayload {
+  return buildProjectSettingsPayload(projectToSettingsFormFields(p));
 }
 
 export type SettingsAutosaveAction = "idle" | "adopt-server-baseline" | "save";

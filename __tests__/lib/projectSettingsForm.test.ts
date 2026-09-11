@@ -57,8 +57,6 @@ const ADMIN_PAYLOAD_JSON =
   '"floatLink":"https://example.com/float","metricLink":"https://example.com/metric",' +
   '"slackChannelId":"C0123456789"}';
 
-const NON_ADMIN_PAYLOAD_JSON = ADMIN_PAYLOAD_JSON.replace('"planEnabled":true,', "");
-
 describe("projectToSettingsFormFields", () => {
   it("maps every settings field a project carries", () => {
     expect(projectToSettingsFormFields(FULL_PROJECT)).toEqual({
@@ -98,54 +96,32 @@ describe("projectToSettingsFormFields", () => {
 });
 
 describe("project -> form fields -> payload", () => {
-  it("produces the Admin payload byte-for-byte", () => {
+  it("produces the settings payload byte-for-byte, including planEnabled for every editor", () => {
     const fields = projectToSettingsFormFields(FULL_PROJECT);
-    expect(JSON.stringify(buildProjectSettingsPayload(fields, { isAdmin: true }))).toBe(
-      ADMIN_PAYLOAD_JSON
-    );
-  });
-
-  it("produces the non-Admin payload byte-for-byte, without planEnabled", () => {
-    const fields = projectToSettingsFormFields(FULL_PROJECT);
-    expect(JSON.stringify(buildProjectSettingsPayload(fields, { isAdmin: false }))).toBe(
-      NON_ADMIN_PAYLOAD_JSON
-    );
+    expect(JSON.stringify(buildProjectSettingsPayload(fields))).toBe(ADMIN_PAYLOAD_JSON);
   });
 
   it("matches what the component hydrates in one step", () => {
-    expect(JSON.stringify(projectToSettingsPayload(FULL_PROJECT, { isAdmin: true }))).toBe(
-      ADMIN_PAYLOAD_JSON
-    );
-    expect(JSON.stringify(projectToSettingsPayload(FULL_PROJECT, { isAdmin: false }))).toBe(
-      NON_ADMIN_PAYLOAD_JSON
-    );
+    expect(JSON.stringify(projectToSettingsPayload(FULL_PROJECT))).toBe(ADMIN_PAYLOAD_JSON);
   });
 
   it("keeps hydration and payload in lockstep, so neither side can gain a field alone", () => {
     const fields = projectToSettingsFormFields(FULL_PROJECT);
-    expect(Object.keys(buildProjectSettingsPayload(fields, { isAdmin: true })).sort()).toEqual(
+    expect(Object.keys(buildProjectSettingsPayload(fields)).sort()).toEqual(
       Object.keys(fields).sort()
-    );
-    expect(Object.keys(buildProjectSettingsPayload(fields, { isAdmin: false })).sort()).toEqual(
-      Object.keys(fields)
-        .filter((key) => key !== "planEnabled")
-        .sort()
     );
   });
 
   it("normalizes blank, whitespace-only, and out-of-range form values", () => {
-    const payload = buildProjectSettingsPayload(
-      {
-        ...projectToSettingsFormFields(FULL_PROJECT),
-        clientSponsor: "   ",
-        actualsLowThresholdPercent: "150",
-        actualsHighThresholdPercent: "",
-        endDate: "",
-        pmPersonIds: ["p1", ""],
-        slackChannelId: " C9 ",
-      },
-      { isAdmin: true }
-    );
+    const payload = buildProjectSettingsPayload({
+      ...projectToSettingsFormFields(FULL_PROJECT),
+      clientSponsor: "   ",
+      actualsLowThresholdPercent: "150",
+      actualsHighThresholdPercent: "",
+      endDate: "",
+      pmPersonIds: ["p1", ""],
+      slackChannelId: " C9 ",
+    });
     expect(payload.clientSponsor).toBeNull();
     expect(payload.actualsLowThresholdPercent).toBeNull();
     expect(payload.actualsHighThresholdPercent).toBeNull();

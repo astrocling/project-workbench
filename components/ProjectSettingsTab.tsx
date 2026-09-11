@@ -21,13 +21,11 @@ import type { EditProjectInitial } from "@/app/(app)/projects/[slug]/edit/EditPr
 export function ProjectSettingsTab({
   projectSlug,
   canEdit,
-  isAdmin = false,
   initialProject: initialProjectProp,
   initialEligiblePeople: initialEligibleProp,
 }: {
   projectSlug: string;
   canEdit: boolean;
-  isAdmin?: boolean;
   initialProject: EditProjectInitial | null;
   initialEligiblePeople: { id: string; name: string }[] | null;
 }) {
@@ -106,8 +104,7 @@ export function ProjectSettingsTab({
           floatLink,
           metricLink,
           slackChannelId,
-        },
-        { isAdmin }
+        }
       ),
     [
       name,
@@ -116,7 +113,6 @@ export function ProjectSettingsTab({
       endDate,
       status,
       cdaEnabled,
-      isAdmin,
       planEnabled,
       pmPersonIds,
       pgmPersonId,
@@ -182,9 +178,9 @@ export function ProjectSettingsTab({
    * writing it back — otherwise stale server data would undo a just-saved change (the Plan toggle)
    * with a compensating PATCH. Only re-hydration needs this; the first load has no baseline yet.
    */
-  function recordServerHydration(p: ProjectSettingsSource, opts: { isAdmin: boolean }) {
+  function recordServerHydration(p: ProjectSettingsSource) {
     if (!initialSaveRecordedRef.current || !p?.id) return;
-    serverHydrationBaselineRef.current = JSON.stringify(projectToSettingsPayload(p, opts));
+    serverHydrationBaselineRef.current = JSON.stringify(projectToSettingsPayload(p));
   }
 
   /**
@@ -209,7 +205,7 @@ export function ProjectSettingsTab({
   useEffect(() => {
     if (initialProjectProp) {
       if (canHydrateFromServer()) {
-        recordServerHydration(initialProjectProp, { isAdmin });
+        recordServerHydration(initialProjectProp);
         applyProjectToState(initialProjectProp);
       }
       if (initialEligibleProp != null) {
@@ -231,14 +227,14 @@ export function ProjectSettingsTab({
     ])
       .then(([p, people]) => {
         if (canHydrateFromServer()) {
-          recordServerHydration(p, { isAdmin });
+          recordServerHydration(p);
           applyProjectToState(p);
         }
         const keyRoles = (p?.projectKeyRoles ?? []) as { type: string; personId: string; person: { id: string; name: string } }[];
         applyEligiblePeople(Array.isArray(people) ? people : [], keyRoles);
       })
       .finally(() => setLoading(false));
-  }, [projectSlug, initialProjectProp, initialEligibleProp, isAdmin]);
+  }, [projectSlug, initialProjectProp, initialEligibleProp]);
 
   // Record initial payload once load completes so we don't auto-save on first paint
   useEffect(() => {
@@ -289,7 +285,7 @@ export function ProjectSettingsTab({
       const savedPayloadStr = JSON.stringify(payload);
       lastSavedRef.current = savedPayloadStr;
       const planNav = resolvePlanNavRefresh({
-        planToggledBySave: isAdmin && prevPlanEnabled !== payload.planEnabled,
+        planToggledBySave: prevPlanEnabled !== payload.planEnabled,
         refreshDeferred: planNavRefreshDeferredRef.current,
         savedPayload: savedPayloadStr,
         currentPayload: latestPayloadRef.current ?? savedPayloadStr,
@@ -310,7 +306,6 @@ export function ProjectSettingsTab({
     projectSlug,
     buildPayload,
     router,
-    isAdmin,
   ]);
 
   // A deferred Plan nav refresh also settles when the edits that deferred it are undone rather
@@ -518,20 +513,18 @@ export function ProjectSettingsTab({
                   aria-label="Enable CDA tab"
                 />
               </div>
-              {isAdmin && (
-                <div className="space-y-2">
-                  <Toggle
-                    checked={planEnabled}
-                    onChange={setPlanEnabled}
-                    label="Enable Plan tab (beta)"
-                    aria-label="Enable Plan tab"
-                  />
-                  <p className="text-body-sm text-surface-500 dark:text-surface-400">
-                    Plan is a beta schedule builder. When on, everyone who can open this project sees the Plan tab.
-                    Status reports still use the Timeline tab until a report opts into Plan.
-                  </p>
-                </div>
-              )}
+              <div className="space-y-2">
+                <Toggle
+                  checked={planEnabled}
+                  onChange={setPlanEnabled}
+                  label="Enable Plan tab (beta)"
+                  aria-label="Enable Plan tab"
+                />
+                <p className="text-body-sm text-surface-500 dark:text-surface-400">
+                  Plan is a beta schedule builder. When on, everyone who can open this project sees the Plan tab.
+                  Status reports still use the Timeline tab until a report opts into Plan.
+                </p>
+              </div>
             </section>
             )}
 

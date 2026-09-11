@@ -92,7 +92,6 @@ export function ProjectDetailTabs({
   projectName,
   tab,
   canEdit,
-  isAdmin = false,
   floatLastUpdated,
   cdaEnabled = false,
   planEnabled = false,
@@ -115,7 +114,6 @@ export function ProjectDetailTabs({
   projectName: string;
   tab: string;
   canEdit: boolean;
-  isAdmin?: boolean;
   floatLastUpdated: Date | null;
   cdaEnabled?: boolean;
   /** When false, hide the Plan tab (beta feature flag). */
@@ -1151,7 +1149,6 @@ export function ProjectDetailTabs({
         <ProjectSettingsTab
           projectSlug={projectSlug}
           canEdit={canEdit}
-          isAdmin={isAdmin}
           initialProject={initialSettingsProject}
           initialEligiblePeople={initialSettingsEligiblePeople}
         />

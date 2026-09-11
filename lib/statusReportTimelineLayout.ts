@@ -142,12 +142,12 @@ export function applyTimelineLayout<T extends LayoutTimelineSlice>(
   return { ...timeline, bars, markers };
 }
 
-function pickExisting(
-  record: Record<string, string | number> | undefined,
+function pickExisting<T extends string | number>(
+  record: Record<string, T> | undefined,
   ids: Set<string>
-): Record<string, string> | Record<string, number> | undefined {
+): Record<string, T> | undefined {
   if (!record) return undefined;
-  const next: Record<string, string | number> = {};
+  const next: Record<string, T> = {};
   for (const [id, value] of Object.entries(record)) {
     if (ids.has(id)) next[id] = value;
   }
@@ -166,12 +166,8 @@ export function pruneTimelineLayout(
   );
   const hiddenBarIds = (layout.hiddenBarIds ?? []).filter((id) => barIds.has(id));
   const hiddenMarkerIds = (layout.hiddenMarkerIds ?? []).filter((id) => markerIds.has(id));
-  const labels = pickExisting(layout.labels, new Set([...barIds, ...markerIds])) as
-    | Record<string, string>
-    | undefined;
-  const rows = pickExisting(layout.rows, new Set([...barIds, ...markerIds])) as
-    | Record<string, number>
-    | undefined;
+  const labels = pickExisting(layout.labels, new Set([...barIds, ...markerIds]));
+  const rows = pickExisting(layout.rows, new Set([...barIds, ...markerIds]));
   if (
     hiddenBarIds.length === 0 &&
     hiddenMarkerIds.length === 0 &&

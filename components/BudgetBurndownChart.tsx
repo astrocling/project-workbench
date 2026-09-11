@@ -304,28 +304,12 @@ export function BudgetBurndownChart({
             )}
             <Tooltip content={<BurndownTooltip grain={grain} />} />
             <Legend
+              itemSorter={null}
               wrapperStyle={{
                 fontSize: 12,
                 fontFamily: "Raleway, sans-serif",
                 color: CHART_COLORS.axisFill,
               }}
-              payload={[
-                {
-                  value: "Actual + Plan",
-                  type: "line",
-                  color: CHART_COLORS.lineForecast,
-                },
-                {
-                  value: "Plan",
-                  type: "line",
-                  color: CHART_COLORS.linePlan,
-                },
-                {
-                  value: "Period burn (actual / projected)",
-                  type: "rect",
-                  color: CHART_COLORS.barActual,
-                },
-              ]}
             />
             <Bar
               dataKey="periodDollars"

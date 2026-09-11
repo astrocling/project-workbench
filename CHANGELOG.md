@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 How-to for these items is in the [User Guide](docs/USER_GUIDE.md). APIs, schema, and deploy details are in the [Technical Reference](docs/TECHNICAL.md).
 
+### Changed
+
+- **Plan tab enable** — Any project editor (including PMs) can turn **Settings → Enable Plan tab (beta)** on or off. Plan is still off until someone enables it on that project. **Deploy:** no new migrations; redeploy the app.
+
+### Documentation
+
+- **User Guide**, **Plan tab how-to**, **Technical Reference** — Enable Plan is no longer Admin-only.
+
 ## [1.3.0] - 2026-09-11
 
 Minor release: optional **Plan** tab (beta), **Budget Burndown**, in-app **User Guide**, Overview **Post week to Slack**, dollar-based buffer / **Resource Efficiency**, and Resourcing HOL/PTO header work. **Deploy:** new database migrations ship with this release (the app `build` already applies them): `20260903120000_add_project_plan`, `20260903140000_plan_items_meetings_nesting`, `20260903183710_add_project_plan_beta`, `20260908180000_plan_report_visibility_and_status`. **Plan stays off** on every project until an Admin enables it in **Settings**. If you run scheduled Trigger.dev jobs, redeploy the worker on **Node 24** as described in the Technical Reference.

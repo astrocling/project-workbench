@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
-import { getSessionPermissionLevel, canEditProject, canAccessAdmin } from "@/lib/auth";
+import { getSessionPermissionLevel, canEditProject } from "@/lib/auth";
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { getAsOfDate, getAllWeeks, getWeekStartDate } from "@/lib/weekUtils";
@@ -83,7 +83,6 @@ export default async function ProjectDetailPage({
 
   const permissionLevel = getSessionPermissionLevel(session.user);
   const canEdit = canEditProject(permissionLevel);
-  const isAdmin = canAccessAdmin(permissionLevel);
   if (tab === "settings" && !canEdit) {
     redirect(`/projects/${project.slug}`);
   }
@@ -307,7 +306,6 @@ export default async function ProjectDetailPage({
         projectName={project.name}
         tab={tab}
         canEdit={!!canEdit}
-        isAdmin={isAdmin}
         floatLastUpdated={lastImport?.completedAt ?? null}
         cdaEnabled={project.cdaEnabled ?? false}
         planEnabled={planEnabled}

@@ -4,7 +4,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth.config";
 import { prisma } from "@/lib/prisma";
 import { slugify, ensureUniqueSlug } from "@/lib/slug";
-import { rejectNonAdminPlanEnabledPatch } from "@/lib/plan/projectSettingsPatch";
 import { revalidateProjectDetail } from "@/lib/projectCache";
 import { z } from "zod";
 
@@ -87,10 +86,6 @@ export async function PATCH(
   const id = existing.id;
 
   const body = await req.json();
-  const planFlagBlock = rejectNonAdminPlanEnabledPatch(permissions, body);
-  if (planFlagBlock) {
-    return NextResponse.json({ error: planFlagBlock.error }, { status: planFlagBlock.status });
-  }
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });

@@ -2,7 +2,7 @@
 
 Copy this page into Confluence (paste as Markdown, or use Confluence’s Markdown macro). It is written for **project editors**. Viewers can open Plan but cannot drag or edit.
 
-**Plan is beta.** An Admin must turn it on for each project. The **Timeline** tab is unchanged and still the default source for status reports unless you choose **Project Plan** when you create a report.
+**Plan is beta.** A project **editor** turns it on per project in **Settings**. The **Timeline** tab is unchanged and still the default source for status reports unless you choose **Project Plan** when you create a report.
 
 ---
 
@@ -10,7 +10,7 @@ Copy this page into Confluence (paste as Markdown, or use Confluence’s Markdow
 
 1. Open the project in Project Workbench.
 2. Confirm you can **edit** the project (not view-only).
-3. Ask an **Admin** to open **Settings → Enable Plan tab (beta)** if you do not see a **Plan** tab.
+3. If you do not see a **Plan** tab, open **Settings → Enable Plan tab (beta)**.
 
 Everyone who can open the project can **see** Plan. Only editors get grips, date handles, and toolbar actions.
 
@@ -106,7 +106,7 @@ Editing Plan **does not** rewrite saved reports. To update a report that was cre
 2. **Edit** that report.
 3. Use **Refresh schedule** (confirm the dialog). Per-report arrange tweaks (row, hide, short names) are kept when the same phase or item still exists.
 
-If Plan has been turned **off** since the report was created, **Refresh schedule** fails until an Admin turns Plan back on. The saved slide still shows the old schedule.
+If Plan has been turned **off** since the report was created, **Refresh schedule** fails until an editor turns Plan back on. The saved slide still shows the old schedule.
 
 ---
 
@@ -126,7 +126,7 @@ If Plan has been turned **off** since the report was created, **Refresh schedule
 
 | Problem | What to try |
 |---------|-------------|
-| No **Plan** tab | Admin: **Settings → Enable Plan tab (beta)** |
+| No **Plan** tab | **Settings → Enable Plan tab (beta)** |
 | No grips | You are view-only, or you are not dragging from the grip |
 | Phase will not move | You dropped on an item, on itself, or it is already in that position |
 | Item will not nest | Nesting is capped at three levels; you cannot create a cycle (parent under its own child) |
