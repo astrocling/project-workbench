@@ -118,7 +118,7 @@ If Plan has been turned **off** since the report was created, **Refresh schedule
 
 ## Quick checklist
 
-- [ ] Admin enabled **Plan** on this project
+- [ ] An editor enabled **Plan** on this project
 - [ ] You are an editor (grips visible)
 - [ ] Phases are in the order you want (phase grip → drop on another phase or **Add phase**)
 - [ ] Items are nested / ordered (item grip)

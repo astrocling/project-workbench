@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 How-to for these items is in the [User Guide](docs/USER_GUIDE.md). APIs, schema, and deploy details are in the [Technical Reference](docs/TECHNICAL.md).
 
+## [1.3.1] - 2026-09-11
+
+Patch release: any project editor can enable the **Plan** tab; blank Plan can add phases and items; **Project timeline** status reports no longer overflow the slide; Trigger.dev SDK lockfile matches **4.5.12**. **Deploy:** no new migrations; redeploy the app. If you run scheduled Trigger.dev jobs, redeploy the worker with `npx trigger.dev@4.5.12 deploy`.
+
 ### Changed
 
 - **Plan tab enable** — Any project editor (including PMs) can turn **Settings → Enable Plan tab (beta)** on or off. Plan is still off until someone enables it on that project. **Deploy:** no new migrations; redeploy the app.
@@ -21,11 +25,11 @@ How-to for these items is in the [User Guide](docs/USER_GUIDE.md). APIs, schema,
 
 ### Documentation
 
-- **User Guide**, **Plan tab how-to** — Blank Plan opens in Edit; **+ Add phase** / **+ Add item**.
-- **CHANGELOG** — Status report project-timeline height regression.
+- **CHANGELOG** — This release section.
+- **User Guide**, **Plan tab how-to** — Blank Plan opens in Edit; **+ Add phase** / **+ Add item**; Enable Plan is no longer Admin-only; release baseline **1.3.1**.
 - **User Guide** — Status report timeline strip: compact Project timeline vs taller Project Plan rows.
-- **Technical Reference** — `getStatusReportTimelineMetrics()`, `scheduleSource` on PDF data; Plan band metrics vs Timeline overlay metrics; Plan **`buildPlanDisplayRows()`** (Add phase / Add item).
-- **User Guide**, **Plan tab how-to**, **Technical Reference** — Enable Plan is no longer Admin-only.
+- **Technical Reference** — `getStatusReportTimelineMetrics()`, `scheduleSource` on PDF data; Plan band metrics vs Timeline overlay metrics; Plan **`buildPlanDisplayRows()`** (Add phase / Add item); Enable Plan is no longer Admin-only.
+- **README** — Production release tag example **v1.3.1**.
 
 ## [1.3.0] - 2026-09-11
 
