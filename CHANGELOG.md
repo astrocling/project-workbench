@@ -13,6 +13,10 @@ How-to for these items is in the [User Guide](docs/USER_GUIDE.md). APIs, schema,
 
 - **Plan tab enable** — Any project editor (including PMs) can turn **Settings → Enable Plan tab (beta)** on or off. Plan is still off until someone enables it on that project. **Deploy:** no new migrations; redeploy the app.
 
+### Fixed
+
+- **Vercel build — `runtime: "node-24"` TypeScript error** — `@trigger.dev/sdk` is pinned to **4.5.12**, which types `node-24`. The lockfile previously installed **4.4.5**, whose config types only allow `node` / `node-22` / `bun`. After this ships, redeploy Trigger workers with `npx trigger.dev@4.5.12 deploy`.
+
 ### Documentation
 
 - **User Guide**, **Plan tab how-to**, **Technical Reference** — Enable Plan is no longer Admin-only.
