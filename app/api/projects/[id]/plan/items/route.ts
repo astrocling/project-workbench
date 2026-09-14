@@ -69,7 +69,8 @@ export async function POST(
   });
   if (!phase) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const meetingStatus = parsed.data.type === "meeting" ? parsed.data.meetingStatus ?? null : null;
+  const meetingStatus =
+    parsed.data.type === "meeting" ? parsed.data.meetingStatus ?? "unscheduled" : null;
   const scheduledTime = parsed.data.type === "meeting" ? parsed.data.scheduledTime ?? null : null;
   const showOnReports =
     parsed.data.showOnReports ?? defaultShowOnReports(parsed.data.type, meetingStatus);

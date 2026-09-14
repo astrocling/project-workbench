@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { expandYmdRange, isWeekendYmd } from "@/lib/plan/businessDays";
 import {
+  coercePlanItemDates,
+  defaultNewItemDate,
   resolvePlanDateCellEdit,
   type PlanDateEditEvent,
 } from "@/lib/plan/dateInput";
@@ -50,15 +52,20 @@ import {
   type ItemDropTarget,
 } from "@/lib/plan/itemDrop";
 import { resolvePhaseDrop, type PhaseDropTarget } from "@/lib/plan/phaseDrop";
+import { defaultShowOnReports } from "@/lib/plan/reportVisibility";
+import { isPhaseComplete } from "@/lib/plan/completion";
 import {
   isPointType,
+  meetingUiStatus,
+  patchFromMeetingUiStatus,
   PLAN_ITEM_STATUSES,
   PLAN_ITEM_TYPES,
+  PLAN_MEETING_UI_STATUSES,
   type PlanItemStatus,
   type PlanItemType,
   type PlanMeetingStatus,
+  type PlanMeetingUiStatus,
 } from "@/lib/plan/types";
-import { defaultShowOnReports } from "@/lib/plan/reportVisibility";
 import {
   fitGanttColWidth,
   formatCompactYmd,
@@ -113,6 +120,12 @@ const ROW_ACTIONS_REVEAL =
 const ITEM_STATUS_LABELS: Record<PlanItemStatus, string> = {
   not_started: "Not started",
   in_progress: "In progress",
+  complete: "Complete",
+};
+
+const MEETING_UI_STATUS_LABELS: Record<PlanMeetingUiStatus, string> = {
+  unscheduled: "Unscheduled",
+  scheduled: "Scheduled",
   complete: "Complete",
 };
 
@@ -207,7 +220,7 @@ function compactDateLabel(item: PlanItemJson): { text: string; title: string } {
 function itemTypeTitle(item: PlanItemJson): string {
   const label = ITEM_TYPE_LABELS[item.type];
   if (item.type === "meeting" && item.meetingStatus) {
-    return `${label} (${item.meetingStatus})`;
+    return `${label} (${MEETING_UI_STATUS_LABELS[meetingUiStatus(item)]})`;
   }
   return label;
 }
@@ -251,7 +264,7 @@ function buildItemPatch(
   const type = changes.type ?? item.type;
   let meetingStatus =
     changes.meetingStatus !== undefined ? changes.meetingStatus : item.meetingStatus;
-  if (type === "meeting" && !meetingStatus) meetingStatus = "assumed";
+  if (type === "meeting" && !meetingStatus) meetingStatus = "unscheduled";
 
   const startDate = changes.startDate ?? item.startDate;
   let endDate = changes.endDate ?? item.endDate;
@@ -295,10 +308,14 @@ export function DateCell({
   value,
   onCommit,
   className = INPUT_CLASS,
+  min,
+  max,
 }: {
   value: string;
-  onCommit: (nextValue: string) => void;
+  onCommit: (nextValue: string) => void | Promise<unknown | null | false>;
   className?: string;
+  min?: string;
+  max?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const focusedRef = useRef(false);
@@ -318,11 +335,21 @@ export function DateCell({
       externalValue: value,
       lastSubmitted: lastSubmittedRef.current,
     });
-    lastSubmittedRef.current = decision.nextLastSubmitted;
     if (decision.restore != null && inputRef.current) {
       inputRef.current.value = decision.restore;
     }
-    if (decision.save != null) onCommit(decision.save);
+    if (decision.save == null) {
+      lastSubmittedRef.current = decision.nextLastSubmitted;
+      return;
+    }
+    const previousLast = lastSubmittedRef.current;
+    lastSubmittedRef.current = decision.nextLastSubmitted;
+    void Promise.resolve(onCommit(decision.save)).then((result) => {
+      if (result === null || result === false) {
+        lastSubmittedRef.current = previousLast;
+        if (inputRef.current) inputRef.current.value = value;
+      }
+    });
   }
 
   return (
@@ -330,6 +357,8 @@ export function DateCell({
       ref={inputRef}
       type="date"
       defaultValue={value}
+      min={min}
+      max={max}
       className={className}
       onClick={(e) => e.stopPropagation()}
       onFocus={() => {
@@ -568,7 +597,13 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
     item: PlanItemJson,
     dates: { startDate?: string; endDate?: string }
   ) {
-    return apiCall(`${apiBase}/items/${item.id}`, "PATCH", dates, { indicateBusy: false });
+    const body = coercePlanItemDates({
+      previousStart: item.startDate,
+      previousEnd: item.endDate,
+      nextStart: dates.startDate,
+      nextEnd: dates.endDate,
+    });
+    return apiCall(`${apiBase}/items/${item.id}`, "PATCH", body, { indicateBusy: false });
   }
 
   function clearDropHover() {
@@ -666,13 +701,19 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
 
   async function handleAddItemToPhase(phase: PlanPhaseJson) {
     if (!editing) return;
+    const ymd = defaultNewItemDate({
+      todayYmd: new Date().toISOString().slice(0, 10),
+      kickoffDate: plan.kickoffDate,
+      planEndDate: plan.endDate,
+      phaseStart: phaseDateRange(phase).start,
+    });
     const created = await apiCall(`${apiBase}/items`, "POST", {
       phaseId: phase.id,
       parentItemId: null,
       type: "task",
       label: "New item",
-      startDate: plan.kickoffDate,
-      endDate: plan.kickoffDate,
+      startDate: ymd,
+      endDate: ymd,
       meetingStatus: null,
       scheduledTime: null,
     });
@@ -739,7 +780,7 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
   }, []);
 
   async function handleScheduleMeeting(item: PlanItemJson) {
-    if (item.type !== "meeting" || item.meetingStatus !== "assumed") return;
+    if (item.type !== "meeting" || item.meetingStatus !== "unscheduled") return;
     await patchItem(item, {
       meetingStatus: "scheduled",
       endDate: item.startDate,
@@ -1187,9 +1228,30 @@ function TypeGlyph({ item }: { item: PlanItemJson }) {
   );
 }
 
-function StatusGlyph({ status }: { status: PlanItemStatus }) {
+function StatusGlyph({
+  status,
+  meetingUi,
+}: {
+  status: PlanItemStatus;
+  meetingUi?: PlanMeetingUiStatus;
+}) {
+  if (meetingUi === "unscheduled") {
+    return (
+      <span className="relative inline-flex shrink-0 p-1 text-surface-400 dark:text-surface-500">
+        <Clock size={14} aria-hidden />
+        <span
+          role="tooltip"
+          className="pointer-events-none absolute right-full top-1/2 z-30 mr-1 hidden -translate-y-1/2 whitespace-nowrap rounded border border-surface-200 bg-white px-1.5 py-0.5 text-xs font-normal normal-case tracking-normal text-surface-800 shadow-sm group-hover/status:block dark:border-dark-border dark:bg-dark-surface dark:text-surface-200"
+        >
+          Unscheduled
+        </span>
+        <span className="sr-only">Unscheduled</span>
+      </span>
+    );
+  }
   const Icon = ITEM_STATUS_ICONS[status];
-  const title = ITEM_STATUS_LABELS[status];
+  const title =
+    meetingUi === "scheduled" ? MEETING_UI_STATUS_LABELS.scheduled : ITEM_STATUS_LABELS[status];
   return (
     <span className={`relative inline-flex shrink-0 p-1 ${ITEM_STATUS_ICON_CLASS[status]}`}>
       <Icon size={14} aria-hidden />
@@ -1466,7 +1528,12 @@ function GridRow({
         {compact ? (
           <>
             <div style={{ width: COMPACT_DATE_COL }} className="shrink-0" />
-            <div style={{ width: COMPACT_STATUS_COL }} className="shrink-0" />
+            <div
+              style={{ width: COMPACT_STATUS_COL }}
+              className="group/status relative shrink-0 px-0.5 flex justify-center overflow-visible"
+            >
+              {isPhaseComplete(phase) ? <StatusGlyph status="complete" /> : null}
+            </div>
           </>
         ) : (
           <>
@@ -1517,7 +1584,13 @@ function GridRow({
                 <span className="text-body-sm text-surface-500">{phase.showOnReports !== false ? "Yes" : "No"}</span>
               )}
             </div>
-            <div style={{ width: STATUS_COL }} className="shrink-0" />
+            <div style={{ width: STATUS_COL }} className="shrink-0 px-1 flex items-center">
+              {isPhaseComplete(phase) ? (
+                <span className="text-body-sm text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
+                  Complete
+                </span>
+              ) : null}
+            </div>
             {editing ? (
               <RowActions
                 addLabel="Add item to phase"
@@ -1544,9 +1617,13 @@ function GridRow({
     const saveStartDate = (startDate: string) => onPatchItemDates(item, { startDate });
     const saveEndDate = (endDate: string) => onPatchItemDates(item, { endDate });
     const compactDates = compactDateLabel(item);
-    const statusLabel = ITEM_STATUS_LABELS[item.status ?? "not_started"];
     const canSchedule =
-      item.type === "meeting" && item.meetingStatus === "assumed" && onScheduleMeeting;
+      item.type === "meeting" && item.meetingStatus === "unscheduled" && onScheduleMeeting;
+    const meetingUi = item.type === "meeting" ? meetingUiStatus(item) : undefined;
+    const statusLabel =
+      item.type === "meeting"
+        ? MEETING_UI_STATUS_LABELS[meetingUi!]
+        : ITEM_STATUS_LABELS[item.status ?? "not_started"];
 
     const nestDrop = dropHover?.kind === "nest" && dropHover.itemId === item.id;
     const beforeDrop = dropHover?.kind === "before" && dropHover.itemId === item.id;
@@ -1664,7 +1741,7 @@ function GridRow({
               style={{ width: COMPACT_STATUS_COL }}
               className="group/status relative shrink-0 px-0.5 flex justify-center overflow-visible"
             >
-              <StatusGlyph status={item.status ?? "not_started"} />
+              <StatusGlyph status={item.status ?? "not_started"} meetingUi={meetingUi} />
             </div>
           </>
         ) : (
@@ -1678,7 +1755,7 @@ function GridRow({
                   onChange={(e) => {
                     const type = e.target.value as PlanItemType;
                     const meetingStatus: PlanMeetingStatus | null =
-                      type === "meeting" ? "assumed" : null;
+                      type === "meeting" ? "unscheduled" : null;
                     onPatchItem(item, { type, meetingStatus });
                   }}
                 >
@@ -1705,7 +1782,11 @@ function GridRow({
             </div>
             <div style={{ width: DATE_COL }} className="shrink-0 px-1">
               {editing && !point ? (
-                <DateCell value={item.endDate} onCommit={saveEndDate} />
+                <DateCell
+                  value={item.endDate}
+                  min={item.startDate}
+                  onCommit={saveEndDate}
+                />
               ) : (
                 <span
                   className={`text-body-sm tabular-nums whitespace-nowrap ${
@@ -1742,18 +1823,35 @@ function GridRow({
             <div style={{ width: STATUS_COL }} className="shrink-0 px-1 flex items-center gap-1">
               {editing ? (
                 <>
-                  <select
-                    value={item.status ?? "not_started"}
-                    className={INPUT_CLASS}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) => onPatchItem(item, { status: e.target.value as PlanItemStatus })}
-                  >
-                    {PLAN_ITEM_STATUSES.map((status) => (
-                      <option key={status} value={status}>
-                        {ITEM_STATUS_LABELS[status]}
-                      </option>
-                    ))}
-                  </select>
+                  {item.type === "meeting" ? (
+                    <select
+                      value={meetingUi}
+                      className={INPUT_CLASS}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) =>
+                        onPatchItem(item, patchFromMeetingUiStatus(item, e.target.value as PlanMeetingUiStatus))
+                      }
+                    >
+                      {PLAN_MEETING_UI_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {MEETING_UI_STATUS_LABELS[status]}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <select
+                      value={item.status ?? "not_started"}
+                      className={INPUT_CLASS}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => onPatchItem(item, { status: e.target.value as PlanItemStatus })}
+                    >
+                      {PLAN_ITEM_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {ITEM_STATUS_LABELS[status]}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   {canSchedule ? (
                     <button
                       type="button"
@@ -1985,8 +2083,8 @@ function ItemGanttMark({
 }) {
   const point = isPointType(item.type, item.meetingStatus);
   const waiting = item.type === "waiting_on_client";
-  const assumedMeeting =
-    item.type === "meeting" && item.meetingStatus === "assumed";
+  const unscheduledMeeting =
+    item.type === "meeting" && item.meetingStatus === "unscheduled";
   const dragCursor = canEdit ? "cursor-grab touch-none" : "";
   const moveHandlers = ganttPointerHandlers(
     item,
@@ -2036,7 +2134,7 @@ function ItemGanttMark({
   const left = positionPercent(item.startDate, planStart, planEnd);
   const width = widthPercent(item.startDate, item.endDate, planStart, planEnd);
 
-  if (assumedMeeting) {
+  if (unscheduledMeeting) {
     return (
       <div
         className={`absolute top-2 bottom-2 rounded border-2 border-dashed ${dragCursor}`}
@@ -2053,7 +2151,7 @@ function ItemGanttMark({
             ${MEETING_VIOLET}33 8px
           )`,
         }}
-        title={`${item.label} (assumed ${item.startDate} – ${item.endDate})`}
+        title={`${item.label} (unscheduled ${item.startDate} – ${item.endDate})`}
         {...moveHandlers}
       >
         {canEdit ? (

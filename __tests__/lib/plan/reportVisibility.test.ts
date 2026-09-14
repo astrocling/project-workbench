@@ -9,10 +9,10 @@ describe("defaultShowOnReports", () => {
     expect(defaultShowOnReports("meeting", "scheduled")).toBe(true);
   });
 
-  it("excludes tasks, waiting, and assumed meetings", () => {
+  it("excludes tasks, waiting, and unscheduled meetings", () => {
     expect(defaultShowOnReports("task", null)).toBe(false);
     expect(defaultShowOnReports("waiting_on_client", null)).toBe(false);
-    expect(defaultShowOnReports("meeting", "assumed")).toBe(false);
+    expect(defaultShowOnReports("meeting", "unscheduled")).toBe(false);
     expect(defaultShowOnReports("meeting", null)).toBe(false);
   });
 });

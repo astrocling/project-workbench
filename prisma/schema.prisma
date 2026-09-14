@@ -62,7 +62,7 @@ enum PlanItemType {
 }
 
 enum PlanMeetingStatus {
-  assumed
+  unscheduled
   scheduled
 }
 

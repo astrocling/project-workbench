@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
+import { coercePlanItemDates } from "@/lib/plan/dateInput";
 import {
   dateString,
   getPlanItemsForValidation,
@@ -112,19 +113,19 @@ export async function PATCH(
         ? null
         : item.parentItemId;
 
-  const rawStart =
-    parsed.data.startDate !== undefined
-      ? parsed.data.startDate
-      : item.startDate.toISOString().slice(0, 10);
-  const rawEnd =
-    parsed.data.endDate !== undefined
-      ? parsed.data.endDate
-      : item.endDate.toISOString().slice(0, 10);
+  const storedStart = item.startDate.toISOString().slice(0, 10);
+  const storedEnd = item.endDate.toISOString().slice(0, 10);
+  const coerced = coercePlanItemDates({
+    previousStart: storedStart,
+    previousEnd: storedEnd,
+    nextStart: parsed.data.startDate,
+    nextEnd: parsed.data.endDate,
+  });
   const dates = normalizeItemDates({
     type: nextType,
     meetingStatus: nextMeetingStatus,
-    startDate: rawStart,
-    endDate: rawEnd,
+    startDate: coerced.startDate,
+    endDate: coerced.endDate,
   });
 
   const siblings = await getPlanItemsForValidation(item.phase.planId);

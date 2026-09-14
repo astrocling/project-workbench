@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  coercePlanItemDates,
+  defaultNewItemDate,
   isCommittablePlanDate,
   resolvePlanDateCellEdit,
   syncLocalFieldFromServer,
@@ -163,5 +165,95 @@ describe("syncLocalFieldFromServer", () => {
 
   it("uses the server value on the first load when there is no previous server value", () => {
     expect(syncLocalFieldFromServer("", undefined, "2026-09-03")).toBe("2026-09-03");
+  });
+});
+
+describe("coercePlanItemDates", () => {
+  it("keeps duration when start moves later than the stored end", () => {
+    expect(
+      coercePlanItemDates({
+        previousStart: "2026-01-01",
+        previousEnd: "2026-01-01",
+        nextStart: "2026-03-15",
+      })
+    ).toEqual({ startDate: "2026-03-15", endDate: "2026-03-15" });
+    expect(
+      coercePlanItemDates({
+        previousStart: "2026-03-01",
+        previousEnd: "2026-03-05",
+        nextStart: "2026-03-10",
+      })
+    ).toEqual({ startDate: "2026-03-10", endDate: "2026-03-14" });
+  });
+
+  it("clamps end up to start when end is moved earlier than start", () => {
+    expect(
+      coercePlanItemDates({
+        previousStart: "2026-03-15",
+        previousEnd: "2026-03-20",
+        nextEnd: "2026-03-10",
+      })
+    ).toEqual({ startDate: "2026-03-15", endDate: "2026-03-15" });
+  });
+
+  it("keeps a valid end that is on or after start", () => {
+    expect(
+      coercePlanItemDates({
+        previousStart: "2026-03-15",
+        previousEnd: "2026-03-15",
+        nextEnd: "2026-04-01",
+      })
+    ).toEqual({ startDate: "2026-03-15", endDate: "2026-04-01" });
+  });
+
+  it("collapses an inverted pair when both dates are supplied", () => {
+    expect(
+      coercePlanItemDates({
+        previousStart: "2026-01-01",
+        previousEnd: "2026-01-10",
+        nextStart: "2026-03-20",
+        nextEnd: "2026-03-10",
+      })
+    ).toEqual({ startDate: "2026-03-20", endDate: "2026-03-20" });
+  });
+});
+
+describe("defaultNewItemDate", () => {
+  it("uses the phase start when the phase already has items", () => {
+    expect(
+      defaultNewItemDate({
+        todayYmd: "2026-09-14",
+        kickoffDate: "2026-01-01",
+        planEndDate: "2026-12-31",
+        phaseStart: "2026-04-01",
+      })
+    ).toBe("2026-04-01");
+  });
+
+  it("uses today when the phase is empty, clamped to the plan window", () => {
+    expect(
+      defaultNewItemDate({
+        todayYmd: "2026-09-14",
+        kickoffDate: "2026-01-01",
+        planEndDate: "2026-12-31",
+        phaseStart: null,
+      })
+    ).toBe("2026-09-14");
+    expect(
+      defaultNewItemDate({
+        todayYmd: "2025-12-01",
+        kickoffDate: "2026-01-01",
+        planEndDate: "2026-12-31",
+        phaseStart: null,
+      })
+    ).toBe("2026-01-01");
+    expect(
+      defaultNewItemDate({
+        todayYmd: "2027-02-01",
+        kickoffDate: "2026-01-01",
+        planEndDate: "2026-12-31",
+        phaseStart: null,
+      })
+    ).toBe("2026-12-31");
   });
 });

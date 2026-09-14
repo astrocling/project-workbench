@@ -5,6 +5,8 @@
  * date is only committed once it is a complete, plausible calendar date.
  */
 
+import { calendarDayDelta, shiftYmdRange } from "@/lib/plan/businessDays";
+
 const YMD_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MIN_YEAR = 1900;
 const MAX_YEAR = 2200;
@@ -78,4 +80,61 @@ export function syncLocalFieldFromServer(
 ): string {
   if (previousServer === undefined || local === previousServer) return nextServer;
   return local;
+}
+
+/**
+ * Keep start/end a valid inclusive range when only one side of a date pair is edited.
+ *
+ * Moving start shifts end by the same calendar delta (duration preserved, including 0-day
+ * equal start/end). Moving end before start clamps end up to start so the start the user
+ * just chose is not yanked. When both sides are supplied, an inverted range collapses to
+ * a single day on start.
+ */
+export function coercePlanItemDates({
+  previousStart,
+  previousEnd,
+  nextStart,
+  nextEnd,
+}: {
+  previousStart: string;
+  previousEnd: string;
+  nextStart?: string;
+  nextEnd?: string;
+}): { startDate: string; endDate: string } {
+  const startChanged = nextStart !== undefined;
+  const endChanged = nextEnd !== undefined;
+
+  if (startChanged && !endChanged) {
+    const delta = calendarDayDelta(previousStart, nextStart);
+    return shiftYmdRange(previousStart, previousEnd, delta);
+  }
+
+  if (endChanged && !startChanged) {
+    const startDate = previousStart;
+    const endDate = nextEnd < startDate ? startDate : nextEnd;
+    return { startDate, endDate };
+  }
+
+  const startDate = nextStart ?? previousStart;
+  const endDate = nextEnd ?? previousEnd;
+  if (endDate < startDate) return { startDate, endDate: startDate };
+  return { startDate, endDate };
+}
+
+/** Default date for a new item in a phase: phase start if the phase has items, else today, clamped to the plan. */
+export function defaultNewItemDate({
+  todayYmd,
+  kickoffDate,
+  planEndDate,
+  phaseStart,
+}: {
+  todayYmd: string;
+  kickoffDate: string;
+  planEndDate: string;
+  phaseStart: string | null;
+}): string {
+  const candidate = phaseStart ?? todayYmd;
+  if (candidate < kickoffDate) return kickoffDate;
+  if (candidate > planEndDate) return planEndDate;
+  return candidate;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeItemDates, validateItemPayload } from "@/lib/plan/itemRules";
-import type { PlanItemType } from "@/lib/plan/types";
+import { meetingUiStatus, patchFromMeetingUiStatus, type PlanItemType } from "@/lib/plan/types";
 
 const phaseA = "phase-a";
 const phaseB = "phase-b";
@@ -37,11 +37,11 @@ describe("normalizeItemDates", () => {
     ).toEqual({ startDate: "2025-03-03", endDate: "2025-03-03" });
   });
 
-  it("keeps a range for assumed meetings", () => {
+  it("keeps a range for unscheduled meetings", () => {
     expect(
       normalizeItemDates({
         type: "meeting",
-        meetingStatus: "assumed",
+        meetingStatus: "unscheduled",
         startDate: "2025-03-03",
         endDate: "2025-03-07",
       })
@@ -81,12 +81,12 @@ describe("validateItemPayload", () => {
     ).toBe("Meeting items require a meetingStatus");
   });
 
-  it("allows a date range for assumed meetings", () => {
+  it("allows a date range for unscheduled meetings", () => {
     expect(
       validateItemPayload(
         {
           type: "meeting",
-          meetingStatus: "assumed",
+          meetingStatus: "unscheduled",
           startDate: "2025-03-03",
           endDate: "2025-03-07",
           phaseId: phaseA,
@@ -213,5 +213,39 @@ describe("validateItemPayload", () => {
         siblings
       )
     ).toBeNull();
+  });
+});
+
+describe("meetingUiStatus", () => {
+  it("maps unscheduled, scheduled, and complete", () => {
+    expect(meetingUiStatus({ meetingStatus: "unscheduled", status: "not_started" })).toBe(
+      "unscheduled"
+    );
+    expect(meetingUiStatus({ meetingStatus: "scheduled", status: "not_started" })).toBe(
+      "scheduled"
+    );
+    expect(meetingUiStatus({ meetingStatus: "scheduled", status: "in_progress" })).toBe(
+      "scheduled"
+    );
+    expect(meetingUiStatus({ meetingStatus: "scheduled", status: "complete" })).toBe("complete");
+  });
+});
+
+describe("patchFromMeetingUiStatus", () => {
+  it("schedules and completes on the start date", () => {
+    expect(patchFromMeetingUiStatus({ startDate: "2026-03-15" }, "scheduled")).toEqual({
+      meetingStatus: "scheduled",
+      status: "not_started",
+      endDate: "2026-03-15",
+    });
+    expect(patchFromMeetingUiStatus({ startDate: "2026-03-15" }, "complete")).toEqual({
+      meetingStatus: "scheduled",
+      status: "complete",
+      endDate: "2026-03-15",
+    });
+    expect(patchFromMeetingUiStatus({ startDate: "2026-03-15" }, "unscheduled")).toEqual({
+      meetingStatus: "unscheduled",
+      status: "not_started",
+    });
   });
 });

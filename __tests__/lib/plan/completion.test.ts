@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PlanItemJson, PlanPhaseJson } from "@/lib/plan/serialize";
-import { countPlanCompletion } from "@/lib/plan/completion";
+import { countPlanCompletion, isPhaseComplete } from "@/lib/plan/completion";
 
 function item(partial: Partial<PlanItemJson> & Pick<PlanItemJson, "id" | "phaseId" | "label">): PlanItemJson {
   return {
@@ -50,5 +50,38 @@ describe("countPlanCompletion", () => {
       total: 0,
       percent: 0,
     });
+  });
+});
+
+describe("isPhaseComplete", () => {
+  it("is false when the phase has no items", () => {
+    expect(isPhaseComplete(phase({ id: "p1", name: "Empty", items: [] }))).toBe(false);
+  });
+
+  it("is true only when every item is complete", () => {
+    expect(
+      isPhaseComplete(
+        phase({
+          id: "p1",
+          name: "A",
+          items: [
+            item({ id: "i1", phaseId: "p1", label: "One", status: "complete" }),
+            item({ id: "i2", phaseId: "p1", label: "Two", status: "complete" }),
+          ],
+        })
+      )
+    ).toBe(true);
+    expect(
+      isPhaseComplete(
+        phase({
+          id: "p1",
+          name: "A",
+          items: [
+            item({ id: "i1", phaseId: "p1", label: "One", status: "complete" }),
+            item({ id: "i2", phaseId: "p1", label: "Two", status: "in_progress" }),
+          ],
+        })
+      )
+    ).toBe(false);
   });
 });

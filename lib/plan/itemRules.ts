@@ -44,7 +44,7 @@ export function validateItemPayload(
 ): string | null {
   const { type, meetingStatus, startDate, endDate, phaseId, parentItemId, itemId } = payload;
 
-  if (type === "meeting" && meetingStatus !== "assumed" && meetingStatus !== "scheduled") {
+  if (type === "meeting" && meetingStatus !== "unscheduled" && meetingStatus !== "scheduled") {
     return "Meeting items require a meetingStatus";
   }
 

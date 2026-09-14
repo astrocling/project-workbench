@@ -10,6 +10,11 @@ export function isPlanItemComplete(item: Pick<PlanItemJson, "status">): boolean 
   return item.status === "complete";
 }
 
+export function isPhaseComplete(phase: Pick<PlanPhaseJson, "items">): boolean {
+  if (phase.items.length === 0) return false;
+  return phase.items.every(isPlanItemComplete);
+}
+
 export function completedAtForStatus(
   status: PlanItemJson["status"] | undefined,
   currentCompletedAt: Date | null | undefined

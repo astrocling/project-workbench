@@ -20,7 +20,7 @@ Everyone who can open the project can **see** Plan. Only editors get grips, date
 
 1. Open the project and click **Plan**.
 2. If there is **no plan yet**, click **Start from blank**. The grid opens in **Edit**.
-3. Use **View** to scan names, types, shortened dates, and status icons (hover an icon for **Not started**, **In progress**, or **Complete**). Plans that already have phases open in View. The left grid does not scroll sideways in View or Edit.
+3. Use **View** to scan names, types, shortened dates, and status icons (hover an icon for **Not started**, **In progress**, or **Complete**; meetings: **Unscheduled**, **Scheduled**, or **Complete**). A phase shows complete when every item in it is complete. Plans that already have phases open in View. The left grid does not scroll sideways in View or Edit.
 4. Switch to **Edit** to see Type, Start, End, Days, **Rpt**, Status, add rows, and row actions. Every edit column stays on screen; the Gantt uses the remaining space.
 
 **Gantt zoom:** **Fit** sizes date columns to the pane when they still fit, but never shrinks a column so the header date is cut off — the chart scrolls sideways instead. **Day**, **Week**, and **Month** use the same readable column widths. There is a small gap before the first date so kickoff items are not clipped, and a red **Today** line (on the start or end edge if today is outside the plan).
@@ -33,7 +33,7 @@ You must be in **Edit**. **View** hides add rows.
 
 1. Click **+ Add phase** at the bottom of the grid.
 2. Name the phase. Optionally set a color.
-3. Click **+ Add item** under that phase (this row is there even when the phase has no items yet). New items start as tasks on the kickoff date; change type, dates, and status in the row.
+3. Click **+ Add item** under that phase (this row is there even when the phase has no items yet). New items start as tasks on **today** (or the phase’s earliest date if it already has items). Change type, dates, and status in the row.
 4. To add another item after an existing one, use that item’s plus icon, or click **+ Add item** again to append a top-level item in the phase.
 5. Nest items with **Indent** / **Outdent**, or by dragging (next section). Nesting is limited to **three** levels.
 
@@ -82,9 +82,9 @@ Indent/Outdent still work if you prefer the toolbar instead of drag.
 
 ## Change dates on the Gantt
 
-- **Task** or **assumed meeting** (bar): drag the bar to move it (duration stays the same). Drag the **left or right edge** to resize.
+- **Task** or **unscheduled meeting** (bar): drag the bar to move it (duration stays the same). Drag the **left or right edge** to resize.
 - **Milestone**, **sign-off**, **hard deadline**, or **scheduled meeting** (diamond): drag the diamond to change that **single** date.
-- Dates snap to **calendar days** (same as the Start/End cells).
+- Dates snap to **calendar days** (same as the Start/End cells). Changing **Start** keeps duration so End moves with it; the **End** picker cannot choose a day before Start.
 - Child rows **do not** move when you drag a **parent** bar.
 - Press **Escape** to cancel a Gantt drag in progress.
 
@@ -94,10 +94,10 @@ You can also type dates in **Full** grid Start/End cells.
 
 ## Status and status reports (Rpt)
 
-- Set item **Status** to **Not started**, **In progress**, or **Complete** (in **Edit**; **View** shows the same states as icons — hover for the full name). The Plan header shows how many items are complete.
+- Set item **Status** to **Not started**, **In progress**, or **Complete** (in **Edit**; **View** shows the same states as icons — hover for the full name). Meetings use **Unscheduled** (range), **Scheduled** (one date), or **Complete**. A **phase** is complete when every item in it is complete. The Plan header shows how many items are complete.
 - **Rpt** chooses whether that phase or item appears on **Plan-sourced** status-report schedules.
 - Short names for a **specific slide** are set on that report’s **Arrange this report’s schedule** board, not on Plan.
-- New key dates and scheduled meetings default to **shown**; tasks, waiting-on-client, and assumed meetings default to **hidden** as markers (they still stretch the phase bar).
+- New key dates and scheduled meetings default to **shown**; tasks, waiting-on-client, and unscheduled meetings default to **hidden** as markers (they still stretch the phase bar).
 - Completed key dates still appear on **new** reports (when **Rpt** is on) but are drawn faded.
 
 ### Default for new reports

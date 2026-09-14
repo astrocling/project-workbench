@@ -9,13 +9,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 How-to for these items is in the [User Guide](docs/USER_GUIDE.md). APIs, schema, and deploy details are in the [Technical Reference](docs/TECHNICAL.md).
 
+## [1.3.3] - 2026-09-14
+
+Patch release: Plan date saves, smarter date pickers, meeting **Unscheduled / Scheduled / Complete**, and phase complete when every item is complete. **Deploy:** Vercel `build` runs `prisma migrate deploy` (no extra command). Applies `20260914180000_plan_meeting_unscheduled` (`PlanMeetingStatus.assumed` → **`unscheduled`**). Redeploy the app.
+
+### Changed
+
+- **Plan meetings** — Meeting date-mode is **Unscheduled** (range) or **Scheduled** (single date). **Complete** still uses item status. Database enum value **`assumed`** is renamed to **`unscheduled`**.
+- **Plan date pickers** — New items in an empty phase start on **today** (clamped to the plan); otherwise they start on the phase’s earliest date. The End picker cannot choose a day before Start. A failed date save no longer leaves the cell looking saved.
+
 ### Fixed
 
-- **Float Actuals — partial PTO zeroed remaining hours** — `buildExcludedUtcDatesByFloatPeopleId` treated every time-off calendar day as non-working, so a week of 4h PTO plus a holiday dropped remaining Float task hours (e.g. 0.5h × 4 days = 2) to **0**. Only **full-day** time off (missing hours, `full_day`, or ≥ 8h/day) is excluded; holidays still are. **Deploy:** no new migrations; redeploy and run **Admin → Float sync**. Tests: `__tests__/lib/float/excludedDays.test.ts`, `__tests__/lib/float/taskAggregation.test.ts`.
+- **Plan start date dropped when End was still earlier** — Changing Start after the stored End used to 400 (`Start date must be on or before end date`) and never persist. **`coercePlanItemDates`** keeps duration when Start moves and clamps End up when it is dragged before Start. The grid and item PATCH both send the coerced pair. Tests: `__tests__/lib/plan/dateInput.test.ts`.
+
+### Added
+
+- **Phase complete** — A phase shows as complete when it has items and every item is complete (`isPhaseComplete` in `lib/plan/completion.ts`). Nested items on the phase all count.
 
 ### Documentation
 
-- **User Guide / Technical Reference** — Scheduled-hour exclusions are full-day time off and regional holidays, not partial PTO days.
+- **CHANGELOG** — This release section.
+- **User Guide** — Plan dates, meeting statuses, phase complete; troubleshooting for Start not sticking; release baseline **1.3.3**.
+- **Plan tab how-to** — Same Plan UX for Confluence.
+- **Technical Reference** — `coercePlanItemDates`, `defaultNewItemDate`, meeting enum rename, `isPhaseComplete`, migration `20260914180000`.
+- **README** — Production release tag example **v1.3.3**.
+
+## [1.3.2] - 2026-09-14
+
+Patch release: **Float Actuals** keep remaining scheduled hours on **partial PTO** days instead of zeroing the week. **Deploy:** no new migrations; redeploy the app, then run **Admin → Float sync** so stored `FloatScheduledHours` refresh. Scheduled Trigger.dev Float sync will pick this up on the next run; Admin sync also revalidates the Resourcing cache.
+
+### Changed
+
+- **Float scheduled hours — partial vs full-day time off** — Weekly **Float** totals still skip **full-day** time off (missing hours, `full_day`, or ≥ 8h/day) and **regional holidays**. **Partial PTO** (for example 4h) no longer marks the whole calendar day non-working, so remaining Float task hours on that project that day still count.
+
+### Fixed
+
+- **Float Actuals — partial PTO zeroed remaining hours** — A week with 4h PTO on four weekdays plus a holiday used to store **0** in the Float grid even when Float still had 0.5h/day on those PTO days (2h for the week). Root cause: `buildExcludedUtcDatesByFloatPeopleId` (`lib/float/excludedDays.ts`) added every time-off date to `excludedUtcDatesByFloatPeopleId`. Tests: `__tests__/lib/float/excludedDays.test.ts`, `__tests__/lib/float/taskAggregation.test.ts`.
+
+### Documentation
+
+- **CHANGELOG** — This release section.
+- **User Guide** — Float sync and Resourcing: full-day vs partial PTO; troubleshooting when Float shows hours but Workbench shows 0; release baseline **1.3.2**.
+- **Technical Reference** — Exclusion rules, QA checklist for partial PTO, `excludedDays` tests.
+- **README** — Production release tag example **v1.3.2**; Float sync notes on partial PTO.
 
 ## [1.3.1] - 2026-09-11
 

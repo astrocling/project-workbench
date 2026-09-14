@@ -135,7 +135,7 @@ describe("compactPlanToSchedule", () => {
     });
   });
 
-  it("includes key-date markers and omits tasks, assumed meetings, and waiting_on_client", () => {
+  it("includes key-date markers and omits tasks, unscheduled meetings, and waiting_on_client", () => {
     const result = compactPlanToSchedule(
       [
         phase({
@@ -185,11 +185,11 @@ describe("compactPlanToSchedule", () => {
               endDate: "2026-04-02",
             }),
             item({
-              id: "assumed",
+              id: "unscheduled",
               phaseId: "p1",
               label: "Weekly sync",
               type: "meeting",
-              meetingStatus: "assumed",
+              meetingStatus: "unscheduled",
               startDate: "2026-04-03",
               endDate: "2026-04-03",
             }),
