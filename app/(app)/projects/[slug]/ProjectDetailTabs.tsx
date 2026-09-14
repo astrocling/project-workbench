@@ -1121,6 +1121,7 @@ export function ProjectDetailTabs({
         <PlanTab
           projectId={projectId}
           projectSlug={projectSlug}
+          projectName={projectName}
           planReportDefault={planReportDefault}
           canEdit={canEdit}
         />

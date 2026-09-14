@@ -67,14 +67,23 @@ describe("collectWeeklyPeople", () => {
     expect(result).toEqual([]);
   });
 
-  it("formats Slack mention and Not in Plan suffix", () => {
+  it("formats Slack mention, hours allocation, and Not in Plan suffix", () => {
     const [ada, ben] = collectWeeklyPeople({
       planned: [{ personId: "a", hours: 4 }],
       float: [{ personId: "b", hours: 4 }],
       people,
     });
-    expect(formatPersonLine(ada!)).toBe("• <@UADA> — PM");
-    expect(formatPersonLine(ben!)).toBe("• Ben (Not in Plan) — Designer");
+    expect(formatPersonLine(ada!)).toBe("• <@UADA> — PM — 4h");
+    expect(formatPersonLine(ben!)).toBe("• Ben (Not in Plan) — Designer — 4h");
+  });
+
+  it("uses planned hours as allocation when both planned and Float exist", () => {
+    const [ada] = collectWeeklyPeople({
+      planned: [{ personId: "a", hours: 8 }],
+      float: [{ personId: "a", hours: 16 }],
+      people,
+    });
+    expect(formatPersonLine(ada!)).toBe("• <@UADA> — PM — 8h");
   });
 });
 
@@ -135,28 +144,90 @@ describe("itemsStartingOrEndingInWeek", () => {
 });
 
 describe("formatDatedItemLine and blocks", () => {
-  it("labels Plan types and Timeline source", () => {
+  const weekStart = "2026-09-07";
+  const weekEnd = "2026-09-13";
+
+  it("labels Plan types and Timeline source on same-day items", () => {
     expect(
-      formatDatedItemLine({
-        source: "plan",
-        type: "meeting",
-        label: "Kickoff",
-        startDateKey: "2026-09-08",
-        endDateKey: "2026-09-08",
-        scheduledTime: "10:00",
-        sortKey: "2026-09-08",
-      })
+      formatDatedItemLine(
+        {
+          source: "plan",
+          type: "meeting",
+          label: "Kickoff",
+          startDateKey: "2026-09-08",
+          endDateKey: "2026-09-08",
+          scheduledTime: "10:00",
+          sortKey: "2026-09-08",
+        },
+        weekStart,
+        weekEnd
+      )
     ).toBe("• Tue Sep 8 — Meeting: Kickoff (10:00)");
     expect(
-      formatDatedItemLine({
-        source: "timeline",
-        type: "marker",
-        label: "Launch",
-        startDateKey: "2026-09-11",
-        endDateKey: "2026-09-11",
-        sortKey: "2026-09-11",
-      })
+      formatDatedItemLine(
+        {
+          source: "timeline",
+          type: "marker",
+          label: "Launch",
+          startDateKey: "2026-09-11",
+          endDateKey: "2026-09-11",
+          sortKey: "2026-09-11",
+        },
+        weekStart,
+        weekEnd
+      )
     ).toBe("• Fri Sep 11 — Timeline: Launch");
+  });
+
+  it("shows an in-week range when start and end both fall in the week", () => {
+    expect(
+      formatDatedItemLine(
+        {
+          source: "timeline",
+          type: "bar",
+          label: "Sprint",
+          startDateKey: "2026-09-07",
+          endDateKey: "2026-09-11",
+          sortKey: "2026-09-07",
+        },
+        weekStart,
+        weekEnd
+      )
+    ).toBe("• Mon Sep 7–Fri Sep 11 — Timeline: Sprint");
+  });
+
+  it("labels starts with through-date when the item continues after the week", () => {
+    expect(
+      formatDatedItemLine(
+        {
+          source: "plan",
+          type: "task",
+          label: "Discovery",
+          startDateKey: "2026-09-07",
+          endDateKey: "2026-10-01",
+          sortKey: "2026-09-07",
+        },
+        weekStart,
+        weekEnd
+      )
+    ).toBe("• Mon Sep 7 — Task: Discovery starts (through Oct 1)");
+  });
+
+  it("labels ends with from-date when the item started before the week", () => {
+    expect(
+      formatDatedItemLine(
+        {
+          source: "plan",
+          type: "hard_deadline",
+          label: "UAT",
+          startDateKey: "2026-08-01",
+          endDateKey: "2026-09-11",
+          sortKey: "2026-09-11",
+        },
+        weekStart,
+        weekEnd
+      )
+    ).toBe("• Fri Sep 11 — Deadline: UAT ends (from Aug 1)");
   });
 
   it("formats week range across months", () => {

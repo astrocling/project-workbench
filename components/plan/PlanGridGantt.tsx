@@ -71,11 +71,17 @@ import {
   formatCompactYmd,
   readableGanttColWidth,
 } from "@/lib/plan/ganttColWidth";
+import {
+  MEETING_VIOLET,
+  ganttBarLabelTextColor,
+  ganttMarkFillColor,
+} from "@/lib/plan/ganttBarLabel";
 
-const MEETING_VIOLET = "#6d28d9";
 const ROW_HEIGHT = 36;
+const PRESENT_ROW_HEIGHT = 44;
 const GANTT_AXIS_PAD_PX = 16;
 const VIEW_GRID_WIDTH = 400;
+const PRESENT_GRID_WIDTH = 288;
 const ACTIONS_COL = 52;
 const FULL_GRID_INNER_WIDTH = 906 + ACTIONS_COL;
 const EXPAND_COL = 28;
@@ -162,6 +168,8 @@ const ITEM_STATUS_ICON_CLASS: Record<PlanItemStatus, string> = {
 type RowKey = string;
 type ZoomMode = "fit" | PlanScale;
 type GridMode = "view" | "edit";
+export type PlanLayoutMode = "work" | "present";
+type LeftGridKind = GridMode | "present";
 type GridDropHover =
   | ItemDropTarget
   | { kind: "phase-before"; phaseId: string }
@@ -378,9 +386,26 @@ type PlanGridGanttProps = {
   canEdit: boolean;
   apiBase: string;
   onMutated: () => void;
+  layoutMode?: PlanLayoutMode;
+  onLayoutModeChange?: (mode: PlanLayoutMode) => void;
+  onDownloadPdf?: () => void;
+  pdfBusy?: boolean;
+  chartTitle?: string;
+  dateRangeLabel?: string;
 };
 
-export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGanttProps) {
+export function PlanGridGantt({
+  plan,
+  canEdit,
+  apiBase,
+  onMutated,
+  layoutMode = "work",
+  onLayoutModeChange,
+  onDownloadPdf,
+  pdfBusy = false,
+  chartTitle,
+  dateRangeLabel,
+}: PlanGridGanttProps) {
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set());
   const [selectedKey, setSelectedKey] = useState<RowKey | null>(null);
   const [busy, setBusy] = useState(false);
@@ -389,6 +414,8 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
   const [gridMode, setGridMode] = useState<GridMode>(() =>
     canEdit && plan.phases.length === 0 ? "edit" : "view"
   );
+  const workZoomRef = useRef<ZoomMode>("fit");
+  const [viewportHeight, setViewportHeight] = useState(720);
   const [paneWidth, setPaneWidth] = useState(0);
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
 
@@ -414,6 +441,28 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
   const datePreviewRef = useRef(datePreview);
   datePreviewRef.current = datePreview;
   const [dropHover, setDropHover] = useState<GridDropHover | null>(null);
+  const presenting = layoutMode === "present";
+  const rowHeight = presenting ? PRESENT_ROW_HEIGHT : ROW_HEIGHT;
+  const leftKind: LeftGridKind = presenting ? "present" : gridMode;
+
+  useEffect(() => {
+    if (presenting) {
+      setZoomMode((current) => {
+        workZoomRef.current = current;
+        return "fit";
+      });
+      return;
+    }
+    setZoomMode(workZoomRef.current);
+  }, [presenting]);
+
+  useEffect(() => {
+    if (!presenting) return;
+    const update = () => setViewportHeight(window.innerHeight);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, [presenting]);
 
   const axisRange = useMemo(() => getPlanAxisRange(plan), [plan]);
   const scale = useMemo(
@@ -431,8 +480,13 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
     zoomMode === "fit"
       ? fitGanttColWidth(paneWidth, columns.length, scale)
       : readableGanttColWidth(scale);
-  const editing = canEdit && gridMode === "edit";
-  const leftGridWidth = gridMode === "view" ? VIEW_GRID_WIDTH : FULL_GRID_INNER_WIDTH;
+  const editing = canEdit && gridMode === "edit" && !presenting;
+  const leftGridWidth =
+    leftKind === "present"
+      ? PRESENT_GRID_WIDTH
+      : leftKind === "view"
+        ? VIEW_GRID_WIDTH
+        : FULL_GRID_INNER_WIDTH;
   const ganttWidth = columns.length * colWidth;
   const ganttTrackWidth = ganttWidth + GANTT_AXIS_PAD_PX * 2;
   const todayYmd = new Date().toISOString().slice(0, 10);
@@ -787,7 +841,13 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
     });
   }
 
-  const bodyHeight = Math.min(480, Math.max(200, displayRows.length * ROW_HEIGHT + 8));
+  const workBodyHeight = Math.min(480, Math.max(200, displayRows.length * rowHeight + 8));
+  const presentBodyHeight = Math.max(
+    280,
+    viewportHeight - 220,
+    Math.min(displayRows.length * rowHeight + 8, viewportHeight - 160)
+  );
+  const bodyHeight = presenting ? presentBodyHeight : workBodyHeight;
 
   return (
     <section className="space-y-2">
@@ -802,18 +862,35 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
                 <button
                   key={mode}
                   type="button"
-                  onClick={() => setGridMode(mode)}
+                  onClick={() => {
+                    onLayoutModeChange?.("work");
+                    setGridMode(mode);
+                  }}
                   className={`px-2.5 py-1 text-body-sm font-medium capitalize ${
-                    gridMode === mode
+                    !presenting && gridMode === mode
                       ? "bg-surface-800 text-white dark:bg-surface-200 dark:text-surface-900"
                       : "bg-white text-surface-700 hover:bg-surface-100 dark:bg-dark-surface dark:text-surface-300 dark:hover:bg-dark-raised"
                   }`}
-                  aria-pressed={gridMode === mode}
+                  aria-pressed={!presenting && gridMode === mode}
                 >
                   {mode}
                 </button>
               ))}
             </div>
+          ) : null}
+          {onLayoutModeChange ? (
+            <button
+              type="button"
+              onClick={() => onLayoutModeChange(presenting ? "work" : "present")}
+              className={`px-2.5 py-1 text-body-sm font-medium rounded-md border border-surface-300 dark:border-dark-muted ${
+                presenting
+                  ? "bg-surface-800 text-white dark:bg-surface-200 dark:text-surface-900"
+                  : "bg-white text-surface-700 hover:bg-surface-100 dark:bg-dark-surface dark:text-surface-300 dark:hover:bg-dark-raised"
+              }`}
+              aria-pressed={presenting}
+            >
+              Present
+            </button>
           ) : null}
           <div
             className="inline-flex rounded-md border border-surface-300 dark:border-dark-muted overflow-hidden"
@@ -835,6 +912,17 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
               </button>
             ))}
           </div>
+          {onDownloadPdf ? (
+            <button
+              type="button"
+              onClick={onDownloadPdf}
+              disabled={pdfBusy}
+              className="px-2.5 py-1 text-body-sm font-medium rounded-md bg-jblue-500 text-white hover:bg-jblue-600 disabled:opacity-50"
+              aria-label="Download PDF"
+            >
+              {pdfBusy ? "Generating PDF…" : "Download PDF"}
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -847,23 +935,40 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
 
       <div
         className="rounded-lg border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface overflow-hidden"
+        data-plan-capture-expand
       >
-        <div className="flex" style={{ height: bodyHeight + ROW_HEIGHT }}>
+        {presenting && (chartTitle || dateRangeLabel) ? (
+          <div
+            className="px-3 py-2 border-b border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface"
+            data-plan-chart-title
+          >
+            {chartTitle ? (
+              <p className="text-body-sm font-semibold text-surface-800 dark:text-surface-100 truncate">
+                {chartTitle}
+              </p>
+            ) : null}
+            {dateRangeLabel ? (
+              <p className="text-label-sm text-surface-500 dark:text-surface-400">{dateRangeLabel}</p>
+            ) : null}
+          </div>
+        ) : null}
+        <div className="flex" data-plan-capture-scroll style={{ height: bodyHeight + rowHeight }}>
           <div
             className="shrink-0 overflow-x-hidden overflow-y-hidden border-r border-surface-200 dark:border-dark-border"
             style={
-              gridMode === "view"
-                ? { width: leftGridWidth, maxWidth: "55%" }
-                : { width: leftGridWidth }
+              leftKind === "edit"
+                ? { width: leftGridWidth }
+                : { width: leftGridWidth, maxWidth: presenting ? "38%" : "55%" }
             }
           >
-            <div style={gridMode === "view" ? { width: "100%" } : { minWidth: leftGridWidth }}>
+            <div style={leftKind === "edit" ? { minWidth: leftGridWidth } : { width: "100%" }}>
               <div className="bg-surface-50 dark:bg-dark-raised">
-                <GridHeader gridMode={gridMode} editing={editing} />
+                <GridHeader leftKind={leftKind} editing={editing} rowHeight={rowHeight} />
               </div>
               <div
                 ref={leftScrollRef}
                 className="overflow-y-auto overflow-x-hidden"
+                data-plan-capture-scroll
                 style={{ height: bodyHeight }}
                 onScroll={(e) => {
                   if (rightScrollRef.current) {
@@ -916,8 +1021,9 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
                 <GridRow
                   key={key}
                   row={row}
-                  gridMode={gridMode}
+                  leftKind={leftKind}
                   editing={editing}
+                  rowHeight={rowHeight}
                   busy={busy}
                   isSelected={isSelected}
                   collapsedIds={collapsedIds}
@@ -983,11 +1089,12 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
             <div
               ref={headerScrollRef}
               className="overflow-hidden shrink-0 bg-surface-50 dark:bg-dark-raised"
+              data-plan-gantt-header
               style={{ minWidth: 0 }}
             >
               <div className="relative" style={{ width: ganttTrackWidth }}>
                 <div style={{ paddingLeft: GANTT_AXIS_PAD_PX, paddingRight: GANTT_AXIS_PAD_PX }}>
-                  <GanttHeader columns={columns} colWidth={colWidth} scale={scale} />
+                  <GanttHeader columns={columns} colWidth={colWidth} scale={scale} rowHeight={rowHeight} />
                 </div>
                 <GanttTodayLine
                   percent={todayPercent}
@@ -999,6 +1106,7 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
             <div
             ref={rightScrollRef}
             className="flex-1 overflow-x-auto overflow-y-auto"
+            data-plan-capture-scroll
             style={{ minWidth: 0 }}
             onScroll={(e) => {
               syncHeaderHorizontal(e.currentTarget.scrollLeft);
@@ -1029,6 +1137,8 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
                     colWidth={colWidth}
                     scale={scale}
                     canEdit={editing}
+                    showLabels={presenting}
+                    rowHeight={rowHeight}
                     datePreview={datePreview}
                     onGanttPointerDown={(item, kind, clientX) => {
                       const ymd = ymdFromPointer(clientX);
@@ -1073,6 +1183,7 @@ export function PlanGridGantt({ plan, canEdit, apiBase, onMutated }: PlanGridGan
                   />
                 ) : (
                   <GanttSpacerRow
+                    rowHeight={rowHeight}
                     key={
                       displayRow.kind === "add-item"
                         ? `add-item-${displayRow.phaseId}`
@@ -1129,11 +1240,11 @@ function InlineAddRow({
   );
 }
 
-function GanttSpacerRow() {
+function GanttSpacerRow({ rowHeight }: { rowHeight: number }) {
   return (
     <div
       className="border-b border-surface-100 dark:border-dark-border"
-      style={{ height: ROW_HEIGHT }}
+      style={{ height: rowHeight }}
       aria-hidden
     />
   );
@@ -1160,18 +1271,28 @@ function GanttTodayLine({
   );
 }
 
-function GridHeader({ gridMode, editing }: { gridMode: GridMode; editing: boolean }) {
-  if (gridMode === "view") {
+function GridHeader({
+  leftKind,
+  editing,
+  rowHeight,
+}: {
+  leftKind: LeftGridKind;
+  editing: boolean;
+  rowHeight: number;
+}) {
+  if (leftKind === "view" || leftKind === "present") {
     return (
       <div
         className="flex items-center text-label-sm font-semibold uppercase tracking-wide text-surface-600 dark:text-surface-400 border-b border-surface-200 dark:border-dark-border"
-        style={{ height: ROW_HEIGHT }}
+        style={{ height: rowHeight }}
       >
         <div style={{ width: EXPAND_COL }} className="shrink-0" />
         <div className="flex-1 min-w-0 px-2">Name</div>
-        <div style={{ width: COMPACT_DATE_COL }} className="shrink-0 px-1">
-          Dates
-        </div>
+        {leftKind === "view" ? (
+          <div style={{ width: COMPACT_DATE_COL }} className="shrink-0 px-1">
+            Dates
+          </div>
+        ) : null}
         <div
           style={{ width: COMPACT_STATUS_COL }}
           className="shrink-0 px-1 text-center whitespace-nowrap"
@@ -1185,7 +1306,7 @@ function GridHeader({ gridMode, editing }: { gridMode: GridMode; editing: boolea
   return (
     <div
       className="flex items-center text-label-sm font-semibold uppercase tracking-wide text-surface-600 dark:text-surface-400 border-b border-surface-200 dark:border-dark-border"
-      style={{ height: ROW_HEIGHT, minWidth: FULL_GRID_INNER_WIDTH }}
+      style={{ height: rowHeight, minWidth: FULL_GRID_INNER_WIDTH }}
     >
       <div style={{ width: EXPAND_COL }} className="shrink-0" />
       <div className="px-2 shrink-0 min-w-0" style={{ width: NAME_COL }}>
@@ -1356,8 +1477,9 @@ function RowActions({
 
 function GridRow({
   row,
-  gridMode,
+  leftKind,
   editing,
+  rowHeight,
   busy,
   isSelected,
   collapsedIds,
@@ -1377,8 +1499,9 @@ function GridRow({
   onDropTarget,
 }: {
   row: PlanVisibleRow;
-  gridMode: GridMode;
+  leftKind: LeftGridKind;
   editing: boolean;
+  rowHeight: number;
   busy: boolean;
   isSelected: boolean;
   collapsedIds: Set<string>;
@@ -1418,9 +1541,10 @@ function GridRow({
   onDragLeaveRow: () => void;
   onDropTarget: (event: DragEvent<HTMLDivElement>, target: ItemDropTarget) => void;
 }) {
-  const compact = gridMode === "view";
+  const compact = leftKind === "view";
+  const slim = compact || leftKind === "present";
   const editColumns = editing;
-  const rowMinWidth = compact ? undefined : FULL_GRID_INNER_WIDTH;
+  const rowMinWidth = slim ? undefined : FULL_GRID_INNER_WIDTH;
 
   if (row.kind === "phase") {
     const phase = row.phase;
@@ -1439,7 +1563,7 @@ function GridRow({
         } ${phaseItemDrop ? "ring-1 ring-inset ring-jblue-500 bg-jblue-50/80 dark:bg-jblue-900/30" : ""} ${
           phaseBeforeDrop ? "border-t-2 border-t-jblue-500" : ""
         }`}
-        style={{ height: ROW_HEIGHT, minWidth: rowMinWidth }}
+        style={{ height: rowHeight, minWidth: rowMinWidth }}
         onClick={onSelect}
         onDragOver={editing ? (event) => onPhaseDragOver(event, phase.id) : undefined}
         onDragLeave={
@@ -1472,8 +1596,8 @@ function GridRow({
           ) : null}
         </div>
         <div
-          className={`px-2 flex items-center gap-2 ${compact ? "flex-1 min-w-0" : "shrink-0 min-w-0 overflow-hidden"}`}
-          style={compact ? undefined : { width: NAME_COL }}
+          className={`px-2 flex items-center gap-2 ${slim ? "flex-1 min-w-0" : "shrink-0 min-w-0 overflow-hidden"}`}
+          style={slim ? undefined : { width: NAME_COL }}
         >
           {editing ? (
             <button
@@ -1517,7 +1641,7 @@ function GridRow({
           ) : (
             <span
               className={`text-body-sm font-semibold text-surface-800 dark:text-surface-100 ${
-                compact ? "truncate" : "whitespace-nowrap"
+                slim ? "truncate" : "whitespace-nowrap"
               }`}
               title={phase.name}
             >
@@ -1525,9 +1649,11 @@ function GridRow({
             </span>
           )}
         </div>
-        {compact ? (
+        {slim ? (
           <>
-            <div style={{ width: COMPACT_DATE_COL }} className="shrink-0" />
+            {compact ? (
+              <div style={{ width: COMPACT_DATE_COL }} className="shrink-0" />
+            ) : null}
             <div
               style={{ width: COMPACT_STATUS_COL }}
               className="group/status relative shrink-0 px-0.5 flex justify-center overflow-visible"
@@ -1631,11 +1757,11 @@ function GridRow({
     return (
       <div
         className={`group flex items-center border-b border-surface-100 dark:border-dark-border cursor-pointer ${
-          compact ? "overflow-visible hover:z-10" : "overflow-hidden"
+          slim ? "overflow-visible hover:z-10" : "overflow-hidden"
         } ${isSelected ? "bg-jblue-50 dark:bg-jblue-900/20" : "hover:bg-surface-50 dark:hover:bg-dark-raised"} ${
           nestDrop ? "ring-1 ring-inset ring-jblue-500 bg-jblue-50/80 dark:bg-jblue-900/30" : ""
         } ${beforeDrop ? "border-t-2 border-t-jblue-500" : ""}`}
-        style={{ height: ROW_HEIGHT, minWidth: rowMinWidth }}
+        style={{ height: rowHeight, minWidth: rowMinWidth }}
         onClick={onSelect}
         onDragOver={editing ? (event) => onItemDragOver(event, item.id) : undefined}
         onDragLeave={
@@ -1679,10 +1805,10 @@ function GridRow({
           ) : null}
         </div>
         <div
-          className={`px-2 flex items-center gap-1 ${compact ? "flex-1 min-w-0" : "shrink-0 min-w-0 overflow-hidden"}`}
+          className={`px-2 flex items-center gap-1 ${slim ? "flex-1 min-w-0" : "shrink-0 min-w-0 overflow-hidden"}`}
           style={{
             paddingLeft: 8 + depth * 16,
-            ...(compact ? {} : { width: NAME_COL }),
+            ...(slim ? {} : { width: NAME_COL }),
           }}
         >
           {editing ? (
@@ -1703,7 +1829,7 @@ function GridRow({
               <GripVertical size={14} aria-hidden />
             </button>
           ) : null}
-          {compact ? <TypeGlyph item={item} /> : null}
+          {slim ? <TypeGlyph item={item} /> : null}
           {editColumns ? (
             <input
               ref={nameInputRef}
@@ -1720,7 +1846,7 @@ function GridRow({
           ) : (
             <span
               className={`text-body-sm text-surface-800 dark:text-surface-100 ${
-                compact ? "truncate block min-w-0" : "whitespace-nowrap"
+                slim ? "truncate block min-w-0" : "whitespace-nowrap"
               }`}
               title={item.label}
             >
@@ -1728,15 +1854,17 @@ function GridRow({
             </span>
           )}
         </div>
-        {compact ? (
+        {slim ? (
           <>
-            <div
-              style={{ width: COMPACT_DATE_COL }}
-              className="shrink-0 px-1 text-body-sm tabular-nums text-surface-600 dark:text-surface-400 truncate"
-              title={compactDates.title}
-            >
-              {compactDates.text}
-            </div>
+            {compact ? (
+              <div
+                style={{ width: COMPACT_DATE_COL }}
+                className="shrink-0 px-1 text-body-sm tabular-nums text-surface-600 dark:text-surface-400 truncate"
+                title={compactDates.title}
+              >
+                {compactDates.text}
+              </div>
+            ) : null}
             <div
               style={{ width: COMPACT_STATUS_COL }}
               className="group/status relative shrink-0 px-0.5 flex justify-center overflow-visible"
@@ -1895,15 +2023,17 @@ function GanttHeader({
   columns,
   colWidth,
   scale,
+  rowHeight,
 }: {
   columns: ScaleColumn[];
   colWidth: number;
   scale: ReturnType<typeof getPlanScale>;
+  rowHeight: number;
 }) {
   return (
     <div
       className="flex border-b border-surface-200 dark:border-dark-border"
-      style={{ height: ROW_HEIGHT }}
+      style={{ height: rowHeight }}
     >
       {columns.map((col, i) => {
         const weekend =
@@ -1916,7 +2046,7 @@ function GanttHeader({
             } ${weekend ? "opacity-90" : ""}`}
             style={{
               width: colWidth,
-              lineHeight: `${ROW_HEIGHT}px`,
+              lineHeight: `${rowHeight}px`,
               backgroundColor: weekend ? "#2a3a8f" : "#040966",
             }}
             title={col.label}
@@ -1937,6 +2067,8 @@ function GanttRow({
   colWidth,
   scale,
   canEdit,
+  showLabels,
+  rowHeight,
   datePreview,
   onGanttPointerDown,
   onGanttPointerMove,
@@ -1949,6 +2081,8 @@ function GanttRow({
   colWidth: number;
   scale: ReturnType<typeof getPlanScale>;
   canEdit: boolean;
+  showLabels: boolean;
+  rowHeight: number;
   datePreview: { itemId: string; startDate: string; endDate: string } | null;
   onGanttPointerDown: (item: PlanItemJson, kind: GanttDragKind, clientX: number) => void;
   onGanttPointerMove: (clientX: number) => void;
@@ -1964,7 +2098,7 @@ function GanttRow({
   return (
     <div
       className="relative border-b border-surface-100 dark:border-dark-border"
-      style={{ height: ROW_HEIGHT }}
+      style={{ height: rowHeight }}
     >
       <div className="absolute inset-0 flex pointer-events-none">
         {columns.map((col) => {
@@ -1982,7 +2116,12 @@ function GanttRow({
       </div>
       <div className="absolute inset-0">
         {row.kind === "phase" ? (
-          <PhaseSummaryBar phase={row.phase} planStart={planStart} planEnd={planEnd} />
+          <PhaseSummaryBar
+            phase={row.phase}
+            planStart={planStart}
+            planEnd={planEnd}
+            showLabel={showLabels}
+          />
         ) : item ? (
           <ItemGanttMark
             item={item}
@@ -1990,6 +2129,7 @@ function GanttRow({
             planStart={planStart}
             planEnd={planEnd}
             canEdit={canEdit}
+            showLabel={showLabels}
             onGanttPointerDown={onGanttPointerDown}
             onGanttPointerMove={onGanttPointerMove}
             onGanttPointerUp={onGanttPointerUp}
@@ -2004,28 +2144,43 @@ function PhaseSummaryBar({
   phase,
   planStart,
   planEnd,
+  showLabel,
 }: {
   phase: PlanPhaseJson;
   planStart: string;
   planEnd: string;
+  showLabel: boolean;
 }) {
   const { start, end } = phaseDateRange(phase);
   if (!start || !end) return null;
 
   const left = positionPercent(start, planStart, planEnd);
   const width = widthPercent(start, end, planStart, planEnd);
+  const fill = phase.color;
+  const labelColor = ganttBarLabelTextColor(fill);
 
   return (
     <div
-      className="absolute top-2 bottom-2 rounded opacity-40"
+      className={`absolute top-2 bottom-2 rounded overflow-hidden flex items-center ${
+        showLabel ? "opacity-90" : "opacity-40"
+      }`}
       style={{
         left: `${left}%`,
         width: `${width}%`,
         minWidth: 4,
-        backgroundColor: phase.color,
+        backgroundColor: fill,
       }}
       title={`${phase.name}: ${start} – ${end}`}
-    />
+    >
+      {showLabel ? (
+        <span
+          className="px-1.5 text-[11px] font-semibold leading-none truncate"
+          style={{ color: labelColor }}
+        >
+          {phase.name}
+        </span>
+      ) : null}
+    </div>
   );
 }
 
@@ -2068,6 +2223,7 @@ function ItemGanttMark({
   planStart,
   planEnd,
   canEdit,
+  showLabel,
   onGanttPointerDown,
   onGanttPointerMove,
   onGanttPointerUp,
@@ -2077,6 +2233,7 @@ function ItemGanttMark({
   planStart: string;
   planEnd: string;
   canEdit: boolean;
+  showLabel: boolean;
   onGanttPointerDown: (item: PlanItemJson, kind: GanttDragKind, clientX: number) => void;
   onGanttPointerMove: (clientX: number) => void;
   onGanttPointerUp: (commit: boolean) => void;
@@ -2086,6 +2243,8 @@ function ItemGanttMark({
   const unscheduledMeeting =
     item.type === "meeting" && item.meetingStatus === "unscheduled";
   const dragCursor = canEdit ? "cursor-grab touch-none" : "";
+  const fill = ganttMarkFillColor(color, item.type === "meeting");
+  const labelColor = waiting || unscheduledMeeting ? "#0f172a" : ganttBarLabelTextColor(fill);
   const moveHandlers = ganttPointerHandlers(
     item,
     "move",
@@ -2110,23 +2269,35 @@ function ItemGanttMark({
     onGanttPointerMove,
     onGanttPointerUp
   );
+  const barLabel = showLabel ? (
+    <span
+      className="relative z-[1] px-1.5 text-[11px] font-medium leading-none truncate pointer-events-none"
+      style={{ color: labelColor }}
+    >
+      {item.label}
+    </span>
+  ) : null;
 
   if (point) {
     const left = positionPercent(item.startDate, planStart, planEnd);
     return (
       <div
-        className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 ${dragCursor}`}
-        style={{ left: `${left}%` }}
+        className={`absolute top-1/2 -translate-y-1/2 ${dragCursor}`}
+        style={{ left: `${left}%`, transform: "translate(-6px, -50%)" }}
         title={`${item.label} (${item.startDate})`}
         {...moveHandlers}
       >
-        <div
-          className="w-3 h-3 rotate-45 border border-white/60 shadow-sm"
-          style={{
-            backgroundColor:
-              item.type === "meeting" ? MEETING_VIOLET : color,
-          }}
-        />
+        <div className="flex items-center gap-1 whitespace-nowrap">
+          <div
+            className="w-3 h-3 rotate-45 border border-white/60 shadow-sm shrink-0"
+            style={{ backgroundColor: fill }}
+          />
+          {showLabel ? (
+            <span className="text-[11px] font-medium leading-none text-surface-800 dark:text-surface-100">
+              {item.label}
+            </span>
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -2137,7 +2308,7 @@ function ItemGanttMark({
   if (unscheduledMeeting) {
     return (
       <div
-        className={`absolute top-2 bottom-2 rounded border-2 border-dashed ${dragCursor}`}
+        className={`absolute top-2 bottom-2 rounded border-2 border-dashed overflow-hidden flex items-center ${dragCursor}`}
         style={{
           left: `${left}%`,
           width: `${width}%`,
@@ -2154,6 +2325,7 @@ function ItemGanttMark({
         title={`${item.label} (unscheduled ${item.startDate} – ${item.endDate})`}
         {...moveHandlers}
       >
+        {barLabel}
         {canEdit ? (
           <>
             <div
@@ -2174,19 +2346,20 @@ function ItemGanttMark({
 
   return (
     <div
-      className={`absolute top-2 bottom-2 rounded ${dragCursor} ${
+      className={`absolute top-2 bottom-2 rounded overflow-hidden flex items-center ${dragCursor} ${
         waiting ? "border-2 border-dashed bg-transparent" : ""
       }`}
       style={{
         left: `${left}%`,
         width: `${width}%`,
         minWidth: 4,
-        backgroundColor: waiting ? "transparent" : color,
+        backgroundColor: waiting ? "transparent" : fill,
         borderColor: waiting ? color : undefined,
       }}
       title={`${item.label} (${item.startDate} – ${item.endDate})`}
       {...moveHandlers}
     >
+      {barLabel}
       {canEdit ? (
         <>
           <div

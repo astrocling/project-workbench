@@ -96,6 +96,12 @@ export function collectWeeklyPeople(input: {
   return result;
 }
 
+export function formatHoursCompact(hours: number): string {
+  const rounded = Math.round(hours * 100) / 100;
+  const s = rounded.toFixed(2).replace(/\.?0+$/, "");
+  return `${s}h`;
+}
+
 export function formatPersonLine(person: WeeklyPerson): string {
   const sid = person.slackUserId?.trim();
   const name = sid
@@ -105,7 +111,10 @@ export function formatPersonLine(person: WeeklyPerson): string {
   const role = person.roleName
     ? ` — ${slackMrkdwnEscape(person.roleName)}`
     : "";
-  return `• ${name}${notInPlan}${role}`;
+  const allocationHours =
+    person.plannedHours > 0 ? person.plannedHours : person.floatHours;
+  const hours = ` — ${formatHoursCompact(allocationHours)}`;
+  return `• ${name}${notInPlan}${role}${hours}`;
 }
 
 export type DatedItemSource = "plan" | "timeline";
@@ -168,6 +177,16 @@ export function formatUtcWeekdayShort(dateKey: string): string {
   return `${weekday} ${rest}`;
 }
 
+export function formatUtcMonthDay(dateKey: string): string {
+  const d = new Date(`${dateKey}T12:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) return dateKey;
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 export function formatWeekRangeLabel(weekStartKey: string, weekEndKey: string): string {
   const start = new Date(`${weekStartKey}T12:00:00.000Z`);
   const end = new Date(`${weekEndKey}T12:00:00.000Z`);
@@ -182,8 +201,26 @@ export function formatWeekRangeLabel(weekStartKey: string, weekEndKey: string): 
   return `${startMonth} ${startDay}–${endMonth} ${endDay}, ${year}`;
 }
 
-export function formatDatedItemLine(item: DatedItemHit): string {
-  const datePart = formatUtcWeekdayShort(item.sortKey);
+export function formatDatedItemLine(
+  item: DatedItemHit,
+  weekStartKey: string,
+  weekEndKey: string
+): string {
+  const startIn = dateKeyInWeek(item.startDateKey, weekStartKey, weekEndKey);
+  const endIn = dateKeyInWeek(item.endDateKey, weekStartKey, weekEndKey);
+  let datePart: string;
+  let boundNote = "";
+  if (item.startDateKey === item.endDateKey) {
+    datePart = formatUtcWeekdayShort(item.sortKey);
+  } else if (startIn && endIn) {
+    datePart = `${formatUtcWeekdayShort(item.startDateKey)}–${formatUtcWeekdayShort(item.endDateKey)}`;
+  } else if (startIn) {
+    datePart = formatUtcWeekdayShort(item.startDateKey);
+    boundNote = ` starts (through ${formatUtcMonthDay(item.endDateKey)})`;
+  } else {
+    datePart = formatUtcWeekdayShort(item.endDateKey);
+    boundNote = ` ends (from ${formatUtcMonthDay(item.startDateKey)})`;
+  }
   let typeLabel: string;
   if (item.source === "timeline") {
     typeLabel = "Timeline";
@@ -196,7 +233,7 @@ export function formatDatedItemLine(item: DatedItemHit): string {
     item.scheduledTime != null && item.scheduledTime.trim() !== ""
       ? ` (${item.scheduledTime.trim()})`
       : "";
-  return `• ${datePart} — ${typeLabel}: ${slackMrkdwnEscape(item.label)}${slackMrkdwnEscape(time)}`;
+  return `• ${datePart} — ${typeLabel}: ${slackMrkdwnEscape(item.label)}${boundNote}${slackMrkdwnEscape(time)}`;
 }
 
 export type PosterUser = {
@@ -236,7 +273,11 @@ export function buildWeeklyLookaheadBlocks(input: {
       : "_No one has hours this week._";
   const itemLines =
     input.items.length > 0
-      ? input.items.map(formatDatedItemLine).join("\n")
+      ? input.items
+          .map((item) =>
+            formatDatedItemLine(item, input.weekStartKey, input.weekEndKey)
+          )
+          .join("\n")
       : "_No meetings or deadlines this week._";
 
   const overviewUrl = projectTabUrl(input.projectSlug, "overview");

@@ -25,6 +25,8 @@ Everyone who can open the project can **see** Plan. Only editors get grips, date
 
 **Gantt zoom:** **Fit** sizes date columns to the pane when they still fit, but never shrinks a column so the header date is cut off — the chart scrolls sideways instead. **Day**, **Week**, and **Month** use the same readable column widths. There is a small gap before the first date so kickoff items are not clipped, and a red **Today** line (on the start or end edge if today is outside the plan).
 
+**Present:** Use **Present** next to **View** / **Edit** and zoom for a taller labeled Gantt (slim name column, labels on bars and diamonds). Click **View** or **Edit**, toggle **Present** off, or press **Escape** to return. **Download PDF** (same toolbar) exports a US Letter landscape two-page plan (timeline, then phase detail + assumptions).
+
 ---
 
 ## Add phases and items

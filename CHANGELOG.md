@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 How-to for these items is in the [User Guide](docs/USER_GUIDE.md). APIs, schema, and deploy details are in the [Technical Reference](docs/TECHNICAL.md).
 
+### Added
+
+- **Plan Present mode and PDF** — **Present** (with View/Edit/zoom) shows a taller labeled Gantt. **Download PDF** exports a US Letter landscape two-page plan (timeline + phase detail/assumptions) from `PlanPrintDocument`, not a screenshot of the editor. Tests: `__tests__/lib/plan/ganttBarLabel.test.ts`, `__tests__/lib/plan/planPdfCapture.test.ts`, `__tests__/lib/plan/printLayout.test.ts`.
+
+### Documentation
+
+- **CHANGELOG** — This unreleased section.
+- **User Guide** — Plan Present, PDF export, troubleshooting.
+- **Plan tab how-to** — Present and Download PDF.
+- **Technical Reference** — Plan PDF capture path and Present layout.
+
+## [1.3.4] - 2026-09-14
+
+Patch release: Overview **Post week to Slack** includes weekly hours and clearer start/end dates. **Deploy:** no new migrations; redeploy the app.
+
+### Changed
+
+- **Post week to Slack — team hours** — **Team this week** lines include that person’s weekly hours (**Planned** when they have them, otherwise **Float**). Format: `formatPersonLine` in `lib/slack/weeklyLookahead.ts`.
+- **Post week to Slack — date context** — **This week** lines say whether a date is a same-day event, an in-week range, or **starts** / **ends** (with the other bound when it is outside the posted week). Format: `formatDatedItemLine` in the same module. Inclusion is still start-or-end in the UTC Monday–Sunday week.
+
+### Documentation
+
+- **CHANGELOG** — This release section.
+- **User Guide** — Overview Post week to Slack hours and date wording; troubleshooting; release baseline **1.3.4**.
+- **Technical Reference** — Weekly look-ahead line format (`formatPersonLine`, `formatDatedItemLine`).
+- **README** — Production release tag example **v1.3.4**.
+
 ## [1.3.3] - 2026-09-14
 
 Patch release: Plan date saves, smarter date pickers, meeting **Unscheduled / Scheduled / Complete**, and phase complete when every item is complete. **Deploy:** Vercel `build` runs `prisma migrate deploy` (no extra command). Applies `20260914180000_plan_meeting_unscheduled` (`PlanMeetingStatus.assumed` → **`unscheduled`**). Redeploy the app.

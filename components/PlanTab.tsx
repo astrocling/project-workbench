@@ -5,11 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { LocalTime } from "@/components/LocalTime";
-import { DateCell, PlanGridGantt } from "@/components/plan/PlanGridGantt";
+import { DateCell, PlanGridGantt, type PlanLayoutMode } from "@/components/plan/PlanGridGantt";
+import { PlanPrintDocument } from "@/components/plan/PlanPrintDocument";
 import { expandYmdRange } from "@/lib/plan/businessDays";
 import { syncLocalFieldFromServer } from "@/lib/plan/dateInput";
 import type { PlanJson } from "@/lib/plan/serialize";
 import { countPlanCompletion } from "@/lib/plan/completion";
+import { capturePlanToPdf } from "@/lib/planPdfCapture";
+import { sanitizeForFilename } from "@/lib/statusReportPdfCapture";
 
 const INPUT_CLASS =
   "mt-1 block w-full h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-surface border border-surface-300 dark:border-dark-muted text-surface-800 dark:text-surface-100";
@@ -34,11 +37,13 @@ const REPORT_DEFAULT_BTN_IDLE =
 export function PlanTab({
   projectId,
   projectSlug,
+  projectName,
   planReportDefault,
   canEdit,
 }: {
   projectId: string;
   projectSlug: string;
+  projectName: string;
   planReportDefault: "timeline" | "plan";
   canEdit: boolean;
 }) {
@@ -66,6 +71,10 @@ export function PlanTab({
   const [pendingReportDefault, setPendingReportDefault] = useState<"timeline" | "plan" | null>(
     null
   );
+  const [layoutMode, setLayoutMode] = useState<PlanLayoutMode>("work");
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const printRootRef = useRef<HTMLDivElement>(null);
 
   const apiBase = `/api/projects/${projectId}/plan`;
   const displayReportDefault = pendingReportDefault ?? planReportDefault;
@@ -239,6 +248,38 @@ export function PlanTab({
     }
   }
 
+  const presenting = layoutMode === "present";
+
+  async function handleDownloadPdf() {
+    const root = printRootRef.current;
+    if (!root) {
+      setPdfError("Plan print layout was not ready");
+      return;
+    }
+    setPdfError(null);
+    setPdfBusy(true);
+    try {
+      await capturePlanToPdf({
+        chartElement: root,
+        filename: `${sanitizeForFilename(projectName)}-plan.pdf`,
+      });
+    } catch (e) {
+      setPdfError(e instanceof Error ? e.message : "Failed to generate PDF");
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (layoutMode !== "present") return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setLayoutMode("work");
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [layoutMode]);
+
   if (loading && !data) {
     return <p className="text-body-sm text-surface-700 dark:text-surface-200">Loading plan…</p>;
   }
@@ -298,13 +339,23 @@ export function PlanTab({
     endDate || plan.endDate
   );
 
+  const dateRangeLabel = `${kickoffDate || plan.kickoffDate} – ${endDate || plan.endDate}`;
+  const assumptionsForPdf = canEdit
+    ? assumptionsText
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+    : plan.assumptions;
+  const hasAssumptions = assumptionsForPdf.length > 0;
+
   return (
     <div className="space-y-6">
       <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100 border-b border-surface-200 dark:border-dark-border pb-2">
         Project Plan
       </h2>
+      {pdfError && <p className="text-body-sm text-red-600 dark:text-red-400">{pdfError}</p>}
 
-      {data.dateMismatch && (
+      {data.dateMismatch && !presenting && (
         <div className="flex items-start gap-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4 text-body-sm text-surface-800 dark:text-surface-200">
           <AlertTriangle
             className="shrink-0 text-amber-600 dark:text-amber-400 mt-0.5"
@@ -322,7 +373,7 @@ export function PlanTab({
         </div>
       )}
 
-      {(plan.updatedByName || plan.updatedAt) && (
+      {!presenting && (plan.updatedByName || plan.updatedAt) && (
         <p className="text-body-sm text-surface-600 dark:text-surface-400">
           {plan.updatedByName ? (
             <>
@@ -335,71 +386,74 @@ export function PlanTab({
         </p>
       )}
 
-      {(() => {
-        const completion = countPlanCompletion(plan.phases);
-        if (completion.total === 0) return null;
-        return (
-          <p className="text-body-sm text-surface-600 dark:text-surface-400">
-            {completion.completed} of {completion.total} items complete ({completion.percent}%)
-          </p>
-        );
-      })()}
-
-      <section className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border p-4">
-        <div className="flex flex-wrap items-end gap-4">
-          <div>
-            <label className="block text-body-sm font-medium text-surface-700 dark:text-surface-300">
-              Kickoff date
-            </label>
-            {canEdit ? (
-              <DateCell
-                value={kickoffDate}
-                className={`${INPUT_CLASS} w-auto`}
-                onCommit={(next) => {
-                  setKickoffDate(next);
-                  void saveHeaderDates(next, endDateRef.current);
-                }}
-              />
-            ) : (
-              <p className="text-body-sm text-surface-800 dark:text-surface-100 mt-1">
-                {plan.kickoffDate}
-              </p>
-            )}
-          </div>
-          <div>
-            <label className="block text-body-sm font-medium text-surface-700 dark:text-surface-300">
-              End date
-            </label>
-            {canEdit ? (
-              <DateCell
-                value={endDate}
-                className={`${INPUT_CLASS} w-auto`}
-                onCommit={(next) => {
-                  setEndDate(next);
-                  void saveHeaderDates(kickoffDateRef.current, next);
-                }}
-              />
-            ) : (
-              <p className="text-body-sm text-surface-800 dark:text-surface-100 mt-1">
-                {plan.endDate}
-              </p>
-            )}
-          </div>
-          <div>
-            <span className="block text-body-sm font-medium text-surface-700 dark:text-surface-300">
-              Duration
-            </span>
-            <p className="text-body-sm text-surface-800 dark:text-surface-100 mt-1 tabular-nums">
-              {durationDays} day{durationDays === 1 ? "" : "s"}
+      {!presenting &&
+        (() => {
+          const completion = countPlanCompletion(plan.phases);
+          if (completion.total === 0) return null;
+          return (
+            <p className="text-body-sm text-surface-600 dark:text-surface-400">
+              {completion.completed} of {completion.total} items complete ({completion.percent}%)
             </p>
-          </div>
-        </div>
-        {headerError && (
-          <p className="mt-2 text-body-sm text-red-600 dark:text-red-400">{headerError}</p>
-        )}
-      </section>
+          );
+        })()}
 
-      {canEdit && (
+      {!presenting && (
+        <section className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border p-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="block text-body-sm font-medium text-surface-700 dark:text-surface-300">
+                Kickoff date
+              </label>
+              {canEdit ? (
+                <DateCell
+                  value={kickoffDate}
+                  className={`${INPUT_CLASS} w-auto`}
+                  onCommit={(next) => {
+                    setKickoffDate(next);
+                    void saveHeaderDates(next, endDateRef.current);
+                  }}
+                />
+              ) : (
+                <p className="text-body-sm text-surface-800 dark:text-surface-100 mt-1">
+                  {plan.kickoffDate}
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-body-sm font-medium text-surface-700 dark:text-surface-300">
+                End date
+              </label>
+              {canEdit ? (
+                <DateCell
+                  value={endDate}
+                  className={`${INPUT_CLASS} w-auto`}
+                  onCommit={(next) => {
+                    setEndDate(next);
+                    void saveHeaderDates(kickoffDateRef.current, next);
+                  }}
+                />
+              ) : (
+                <p className="text-body-sm text-surface-800 dark:text-surface-100 mt-1">
+                  {plan.endDate}
+                </p>
+              )}
+            </div>
+            <div>
+              <span className="block text-body-sm font-medium text-surface-700 dark:text-surface-300">
+                Duration
+              </span>
+              <p className="text-body-sm text-surface-800 dark:text-surface-100 mt-1 tabular-nums">
+                {durationDays} day{durationDays === 1 ? "" : "s"}
+              </p>
+            </div>
+          </div>
+          {headerError && (
+            <p className="mt-2 text-body-sm text-red-600 dark:text-red-400">{headerError}</p>
+          )}
+        </section>
+      )}
+
+      {canEdit && !presenting && (
         <section className="rounded-lg border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface p-4 space-y-2">
           <p className="text-body-sm font-medium text-surface-800 dark:text-surface-100">
             New status reports use
@@ -449,16 +503,37 @@ export function PlanTab({
         </section>
       )}
 
-      <PlanGridGantt plan={plan} canEdit={canEdit} apiBase={apiBase} onMutated={load} />
+      <div ref={printRootRef} className="fixed left-[-10000px] top-0 z-[-1] pointer-events-none" aria-hidden>
+        <PlanPrintDocument
+          plan={plan}
+          projectName={projectName}
+          assumptions={assumptionsForPdf}
+        />
+      </div>
 
-      <section className="space-y-2">
+      <PlanGridGantt
+          plan={plan}
+          canEdit={canEdit}
+          apiBase={apiBase}
+          onMutated={load}
+          layoutMode={layoutMode}
+          onLayoutModeChange={setLayoutMode}
+          onDownloadPdf={() => void handleDownloadPdf()}
+          pdfBusy={pdfBusy}
+          chartTitle={presenting ? projectName : undefined}
+          dateRangeLabel={presenting ? dateRangeLabel : undefined}
+        />
+
+      <section
+        className="space-y-2 bg-white dark:bg-dark-surface p-4 rounded-lg border border-surface-200 dark:border-dark-border"
+      >
         <h3 className="text-title-md font-semibold text-surface-800 dark:text-surface-100">
           Assumptions & notes
         </h3>
         <p className="text-body-sm text-surface-600 dark:text-surface-400">
           Date judgment calls and caveats worth surfacing - the reasoning behind the plan, not buried in it. One per line.
         </p>
-        {canEdit ? (
+        {canEdit && !presenting ? (
           <>
             <textarea
               value={assumptionsText}
@@ -475,9 +550,9 @@ export function PlanTab({
               Guided setup will fill this in automatically in a future release.
             </p>
           </>
-        ) : plan.assumptions.length > 0 ? (
+        ) : hasAssumptions ? (
           <ul className="list-disc list-inside text-body-sm text-surface-700 dark:text-surface-300 space-y-1">
-            {plan.assumptions.map((a, i) => (
+            {assumptionsForPdf.map((a, i) => (
               <li key={i}>{a}</li>
             ))}
           </ul>
