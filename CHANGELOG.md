@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 How-to for these items is in the [User Guide](docs/USER_GUIDE.md). APIs, schema, and deploy details are in the [Technical Reference](docs/TECHNICAL.md).
 
+### Fixed
+
+- **Float Actuals — partial PTO zeroed remaining hours** — `buildExcludedUtcDatesByFloatPeopleId` treated every time-off calendar day as non-working, so a week of 4h PTO plus a holiday dropped remaining Float task hours (e.g. 0.5h × 4 days = 2) to **0**. Only **full-day** time off (missing hours, `full_day`, or ≥ 8h/day) is excluded; holidays still are. **Deploy:** no new migrations; redeploy and run **Admin → Float sync**. Tests: `__tests__/lib/float/excludedDays.test.ts`, `__tests__/lib/float/taskAggregation.test.ts`.
+
+### Documentation
+
+- **User Guide / Technical Reference** — Scheduled-hour exclusions are full-day time off and regional holidays, not partial PTO days.
+
 ## [1.3.1] - 2026-09-11
 
 Patch release: any project editor can enable the **Plan** tab; blank Plan can add phases and items; **Project timeline** status reports no longer overflow the slide; Trigger.dev SDK lockfile matches **4.5.12**. **Deploy:** no new migrations; redeploy the app. If you run scheduled Trigger.dev jobs, redeploy the worker with `npx trigger.dev@4.5.12 deploy`.

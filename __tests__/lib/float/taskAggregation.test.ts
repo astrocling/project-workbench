@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildExcludedUtcDatesByFloatPeopleId } from "@/lib/float/excludedDays";
 import {
   aggregateTasksToWeeklyHours,
   dedupeFloatTasksForAggregation,
@@ -253,6 +254,51 @@ describe("aggregateTasksToWeeklyHours", () => {
     });
     expect(map.get(weeklyHoursCompositeKey(1, 1, wk))).toBe(2 * 4);
     expect(map.get(weeklyHoursCompositeKey(1, 2, wk))).toBe(2 * 5);
+  });
+
+  /**
+   * Regression: week of 2026-09-28 (ABB CDA-style). Person has 4h PTO Mon–Wed + Fri,
+   * a regional holiday on Thursday, and 0.5h/day still scheduled in Float on the four
+   * PTO weekdays. Full-day exclusion of every PTO date zeroed the week (0 instead of 2).
+   */
+  it("counts remaining task hours on partial-PTO weekdays; still skips the holiday", () => {
+    const tasks: FloatTaskJson[] = [
+      {
+        project_id: 26,
+        people_id: 10,
+        start_date: "2026-09-28",
+        end_date: "2026-10-02",
+        hours: 0.5,
+      },
+    ];
+    const excluded = buildExcludedUtcDatesByFloatPeopleId({
+      floatPeople: [{ people_id: 10, region_id: 5 }],
+      timeOffs: [
+        {
+          people_ids: [10],
+          start_date: "2026-09-28",
+          end_date: "2026-09-30",
+          hours: 4,
+        },
+        {
+          people_ids: [10],
+          start_date: "2026-10-02",
+          end_date: "2026-10-02",
+          hours: 4,
+        },
+      ],
+      publicHolidays: [
+        { region_id: 5, start_date: "2026-10-01", end_date: "2026-10-01", name: "HOL" },
+      ],
+      teamHolidays: [],
+    });
+    const wk = formatWeekKey(getWeekStartDate(new Date(Date.UTC(2026, 8, 28))));
+    expect(wk).toBe("2026-09-28");
+    const map = aggregateTasksToWeeklyHours(tasks, {
+      weekdaysOnly: true,
+      excludedUtcDatesByFloatPeopleId: excluded,
+    });
+    expect(map.get(weeklyHoursCompositeKey(26, 10, wk))).toBe(2);
   });
 
   it("excludedUtcDatesByFloatPeopleId: absent map matches old behavior", () => {

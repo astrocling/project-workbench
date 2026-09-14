@@ -243,7 +243,50 @@ export type FloatTimeOffJson = {
   people_ids?: Array<number | string> | null;
   start_date?: string | null;
   end_date?: string | null;
+  /** Hours per day. OpenAPI: optional when `full_day` is set. */
+  hours?: number | string | null;
+  hours_per_day?: number | string | null;
+  hoursPerDay?: number | string | null;
+  daily_hours?: number | string | null;
+  full_day?: boolean | number | string | null;
+  fullDay?: boolean | number | string | null;
 };
+
+/** Standard Float full workday; time off at or above this is treated as a non-working day. */
+const FULL_DAY_TIMEOFF_HOURS = 8;
+
+function timeOffHoursPerDay(row: Record<string, unknown>): number | null {
+  return (
+    num(row.hours as number | string | undefined) ??
+    num(row.hours_per_day as number | string | undefined) ??
+    num(row.hoursPerDay as number | string | undefined) ??
+    num(row.daily_hours as number | string | undefined)
+  );
+}
+
+function coerceTruthyFlag(v: unknown): boolean | null {
+  if (v === true || v === 1 || v === "1") return true;
+  if (v === false || v === 0 || v === "0") return false;
+  if (typeof v === "string") {
+    const t = v.trim().toLowerCase();
+    if (t === "true") return true;
+    if (t === "false") return false;
+  }
+  return null;
+}
+
+/**
+ * Full-day time off zeros that calendar day in scheduled-hour rollups.
+ * Partial time off (e.g. 4h) does not: Float still allocates remaining project hours.
+ */
+function isFullDayTimeOff(row: Record<string, unknown>): boolean {
+  const explicit = coerceTruthyFlag(row.full_day ?? row.fullDay);
+  const hours = timeOffHoursPerDay(row);
+  if (explicit === true) return true;
+  if (explicit === false) return hours != null && hours >= FULL_DAY_TIMEOFF_HOURS;
+  if (hours == null) return true;
+  return hours >= FULL_DAY_TIMEOFF_HOURS;
+}
 
 /**
  * Float `/v3/timeoffs` uses `people_ids` (array); single `people_id` kept for older/alternate payloads.
@@ -285,7 +328,8 @@ function ensureSet(
 
 /**
  * Per Float `people_id`, UTC `YYYY-MM-DD` dates to treat as non-working when rolling up task hours.
- * - Time off: always per person.
+ * - Time off: **full-day** only (missing hours, `full_day`, or ≥ 8h/day). Partial PTO does not
+ *   wipe remaining Float task hours on that day.
  * - Public/team holidays: only for people whose `region_id` matches the holiday's region.
  * - People with no Float region do not receive regional holidays (time off still applies).
  */
@@ -303,6 +347,7 @@ export function buildExcludedUtcDatesByFloatPeopleId(
 
   for (const t of params.timeOffs) {
     const row = t as Record<string, unknown>;
+    if (!isFullDayTimeOff(row)) continue;
     const pids = floatPeopleIdsFromTimeoffRow(row);
     if (pids.length === 0) continue;
     const range = holidayRangeYmdFromRow(row);

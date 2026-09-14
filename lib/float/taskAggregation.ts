@@ -10,8 +10,9 @@
  * - We intersect task days with an optional **aggregation window** and sum into Monday-based weeks.
  * - Optional **weekdays only** (UTC Mon–Fri): when enabled, Saturday/Sunday calendar days do not
  *   contribute to weekly totals — aligns planned grid (business days) with Float rollups.
- * - Optional **per-person excluded UTC days** (e.g. Float time off + regional holidays): those
- *   calendar days do not contribute for that Float `people_id`, after weekday/window checks.
+ * - Optional **per-person excluded UTC days** (e.g. full-day Float time off + regional holidays): those
+ *   calendar days do not contribute for that Float `people_id`, after weekday/window checks. Partial
+ *   PTO days are not excluded, so remaining scheduled task hours still count.
  * - Distinct Float tasks for the same project and person are **summed**, including multiple
  *   workstreams on the same UTC day and split blocks in the same week (e.g. 1h Monday + 1h Friday).
  *   Duplicate API rows for the same `task_id` (pagination overlap) are collapsed first so they are
@@ -73,7 +74,7 @@ export type AggregateTasksToWeeklyHoursOptions = {
    */
   weekdaysOnly?: boolean;
   /**
-   * Per Float `people_id`, UTC `YYYY-MM-DD` days to skip (time off + regional holidays).
+   * Per Float `people_id`, UTC `YYYY-MM-DD` days to skip (full-day time off + regional holidays).
    * Checked after {@link weekdaysOnly} and window clipping.
    */
   excludedUtcDatesByFloatPeopleId?: Map<number, Set<string>>;

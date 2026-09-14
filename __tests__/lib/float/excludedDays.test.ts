@@ -36,6 +36,51 @@ describe("buildExcludedUtcDatesByFloatPeopleId", () => {
     expect(map.get(10)?.has("2024-06-03")).toBe(true);
   });
 
+  it("does not exclude partial-day time off (hours < 8) so remaining Float task hours still count", () => {
+    const map = buildExcludedUtcDatesByFloatPeopleId({
+      floatPeople: [{ people_id: 10, region_id: 1 }],
+      timeOffs: [
+        {
+          people_ids: [10],
+          start_date: "2026-09-28",
+          end_date: "2026-09-30",
+          hours: 4,
+        },
+        {
+          people_ids: [10],
+          start_date: "2026-10-02",
+          end_date: "2026-10-02",
+          hours: 4,
+        },
+      ],
+      publicHolidays: [],
+      teamHolidays: [],
+    });
+    expect(map.get(10)?.has("2026-09-28") ?? false).toBe(false);
+    expect(map.get(10)?.has("2026-09-29") ?? false).toBe(false);
+    expect(map.get(10)?.has("2026-09-30") ?? false).toBe(false);
+    expect(map.get(10)?.has("2026-10-02") ?? false).toBe(false);
+  });
+
+  it("still excludes full-day time off (8h or full_day)", () => {
+    const map = buildExcludedUtcDatesByFloatPeopleId({
+      floatPeople: [{ people_id: 10, region_id: 1 }],
+      timeOffs: [
+        { people_id: 10, start_date: "2026-09-28", end_date: "2026-09-28", hours: 8 },
+        {
+          people_id: 10,
+          start_date: "2026-09-29",
+          end_date: "2026-09-29",
+          full_day: true,
+        },
+      ],
+      publicHolidays: [],
+      teamHolidays: [],
+    });
+    expect(map.get(10)?.has("2026-09-28")).toBe(true);
+    expect(map.get(10)?.has("2026-09-29")).toBe(true);
+  });
+
   it("adds time off for a single day when only start_date is present", () => {
     const map = buildExcludedUtcDatesByFloatPeopleId({
       floatPeople: [{ people_id: 10, region_id: 1 }],
