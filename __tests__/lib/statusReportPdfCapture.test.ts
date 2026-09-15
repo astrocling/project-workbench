@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeNotesPageSize,
   resolveSlideCaptureBox,
+  shouldCaptureSlidePage2,
   SLIDE_PDF_HEIGHT_PT,
   SLIDE_PDF_PAGE_WIDTH_PT,
 } from "@/lib/statusReportPdfCapture";
@@ -54,5 +55,42 @@ describe("slide PDF page constants", () => {
   it("keep the 16:9 present size at 720×405", () => {
     expect(SLIDE_PDF_PAGE_WIDTH_PT).toBe(720);
     expect(SLIDE_PDF_HEIGHT_PT).toBe(405);
+  });
+});
+
+describe("shouldCaptureSlidePage2", () => {
+  it("skips when the page 2 element is null", () => {
+    expect(shouldCaptureSlidePage2(null)).toBe(false);
+    expect(shouldCaptureSlidePage2(undefined)).toBe(false);
+  });
+
+  it("skips when the element has no layout (hidden / zero size)", () => {
+    expect(
+      shouldCaptureSlidePage2({
+        offsetParent: null,
+        offsetWidth: 0,
+        offsetHeight: 0,
+      })
+    ).toBe(false);
+  });
+
+  it("captures when the element is in the layout tree", () => {
+    expect(
+      shouldCaptureSlidePage2({
+        offsetParent: {} as Element,
+        offsetWidth: 1440,
+        offsetHeight: 810,
+      })
+    ).toBe(true);
+  });
+
+  it("captures when offsetParent is null but size is non-zero (e.g. fixed)", () => {
+    expect(
+      shouldCaptureSlidePage2({
+        offsetParent: null,
+        offsetWidth: 1440,
+        offsetHeight: 810,
+      })
+    ).toBe(true);
   });
 });

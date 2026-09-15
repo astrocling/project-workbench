@@ -6,6 +6,7 @@ import {
   normalizeModularPanels,
   rowShapeWeights,
   rowSlotCount,
+  shouldRenderModularPage2,
   type ModularPanelsDocument,
   type ReportPanel,
   type RowShape,
@@ -176,5 +177,69 @@ describe("normalizeModularPanels", () => {
     expect(normalizeModularPanels(42)).toEqual(MODULAR_DEFAULT_DOCUMENT);
     expect(normalizeModularPanels({ foo: 1 })).toEqual(MODULAR_DEFAULT_DOCUMENT);
     expect(normalizeModularPanels([{ not: "a panel" }])).toEqual(MODULAR_DEFAULT_DOCUMENT);
+  });
+});
+
+describe("shouldRenderModularPage2", () => {
+  const page1 = MODULAR_DEFAULT_DOCUMENT.layout.pages[0];
+
+  function docWithPage2(
+    rows: ModularPanelsDocument["layout"]["pages"][number]["rows"]
+  ): ModularPanelsDocument {
+    return {
+      ...MODULAR_DEFAULT_DOCUMENT,
+      modules: {
+        ...MODULAR_DEFAULT_DOCUMENT.modules,
+        extra: {
+          id: "extra",
+          type: "narrativeCompleted",
+          data: {},
+        },
+      },
+      layout: {
+        pages: [
+          page1,
+          { header: "compact", rows },
+        ],
+      },
+    };
+  }
+
+  it("is false when there is only one page", () => {
+    expect(shouldRenderModularPage2(MODULAR_DEFAULT_DOCUMENT)).toBe(false);
+  });
+
+  it("is false when page 2 has no rows", () => {
+    expect(shouldRenderModularPage2(docWithPage2([]))).toBe(false);
+  });
+
+  it("is false when every page-2 moduleId is null", () => {
+    expect(
+      shouldRenderModularPage2(
+        docWithPage2([
+          {
+            id: "p2r1",
+            shape: "halves",
+            height: "short",
+            moduleIds: [null, null],
+          },
+        ])
+      )
+    ).toBe(false);
+  });
+
+  it("is true when page 2 has at least one non-null moduleId", () => {
+    expect(
+      shouldRenderModularPage2(
+        docWithPage2([
+          {
+            id: "p2r1",
+            shape: "full",
+            height: "tall",
+            moduleIds: ["extra"],
+          },
+        ])
+      )
+    ).toBe(true);
   });
 });

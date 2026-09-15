@@ -415,6 +415,13 @@ export function normalizeModularPanels(input: unknown): ModularPanelsDocument {
   return MODULAR_DEFAULT_DOCUMENT;
 }
 
+/** True when layout.pages[1] exists and has at least one non-null moduleId. Caps at two module pages. */
+export function shouldRenderModularPage2(doc: ModularPanelsDocument): boolean {
+  const page = doc.layout.pages[1];
+  if (!page) return false;
+  return page.rows.some((row) => row.moduleIds.some((id) => id != null));
+}
+
 const LEGACY_FORM_TYPES = new Set([
   "sprintSchedule",
   "storyPointMetrics",

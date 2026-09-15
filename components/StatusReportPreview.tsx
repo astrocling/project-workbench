@@ -30,6 +30,7 @@ export function StatusReportPreview({
   const [pdfDownloading, setPdfDownloading] = useState(false);
   const mounted = useRef(true);
   const slideRef = useRef<HTMLDivElement>(null);
+  const slidePage2Ref = useRef<HTMLDivElement>(null);
   const meetingNotesRef = useRef<HTMLDivElement>(null);
   const planDetailRef = useRef<HTMLDivElement>(null);
 
@@ -108,6 +109,7 @@ export function StatusReportPreview({
                     const filename = `Status Report - ${safeProjectName} - ${data.report.reportDate}.pdf`;
                     await captureStatusReportToPdf({
                       slideElement: slideRef.current,
+                      slidePage2Element: slidePage2Ref.current ?? undefined,
                       meetingNotesElement: meetingNotesRef.current ?? undefined,
                       planDetailElement: planDetailRef.current ?? undefined,
                       filename,
@@ -153,6 +155,7 @@ export function StatusReportPreview({
               <StatusReportView
                 data={data}
                 slideRef={slideRef}
+                slidePage2Ref={slidePage2Ref}
                 meetingNotesRef={meetingNotesRef}
                 planDetailRef={planDetailRef}
               />

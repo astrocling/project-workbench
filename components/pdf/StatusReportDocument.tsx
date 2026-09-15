@@ -21,7 +21,9 @@ import {
   MODULAR_SLIDE_WIDTH_PX,
   normalizeModularPanels,
   rowShapeWeights,
+  shouldRenderModularPage2,
   type DonutKpiData,
+  type ModularLayoutPage,
   type ModularPanelsDocument,
   type ReportModule,
   type ReportPanel,
@@ -930,6 +932,53 @@ const styles = StyleSheet.create({
     marginBottom: 3,
     lineHeight: 1.25,
   },
+  compactHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    height: 52,
+    marginBottom: 12,
+    flexShrink: 0,
+  },
+  compactHeaderTitle: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: BIO_TITLE_COLOR,
+    textTransform: "uppercase",
+  },
+  compactHeaderMeta: {
+    flexDirection: "row",
+    marginTop: 2,
+    gap: 16,
+  },
+  compactHeaderMetaText: {
+    fontSize: 9,
+    color: BIO_VALUE_COLOR,
+  },
+  compactHeaderMetaLabel: {
+    fontSize: 9,
+    fontWeight: 700,
+    color: BIO_LABEL_COLOR,
+  },
+  compactRagRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  compactRagPill: {
+    alignItems: "center",
+    gap: 2,
+  },
+  compactRagLabel: {
+    fontSize: 7,
+    fontWeight: 700,
+    color: BIO_LABEL_COLOR,
+  },
+  compactRagDot: {
+    width: 18,
+    height: 8,
+    borderRadius: 4,
+  },
 });
 
 export type RagStatus = "Red" | "Amber" | "Green";
@@ -1775,14 +1824,58 @@ function ModularPdfModuleBody({
   }
 }
 
+function CompactModularPdfHeader({ data }: { data: StatusReportPDFData }) {
+  const pills: Array<{ label: string; status: RagStatus | null | undefined }> = [
+    { label: "Overall", status: data.report.ragOverall },
+    { label: "Scope", status: data.report.ragScope },
+    { label: "Schedule", status: data.report.ragSchedule },
+    { label: "Budget", status: data.report.ragBudget },
+  ];
+  return (
+    <View style={styles.compactHeader}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.compactHeaderTitle}>{data.project.name.toUpperCase()}</Text>
+        <View style={styles.compactHeaderMeta}>
+          <Text style={styles.compactHeaderMetaText}>
+            <Text style={styles.compactHeaderMetaLabel}>Period: </Text>
+            {data.period}
+          </Text>
+          <Text style={styles.compactHeaderMetaText}>
+            <Text style={styles.compactHeaderMetaLabel}>Report date: </Text>
+            {data.today}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.compactRagRow}>
+        {pills.map((pill) => (
+          <View key={pill.label} style={styles.compactRagPill}>
+            <Text style={styles.compactRagLabel}>{pill.label}</Text>
+            <View
+              style={[
+                styles.compactRagDot,
+                {
+                  backgroundColor: pill.status
+                    ? RAG_COLORS[pill.status]
+                    : "#e5e7eb",
+                },
+              ]}
+            />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function ModularPdfGrid({
   doc,
   data,
+  page,
 }: {
   doc: ModularPanelsDocument;
   data: StatusReportPDFData;
+  page: ModularLayoutPage | undefined;
 }) {
-  const page = doc.layout.pages[0];
   if (!page) return null;
   return (
     <View style={styles.modularGrid}>
@@ -1888,11 +1981,26 @@ function ModularStatusReportDocument({ data }: { data: StatusReportPDFData }) {
                 <RagStatusBlock data={data} />
               </View>
             </View>
-            <ModularPdfGrid doc={doc} data={data} />
+            <ModularPdfGrid doc={doc} data={data} page={doc.layout.pages[0]} />
           </View>
           <StatusReportFooter />
         </View>
       </Page>
+      {shouldRenderModularPage2(doc) && (
+        <Page
+          size={[MODULAR_SLIDE_WIDTH_PX, MODULAR_SLIDE_HEIGHT_PX]}
+          style={styles.modularPage}
+          wrap={false}
+        >
+          <View style={styles.modularPageInner}>
+            <View style={styles.modularContent}>
+              <CompactModularPdfHeader data={data} />
+              <ModularPdfGrid doc={doc} data={data} page={doc.layout.pages[1]} />
+            </View>
+            <StatusReportFooter />
+          </View>
+        </Page>
+      )}
       {report.meetingNotes && report.meetingNotes.trim() && (
         <Page size={[PAGE_WIDTH, PAGE_HEIGHT]} style={styles.notesPage}>
           <Text style={styles.notesTitle}>Meeting notes</Text>

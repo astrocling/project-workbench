@@ -20,7 +20,9 @@ import {
   PANEL_META,
   normalizeModularPanels,
   rowShapeWeights,
+  shouldRenderModularPage2,
   type DonutKpiData,
+  type ModularLayoutPage,
   type ModularPanelsDocument,
   type ReportModule,
   type SprintScheduleData,
@@ -777,14 +779,126 @@ function modularModuleTitle(module: ReportModule): string {
   }
 }
 
-function ModularPage1Grid({
+function CompactModularHeader({ data }: { data: StatusReportPDFData }) {
+  const pills: Array<{ label: string; status: RagStatus | null | undefined }> = [
+    { label: "Overall", status: data.report.ragOverall },
+    { label: "Scope", status: data.report.ragScope },
+    { label: "Schedule", status: data.report.ragSchedule },
+    { label: "Budget", status: data.report.ragBudget },
+  ];
+  return (
+    <div
+      className="flex flex-row items-center justify-between gap-4 mb-3 shrink-0"
+      style={{ height: 52 }}
+    >
+      <div className="min-w-0 flex-1">
+        <h2
+          className="text-[12px] font-bold uppercase leading-tight"
+          style={{ color: BIO_TITLE_COLOR }}
+        >
+          {data.project.name.toUpperCase()}
+        </h2>
+        <div className="flex flex-row flex-wrap gap-x-4 gap-y-0.5 mt-0.5">
+          <span className="text-[9px] italic" style={{ color: BIO_VALUE_COLOR }}>
+            <span className="font-bold not-italic" style={{ color: BIO_LABEL_COLOR }}>
+              Period:{" "}
+            </span>
+            {data.period}
+          </span>
+          <span className="text-[9px]" style={{ color: BIO_VALUE_COLOR }}>
+            <span className="font-bold" style={{ color: BIO_LABEL_COLOR }}>
+              Report date:{" "}
+            </span>
+            {data.today}
+          </span>
+        </div>
+      </div>
+      <div className="flex flex-row items-center gap-3 shrink-0">
+        {pills.map((pill) => (
+          <div key={pill.label} className="flex flex-col items-center gap-0.5">
+            <span className="text-[7px] font-bold" style={{ color: BIO_LABEL_COLOR }}>
+              {pill.label}
+            </span>
+            {pill.status ? (
+              <span
+                className="inline-block w-[18px] h-2 rounded-full"
+                style={{ backgroundColor: RAG_COLORS[pill.status] }}
+              />
+            ) : (
+              <span className="inline-block w-[18px] h-2 rounded-full bg-gray-200" />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StatusReportSlideFooter() {
+  return (
+    <div
+      className="absolute left-6 right-6 bottom-1.5 h-[14px] border-t flex flex-row items-center pt-0.5"
+      style={{ borderColor: FOOTER_LINE_COLOR }}
+    >
+      <div className="flex-1">
+        <span className="text-[10px] font-bold" style={{ color: FOOTER_BRAND_COLOR }}>JAKALA</span>
+      </div>
+      <div className="flex-1 text-center text-[9px]" style={{ color: FOOTER_MUTED_COLOR }}>Company Confidential</div>
+      <div className="flex-1 flex flex-row items-center justify-end gap-2">
+        <div className="w-px h-3 bg-gray-300" />
+        <span className="text-[9px]" style={{ color: FOOTER_MUTED_COLOR }}>{new Date().getFullYear()}</span>
+      </div>
+    </div>
+  );
+}
+
+function StatusReportSlideShell({
+  slideRef,
+  slideWidth,
+  slideHeight,
+  isModular,
+  slideScale,
+  children,
+}: {
+  slideRef?: React.RefObject<HTMLDivElement | null>;
+  slideWidth: number;
+  slideHeight: number;
+  isModular: boolean;
+  slideScale: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      ref={slideRef}
+      className="status-report-slide relative border border-gray-200 origin-top"
+      data-slide-width={slideWidth}
+      data-slide-height={slideHeight}
+      style={{
+        width: slideWidth,
+        height: slideHeight,
+        aspectRatio: "16/9",
+        minHeight: isModular ? MODULAR_SLIDE_HEIGHT_PX : 360,
+        transform: `scale(${slideScale})`,
+        transformOrigin: "top left",
+      }}
+    >
+      <div className="h-full flex flex-col pt-6 px-6 pb-8 text-[9px]">
+        {children}
+      </div>
+      <StatusReportSlideFooter />
+    </div>
+  );
+}
+
+function ModularPageGrid({
   doc,
   data,
+  page,
 }: {
   doc: ModularPanelsDocument;
   data: StatusReportPDFData;
+  page: ModularLayoutPage | undefined;
 }) {
-  const page = doc.layout.pages[0];
   if (!page) return null;
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-3">
@@ -827,6 +941,7 @@ function ModularPage1Grid({
 
 export type StatusReportViewRefs = {
   slideRef?: React.RefObject<HTMLDivElement | null>;
+  slidePage2Ref?: React.RefObject<HTMLDivElement | null>;
   meetingNotesRef?: React.RefObject<HTMLDivElement | null>;
   planDetailRef?: React.RefObject<HTMLDivElement | null>;
 };
@@ -834,6 +949,7 @@ export type StatusReportViewRefs = {
 export function StatusReportView({
   data,
   slideRef,
+  slidePage2Ref,
   meetingNotesRef,
   planDetailRef,
 }: {
@@ -844,6 +960,8 @@ export function StatusReportView({
   const bioTitle = project.name.toUpperCase();
   const isModular = report.variation === "Modular";
   const modularDoc = isModular ? normalizeModularPanels(data.panels) : null;
+  const showModularPage2 =
+    isModular && modularDoc != null && shouldRenderModularPage2(modularDoc);
 
   const slideWidth = isModular ? MODULAR_SLIDE_WIDTH_PX : 720;
   const slideHeight = isModular ? MODULAR_SLIDE_HEIGHT_PX : slideWidth * (9 / 16); // 16:9 aspect
@@ -889,23 +1007,13 @@ export function StatusReportView({
       >
         {/* Important: don't apply maxWidth here; transforms don't affect layout sizing and can cause visual overflow. */}
         <div className="w-fit" style={{ width: slideWidth * slideScale, minHeight: scaledHeight, marginInline: "auto" }}>
-          <div
-            ref={slideRef}
-            className="status-report-slide relative border border-gray-200 origin-top"
-            data-slide-width={slideWidth}
-            data-slide-height={slideHeight}
-            style={{
-              width: slideWidth,
-              height: slideHeight,
-              aspectRatio: "16/9",
-              minHeight: isModular ? MODULAR_SLIDE_HEIGHT_PX : 360,
-              transform: `scale(${slideScale})`,
-              // Important: scaling from center causes the left edge to go negative and get clipped.
-              // Scale from top-left so it expands rightward and stays fully visible in the scroll container.
-              transformOrigin: "top left",
-            }}
+          <StatusReportSlideShell
+            slideRef={slideRef}
+            slideWidth={slideWidth}
+            slideHeight={slideHeight}
+            isModular={isModular}
+            slideScale={slideScale}
           >
-        <div className="h-full flex flex-col pt-6 px-6 pb-8 text-[9px]">
           <div className="flex flex-row items-start gap-3 mb-1.5">
             {/* Left: biographical block — extra flex so labels/values have room and wrap less */}
             <div className="min-w-0 flex-[1.35]">
@@ -967,7 +1075,7 @@ export function StatusReportView({
           </div>
 
           {isModular && modularDoc ? (
-            <ModularPage1Grid doc={modularDoc} data={data} />
+            <ModularPageGrid doc={modularDoc} data={data} page={modularDoc.layout.pages[0]} />
           ) : (
             <>
           {/* Three columns: completed / upcoming / risks — tight spacing to fit 7 items */}
@@ -1146,24 +1254,29 @@ export function StatusReportView({
             )}
           </div>
           )}
+          </StatusReportSlideShell>
         </div>
-
-        {/* Footer */}
-        <div
-          className="absolute left-6 right-6 bottom-1.5 h-[14px] border-t flex flex-row items-center pt-0.5"
-          style={{ borderColor: FOOTER_LINE_COLOR }}
-        >
-          <div className="flex-1">
-            <span className="text-[10px] font-bold" style={{ color: FOOTER_BRAND_COLOR }}>JAKALA</span>
+        {showModularPage2 && modularDoc && (
+          <div
+            className="w-fit mt-8"
+            style={{ width: slideWidth * slideScale, minHeight: scaledHeight, marginInline: "auto" }}
+          >
+            <StatusReportSlideShell
+              slideRef={slidePage2Ref}
+              slideWidth={slideWidth}
+              slideHeight={slideHeight}
+              isModular
+              slideScale={slideScale}
+            >
+              <CompactModularHeader data={data} />
+              <ModularPageGrid
+                doc={modularDoc}
+                data={data}
+                page={modularDoc.layout.pages[1]}
+              />
+            </StatusReportSlideShell>
           </div>
-          <div className="flex-1 text-center text-[9px]" style={{ color: FOOTER_MUTED_COLOR }}>Company Confidential</div>
-          <div className="flex-1 flex flex-row items-center justify-end gap-2">
-            <div className="w-px h-3 bg-gray-300" />
-            <span className="text-[9px]" style={{ color: FOOTER_MUTED_COLOR }}>{new Date().getFullYear()}</span>
-          </div>
-        </div>
-      </div>
-        </div>
+        )}
       </div>
 
       {/* Meeting notes — no overflow/max-height so full content is visible and PDF capture gets everything */}

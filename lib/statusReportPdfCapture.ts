@@ -49,8 +49,24 @@ const CAPTURE_OPTS = {
   allowTaint: false,
 };
 
+export type SlideLayoutProbe = {
+  offsetParent: Element | null;
+  offsetWidth: number;
+  offsetHeight: number;
+};
+
+/** Skip page 2 capture when the element is missing or has no layout. */
+export function shouldCaptureSlidePage2(
+  el: SlideLayoutProbe | null | undefined
+): boolean {
+  if (!el) return false;
+  if (el.offsetParent !== null) return true;
+  return el.offsetWidth > 0 && el.offsetHeight > 0;
+}
+
 export type CaptureStatusReportToPdfOptions = {
   slideElement: HTMLElement;
+  slidePage2Element?: HTMLElement | null;
   meetingNotesElement?: HTMLElement | null;
   planDetailElement?: HTMLElement | null;
   filename: string;
@@ -62,10 +78,53 @@ export type CaptureStatusReportToPdfOptions = {
  * Captures the status report slide (and optional meeting notes) to a PDF
  * and triggers download. Uses the same DOM as the preview for pixel-perfect match.
  */
+type PinnedSlideStyles = {
+  width: string;
+  height: string;
+  minHeight: string;
+  transform: string;
+  transformOrigin: string;
+  overflow: string;
+};
+
+function pinSlideForCapture(el: HTMLElement): PinnedSlideStyles {
+  const orig: PinnedSlideStyles = {
+    width: el.style.width,
+    height: el.style.height,
+    minHeight: el.style.minHeight,
+    transform: el.style.transform,
+    transformOrigin: el.style.transformOrigin,
+    overflow: el.style.overflow,
+  };
+  const captureBox = resolveSlideCaptureBox(el);
+  el.style.width = `${captureBox.width}px`;
+  el.style.height = `${captureBox.height}px`;
+  el.style.minHeight = `${captureBox.height}px`;
+  el.style.transform = "none";
+  el.style.transformOrigin = "top left";
+  el.style.overflow = "hidden";
+  return orig;
+}
+
+function restorePinnedSlide(el: HTMLElement, orig: PinnedSlideStyles) {
+  el.style.width = orig.width;
+  el.style.height = orig.height;
+  el.style.minHeight = orig.minHeight;
+  el.style.transform = orig.transform;
+  el.style.transformOrigin = orig.transformOrigin;
+  el.style.overflow = orig.overflow;
+}
+
 export async function captureStatusReportToPdf(
   options: CaptureStatusReportToPdfOptions
 ): Promise<void> {
-  const { slideElement, meetingNotesElement, planDetailElement, filename } = options;
+  const {
+    slideElement,
+    slidePage2Element,
+    meetingNotesElement,
+    planDetailElement,
+    filename,
+  } = options;
   const exportScale =
     typeof options.exportScale === "number" && Number.isFinite(options.exportScale) && options.exportScale > 0
       ? options.exportScale
@@ -75,27 +134,19 @@ export async function captureStatusReportToPdf(
   // (like the footer) are included. We temporarily disable transforms to
   // avoid html2canvas transform bugs.
   const slideTarget: HTMLElement = slideElement;
-
-  // Ensure explicit dimensions for capture (inner div may not have them in some layouts)
-  const origWidth = slideTarget.style.width;
-  const origHeight = slideTarget.style.height;
-  const origMinHeight = slideTarget.style.minHeight;
-  const origTransform = slideTarget.style.transform;
-  const origTransformOrigin = slideTarget.style.transformOrigin;
-  const origOverflow = slideTarget.style.overflow;
-  const captureBox = resolveSlideCaptureBox(slideTarget);
-  // Keep the DOM at its native layout size for capture so fonts/spacing match preview.
-  // We scale the exported PDF page and image placement instead.
-  slideTarget.style.width = `${captureBox.width}px`;
-  slideTarget.style.height = `${captureBox.height}px`;
-  slideTarget.style.minHeight = `${captureBox.height}px`;
-  slideTarget.style.transform = "none";
-  slideTarget.style.transformOrigin = "top left";
-  slideTarget.style.overflow = "hidden";
+  const origSlide = pinSlideForCapture(slideTarget);
 
   // Optionally hide dashed border during capture for a cleaner PDF
   const slideHadCaptureAttr = slideElement.hasAttribute("data-capturing");
   slideElement.setAttribute("data-capturing", "true");
+
+  const page2Target =
+    slidePage2Element && shouldCaptureSlidePage2(slidePage2Element)
+      ? slidePage2Element
+      : null;
+  const origPage2 = page2Target ? pinSlideForCapture(page2Target) : null;
+  const page2HadCaptureAttr = page2Target?.hasAttribute("data-capturing") ?? false;
+  page2Target?.setAttribute("data-capturing", "true");
 
   const notesTarget = meetingNotesElement ?? null;
   const origNotesWidth = notesTarget?.style.width ?? "";
@@ -136,6 +187,14 @@ export async function captureStatusReportToPdf(
 
     const slideImgData = slideCanvas.toDataURL("image/png");
     pdf.addImage(slideImgData, "PNG", 0, 0, pageW, pageH);
+
+    if (page2Target) {
+      page2Target.scrollIntoView({ behavior: "instant", block: "start" });
+      await new Promise((r) => requestAnimationFrame(r));
+      const page2Canvas = await html2canvas(page2Target, CAPTURE_OPTS);
+      pdf.addPage([pageW, pageH]);
+      pdf.addImage(page2Canvas.toDataURL("image/png"), "PNG", 0, 0, pageW, pageH);
+    }
 
     if (notesTarget && notesTarget.offsetParent !== null) {
       notesTarget.style.width = `${NOTES_PAGE_WIDTH_PT}px`;
@@ -183,12 +242,13 @@ export async function captureStatusReportToPdf(
 
     pdf.save(filename);
   } finally {
-    slideTarget.style.width = origWidth;
-    slideTarget.style.height = origHeight;
-    slideTarget.style.minHeight = origMinHeight;
-    slideTarget.style.transform = origTransform;
-    slideTarget.style.transformOrigin = origTransformOrigin;
-    slideTarget.style.overflow = origOverflow;
+    restorePinnedSlide(slideTarget, origSlide);
+    if (page2Target && origPage2) {
+      restorePinnedSlide(page2Target, origPage2);
+      if (!page2HadCaptureAttr) {
+        page2Target.removeAttribute("data-capturing");
+      }
+    }
     if (notesTarget) {
       notesTarget.style.width = origNotesWidth;
       notesTarget.style.maxWidth = origNotesMaxWidth;

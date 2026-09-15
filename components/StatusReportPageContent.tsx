@@ -24,6 +24,7 @@ export function StatusReportPageContent({
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState(false);
   const slideRef = useRef<HTMLDivElement>(null);
+  const slidePage2Ref = useRef<HTMLDivElement>(null);
   const meetingNotesRef = useRef<HTMLDivElement>(null);
   const planDetailRef = useRef<HTMLDivElement>(null);
 
@@ -47,6 +48,7 @@ export function StatusReportPageContent({
       const filename = `Status Report - ${safeProjectName} - ${pdfData.report.reportDate}.pdf`;
       await captureStatusReportToPdf({
         slideElement: slideRef.current,
+        slidePage2Element: slidePage2Ref.current ?? undefined,
         meetingNotesElement: meetingNotesRef.current ?? undefined,
         planDetailElement: planDetailRef.current ?? undefined,
         filename,
@@ -106,6 +108,7 @@ export function StatusReportPageContent({
           <StatusReportView
             data={pdfData}
             slideRef={slideRef}
+            slidePage2Ref={slidePage2Ref}
             meetingNotesRef={meetingNotesRef}
             planDetailRef={planDetailRef}
           />
@@ -129,6 +132,7 @@ export function StatusReportPageContent({
         <StatusReportView
           data={pdfData}
           slideRef={slideRef}
+          slidePage2Ref={slidePage2Ref}
           meetingNotesRef={meetingNotesRef}
           planDetailRef={planDetailRef}
         />
