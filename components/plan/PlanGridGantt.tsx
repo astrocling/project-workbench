@@ -13,6 +13,8 @@ import {
   Flag,
   GripVertical,
   ListTodo,
+  PanelLeftClose,
+  PanelLeftOpen,
   PenLine,
   Plus,
   Trash2,
@@ -76,22 +78,28 @@ import {
   ganttBarLabelTextColor,
   ganttMarkFillColor,
 } from "@/lib/plan/ganttBarLabel";
+import {
+  PLAN_ACTIONS_COL as ACTIONS_COL,
+  PLAN_COMPACT_DATE_COL as COMPACT_DATE_COL,
+  PLAN_EXPAND_COL as EXPAND_COL,
+  PLAN_FULL_GRID_INNER_WIDTH as FULL_GRID_INNER_WIDTH,
+  effectivePlanGridMode,
+  leftPaneIsRail,
+  leftPaneWidth,
+  showGanttLabels,
+  showLeftPaneCollapseControl,
+  type PlanGridMode,
+} from "@/lib/plan/planGridLayout";
 
 const ROW_HEIGHT = 36;
 const PRESENT_ROW_HEIGHT = 44;
 const GANTT_AXIS_PAD_PX = 16;
-const VIEW_GRID_WIDTH = 400;
-const PRESENT_GRID_WIDTH = 288;
-const ACTIONS_COL = 52;
-const FULL_GRID_INNER_WIDTH = 906 + ACTIONS_COL;
-const EXPAND_COL = 28;
 const NAME_COL = 220;
 const TYPE_COL = 160;
 const DATE_COL = 140;
 const DURATION_COL = 56;
 const REPORT_CHECK_COL = 32;
 const STATUS_COL = 130;
-const COMPACT_DATE_COL = 88;
 const COMPACT_STATUS_COL = 72;
 const DROP_EDGE_PX = 10;
 const PLAN_ITEM_DRAG = "text/plan-item";
@@ -167,9 +175,8 @@ const ITEM_STATUS_ICON_CLASS: Record<PlanItemStatus, string> = {
 
 type RowKey = string;
 type ZoomMode = "fit" | PlanScale;
-type GridMode = "view" | "edit";
 export type PlanLayoutMode = "work" | "present";
-type LeftGridKind = GridMode | "present";
+type LeftGridKind = "view" | "edit" | "rail";
 type GridDropHover =
   | ItemDropTarget
   | { kind: "phase-before"; phaseId: string }
@@ -411,9 +418,10 @@ export function PlanGridGantt({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [zoomMode, setZoomMode] = useState<ZoomMode>("fit");
-  const [gridMode, setGridMode] = useState<GridMode>(() =>
+  const [gridMode, setGridMode] = useState<PlanGridMode>(() =>
     canEdit && plan.phases.length === 0 ? "edit" : "view"
   );
+  const [leftPaneCollapsed, setLeftPaneCollapsed] = useState(false);
   const workZoomRef = useRef<ZoomMode>("fit");
   const [viewportHeight, setViewportHeight] = useState(720);
   const [paneWidth, setPaneWidth] = useState(0);
@@ -443,7 +451,16 @@ export function PlanGridGantt({
   const [dropHover, setDropHover] = useState<GridDropHover | null>(null);
   const presenting = layoutMode === "present";
   const rowHeight = presenting ? PRESENT_ROW_HEIGHT : ROW_HEIGHT;
-  const leftKind: LeftGridKind = presenting ? "present" : gridMode;
+  const paneMode = effectivePlanGridMode(gridMode, presenting);
+  const leftGridWidth = leftPaneWidth({
+    gridMode,
+    presenting,
+    collapsed: leftPaneCollapsed,
+  });
+  const rail = leftPaneIsRail(leftGridWidth);
+  const leftKind: LeftGridKind = rail ? "rail" : paneMode === "edit" ? "edit" : "view";
+  const canCollapseLeft = showLeftPaneCollapseControl({ gridMode, presenting });
+  const labeledGantt = showGanttLabels({ gridMode, presenting });
 
   useEffect(() => {
     if (presenting) {
@@ -457,7 +474,10 @@ export function PlanGridGantt({
   }, [presenting]);
 
   useEffect(() => {
-    if (!presenting) return;
+    if (!presenting) {
+      setLeftPaneCollapsed(false);
+      return;
+    }
     const update = () => setViewportHeight(window.innerHeight);
     update();
     window.addEventListener("resize", update);
@@ -481,12 +501,6 @@ export function PlanGridGantt({
       ? fitGanttColWidth(paneWidth, columns.length, scale)
       : readableGanttColWidth(scale);
   const editing = canEdit && gridMode === "edit" && !presenting;
-  const leftGridWidth =
-    leftKind === "present"
-      ? PRESENT_GRID_WIDTH
-      : leftKind === "view"
-        ? VIEW_GRID_WIDTH
-        : FULL_GRID_INNER_WIDTH;
   const ganttWidth = columns.length * colWidth;
   const ganttTrackWidth = ganttWidth + GANTT_AXIS_PAD_PX * 2;
   const todayYmd = new Date().toISOString().slice(0, 10);
@@ -853,31 +867,35 @@ export function PlanGridGantt({
     <section className="space-y-2">
       <div className="sticky top-0 z-10 flex flex-wrap items-center justify-end gap-2 py-1 bg-white dark:bg-dark-surface">
         <div className="flex flex-wrap items-center gap-2">
-          {canEdit ? (
-            <div
+          <div
               className="inline-flex rounded-md border border-surface-300 dark:border-dark-muted overflow-hidden"
               aria-label="Grid mode"
             >
-              {(["view", "edit"] as GridMode[]).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => {
-                    onLayoutModeChange?.("work");
-                    setGridMode(mode);
-                  }}
-                  className={`px-2.5 py-1 text-body-sm font-medium capitalize ${
-                    !presenting && gridMode === mode
-                      ? "bg-surface-800 text-white dark:bg-surface-200 dark:text-surface-900"
-                      : "bg-white text-surface-700 hover:bg-surface-100 dark:bg-dark-surface dark:text-surface-300 dark:hover:bg-dark-raised"
-                  }`}
-                  aria-pressed={!presenting && gridMode === mode}
-                >
-                  {mode}
-                </button>
-              ))}
+              {(canEdit ? (["view", "edit", "chart"] as const) : (["view", "chart"] as const)).map(
+                (mode) => {
+                  const pressed =
+                    mode === "edit" ? !presenting && gridMode === "edit" : paneMode === mode;
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => {
+                        if (mode === "edit") onLayoutModeChange?.("work");
+                        setGridMode(mode);
+                      }}
+                      className={`px-2.5 py-1 text-body-sm font-medium capitalize ${
+                        pressed
+                          ? "bg-surface-800 text-white dark:bg-surface-200 dark:text-surface-900"
+                          : "bg-white text-surface-700 hover:bg-surface-100 dark:bg-dark-surface dark:text-surface-300 dark:hover:bg-dark-raised"
+                      }`}
+                      aria-pressed={pressed}
+                    >
+                      {mode}
+                    </button>
+                  );
+                }
+              )}
             </div>
-          ) : null}
           {onLayoutModeChange ? (
             <button
               type="button"
@@ -958,12 +976,19 @@ export function PlanGridGantt({
             style={
               leftKind === "edit"
                 ? { width: leftGridWidth }
-                : { width: leftGridWidth, maxWidth: presenting ? "38%" : "55%" }
+                : { width: leftGridWidth, maxWidth: rail ? undefined : presenting ? "38%" : "55%" }
             }
           >
             <div style={leftKind === "edit" ? { minWidth: leftGridWidth } : { width: "100%" }}>
               <div className="bg-surface-50 dark:bg-dark-raised">
-                <GridHeader leftKind={leftKind} editing={editing} rowHeight={rowHeight} />
+                <GridHeader
+                  leftKind={leftKind}
+                  editing={editing}
+                  rowHeight={rowHeight}
+                  canCollapseLeft={canCollapseLeft}
+                  leftPaneCollapsed={rail && canCollapseLeft}
+                  onToggleLeftPane={() => setLeftPaneCollapsed((current) => !current)}
+                />
               </div>
               <div
                 ref={leftScrollRef}
@@ -1137,7 +1162,7 @@ export function PlanGridGantt({
                     colWidth={colWidth}
                     scale={scale}
                     canEdit={editing}
-                    showLabels={presenting}
+                    showLabels={labeledGantt}
                     rowHeight={rowHeight}
                     datePreview={datePreview}
                     onGanttPointerDown={(item, kind, clientX) => {
@@ -1275,24 +1300,55 @@ function GridHeader({
   leftKind,
   editing,
   rowHeight,
+  canCollapseLeft,
+  leftPaneCollapsed,
+  onToggleLeftPane,
 }: {
   leftKind: LeftGridKind;
   editing: boolean;
   rowHeight: number;
+  canCollapseLeft: boolean;
+  leftPaneCollapsed: boolean;
+  onToggleLeftPane: () => void;
 }) {
-  if (leftKind === "view" || leftKind === "present") {
+  const collapseBtn = canCollapseLeft ? (
+    <button
+      type="button"
+      className="p-0.5 text-surface-500 hover:text-surface-800 dark:hover:text-surface-200"
+      onClick={onToggleLeftPane}
+      aria-label={leftPaneCollapsed ? "Show columns" : "Hide columns"}
+      title={leftPaneCollapsed ? "Show columns" : "Hide columns"}
+    >
+      {leftPaneCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
+    </button>
+  ) : null;
+
+  if (leftKind === "rail") {
+    return (
+      <div
+        className="flex items-center justify-center text-label-sm font-semibold uppercase tracking-wide text-surface-600 dark:text-surface-400 border-b border-surface-200 dark:border-dark-border"
+        style={{ height: rowHeight }}
+      >
+        <div style={{ width: EXPAND_COL }} className="shrink-0 flex justify-center">
+          {collapseBtn}
+        </div>
+      </div>
+    );
+  }
+
+  if (leftKind === "view") {
     return (
       <div
         className="flex items-center text-label-sm font-semibold uppercase tracking-wide text-surface-600 dark:text-surface-400 border-b border-surface-200 dark:border-dark-border"
         style={{ height: rowHeight }}
       >
-        <div style={{ width: EXPAND_COL }} className="shrink-0" />
+        <div style={{ width: EXPAND_COL }} className="shrink-0 flex justify-center">
+          {collapseBtn}
+        </div>
         <div className="flex-1 min-w-0 px-2">Name</div>
-        {leftKind === "view" ? (
-          <div style={{ width: COMPACT_DATE_COL }} className="shrink-0 px-1">
-            Dates
-          </div>
-        ) : null}
+        <div style={{ width: COMPACT_DATE_COL }} className="shrink-0 px-1">
+          Dates
+        </div>
         <div
           style={{ width: COMPACT_STATUS_COL }}
           className="shrink-0 px-1 text-center whitespace-nowrap"
@@ -1542,9 +1598,10 @@ function GridRow({
   onDropTarget: (event: DragEvent<HTMLDivElement>, target: ItemDropTarget) => void;
 }) {
   const compact = leftKind === "view";
-  const slim = compact || leftKind === "present";
+  const rail = leftKind === "rail";
+  const slim = compact;
   const editColumns = editing;
-  const rowMinWidth = slim ? undefined : FULL_GRID_INNER_WIDTH;
+  const rowMinWidth = slim || rail ? undefined : FULL_GRID_INNER_WIDTH;
 
   if (row.kind === "phase") {
     const phase = row.phase;
@@ -1595,6 +1652,8 @@ function GridRow({
             </button>
           ) : null}
         </div>
+        {!rail ? (
+          <>
         <div
           className={`px-2 flex items-center gap-2 ${slim ? "flex-1 min-w-0" : "shrink-0 min-w-0 overflow-hidden"}`}
           style={slim ? undefined : { width: NAME_COL }}
@@ -1728,6 +1787,8 @@ function GridRow({
             ) : null}
           </>
         )}
+          </>
+        ) : null}
       </div>
     );
   }
@@ -1804,6 +1865,8 @@ function GridRow({
             </button>
           ) : null}
         </div>
+        {!rail ? (
+          <>
         <div
           className={`px-2 flex items-center gap-1 ${slim ? "flex-1 min-w-0" : "shrink-0 min-w-0 overflow-hidden"}`}
           style={{
@@ -2012,6 +2075,8 @@ function GridRow({
             ) : null}
           </>
         )}
+          </>
+        ) : null}
       </div>
     );
   }

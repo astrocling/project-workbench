@@ -350,9 +350,11 @@ export function PlanTab({
 
   return (
     <div className="space-y-6">
-      <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100 border-b border-surface-200 dark:border-dark-border pb-2">
-        Project Plan
-      </h2>
+      {!presenting ? (
+        <h2 className="text-title-lg font-semibold text-surface-800 dark:text-surface-100 border-b border-surface-200 dark:border-dark-border pb-2">
+          Project Plan
+        </h2>
+      ) : null}
       {pdfError && <p className="text-body-sm text-red-600 dark:text-red-400">{pdfError}</p>}
 
       {data.dateMismatch && !presenting && (
@@ -524,6 +526,7 @@ export function PlanTab({
           dateRangeLabel={presenting ? dateRangeLabel : undefined}
         />
 
+      {!presenting ? (
       <section
         className="space-y-2 bg-white dark:bg-dark-surface p-4 rounded-lg border border-surface-200 dark:border-dark-border"
       >
@@ -562,6 +565,7 @@ export function PlanTab({
           </p>
         )}
       </section>
+      ) : null}
     </div>
   );
 }

@@ -9,20 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 How-to for these items is in the [User Guide](docs/USER_GUIDE.md). APIs, schema, and deploy details are in the [Technical Reference](docs/TECHNICAL.md).
 
+## [1.3.4] - 2026-09-15
+
+Patch release: Plan **Chart** / **Present** (labeled Gantt, collapsible columns, PDF) and Overview **Post week to Slack** hours plus clearer start/end dates. **Deploy:** no new migrations; redeploy the app.
+
 ### Added
 
-- **Plan Present mode and PDF** — **Present** (with View/Edit/zoom) shows a taller labeled Gantt. **Download PDF** exports a US Letter landscape two-page plan (timeline + phase detail/assumptions) from `PlanPrintDocument`, not a screenshot of the editor. Tests: `__tests__/lib/plan/ganttBarLabel.test.ts`, `__tests__/lib/plan/planPdfCapture.test.ts`, `__tests__/lib/plan/printLayout.test.ts`.
-
-### Documentation
-
-- **CHANGELOG** — This unreleased section.
-- **User Guide** — Plan Present, PDF export, troubleshooting.
-- **Plan tab how-to** — Present and Download PDF.
-- **Technical Reference** — Plan PDF capture path and Present layout.
-
-## [1.3.4] - 2026-09-14
-
-Patch release: Overview **Post week to Slack** includes weekly hours and clearer start/end dates. **Deploy:** no new migrations; redeploy the app.
+- **Plan Chart, Present, and PDF** — **Chart** is a Gantt-only scan (expand rail, labels on bars and diamonds). **Present** is a taller labeled layout that hides Plan heading and Assumptions; **View** while Present shows Name, Dates, and Status and can collapse that pane. **Download PDF** exports a US Letter landscape two-page plan (timeline + phase detail/assumptions) from `PlanPrintDocument`, not a screenshot of the editor. Tests: `__tests__/lib/plan/ganttBarLabel.test.ts`, `__tests__/lib/plan/planPdfCapture.test.ts`, `__tests__/lib/plan/printLayout.test.ts`, `__tests__/lib/plan/planGridLayout.test.ts`.
 
 ### Changed
 
@@ -32,8 +25,9 @@ Patch release: Overview **Post week to Slack** includes weekly hours and clearer
 ### Documentation
 
 - **CHANGELOG** — This release section.
-- **User Guide** — Overview Post week to Slack hours and date wording; troubleshooting; release baseline **1.3.4**.
-- **Technical Reference** — Weekly look-ahead line format (`formatPersonLine`, `formatDatedItemLine`).
+- **User Guide** — Plan Chart/Present/PDF; Overview Post week to Slack hours and date wording; troubleshooting; release baseline **1.3.4**.
+- **Plan tab how-to** — Chart, Present, collapse columns, and Download PDF.
+- **Technical Reference** — Plan PDF capture, Chart/Present layout (`planGridLayout`); weekly look-ahead line format (`formatPersonLine`, `formatDatedItemLine`).
 - **README** — Production release tag example **v1.3.4**.
 
 ## [1.3.3] - 2026-09-14

@@ -22,10 +22,11 @@ Everyone who can open the project can **see** Plan. Only editors get grips, date
 2. If there is **no plan yet**, click **Start from blank**. The grid opens in **Edit**.
 3. Use **View** to scan names, types, shortened dates, and status icons (hover an icon for **Not started**, **In progress**, or **Complete**; meetings: **Unscheduled**, **Scheduled**, or **Complete**). A phase shows complete when every item in it is complete. Plans that already have phases open in View. The left grid does not scroll sideways in View or Edit.
 4. Switch to **Edit** to see Type, Start, End, Days, **Rpt**, Status, add rows, and row actions. Every edit column stays on screen; the Gantt uses the remaining space.
+5. Use **Chart** to hide Name, Dates, and Status. A 28px rail keeps expand/collapse chevrons; names appear on Gantt bars and diamonds. Viewers see **View** and **Chart**.
 
 **Gantt zoom:** **Fit** sizes date columns to the pane when they still fit, but never shrinks a column so the header date is cut off — the chart scrolls sideways instead. **Day**, **Week**, and **Month** use the same readable column widths. There is a small gap before the first date so kickoff items are not clipped, and a red **Today** line (on the start or end edge if today is outside the plan).
 
-**Present:** Use **Present** next to **View** / **Edit** and zoom for a taller labeled Gantt (slim name column, labels on bars and diamonds). Click **View** or **Edit**, toggle **Present** off, or press **Escape** to return. **Download PDF** (same toolbar) exports a US Letter landscape two-page plan (timeline, then phase detail + assumptions).
+**Present:** Use **Present** next to **View** / **Edit** / **Chart** and zoom for a taller labeled Gantt. The Plan heading and Assumptions hide. **View** in Present shows Name, Dates, and Status; **Hide columns** collapses them to the expand rail. **Chart** is Gantt-only. Click **Edit**, toggle **Present** off, or press **Escape** to return (**View** / **Chart** stay in Present). **Download PDF** (same toolbar) exports a US Letter landscape two-page plan (timeline, then phase detail + assumptions).
 
 ---
 
