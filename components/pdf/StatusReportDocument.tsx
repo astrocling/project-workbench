@@ -24,6 +24,7 @@ import type {
 import { parseLinkSegments } from "@/lib/statusReportLinks";
 import {
   getActiveTimelineRows,
+  getCompactPlanTimelineRows,
   getVisibleBarSegmentsForRow,
   getVisibleMarkersForRow,
   timelineHasVisibleSchedule,
@@ -35,8 +36,12 @@ import {
   SR_TIMELINE_MARKER_FONT_PX,
   SR_TIMELINE_MARKER_ICON_PX,
   SR_TIMELINE_MONTH_FONT_PX,
+  statusReportMonthHeaderLabel,
+  timelineLaneLabel,
   timelineMarkerHangsLeft,
 } from "@/lib/statusReportTimelineLayout";
+import type { PlanJson } from "@/lib/plan/serialize";
+import { ganttBarLabelTextColor } from "@/lib/plan/ganttBarLabel";
 
 /**
  * Call registerStatusReportFonts(baseUrl) before rendering this document.
@@ -455,6 +460,50 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#fff",
     textTransform: "uppercase",
+  },
+  timelineBodyRow: {
+    flexDirection: "row",
+  },
+  timelineLaneCol: {
+    borderRightWidth: 1,
+    borderRightColor: TIMELINE_ROW_BORDER,
+  },
+  timelineLaneHeader: {
+    height: 12,
+    backgroundColor: TIMELINE_MONTH_BG,
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  timelineLaneHeaderText: {
+    fontSize: 6,
+    fontWeight: "bold",
+    color: "#fff",
+    textTransform: "uppercase",
+  },
+  timelineLaneCell: {
+    justifyContent: "center",
+    paddingHorizontal: 3,
+    borderBottomWidth: 1,
+    borderBottomColor: TIMELINE_ROW_BORDER,
+    overflow: "hidden",
+  },
+  timelineLaneLabel: {
+    fontSize: SR_TIMELINE_BAR_FONT_PX,
+    fontWeight: "bold",
+    color: "#060066",
+  },
+  timelineChartCol: {
+    flex: 1,
+  },
+  timelineKeyDates: {
+    paddingHorizontal: 3,
+    paddingVertical: 2,
+    borderTopWidth: 1,
+    borderTopColor: TIMELINE_ROW_BORDER,
+  },
+  timelineKeyDatesText: {
+    fontSize: 6,
+    color: "#374151",
   },
   /** Wrapper for bar rows so vertical month-boundary lines can be positioned behind them. */
   timelineBarRowsWrap: {
@@ -878,6 +927,9 @@ export type StatusReportPDFData = {
   panels?: ReportPanel[];
   /** Locked schedule source; omitted on legacy reports (treated as project timeline). */
   scheduleSource?: "timeline" | "plan";
+  includeDetailedPlan?: boolean;
+  detailedPlan?: PlanJson;
+  planAxis?: { kickoffDate: string; endDate: string };
 };
 
 const MODULAR_METRIC_LABELS: Record<string, string> = {
@@ -1008,43 +1060,33 @@ function TimelineBlock({
 
   const metrics = getStatusReportTimelineMetrics(scheduleSource);
   const overlay = metrics.mode === "overlay";
+  const lanes = metrics.mode === "lanes";
+  const fillBar = overlay || lanes;
   const ROW_HEIGHT = metrics.rowHeightPx;
+  const labelCol = metrics.labelColPx;
 
-  // Rows, bar segments, and markers all come from the shared helpers that back the render gate.
-  const activeRows = getActiveTimelineRows(timeline);
+  const activeRows =
+    scheduleSource === "plan"
+      ? getCompactPlanTimelineRows(timeline, reportDate)
+      : getActiveTimelineRows(timeline);
 
-  return (
-    <View style={styles.timelineWrap}>
-      {/* Report date label above the header row, aligned to the red line position */}
-      {reportDatePercent != null && (
-        <View style={styles.timelineReportDateLabelAbove}>
-          <Text
-            style={[
-              styles.timelineReportDateLabel,
-              {
-                left: `${reportDatePercent}%`,
-                marginLeft: -18,
-              },
-            ]}
-          >
-            Report date
-          </Text>
-        </View>
-      )}
-      <View style={styles.timelineMonthRow}>
+  const monthHeader = (
+      <View style={[styles.timelineMonthRow, { height: 12 }]}>
         {months.map((monthKey, i) => (
           <View
             key={monthKey}
             style={[styles.timelineMonthCell, { flex: weeksInMonths[i] ?? 1 }]}
           >
             <Text style={[styles.timelineMonthText, { fontSize: metrics.monthFontPx }]}>
-              {getMonthFullName(monthKey).toUpperCase()}
+              {statusReportMonthHeaderLabel(monthKey, months.length)}
             </Text>
           </View>
         ))}
       </View>
+  );
+
+  const barRows = (
       <View style={styles.timelineBarRowsWrap}>
-        {/* Red line only in bar area so it does not go into the header */}
         {reportDatePercent != null && (
           <View
             style={[
@@ -1063,17 +1105,17 @@ function TimelineBlock({
         const markersInRow = getVisibleMarkersForRow(timeline.markers, row, startYmd, endYmd)
           .slice()
           .sort((a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label));
+        const chartMarkers = lanes ? [] : markersInRow;
         return (
           <View
             key={row}
             style={[
               styles.timelineBarRow,
-              overlay
+              fillBar && !lanes
                 ? { minHeight: ROW_HEIGHT }
                 : { height: ROW_HEIGHT, overflow: "hidden" },
             ]}
           >
-            {/* Vertical month lines as first child so they paint behind bars and markers */}
             <View style={styles.timelineRowMonthLinesLayer}>
               {monthBoundaryPositions.map((leftPct, i) => (
                 <View
@@ -1090,33 +1132,41 @@ function TimelineBlock({
                 bar.label.length > maxChars
                   ? bar.label.slice(0, maxChars - 1) + "…"
                   : bar.label;
+              const fill = bar.color ?? TIMELINE_BAR_BG;
               return (
               <View
                 key={`bar-${i}`}
                 style={[
                   styles.timelineBar,
-                  overlay
+                  fillBar
                     ? { top: 1, bottom: 1 }
                     : { top: metrics.barTopPx, height: metrics.barHeightPx ?? undefined },
                   {
                     left: `${positionPercent(visibleStart)}%`,
                     width: `${renderedWidth}%`,
-                    backgroundColor: bar.color ?? TIMELINE_BAR_BG,
+                    backgroundColor: fill,
                     opacity: bar.muted ? 0.45 : 1,
                   },
                 ]}
               >
-                <Text style={[styles.timelineBarText, { fontSize: metrics.barFontPx }]}>{displayLabel}</Text>
+                <Text
+                  style={[
+                    styles.timelineBarText,
+                    { fontSize: metrics.barFontPx, color: ganttBarLabelTextColor(fill) },
+                  ]}
+                >
+                  {displayLabel}
+                </Text>
               </View>
               );
             })}
-            {markersInRow.map((m, i) => {
-              const hangLeft = !overlay && timelineMarkerHangsLeft(i);
+            {chartMarkers.map((m, i) => {
+              const hangLeft = !fillBar && timelineMarkerHangsLeft(i);
               return (
               <View
                 key={`m-${i}`}
                 style={
-                  overlay
+                  overlay || lanes
                     ? {
                         position: "absolute",
                         left: `${positionPercent(m.date)}%`,
@@ -1142,28 +1192,83 @@ function TimelineBlock({
                 }
               >
                 <TimelineMarkerIconPdf shape={m.shape ?? "Pin"} size={metrics.markerIconPx} />
+                {overlay && (
                 <View style={[styles.timelineMarkerLabelWrap, { maxWidth: metrics.markerColPx }]}>
                   <Text
-                    style={
-                      overlay
-                        ? [styles.timelineMarkerText, { fontSize: metrics.markerFontPx }]
-                        : [
-                            styles.timelineMarkerText,
-                            { fontSize: metrics.markerFontPx },
-                            { textAlign: hangLeft ? "right" : "left" },
-                          ]
-                    }
-                    wrap={overlay ? false : undefined}
+                    style={[styles.timelineMarkerText, { fontSize: metrics.markerFontPx }]}
+                    wrap={false}
                   >
                     {m.label}
                   </Text>
                 </View>
+                )}
+                {!fillBar && (
+                <View style={[styles.timelineMarkerLabelWrap, { maxWidth: metrics.markerColPx }]}>
+                  <Text
+                    style={[
+                      styles.timelineMarkerText,
+                      { fontSize: metrics.markerFontPx },
+                      { textAlign: hangLeft ? "right" : "left" },
+                    ]}
+                  >
+                    {m.label}
+                  </Text>
+                </View>
+                )}
               </View>
               );
             })}
           </View>
         );
       })}
+        </View>
+      </View>
+  );
+
+  return (
+    <View style={styles.timelineWrap}>
+      <View style={styles.timelineBodyRow}>
+        {labelCol > 0 && (
+          <View style={[styles.timelineLaneCol, { width: labelCol }]}>
+            {reportDatePercent != null && <View style={{ height: 8 }} />}
+            <View style={styles.timelineLaneHeader}>
+              <Text style={styles.timelineLaneHeaderText}>Phase</Text>
+            </View>
+            {activeRows.map((row) => {
+              const clipped = getVisibleBarSegmentsForRow(timeline.bars, row, startYmd, endYmd);
+              const markersInRow = getVisibleMarkersForRow(timeline.markers, row, startYmd, endYmd);
+              return (
+                <View key={`lane-${row}`} style={[styles.timelineLaneCell, { height: ROW_HEIGHT }]}>
+                  <Text style={styles.timelineLaneLabel} wrap={false}>
+                    {timelineLaneLabel(
+                      clipped.map((seg) => seg.bar),
+                      markersInRow,
+                      row
+                    )}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
+        <View style={styles.timelineChartCol}>
+          {reportDatePercent != null && (
+            <View style={styles.timelineReportDateLabelAbove}>
+              <Text
+                style={[
+                  styles.timelineReportDateLabel,
+                  {
+                    left: `${reportDatePercent}%`,
+                    marginLeft: -18,
+                  },
+                ]}
+              >
+                Report date
+              </Text>
+            </View>
+          )}
+          {monthHeader}
+          {barRows}
         </View>
       </View>
     </View>

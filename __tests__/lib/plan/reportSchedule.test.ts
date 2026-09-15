@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { PlanItemJson, PlanPhaseJson } from "@/lib/plan/serialize";
 import {
   compactPlanToSchedule,
+  applyPlanPhaseColors,
   getActiveTimelineRows,
+  getCompactPlanTimelineRows,
   getVisibleBarSegment,
   getVisibleBarSegmentsForRow,
   getVisibleMarkersForRow,
@@ -74,7 +76,7 @@ describe("compactPlanToSchedule", () => {
         label: "Discovery",
         startDate: "2026-03-01",
         endDate: "2026-03-05",
-        color: null,
+        color: "#1941FA",
       },
     ]);
 
@@ -128,11 +130,59 @@ describe("compactPlanToSchedule", () => {
           label: "Build",
           startDate: "2026-03-01",
           endDate: "2026-03-12",
-          color: null,
+          color: "#1941FA",
         },
       ],
       markers: [],
     });
+  });
+
+  it("copies the Plan phase color onto the compact bar", () => {
+    const result = compactPlanToSchedule(
+      [
+        phase({
+          id: "p1",
+          name: "Design",
+          color: "#6d28d9",
+          order: 0,
+          items: [item({ id: "i1", phaseId: "p1", label: "Wireframes" })],
+        }),
+      ],
+      "phases"
+    );
+    expect(result?.bars[0]?.color).toBe("#6d28d9");
+  });
+
+  it("fills missing snapshot bar colors from live Plan phases", () => {
+    const painted = applyPlanPhaseColors(
+      {
+        bars: [
+          {
+            phaseId: "p1",
+            rowIndex: 1,
+            label: "Design",
+            startDate: "2026-08-01",
+            endDate: "2026-09-01",
+            color: null,
+          },
+          {
+            phaseId: "p2",
+            rowIndex: 2,
+            label: "Build",
+            startDate: "2026-09-01",
+            endDate: "2026-10-01",
+            color: "#111111",
+          },
+        ],
+        markers: [],
+      },
+      [
+        { id: "p1", color: "#6d28d9" },
+        { id: "p2", color: "#1941FA" },
+      ]
+    );
+    expect(painted.bars[0]?.color).toBe("#6d28d9");
+    expect(painted.bars[1]?.color).toBe("#111111");
   });
 
   it("includes key-date markers and omits tasks, unscheduled meetings, and waiting_on_client", () => {
@@ -214,7 +264,7 @@ describe("compactPlanToSchedule", () => {
         label: "Delivery",
         startDate: "2026-04-01",
         endDate: "2026-04-15",
-        color: null,
+        color: "#1941FA",
       },
     ]);
     expect(result?.markers).toEqual([
@@ -274,7 +324,7 @@ describe("compactPlanToSchedule", () => {
         label: "Development",
         startDate: "2026-05-01",
         endDate: "2026-05-20",
-        color: null,
+        color: "#1941FA",
       },
     ]);
     expect(result?.markers).toEqual([
@@ -373,7 +423,7 @@ describe("compactPlanToSchedule", () => {
         label: "Very Long Discovery Phase Name",
         startDate: "2026-03-01",
         endDate: "2026-03-10",
-        color: null,
+        color: "#1941FA",
       },
     ]);
     expect(result?.markers).toEqual([
@@ -638,6 +688,21 @@ describe("timeline row content", () => {
     const timeline = { ...axis, bars: schedule!.bars, markers: schedule!.markers };
     expect(getActiveTimelineRows(timeline)).toEqual([2]);
     expect(timelineHasVisibleSchedule(timeline)).toBe(true);
+  });
+
+  it("shows every Plan lane that intersects the window", () => {
+    const timeline = {
+      startDate: "2026-08-01",
+      endDate: "2026-11-30",
+      bars: [
+        { startDate: "2026-03-01", endDate: "2026-08-15", rowIndex: 1 },
+        { startDate: "2026-08-01", endDate: "2026-10-01", rowIndex: 2 },
+        { startDate: "2026-09-01", endDate: "2026-11-01", rowIndex: 3 },
+        { startDate: "2026-11-01", endDate: "2026-12-01", rowIndex: 4 },
+      ],
+      markers: [] as { date: string; rowIndex?: number }[],
+    };
+    expect(getCompactPlanTimelineRows(timeline, "2026-09-15")).toEqual([1, 2, 3, 4]);
   });
 
   it("agrees with the render gate: no active rows means no visible schedule", () => {

@@ -47,10 +47,12 @@ export function PlanPrintDocument({
   plan,
   projectName,
   assumptions,
+  chartOnly = false,
 }: {
   plan: PlanJson;
   projectName: string;
   assumptions: string[];
+  chartOnly?: boolean;
 }) {
   const rows = flattenVisibleRows(plan.phases, new Set());
   const axis = getPlanAxisRange(plan);
@@ -58,7 +60,7 @@ export function PlanPrintDocument({
   const columns = getScaleColumns(axis.startYmd, axis.endYmd, scale);
   const durationDays = planInclusiveDayCount(plan.kickoffDate, plan.endDate);
   const built = new Date().toISOString().slice(0, 10);
-  const pageCount = 2;
+  const pageCount = chartOnly ? 1 : 2;
 
   return (
     <>
@@ -140,6 +142,7 @@ export function PlanPrintDocument({
         <PrintFooter builtYmd={built} page={1} pages={pageCount} />
       </div>
 
+      {!chartOnly && (
       <div data-plan-print-page="detail" style={{ ...PAGE, overflow: "hidden" }}>
         <p
           style={{
@@ -208,6 +211,7 @@ export function PlanPrintDocument({
         )}
         <PrintFooter builtYmd={built} page={2} pages={pageCount} />
       </div>
+      )}
     </>
   );
 }

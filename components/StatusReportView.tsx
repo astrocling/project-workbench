@@ -23,14 +23,19 @@ import { getWeeksInMonthsForRange } from "@/lib/monthUtils";
 import { formatMonthDay } from "@/lib/formatIsoDate";
 import {
   getActiveTimelineRows,
+  getCompactPlanTimelineRows,
   getVisibleBarSegmentsForRow,
   getVisibleMarkersForRow,
   timelineHasVisibleSchedule,
 } from "@/lib/plan/reportSchedule";
 import {
   getStatusReportTimelineMetrics,
+  statusReportMonthHeaderLabel,
+  timelineLaneLabel,
   timelineMarkerHangsLeft,
 } from "@/lib/statusReportTimelineLayout";
+import { PlanPrintDocument } from "@/components/plan/PlanPrintDocument";
+import { ganttBarLabelTextColor } from "@/lib/plan/ganttBarLabel";
 
 // Mirror PDF layout: 16:9 slide, same colors and structure
 const BIO_TITLE_COLOR = "#220088";
@@ -311,12 +316,63 @@ function TimelineBlock({
   const metrics = getStatusReportTimelineMetrics(scheduleSource);
   const ROW_HEIGHT_PX = metrics.rowHeightPx;
   const overlay = metrics.mode === "overlay";
+  const lanes = metrics.mode === "lanes";
+  const fillBar = overlay || lanes;
+  const labelCol = metrics.labelColPx;
 
-  // Rows, bar segments, and markers all come from the shared helpers that back the render gate.
-  const activeRows = getActiveTimelineRows(timeline);
+  const activeRows =
+    scheduleSource === "plan"
+      ? getCompactPlanTimelineRows(timeline, reportDate)
+      : getActiveTimelineRows(timeline);
 
   return (
     <div className="mt-1 w-full border border-[#d1d5db] relative">
+      <div className="flex flex-row items-stretch">
+        {labelCol > 0 && (
+          <div
+            className="shrink-0 border-r border-[#d1d5db] flex flex-col"
+            style={{ width: labelCol }}
+          >
+            {reportDatePercent != null && <div className="h-2" />}
+            <div
+              className="px-1 flex items-center"
+              style={{ height: 12, backgroundColor: TIMELINE_MONTH_BG }}
+            >
+              <span className="font-bold text-white uppercase leading-none" style={{ fontSize: 6 }}>
+                Phase
+              </span>
+            </div>
+            {activeRows.map((row) => {
+              const clipped = getVisibleBarSegmentsForRow(timeline.bars, row, startYmd, endYmd);
+              const markersInRow = getVisibleMarkersForRow(timeline.markers, row, startYmd, endYmd);
+              return (
+                <div
+                  key={`lane-${row}`}
+                  className="px-1 border-b border-[#d1d5db] flex items-center"
+                  style={{ height: ROW_HEIGHT_PX }}
+                >
+                  <span
+                    className="font-semibold leading-tight block w-full"
+                    style={{
+                      fontSize: metrics.barFontPx,
+                      color: "#060066",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {timelineLaneLabel(
+                      clipped.map((seg) => seg.bar),
+                      markersInRow,
+                      row
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div className="min-w-0 flex-1 relative">
       {reportDatePercent != null && (
         <div className="relative h-2 w-full">
           <span
@@ -331,16 +387,17 @@ function TimelineBlock({
         className="grid gap-0 w-full"
         style={{
           backgroundColor: TIMELINE_MONTH_BG,
+          height: 12,
           gridTemplateColumns: weeksInMonths.map((w) => `${w}fr`).join(" "),
         }}
       >
         {months.map((monthKey) => (
-          <div key={monthKey} className="py-px px-0.5 text-center">
+          <div key={monthKey} className="px-0.5 flex items-center justify-center min-w-0">
             <span
-              className="font-bold text-white uppercase"
+              className="font-bold text-white uppercase leading-none"
               style={{ fontSize: metrics.monthFontPx }}
             >
-              {getMonthFullName(monthKey).toUpperCase()}
+              {statusReportMonthHeaderLabel(monthKey, months.length)}
             </span>
           </div>
         ))}
@@ -361,11 +418,12 @@ function TimelineBlock({
           const markersInRow = getVisibleMarkersForRow(timeline.markers, row, startYmd, endYmd)
             .slice()
             .sort((a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label));
+          const chartMarkers = lanes ? [] : markersInRow;
           return (
             <div
               key={row}
-              className={`border-b border-[#d1d5db] relative${overlay ? "" : " overflow-hidden"}`}
-              style={overlay ? { minHeight: ROW_HEIGHT_PX } : { height: ROW_HEIGHT_PX }}
+              className={`border-b border-[#d1d5db] relative${fillBar ? "" : " overflow-hidden"}`}
+              style={fillBar && !lanes ? { minHeight: ROW_HEIGHT_PX } : { height: ROW_HEIGHT_PX }}
             >
               <div className="absolute inset-0 pointer-events-none">
                 {monthBoundaryPositions.map((leftPct, i) => (
@@ -380,24 +438,26 @@ function TimelineBlock({
                 {clipped.map(({ bar, visibleStart, visibleEnd }, i) => {
                   const rawWidth = widthPercent(visibleStart, visibleEnd);
                   const renderedWidth = Math.max(rawWidth, 4);
+                  const fill = bar.color ?? TIMELINE_BAR_BG;
                   return (
                   <div
                     key={`bar-${i}`}
-                    className={`absolute rounded flex items-center px-1.5 overflow-hidden min-w-0${overlay ? " top-[2px] bottom-[2px]" : ""}`}
+                    className={`absolute rounded flex items-center px-1.5 overflow-hidden min-w-0${fillBar ? " top-[2px] bottom-[2px]" : ""}`}
                     style={{
-                      ...(overlay
+                      ...(fillBar
                         ? {}
                         : { top: metrics.barTopPx, height: metrics.barHeightPx ?? undefined }),
                       left: `${positionPercent(visibleStart)}%`,
                       width: `${renderedWidth}%`,
-                      backgroundColor: bar.color ?? TIMELINE_BAR_BG,
+                      backgroundColor: fill,
                       opacity: bar.muted ? 0.45 : 1,
                     }}
                   >
                     <span
-                      className="text-white font-semibold leading-none block w-full"
+                      className="font-semibold leading-none block w-full"
                       style={{
                         fontSize: metrics.barFontPx,
+                        color: ganttBarLabelTextColor(fill),
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
@@ -409,8 +469,8 @@ function TimelineBlock({
                   );
                 })}
               </div>
-              {markersInRow.map((m, i) => {
-                const hangLeft = !overlay && timelineMarkerHangsLeft(i);
+              {chartMarkers.map((m, i) => {
+                const hangLeft = !fillBar && timelineMarkerHangsLeft(i);
                 return (
                   <div
                     key={`m-${i}`}
@@ -422,6 +482,12 @@ function TimelineBlock({
                             top: metrics.markerTopPx,
                             opacity: m.muted ? 0.45 : 1,
                           }
+                        : lanes
+                          ? {
+                              left: `calc(${positionPercent(m.date)}% - ${metrics.markerIconPx / 2}px)`,
+                              top: metrics.markerTopPx,
+                              opacity: m.muted ? 0.45 : 1,
+                            }
                         : {
                             left: `${positionPercent(m.date)}%`,
                             top: metrics.markerTopPx,
@@ -451,34 +517,41 @@ function TimelineBlock({
                         )
                       )}
                     </svg>
+                    {overlay && (
                     <span
-                      className={
-                        overlay
-                          ? "font-medium text-gray-600 bg-gray-100 px-0.5 rounded truncate"
-                          : "font-medium text-gray-700 bg-white px-0.5 rounded leading-tight text-right"
-                      }
+                      className="font-medium text-gray-600 bg-gray-100 px-0.5 rounded truncate"
                       style={{
                         fontSize: metrics.markerFontPx,
                         maxWidth: metrics.markerColPx,
-                        ...(overlay
-                          ? {}
-                          : {
-                              textAlign: hangLeft ? "right" : "left",
-                              display: "-webkit-box",
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: "vertical",
-                              overflow: "hidden",
-                            }),
                       }}
                     >
                       {m.label}
                     </span>
+                    )}
+                    {!fillBar && (
+                    <span
+                      className="font-medium text-gray-700 bg-white px-0.5 rounded leading-tight text-right"
+                      style={{
+                        fontSize: metrics.markerFontPx,
+                        maxWidth: metrics.markerColPx,
+                        textAlign: hangLeft ? "right" : "left",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {m.label}
+                    </span>
+                    )}
                   </div>
                 );
               })}
             </div>
           );
         })}
+      </div>
+        </div>
       </div>
     </div>
   );
@@ -494,12 +567,14 @@ function milestonesForExport<T extends { completed: boolean }>(milestones: T[]):
 export type StatusReportViewRefs = {
   slideRef?: React.RefObject<HTMLDivElement | null>;
   meetingNotesRef?: React.RefObject<HTMLDivElement | null>;
+  planDetailRef?: React.RefObject<HTMLDivElement | null>;
 };
 
 export function StatusReportView({
   data,
   slideRef,
   meetingNotesRef,
+  planDetailRef,
 }: {
   data: StatusReportPDFData;
 } & StatusReportViewRefs) {
@@ -967,6 +1042,17 @@ export function StatusReportView({
             <span className="flex-1 text-center text-[9px]" style={{ color: FOOTER_MUTED_COLOR }}>Company Confidential</span>
             <span className="text-[9px]" style={{ color: FOOTER_MUTED_COLOR }}>{new Date().getFullYear()}</span>
           </div>
+        </div>
+      )}
+
+      {data.includeDetailedPlan && data.detailedPlan && (
+        <div ref={planDetailRef} className="mx-auto mt-8 overflow-visible">
+          <PlanPrintDocument
+            plan={data.detailedPlan}
+            projectName={project.name}
+            assumptions={data.detailedPlan.assumptions}
+            chartOnly
+          />
         </div>
       )}
 

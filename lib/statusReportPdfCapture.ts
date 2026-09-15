@@ -5,6 +5,8 @@
  * Uses html2canvas-pro (supports oklch/Tailwind v4) and dynamic import for jsPDF.
  */
 
+import { PLAN_PDF_PAGE_H_PT, PLAN_PDF_PAGE_W_PT } from "@/lib/planPdfCapture";
+
 const SLIDE_WIDTH_PT = 720;
 const SLIDE_HEIGHT_PT = 405; // 16:9
 const NOTES_PAGE_WIDTH_PT = 720;
@@ -35,6 +37,7 @@ const CAPTURE_OPTS = {
 export type CaptureStatusReportToPdfOptions = {
   slideElement: HTMLElement;
   meetingNotesElement?: HTMLElement | null;
+  planDetailElement?: HTMLElement | null;
   filename: string;
   /** Increase exported PDF "physical" size for easier presenting (100% zoom). */
   exportScale?: number;
@@ -47,7 +50,7 @@ export type CaptureStatusReportToPdfOptions = {
 export async function captureStatusReportToPdf(
   options: CaptureStatusReportToPdfOptions
 ): Promise<void> {
-  const { slideElement, meetingNotesElement, filename } = options;
+  const { slideElement, meetingNotesElement, planDetailElement, filename } = options;
   const exportScale =
     typeof options.exportScale === "number" && Number.isFinite(options.exportScale) && options.exportScale > 0
       ? options.exportScale
@@ -152,6 +155,19 @@ export async function captureStatusReportToPdf(
       // Custom [width, height] only — "portrait" swaps dimensions when width > height.
       pdf.addPage([pageW, pageH]);
       pdf.addImage(notesCanvas.toDataURL("image/png"), "PNG", 0, 0, pageW, pageH);
+    }
+
+    const planPage = planDetailElement?.querySelector<HTMLElement>("[data-plan-print-page='chart']");
+    if (planPage) {
+      const planCanvas = await html2canvas(planPage, {
+        ...CAPTURE_OPTS,
+        width: planPage.offsetWidth || PLAN_PDF_PAGE_W_PT,
+        height: planPage.offsetHeight || PLAN_PDF_PAGE_H_PT,
+      });
+      const planW = PLAN_PDF_PAGE_W_PT * exportScale;
+      const planH = PLAN_PDF_PAGE_H_PT * exportScale;
+      pdf.addPage([planW, planH]);
+      pdf.addImage(planCanvas.toDataURL("image/png"), "PNG", 0, 0, planW, planH);
     }
 
     pdf.save(filename);

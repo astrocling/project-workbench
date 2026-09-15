@@ -25,6 +25,7 @@ export function StatusReportPageContent({
   const [copyFeedback, setCopyFeedback] = useState(false);
   const slideRef = useRef<HTMLDivElement>(null);
   const meetingNotesRef = useRef<HTMLDivElement>(null);
+  const planDetailRef = useRef<HTMLDivElement>(null);
 
   const handleCopyLink = async () => {
     const permalink = `${window.location.origin}/reports/${reportId}`;
@@ -47,6 +48,7 @@ export function StatusReportPageContent({
       await captureStatusReportToPdf({
         slideElement: slideRef.current,
         meetingNotesElement: meetingNotesRef.current ?? undefined,
+        planDetailElement: planDetailRef.current ?? undefined,
         filename,
         exportScale: 1.5,
       });
@@ -105,6 +107,7 @@ export function StatusReportPageContent({
             data={pdfData}
             slideRef={slideRef}
             meetingNotesRef={meetingNotesRef}
+            planDetailRef={planDetailRef}
           />
         </div>
       </div>
@@ -127,6 +130,7 @@ export function StatusReportPageContent({
           data={pdfData}
           slideRef={slideRef}
           meetingNotesRef={meetingNotesRef}
+          planDetailRef={planDetailRef}
         />
       </div>
     </div>

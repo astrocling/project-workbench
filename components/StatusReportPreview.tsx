@@ -31,6 +31,7 @@ export function StatusReportPreview({
   const mounted = useRef(true);
   const slideRef = useRef<HTMLDivElement>(null);
   const meetingNotesRef = useRef<HTMLDivElement>(null);
+  const planDetailRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     mounted.current = true;
@@ -108,6 +109,7 @@ export function StatusReportPreview({
                     await captureStatusReportToPdf({
                       slideElement: slideRef.current,
                       meetingNotesElement: meetingNotesRef.current ?? undefined,
+                      planDetailElement: planDetailRef.current ?? undefined,
                       filename,
                       exportScale: 1.5,
                     });
@@ -152,6 +154,7 @@ export function StatusReportPreview({
                 data={data}
                 slideRef={slideRef}
                 meetingNotesRef={meetingNotesRef}
+                planDetailRef={planDetailRef}
               />
             )}
           </div>

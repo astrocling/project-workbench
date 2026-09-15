@@ -1,36 +1,36 @@
 import { describe, expect, it } from "vitest";
 import {
-  SR_TIMELINE_MARKER_TOP_PX,
-  SR_TIMELINE_ROW_HEIGHT_PX,
   applyTimelineLayout,
   getStatusReportTimelineMetrics,
+  formatPlanKeyDatesLine,
+  isReadableTimelineWindow,
+  pickSpacedTimelineMarkers,
   pruneTimelineLayout,
   setTimelineLayoutLabel,
   setTimelineLayoutRow,
+  setTimelineLayoutWindow,
+  statusReportMonthHeaderLabel,
   timelineMarkerHangsLeft,
   toggleTimelineHiddenId,
   type TimelineLayoutOverlay,
 } from "@/lib/statusReportTimelineLayout";
 
 describe("statusReportTimelineLayout", () => {
-  it("keeps the Plan marker band below the bar inside the Plan row", () => {
-    expect(SR_TIMELINE_MARKER_TOP_PX).toBeGreaterThan(15);
-    expect(SR_TIMELINE_MARKER_TOP_PX).toBeLessThan(SR_TIMELINE_ROW_HEIGHT_PX);
-  });
-
   it("uses compact overlay rows for the project timeline so 4 rows fit the slide slot", () => {
     const timeline = getStatusReportTimelineMetrics("timeline");
     const omitted = getStatusReportTimelineMetrics(undefined);
     expect(timeline.mode).toBe("overlay");
     expect(timeline.rowHeightPx).toBe(14);
+    expect(timeline.labelColPx).toBe(0);
     expect(timeline.rowHeightPx * 4).toBeLessThanOrEqual(56);
     expect(omitted).toEqual(timeline);
   });
 
-  it("keeps the taller bar-and-marker band only for Plan schedules", () => {
+  it("uses Plan lanes without a left name column so labels sit in the bars", () => {
     const plan = getStatusReportTimelineMetrics("plan");
-    expect(plan.mode).toBe("bands");
-    expect(plan.rowHeightPx).toBe(SR_TIMELINE_ROW_HEIGHT_PX);
+    expect(plan.mode).toBe("lanes");
+    expect(plan.labelColPx).toBe(0);
+    expect(plan.rowHeightPx * 4).toBeLessThanOrEqual(80);
   });
 
   it("alternates clustered marker columns left and right of the date", () => {
@@ -135,5 +135,65 @@ describe("timeline layout overlay edits", () => {
     expect(setTimelineLayoutRow(undefined, "p1", 1, 3)).toEqual({ p1: 3 });
     expect(setTimelineLayoutRow({ p1: 3 }, "p1", 1, 1)).toBeUndefined();
     expect(setTimelineLayoutRow(undefined, "p1", 1, 9)).toBeUndefined();
+  });
+});
+
+describe("timeline window overlay", () => {
+  it("rejects windows that would make month columns narrower than 50px on the slide", () => {
+    expect(isReadableTimelineWindow("2026-01-01", "2027-06-30")).toBe(false);
+    expect(isReadableTimelineWindow("2026-08-01", "2026-11-30")).toBe(true);
+  });
+
+  it("stores a readable window and drops it when it matches the auto axis", () => {
+    expect(
+      setTimelineLayoutWindow(undefined, "2026-08-01", "2026-11-30", "2026-08-01", "2026-11-30")
+    ).toBeUndefined();
+    expect(
+      setTimelineLayoutWindow(undefined, "2026-08-01", "2026-12-31", "2026-08-01", "2026-11-30")
+    ).toEqual({ windowStartYmd: "2026-08-01", windowEndYmd: "2026-12-31" });
+  });
+
+  it("applies a stored window to the rendered axis without changing bar dates", () => {
+    const next = applyTimelineLayout(timeline, {
+      windowStartYmd: "2026-03-01",
+      windowEndYmd: "2026-06-30",
+    });
+    expect(next.startDate).toBe("2026-03-01");
+    expect(next.endDate).toBe("2026-06-30");
+    expect(next.bars[0]?.startDate).toBe("2026-03-01");
+  });
+});
+
+describe("statusReportMonthHeaderLabel", () => {
+  it("uses short names when more than four months are on the strip", () => {
+    expect(statusReportMonthHeaderLabel("2026-09-01", 3)).toBe("SEPTEMBER");
+    expect(statusReportMonthHeaderLabel("2026-09-01", 5)).toBe("SEP");
+  });
+});
+
+describe("pickSpacedTimelineMarkers", () => {
+  it("drops clustered key dates so icons do not pile on the same month", () => {
+    const kept = pickSpacedTimelineMarkers(
+      [
+        { label: "A", date: "2026-09-02" },
+        { label: "B", date: "2026-09-03" },
+        { label: "C", date: "2026-09-04" },
+        { label: "Go Live", date: "2026-11-15" },
+      ],
+      "2026-07-01",
+      "2026-12-31"
+    );
+    expect(kept.map((m) => m.label)).toEqual(["A", "Go Live"]);
+  });
+});
+
+describe("formatPlanKeyDatesLine", () => {
+  it("lists in-window key dates so names stay readable off the bars", () => {
+    expect(
+      formatPlanKeyDatesLine([
+        { label: "Go Live", date: "2026-11-15" },
+        { label: "Kickoff", date: "2026-09-02" },
+      ])
+    ).toBe("9/2 Kickoff · 11/15 Go Live");
   });
 });

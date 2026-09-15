@@ -140,8 +140,8 @@ describe("PREVIOUS_MONTHS_ON_SCHEDULE_LABEL", () => {
 });
 
 describe("shouldShowPreviousMonthsOnSchedule", () => {
-  it("is only for Project timeline source", () => {
+  it("is for Project timeline and Plan compact window lookback", () => {
     expect(shouldShowPreviousMonthsOnSchedule("timeline")).toBe(true);
-    expect(shouldShowPreviousMonthsOnSchedule("plan")).toBe(false);
+    expect(shouldShowPreviousMonthsOnSchedule("plan")).toBe(true);
   });
 });

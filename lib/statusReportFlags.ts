@@ -5,6 +5,8 @@ export type { ScheduleSource } from "@/lib/statusReportPdfData";
 export type StatusReportVariationLike = string;
 
 export const PREVIOUS_MONTHS_ON_SCHEDULE_LABEL = "Previous months on schedule";
+export const PLAN_LOOKAHEAD_MONTHS_LABEL = "Months after report date";
+export const INCLUDE_DETAILED_PLAN_LABEL = "Include detailed plan page";
 
 /** Resolves whether Standard report budget block is visible (default true). */
 export function resolveShowBudget(
@@ -97,7 +99,11 @@ export function buildScheduleSourceCreatePayload(
 }
 
 export function shouldShowPreviousMonthsOnSchedule(scheduleSource: ScheduleSource): boolean {
-  return scheduleSource === "timeline";
+  return scheduleSource === "timeline" || scheduleSource === "plan";
+}
+
+export function shouldShowPlanLookaheadOnSchedule(scheduleSource: ScheduleSource): boolean {
+  return scheduleSource === "plan";
 }
 
 export function scheduleSourceLabel(source: ScheduleSource): string {

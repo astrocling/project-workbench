@@ -112,13 +112,13 @@ planDensity?: "phases" | "phases_and_key_dates"; // only when scheduleSource ===
 - `scheduleSource === "timeline"` or omitted: build `snapshot.timeline` from `TimelineBar` / `TimelineMarker` as today.
 - `scheduleSource === "plan"`: build `snapshot.timeline` from the compact Plan mapping below (same `bars` / `markers` / `startDate` / `endDate` shape the slide already renders). Also store `planDensity`. Do **not** require a parallel full Plan JSON blob on the snapshot.
 
-`timelinePreviousMonths` still clips the axis the same way for both sources.
+`timelinePreviousMonths` clips Timeline-source reports (lookback through project end). Plan-source reports use Plan kickoff/end as floor/ceil, then a short window around the report date (`timelinePreviousMonths` lookback, `timelineLookaheadMonths` lookahead, default 2). Optional `timelineLayout.windowStartYmd` / `windowEndYmd` may **narrow** that window; they cannot expand it back to a full project year.
 
 ### Compact mapping
 
 Helper in `lib/plan/` (e.g. `lib/plan/reportSchedule.ts`), used at report create and refresh.
 
-Axis: project start/end clipped by `timelinePreviousMonths`, same as today. Plan kickoff/end do not replace project dates for the report window.
+Axis: for Plan source, `max(plan.kickoff, project.start, windowStart)` through `min(plan.end, project.end, windowEnd)`. Kickoff is the earliest month that can appear. Project start is not used when it is before kickoff.
 
 **Phases only**
 

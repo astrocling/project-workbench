@@ -29,6 +29,8 @@ const createSchema = z.object({
   variation: variationEnum.default("Standard"),
   /** Number of months before report date to show on timeline (1–4). Default 1. */
   timelinePreviousMonths: z.number().int().min(1).max(4).default(1),
+  timelineLookaheadMonths: z.number().int().min(1).max(4).optional(),
+  includeDetailedPlan: z.boolean().optional(),
   completedActivities: z.string(),
   upcomingActivities: z.string(),
   risksIssuesDecisions: z.string(),
@@ -254,6 +256,8 @@ export async function POST(
           ? {
               scheduleSource: "plan" as const,
               planDensity: parsed.data.planDensity,
+              timelineLookaheadMonths: parsed.data.timelineLookaheadMonths,
+              includeDetailedPlan: parsed.data.includeDetailedPlan === true,
             }
           : {}),
       });
@@ -303,7 +307,12 @@ export async function POST(
         showBudget: parsed.data.showBudget,
         scheduleSource,
         ...(scheduleSource === "plan"
-          ? { planDensity: parsed.data.planDensity ?? "phases_and_key_dates" }
+          ? {
+              planDensity: parsed.data.planDensity ?? "phases_and_key_dates",
+              timelineLookaheadMonths:
+                parsed.data.timelineLookaheadMonths ?? 2,
+              includeDetailedPlan: parsed.data.includeDetailedPlan === true,
+            }
           : {}),
       };
       await prisma.statusReport.update({

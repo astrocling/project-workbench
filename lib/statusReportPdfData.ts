@@ -7,7 +7,7 @@ import type { ReportPanel } from "@/lib/reportPanels";
 import { resolveShowBudget, shouldAttachBudgetToPdfData } from "@/lib/statusReportFlags";
 import { getPlanForProject } from "@/lib/plan/api";
 import { serializePlan } from "@/lib/plan/serialize";
-import type { PlanReportDensity } from "@/lib/plan/reportSchedule";
+import { applyPlanPhaseColors, type PlanReportDensity } from "@/lib/plan/reportSchedule";
 import {
   applyTimelineLayout,
   type TimelineLayoutOverlay,
@@ -15,6 +15,8 @@ import {
 import {
   buildLegacyTimeline,
   buildPlanTimelineCandidate,
+  earliestScheduleWorkYmd,
+  PLAN_REPORT_LOOKAHEAD_DEFAULT,
   resolveReportTimelineAxis,
   shouldBuildTimelineFromLegacy,
   shouldBuildTimelineFromPlan,
@@ -53,6 +55,10 @@ export type StatusReportSnapshot = {
   timeline?: StatusReportPDFData["timeline"];
   /** Number of months before report date to show on timeline (1–4). */
   timelinePreviousMonths?: number;
+  /** Plan-source: months after report date on the compact strip (1–4). Default 2. */
+  timelineLookaheadMonths?: number;
+  /** Optional extra PDF page with the full Plan Gantt. */
+  includeDetailedPlan?: boolean;
   /** Locked at report creation: hide CDA budget dollars on Overall table. */
   cdaReportHoursOnly?: boolean;
   /** When false, Standard report omits bottom budget table and burn chart. Default true. */
@@ -85,6 +91,9 @@ export function isStatusReportSnapshot(obj: unknown): obj is StatusReportSnapsho
 export type BuildStatusReportPdfDataOptions = {
   /** Number of months before report date to show on timeline (1–4). Used when creating a new report before snapshot exists. */
   timelinePreviousMonths?: number;
+  /** Plan-source months after report date (1–4). */
+  timelineLookaheadMonths?: number;
+  includeDetailedPlan?: boolean;
   /** When true, ignore snapshot.timeline and rebuild timeline from current project bars/markers or Plan. */
   rebuildTimelineFromProject?: boolean;
   /** When true, ignore snapshot.cda.milestones and rebuild from current project CDA milestones. */
@@ -456,21 +465,39 @@ export async function buildStatusReportPdfData(
       4,
       Math.max(1, options?.timelinePreviousMonths ?? snapshot?.timelinePreviousMonths ?? 1)
     );
+    const lookaheadMonths = Math.min(
+      4,
+      Math.max(
+        1,
+        options?.timelineLookaheadMonths ??
+          snapshot?.timelineLookaheadMonths ??
+          PLAN_REPORT_LOOKAHEAD_DEFAULT
+      )
+    );
     const timelineLocked = shouldUseLockedTimeline(snapshot, options?.rebuildTimelineFromProject);
     const scheduleSource = resolveScheduleSource(snapshot, options);
+    const planRecord =
+      scheduleSource === "plan" || snapshot?.includeDetailedPlan === true
+        ? await getPlanForProject(projectId)
+        : null;
+    const planJson = planRecord ? serializePlan(planRecord) : null;
     const axis = resolveReportTimelineAxis({
       scheduleSource,
       projectStartYmd: startStr,
       projectEndYmd: endStr,
       reportDate: new Date(report.reportDate),
       previousMonths,
+      lookaheadMonths,
+      planKickoffYmd: planJson?.kickoffDate,
+      planEndYmd: planJson?.endDate,
+      windowStartYmd: snapshot?.timelineLayout?.windowStartYmd,
+      windowEndYmd: snapshot?.timelineLayout?.windowEndYmd,
     });
 
     if (shouldBuildTimelineFromPlan(scheduleSource, timelineLocked)) {
-      const plan = await getPlanForProject(projectId);
-      if (plan) {
+      if (planJson) {
         const density = resolvePlanDensity(snapshot, options);
-        timeline = buildPlanTimelineCandidate(serializePlan(plan).phases, density, axis);
+        timeline = buildPlanTimelineCandidate(planJson.phases, density, axis);
       }
     } else if (shouldBuildTimelineFromLegacy(scheduleSource, timelineLocked)) {
       const bars = (project.timelineBars ?? [])
@@ -510,6 +537,58 @@ export async function buildStatusReportPdfData(
     timeline = applyTimelineLayout(timeline, snapshot?.timelineLayout);
   }
 
+  const resolvedSource = snapshot != null ? resolveScheduleSource(snapshot) : "timeline";
+  const includeDetailedPlan =
+    options?.includeDetailedPlan === true || snapshot?.includeDetailedPlan === true;
+  let detailedPlan: StatusReportPDFData["detailedPlan"];
+  let planAxis: StatusReportPDFData["planAxis"];
+  let planPhases: Array<{ id: string; color: string }> | undefined;
+  if (resolvedSource === "plan" || includeDetailedPlan) {
+    const planRecord = await getPlanForProject(projectId);
+    if (planRecord) {
+      const planJson = serializePlan(planRecord);
+      planAxis = { kickoffDate: planJson.kickoffDate, endDate: planJson.endDate };
+      planPhases = planJson.phases.map((phase) => ({ id: phase.id, color: phase.color }));
+      if (includeDetailedPlan) detailedPlan = planJson;
+    }
+  }
+
+  if (timeline && resolvedSource === "plan") {
+    const previousMonths = Math.min(
+      4,
+      Math.max(1, snapshot?.timelinePreviousMonths ?? options?.timelinePreviousMonths ?? 1)
+    );
+    const lookaheadMonths = Math.min(
+      4,
+      Math.max(
+        1,
+        snapshot?.timelineLookaheadMonths ??
+          options?.timelineLookaheadMonths ??
+          PLAN_REPORT_LOOKAHEAD_DEFAULT
+      )
+    );
+    const projectEndYmd = project.endDate
+      ? project.endDate.toISOString().slice(0, 10)
+      : timeline.endDate.slice(0, 10);
+    const axis = resolveReportTimelineAxis({
+      scheduleSource: "plan",
+      projectStartYmd: project.startDate.toISOString().slice(0, 10),
+      projectEndYmd,
+      reportDate: new Date(report.reportDate),
+      previousMonths,
+      lookaheadMonths,
+      planKickoffYmd: planAxis?.kickoffDate,
+      planEndYmd: planAxis?.endDate,
+      planWorkStartYmd: earliestScheduleWorkYmd(timeline),
+      windowStartYmd: snapshot?.timelineLayout?.windowStartYmd,
+      windowEndYmd: snapshot?.timelineLayout?.windowEndYmd,
+    });
+    timeline = { ...timeline, startDate: axis.startDate, endDate: axis.endDate };
+    if (planPhases) {
+      timeline = applyPlanPhaseColors(timeline, planPhases);
+    }
+  }
+
   return {
     report: {
       reportDate: report.reportDate.toISOString().slice(0, 10),
@@ -547,6 +626,9 @@ export async function buildStatusReportPdfData(
     cdaReportHoursOnly,
     showBudget,
     panels: Array.isArray(report.panels) ? (report.panels as ReportPanel[]) : undefined,
-    scheduleSource: snapshot != null ? resolveScheduleSource(snapshot) : "timeline",
+    scheduleSource: resolvedSource,
+    includeDetailedPlan,
+    detailedPlan,
+    planAxis,
   };
 }

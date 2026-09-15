@@ -146,19 +146,102 @@ describe("statusReportScheduleBuild", () => {
       ).toEqual({ startDate: "2026-08-01", endDate: projectEnd });
     });
 
-    it("keeps the full project range for Plan-source so earlier phases stay visible", () => {
+    it("clips a locked full-year Plan snapshot to kickoff and the report window", () => {
+      const stored = { startDate: "2026-01-01", endDate: "2026-12-31" };
+      const axis = resolveReportTimelineAxis({
+        scheduleSource: "plan",
+        projectStartYmd: "2026-01-01",
+        projectEndYmd: "2026-12-31",
+        reportDate: new Date("2026-09-15T00:00:00.000Z"),
+        previousMonths: 1,
+        lookaheadMonths: 2,
+        planKickoffYmd: "2026-08-01",
+        planEndYmd: "2026-12-31",
+      });
+      expect({ ...stored, ...axis }).toEqual({ startDate: "2026-08-01", endDate: "2026-11-30" });
+    });
+
+    it("windows Plan-source to kickoff and a short lookback/lookahead, not project start", () => {
       expect(
         resolveReportTimelineAxis({
           scheduleSource: "plan",
-          projectStartYmd: projectStart,
-          projectEndYmd: projectEnd,
-          reportDate,
+          projectStartYmd: "2026-01-01",
+          projectEndYmd: "2027-12-31",
+          reportDate: new Date("2026-09-15T00:00:00.000Z"),
           previousMonths: 1,
+          lookaheadMonths: 2,
+          planKickoffYmd: "2026-08-01",
+          planEndYmd: "2027-06-30",
         })
-      ).toEqual({ startDate: projectStart, endDate: projectEnd });
+      ).toEqual({ startDate: "2026-08-01", endDate: "2026-11-30" });
     });
 
-    it("makes a Plan with only early-phase work valid on a late report date", () => {
+    it("never starts the Plan axis before kickoff even when lookback is larger", () => {
+      expect(
+        resolveReportTimelineAxis({
+          scheduleSource: "plan",
+          projectStartYmd: "2026-01-01",
+          projectEndYmd: "2026-12-31",
+          reportDate: new Date("2026-09-15T00:00:00.000Z"),
+          previousMonths: 4,
+          lookaheadMonths: 2,
+          planKickoffYmd: "2026-08-01",
+          planEndYmd: "2026-12-31",
+        })
+      ).toEqual({ startDate: "2026-08-01", endDate: "2026-11-30" });
+    });
+
+    it("does not let a stored full-year Arrange window reopen Jan–Dec on the slide", () => {
+      expect(
+        resolveReportTimelineAxis({
+          scheduleSource: "plan",
+          projectStartYmd: "2026-01-01",
+          projectEndYmd: "2026-12-31",
+          reportDate: new Date("2026-09-15T00:00:00.000Z"),
+          previousMonths: 1,
+          lookaheadMonths: 2,
+          planKickoffYmd: "2026-08-01",
+          planEndYmd: "2026-12-31",
+          windowStartYmd: "2026-01-01",
+          windowEndYmd: "2026-12-31",
+        })
+      ).toEqual({ startDate: "2026-08-01", endDate: "2026-11-30" });
+    });
+
+    it("lets an author window narrow the auto range, not expand it", () => {
+      expect(
+        resolveReportTimelineAxis({
+          scheduleSource: "plan",
+          projectStartYmd: "2026-01-01",
+          projectEndYmd: "2027-12-31",
+          reportDate: new Date("2026-09-15T00:00:00.000Z"),
+          previousMonths: 1,
+          lookaheadMonths: 2,
+          planKickoffYmd: "2026-08-01",
+          planEndYmd: "2027-06-30",
+          windowStartYmd: "2026-09-01",
+          windowEndYmd: "2026-10-31",
+        })
+      ).toEqual({ startDate: "2026-09-01", endDate: "2026-10-31" });
+    });
+
+    it("floors to first Plan work when kickoff is earlier than any bar", () => {
+      expect(
+        resolveReportTimelineAxis({
+          scheduleSource: "plan",
+          projectStartYmd: "2026-01-01",
+          projectEndYmd: "2026-12-31",
+          reportDate: new Date("2026-09-15T00:00:00.000Z"),
+          previousMonths: 1,
+          lookaheadMonths: 2,
+          planKickoffYmd: "2026-01-01",
+          planEndYmd: "2026-12-31",
+          planWorkStartYmd: "2026-08-03",
+        })
+      ).toEqual({ startDate: "2026-08-01", endDate: "2026-11-30" });
+    });
+
+    it("does not treat early-only Plan work as visible on a late windowed axis", () => {
       const phases: PlanPhaseJson[] = [
         phase("Discovery", [
           {
@@ -182,17 +265,22 @@ describe("statusReportScheduleBuild", () => {
         reportDate,
         previousMonths: 1,
       });
-      const full = resolveReportTimelineAxis({
+      const windowed = resolveReportTimelineAxis({
         scheduleSource: "plan",
         projectStartYmd: projectStart,
         projectEndYmd: projectEnd,
         reportDate,
         previousMonths: 1,
+        lookaheadMonths: 2,
+        planKickoffYmd: projectStart,
+        planEndYmd: projectEnd,
       });
       expect(isValidPlanTimeline(buildPlanTimelineCandidate(phases, "phases", clipped))).toBe(
         false
       );
-      expect(isValidPlanTimeline(buildPlanTimelineCandidate(phases, "phases", full))).toBe(true);
+      expect(isValidPlanTimeline(buildPlanTimelineCandidate(phases, "phases", windowed))).toBe(
+        false
+      );
     });
   });
 

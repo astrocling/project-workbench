@@ -65,6 +65,20 @@ function maxDate(dates: string[]): string {
   return dates.reduce((max, d) => (d > max ? d : max));
 }
 
+/** Paint missing snapshot bar colors from live Plan phases (locked reports created before colors). */
+export function applyPlanPhaseColors<
+  T extends { bars: Array<{ phaseId?: string; color?: string | null }> },
+>(timeline: T, phases: Array<{ id: string; color: string }>): T {
+  const colorById = new Map(phases.map((phase) => [phase.id, phase.color]));
+  return {
+    ...timeline,
+    bars: timeline.bars.map((bar) => ({
+      ...bar,
+      color: bar.color || (bar.phaseId ? colorById.get(bar.phaseId) ?? null : null) || null,
+    })),
+  };
+}
+
 export function compactPlanToSchedule(
   phases: PlanPhaseJson[],
   density: PlanReportDensity
@@ -93,7 +107,7 @@ export function compactPlanToSchedule(
         label: phase.name,
         startDate,
         endDate,
-        color: null,
+        color: phase.color || null,
         ...(muted ? { muted: true } : {}),
       };
     })
@@ -230,4 +244,17 @@ export function getActiveTimelineRows(timeline: TimelineAxisSlice): number[] {
 /** True when at least one bar segment or marker is visible on rows 1–4 within the axis. */
 export function timelineHasVisibleSchedule(timeline: TimelineAxisSlice): boolean {
   return getActiveTimelineRows(timeline).length > 0;
+}
+
+export const COMPACT_PLAN_TIMELINE_MAX_ROWS = 4;
+
+/**
+ * Plan status-report strip: every lane that intersects the window (rows 1–4).
+ */
+export function getCompactPlanTimelineRows(
+  timeline: TimelineAxisSlice,
+  _reportDateYmd?: string,
+  maxRows = COMPACT_PLAN_TIMELINE_MAX_ROWS
+): number[] {
+  return getActiveTimelineRows(timeline).slice(0, maxRows);
 }

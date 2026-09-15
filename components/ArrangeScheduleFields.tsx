@@ -6,8 +6,10 @@ import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument"
 import { TIMELINE_RENDERABLE_ROW_MAX, TIMELINE_RENDERABLE_ROW_MIN } from "@/lib/plan/reportSchedule";
 import {
   applyTimelineLayout,
+  isReadableTimelineWindow,
   setTimelineLayoutLabel,
   setTimelineLayoutRow,
+  setTimelineLayoutWindow,
   toggleTimelineHiddenId,
   type TimelineLayoutOverlay,
 } from "@/lib/statusReportTimelineLayout";
@@ -41,6 +43,15 @@ function monthKeys(startDate: string, endDate: string): string[] {
     current.setUTCMonth(current.getUTCMonth() + 1);
   }
   return months;
+}
+
+function monthEndYmd(monthKey: string): string {
+  const [y, m] = monthKey.split("-").map(Number);
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+}
+
+function toMonthKey(ymd: string): string {
+  return ymd.slice(0, 7);
 }
 
 function monthLabel(monthKey: string): string {
@@ -92,6 +103,17 @@ export function ArrangeScheduleFields({
     () => monthKeys(timeline.startDate, timeline.endDate),
     [timeline.startDate, timeline.endDate]
   );
+  const boundMonths = useMemo(() => {
+    const dates = [
+      timeline.startDate,
+      timeline.endDate,
+      ...timeline.bars.flatMap((bar) => [bar.startDate, bar.endDate]),
+      ...timeline.markers.map((marker) => marker.date),
+    ];
+    const start = dates.reduce((min, d) => (d < min ? d : min));
+    const end = dates.reduce((max, d) => (d > max ? d : max));
+    return monthKeys(start, end);
+  }, [timeline]);
   const placed = useMemo(() => applyTimelineLayout(timeline, layout), [timeline, layout]);
   const hiddenBars = timeline.bars.filter(
     (bar) => bar.phaseId && layout.hiddenBarIds?.includes(bar.phaseId)
@@ -172,6 +194,76 @@ export function ArrangeScheduleFields({
         <p className="text-body-sm text-surface-600 dark:text-surface-400 mt-1">
           Drag bars and key dates between rows, or into Hidden. Dates stay as stored on the Plan.
           Click an item to rename or hide it for this slide.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="block text-label-sm font-semibold uppercase tracking-wide text-surface-500 mb-1">
+            Window start
+          </label>
+          <select
+            className={INPUT_CLASS}
+            disabled={disabled}
+            value={toMonthKey(layout.windowStartYmd ?? timeline.startDate)}
+            onChange={(event) => {
+              const start = `${event.target.value}-01`;
+              const end = layout.windowEndYmd ?? timeline.endDate;
+              if (!isReadableTimelineWindow(start, end)) {
+                return;
+              }
+              onChange(
+                setTimelineLayoutWindow(
+                  layout,
+                  start,
+                  end,
+                  timeline.startDate,
+                  timeline.endDate
+                ) ?? {}
+              );
+            }}
+          >
+            {boundMonths.map((monthKey) => (
+              <option key={`start-${monthKey}`} value={monthKey}>
+                {monthLabel(monthKey)} {monthKey.slice(0, 4)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-label-sm font-semibold uppercase tracking-wide text-surface-500 mb-1">
+            Window end
+          </label>
+          <select
+            className={INPUT_CLASS}
+            disabled={disabled}
+            value={toMonthKey(layout.windowEndYmd ?? timeline.endDate)}
+            onChange={(event) => {
+              const end = monthEndYmd(event.target.value);
+              const start = layout.windowStartYmd ?? timeline.startDate;
+              if (!isReadableTimelineWindow(start, end)) {
+                return;
+              }
+              onChange(
+                setTimelineLayoutWindow(
+                  layout,
+                  start,
+                  end,
+                  timeline.startDate,
+                  timeline.endDate
+                ) ?? {}
+              );
+            }}
+          >
+            {boundMonths.map((monthKey) => (
+              <option key={`end-${monthKey}`} value={monthKey}>
+                {monthLabel(monthKey)} {monthKey.slice(0, 4)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="text-body-sm text-surface-500 max-w-md">
+          Widen or shrink the slide window. Month columns must stay at least 50px wide so labels stay readable.
         </p>
       </div>
 
