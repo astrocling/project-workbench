@@ -11,6 +11,7 @@ import {
   isStatusReportSnapshot,
   type StatusReportSnapshot,
 } from "@/lib/statusReportPdfData";
+import { modularNeedsBudget, normalizeModularPanels } from "@/lib/reportPanels";
 
 export async function POST(
   _req: NextRequest,
@@ -39,9 +40,12 @@ export async function POST(
     );
   }
 
-  if (report.variation === "Modular") {
+  if (
+    report.variation === "Modular" &&
+    !modularNeedsBudget(normalizeModularPanels(report.panels))
+  ) {
     return NextResponse.json(
-      { error: "Modular reports do not use the project budget snapshot." },
+      { error: "This Modular report has no budget module." },
       { status: 400 }
     );
   }

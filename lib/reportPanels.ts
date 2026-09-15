@@ -422,6 +422,38 @@ export function shouldRenderModularPage2(doc: ModularPanelsDocument): boolean {
   return page.rows.some((row) => row.moduleIds.some((id) => id != null));
 }
 
+export const BUDGET_MODULE_TYPES: ModuleType[] = [
+  "budgetFinancials",
+  "budgetCompactDollars",
+  "budgetCompactHours",
+  "budgetBurnOnly",
+];
+
+export function modularDocumentHasType(
+  doc: ModularPanelsDocument,
+  types: ModuleType[]
+): boolean {
+  const wanted = new Set(types);
+  for (const page of doc.layout.pages) {
+    for (const row of page.rows) {
+      for (const id of row.moduleIds) {
+        if (id == null) continue;
+        const mod = doc.modules[id];
+        if (mod && wanted.has(mod.type)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+export function modularNeedsBudget(doc: ModularPanelsDocument): boolean {
+  return modularDocumentHasType(doc, BUDGET_MODULE_TYPES);
+}
+
+export function modularNeedsTimeline(doc: ModularPanelsDocument): boolean {
+  return modularDocumentHasType(doc, ["ganttTimeline"]);
+}
+
 const LEGACY_FORM_TYPES = new Set([
   "sprintSchedule",
   "storyPointMetrics",

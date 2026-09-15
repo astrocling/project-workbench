@@ -39,6 +39,7 @@ import {
   shouldShowPlanLookaheadOnSchedule,
   shouldShowPreviousMonthsOnSchedule,
   shouldShowRefreshBudget,
+  shouldShowRefreshTimeline,
   shouldShowScheduleSourceFields,
   type ScheduleSource,
 } from "@/lib/statusReportFlags";
@@ -388,6 +389,7 @@ export function StatusReportsTab({
   const [formReportDate, setFormReportDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [formVariation, setFormVariation] = useState<FormVariation>("Standard");
   const [formPanels, setFormPanels] = useState<ReportPanel[]>(MODULAR_LEGACY_DEFAULT_PANELS);
+  const [formLayoutPanels, setFormLayoutPanels] = useState<unknown>(undefined);
   const [formShowBudget, setFormShowBudget] = useState(true);
   const [formTimelinePreviousMonths, setFormTimelinePreviousMonths] = useState<number>(1);
   const [formTimelineLookaheadMonths, setFormTimelineLookaheadMonths] = useState<number>(2);
@@ -544,6 +546,7 @@ export function StatusReportsTab({
         const newVariation: FormVariation = cdaEnabled ? "CDA" : "Standard";
         setFormVariation(newVariation);
         setFormPanels(MODULAR_LEGACY_DEFAULT_PANELS);
+        setFormLayoutPanels(undefined);
         setFormShowBudget(true);
         setFormTimelinePreviousMonths(1);
         setFormTimelineLookaheadMonths(2);
@@ -580,6 +583,7 @@ export function StatusReportsTab({
         const newVariation: FormVariation = cdaEnabled ? "CDA" : "Standard";
         setFormVariation(newVariation);
         setFormPanels(MODULAR_LEGACY_DEFAULT_PANELS);
+        setFormLayoutPanels(undefined);
         setFormShowBudget(true);
         setFormTimelinePreviousMonths(1);
         setFormTimelineLookaheadMonths(2);
@@ -615,6 +619,7 @@ export function StatusReportsTab({
     setFormReportDate(r.reportDate.slice(0, 10));
     setFormVariation((r.variation as FormVariation) || "Standard");
     setFormPanels(panelsInputToLegacyFormPanels(r.panels));
+    setFormLayoutPanels(r.panels);
     setFormShowBudget(
       typeof r.snapshot?.showBudget === "boolean" ? r.snapshot.showBudget : true
     );
@@ -1387,6 +1392,7 @@ export function StatusReportsTab({
                   }
                   if (next === "Modular" && !editingReportId) {
                     setFormPanels(MODULAR_LEGACY_DEFAULT_PANELS);
+                    setFormLayoutPanels(undefined);
                   }
                   if (
                     !editingReportId &&
@@ -1412,7 +1418,7 @@ export function StatusReportsTab({
                 aria-label="Show project budget on report"
               />
             )}
-            {shouldShowRefreshBudget(formVariation) && editingReportId && canEdit && (
+            {shouldShowRefreshBudget(formVariation, formLayoutPanels) && editingReportId && canEdit && (
               <div className="space-y-2">
                 <button
                   type="button"
@@ -1427,6 +1433,30 @@ export function StatusReportsTab({
                 {budgetRefreshSuccess && (
                   <p className="text-body-sm text-emerald-700 dark:text-emerald-400" role="status">
                     {budgetRefreshSuccess}
+                  </p>
+                )}
+              </div>
+            )}
+            {shouldShowRefreshTimeline(formVariation, formLayoutPanels) && editingReportId && canEdit && (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRefreshTimelineModalError(null);
+                    setShowRefreshTimelineModal(true);
+                  }}
+                  className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-800 dark:text-surface-100 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                >
+                  {editingScheduleSource === "plan"
+                    ? "Refresh schedule"
+                    : "Refresh timeline"}
+                </button>
+                {timelineRefreshSuccess && (
+                  <p
+                    className="text-body-sm text-emerald-700 dark:text-emerald-400"
+                    role="status"
+                  >
+                    {timelineRefreshSuccess}
                   </p>
                 )}
               </div>
@@ -1550,38 +1580,14 @@ export function StatusReportsTab({
                     </label>
                   </div>
                 )}
-                {editingReportId && canEdit && (
-                  <div className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRefreshTimelineModalError(null);
-                        setShowRefreshTimelineModal(true);
-                      }}
-                      className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-800 dark:text-surface-100 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
-                    >
-                      {editingScheduleSource === "plan"
-                        ? "Refresh schedule"
-                        : "Refresh timeline"}
-                    </button>
-                    {timelineRefreshSuccess && (
-                      <p
-                        className="text-body-sm text-emerald-700 dark:text-emerald-400"
-                        role="status"
-                      >
-                        {timelineRefreshSuccess}
-                      </p>
-                    )}
-                    {editingScheduleSource === "plan" && formTimeline && canEdit && (
-                      <ArrangeScheduleFields
-                        timeline={formTimeline}
-                        layout={formTimelineLayout}
-                        onChange={(next) => {
-                          void saveTimelineLayout(next);
-                        }}
-                      />
-                    )}
-                  </div>
+                {editingReportId && canEdit && editingScheduleSource === "plan" && formTimeline && (
+                  <ArrangeScheduleFields
+                    timeline={formTimeline}
+                    layout={formTimelineLayout}
+                    onChange={(next) => {
+                      void saveTimelineLayout(next);
+                    }}
+                  />
                 )}
               </div>
             )}

@@ -18,7 +18,11 @@ import {
   PLAN_CREATE_ROLLBACK_FAILED_ERROR,
   rollbackCreatedStatusReport,
 } from "@/lib/statusReportCreateRollback";
-import { normalizeModularPanels } from "@/lib/reportPanels";
+import {
+  modularNeedsBudget,
+  modularNeedsTimeline,
+  normalizeModularPanels,
+} from "@/lib/reportPanels";
 import { z } from "zod";
 
 const variationEnum = z.enum(["Standard", "Milestones", "CDA", "Modular"]);
@@ -241,10 +245,27 @@ export async function POST(
     const prevFriday = new Date(prevMonday);
     prevFriday.setDate(prevMonday.getDate() + 4);
     const periodStr = `${prevMonday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} – ${prevFriday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+    const panelsDoc = normalizeModularPanels(parsed.data.panels);
+    const needsBudget = modularNeedsBudget(panelsDoc);
+    const needsTimeline = modularNeedsTimeline(panelsDoc);
     const snapshot: StatusReportSnapshot = {
       period: periodStr,
       today: todayStr,
     };
+    if (needsBudget || needsTimeline) {
+      try {
+        const pdfData = await buildStatusReportPdfData(id, report.id);
+        if (pdfData) {
+          if (needsBudget) snapshot.budget = pdfData.budget;
+          if (needsTimeline) snapshot.timeline = pdfData.timeline;
+        }
+      } catch (buildError) {
+        console.error(
+          "Failed to build Modular budget/timeline snapshot after create:",
+          buildError
+        );
+      }
+    }
     await prisma.statusReport.update({
       where: { id: report.id },
       data: { snapshot: snapshot as Prisma.InputJsonValue },

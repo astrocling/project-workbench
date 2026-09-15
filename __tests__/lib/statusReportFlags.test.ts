@@ -1,13 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
+  MODULAR_DEFAULT_DOCUMENT,
+  type ModularPanelsDocument,
+} from "@/lib/reportPanels";
+import {
   PREVIOUS_MONTHS_ON_SCHEDULE_LABEL,
   buildScheduleSourceCreatePayload,
   createScheduleFormDefaults,
   isScheduleEligibleVariation,
   planDensityLabel,
   scheduleSourceLabel,
+  shouldAttachBudgetToPdfData,
   shouldResetScheduleDefaultsOnVariationChange,
   shouldShowPreviousMonthsOnSchedule,
+  shouldShowRefreshBudget,
+  shouldShowRefreshTimeline,
   shouldShowScheduleSourceFields,
 } from "@/lib/statusReportFlags";
 
@@ -143,5 +150,91 @@ describe("shouldShowPreviousMonthsOnSchedule", () => {
   it("is for Project timeline and Plan compact window lookback", () => {
     expect(shouldShowPreviousMonthsOnSchedule("timeline")).toBe(true);
     expect(shouldShowPreviousMonthsOnSchedule("plan")).toBe(true);
+  });
+});
+
+const modularWithBudgetFinancials: ModularPanelsDocument = {
+  version: 1,
+  layout: {
+    pages: [
+      {
+        header: "full",
+        rows: [
+          {
+            id: "r1",
+            shape: "full",
+            height: "tall",
+            moduleIds: ["bf"],
+          },
+        ],
+      },
+    ],
+  },
+  modules: {
+    bf: { id: "bf", type: "budgetFinancials", data: {} },
+  },
+};
+
+const modularWithTimeline: ModularPanelsDocument = {
+  version: 1,
+  layout: {
+    pages: [
+      {
+        header: "full",
+        rows: [
+          {
+            id: "r1",
+            shape: "full",
+            height: "tall",
+            moduleIds: ["gt"],
+          },
+        ],
+      },
+    ],
+  },
+  modules: {
+    gt: { id: "gt", type: "ganttTimeline", data: {} },
+  },
+};
+
+describe("shouldAttachBudgetToPdfData", () => {
+  it("attaches budget for Standard, Milestones, and CDA regardless of panels", () => {
+    expect(shouldAttachBudgetToPdfData("Standard")).toBe(true);
+    expect(shouldAttachBudgetToPdfData("Milestones", modularWithTimeline)).toBe(true);
+    expect(shouldAttachBudgetToPdfData("CDA", MODULAR_DEFAULT_DOCUMENT)).toBe(true);
+  });
+
+  it("does not attach budget for Classic Modular default (no budget modules)", () => {
+    expect(shouldAttachBudgetToPdfData("Modular", MODULAR_DEFAULT_DOCUMENT)).toBe(false);
+    expect(shouldAttachBudgetToPdfData("Modular")).toBe(false);
+  });
+
+  it("attaches budget for Modular when a budgetFinancials module is in the document", () => {
+    expect(shouldAttachBudgetToPdfData("Modular", modularWithBudgetFinancials)).toBe(
+      true
+    );
+  });
+});
+
+describe("shouldShowRefreshBudget", () => {
+  it("matches attach flags for Standard/CDA and Modular documents", () => {
+    expect(shouldShowRefreshBudget("Standard")).toBe(true);
+    expect(shouldShowRefreshBudget("Milestones")).toBe(true);
+    expect(shouldShowRefreshBudget("CDA")).toBe(true);
+    expect(shouldShowRefreshBudget("Modular", MODULAR_DEFAULT_DOCUMENT)).toBe(false);
+    expect(shouldShowRefreshBudget("Modular", modularWithBudgetFinancials)).toBe(true);
+  });
+});
+
+describe("shouldShowRefreshTimeline", () => {
+  it("shows for Standard and Milestones, not CDA", () => {
+    expect(shouldShowRefreshTimeline("Standard")).toBe(true);
+    expect(shouldShowRefreshTimeline("Milestones")).toBe(true);
+    expect(shouldShowRefreshTimeline("CDA")).toBe(false);
+  });
+
+  it("shows for Modular only when a ganttTimeline module is in the document", () => {
+    expect(shouldShowRefreshTimeline("Modular", MODULAR_DEFAULT_DOCUMENT)).toBe(false);
+    expect(shouldShowRefreshTimeline("Modular", modularWithTimeline)).toBe(true);
   });
 });

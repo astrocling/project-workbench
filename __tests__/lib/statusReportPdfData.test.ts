@@ -86,6 +86,32 @@ describe("shouldAttachBudgetToPdfData", () => {
   it("does not attach budget for Modular", () => {
     expect(shouldAttachBudgetToPdfData("Modular")).toBe(false);
   });
+
+  it("attaches budget for Modular when panels include a budgetFinancials module", () => {
+    expect(
+      shouldAttachBudgetToPdfData("Modular", {
+        version: 1,
+        layout: {
+          pages: [
+            {
+              header: "full",
+              rows: [
+                {
+                  id: "r1",
+                  shape: "full",
+                  height: "tall",
+                  moduleIds: ["bf"],
+                },
+              ],
+            },
+          ],
+        },
+        modules: {
+          bf: { id: "bf", type: "budgetFinancials", data: {} },
+        },
+      })
+    ).toBe(true);
+  });
 });
 
 describe("shouldShowRefreshBudget", () => {

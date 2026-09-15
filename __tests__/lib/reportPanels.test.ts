@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  BUDGET_MODULE_TYPES,
   MODULAR_DEFAULT_DOCUMENT,
   MODULAR_SLIDE_HEIGHT_PX,
   MODULAR_SLIDE_WIDTH_PX,
+  modularDocumentHasType,
+  modularNeedsBudget,
+  modularNeedsTimeline,
   normalizeModularPanels,
   rowShapeWeights,
   rowSlotCount,
   shouldRenderModularPage2,
   type ModularPanelsDocument,
+  type ModuleType,
   type ReportPanel,
   type RowShape,
 } from "@/lib/reportPanels";
@@ -241,5 +246,93 @@ describe("shouldRenderModularPage2", () => {
         ])
       )
     ).toBe(true);
+  });
+});
+
+function placeModuleInFirstEmptySlot(
+  type: ModuleType,
+  id = "placed-mod"
+): ModularPanelsDocument {
+  const doc: ModularPanelsDocument = structuredClone(MODULAR_DEFAULT_DOCUMENT);
+  doc.modules[id] = { id, type, data: {} } as ModularPanelsDocument["modules"][string];
+  for (const page of doc.layout.pages) {
+    for (const row of page.rows) {
+      const slot = row.moduleIds.findIndex((moduleId) => moduleId == null);
+      if (slot >= 0) {
+        row.moduleIds[slot] = id;
+        return doc;
+      }
+    }
+  }
+  throw new Error("no empty slot");
+}
+
+describe("modularDocumentHasType", () => {
+  it("is false for Classic Modular default (no budget or timeline modules in slots)", () => {
+    expect(modularDocumentHasType(MODULAR_DEFAULT_DOCUMENT, BUDGET_MODULE_TYPES)).toBe(
+      false
+    );
+    expect(modularDocumentHasType(MODULAR_DEFAULT_DOCUMENT, ["ganttTimeline"])).toBe(
+      false
+    );
+  });
+
+  it("ignores null slots and missing module ids", () => {
+    const doc: ModularPanelsDocument = {
+      ...MODULAR_DEFAULT_DOCUMENT,
+      layout: {
+        pages: [
+          {
+            header: "full",
+            rows: [
+              {
+                id: "r-empty",
+                shape: "halves",
+                height: "short",
+                moduleIds: [null, "does-not-exist"],
+              },
+            ],
+          },
+        ],
+      },
+    };
+    expect(modularDocumentHasType(doc, ["budgetFinancials", "ganttTimeline"])).toBe(
+      false
+    );
+  });
+
+  it("does not count modules that are not placed in any page slot", () => {
+    const doc: ModularPanelsDocument = {
+      ...MODULAR_DEFAULT_DOCUMENT,
+      modules: {
+        ...MODULAR_DEFAULT_DOCUMENT.modules,
+        orphan: { id: "orphan", type: "budgetFinancials", data: {} },
+      },
+    };
+    expect(modularDocumentHasType(doc, ["budgetFinancials"])).toBe(false);
+  });
+
+  it("is true when a matching type is placed in a layout slot", () => {
+    const doc = placeModuleInFirstEmptySlot("budgetFinancials");
+    expect(modularDocumentHasType(doc, ["budgetFinancials"])).toBe(true);
+  });
+});
+
+describe("modularNeedsBudget / modularNeedsTimeline", () => {
+  it("is false for Classic Modular default", () => {
+    expect(modularNeedsBudget(MODULAR_DEFAULT_DOCUMENT)).toBe(false);
+    expect(modularNeedsTimeline(MODULAR_DEFAULT_DOCUMENT)).toBe(false);
+  });
+
+  it("needs budget for each budget module type in a slot", () => {
+    for (const type of BUDGET_MODULE_TYPES) {
+      expect(modularNeedsBudget(placeModuleInFirstEmptySlot(type, type))).toBe(true);
+    }
+  });
+
+  it("needs timeline when ganttTimeline is in a slot", () => {
+    expect(modularNeedsTimeline(placeModuleInFirstEmptySlot("ganttTimeline"))).toBe(
+      true
+    );
   });
 });

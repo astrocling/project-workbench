@@ -1,3 +1,8 @@
+import {
+  modularNeedsBudget,
+  modularNeedsTimeline,
+  normalizeModularPanels,
+} from "@/lib/reportPanels";
 import type { PlanReportDensity, ScheduleSource } from "@/lib/statusReportPdfData";
 
 export type { ScheduleSource } from "@/lib/statusReportPdfData";
@@ -23,25 +28,48 @@ export function resolveShowBudget(
  * CDA needs budgetedHoursHigh for Overall Hours Planned (not the CDA monthly plan sum).
  */
 export function shouldAttachBudgetToPdfData(
-  variation: StatusReportVariationLike
+  variation: StatusReportVariationLike,
+  panels?: unknown
 ): boolean {
-  return (
+  if (
     variation === "Standard" ||
     variation === "Milestones" ||
     variation === "CDA"
-  );
+  ) {
+    return true;
+  }
+  if (variation === "Modular") {
+    return modularNeedsBudget(normalizeModularPanels(panels));
+  }
+  return false;
 }
 
 /**
  * Edit-form **Refresh budget** is offered for every variation that locks budget
  * into the snapshot. The API refreshes Standard, Milestones, and CDA
  * (`snapshot.budget`; on CDA also monthly hours / totalMtdActuals / overallBudget).
- * Modular has no budget snapshot.
+ * Modular shows it when the layout includes a budget module.
  */
 export function shouldShowRefreshBudget(
-  variation: StatusReportVariationLike
+  variation: StatusReportVariationLike,
+  panels?: unknown
 ): boolean {
-  return shouldAttachBudgetToPdfData(variation);
+  return shouldAttachBudgetToPdfData(variation, panels);
+}
+
+/**
+ * Edit-form **Refresh timeline** for Standard/Milestones. Modular only when a
+ * ganttTimeline module is placed in the layout.
+ */
+export function shouldShowRefreshTimeline(
+  variation: StatusReportVariationLike,
+  panels?: unknown
+): boolean {
+  if (variation === "Standard" || variation === "Milestones") return true;
+  if (variation === "Modular") {
+    return modularNeedsTimeline(normalizeModularPanels(panels));
+  }
+  return false;
 }
 
 export function isScheduleEligibleVariation(

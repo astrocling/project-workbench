@@ -20,6 +20,7 @@ import {
 } from "@/lib/plan/reportScheduleErrors";
 import { isValidPlanTimeline } from "@/lib/statusReportScheduleBuild";
 import { pruneTimelineLayout } from "@/lib/statusReportTimelineLayout";
+import { modularNeedsTimeline, normalizeModularPanels } from "@/lib/reportPanels";
 
 export async function POST(
   _req: NextRequest,
@@ -44,6 +45,16 @@ export async function POST(
   if (!isStatusReportSnapshot(report.snapshot)) {
     return NextResponse.json(
       { error: "This report has no stored snapshot. Timeline cannot be refreshed." },
+      { status: 400 }
+    );
+  }
+
+  if (
+    report.variation === "Modular" &&
+    !modularNeedsTimeline(normalizeModularPanels(report.panels))
+  ) {
+    return NextResponse.json(
+      { error: "This Modular report has no timeline module." },
       { status: 400 }
     );
   }

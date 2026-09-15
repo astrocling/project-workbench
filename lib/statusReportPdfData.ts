@@ -75,6 +75,7 @@ export {
   resolveShowBudget,
   shouldAttachBudgetToPdfData,
   shouldShowRefreshBudget,
+  shouldShowRefreshTimeline,
 } from "@/lib/statusReportFlags";
 
 export function isStatusReportSnapshot(obj: unknown): obj is StatusReportSnapshot {
@@ -620,7 +621,7 @@ export async function buildStatusReportPdfData(
     },
     period,
     today,
-    budget: shouldAttachBudgetToPdfData(report.variation) ? budget : undefined,
+    budget: shouldAttachBudgetToPdfData(report.variation, report.panels) ? budget : undefined,
     cda,
     timeline,
     cdaReportHoursOnly,
