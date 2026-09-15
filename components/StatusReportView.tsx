@@ -15,8 +15,14 @@ import {
   cdaContractHoursCompletePercent,
 } from "@/components/pdf/StatusReportDocument";
 import {
-  reportPanelsForLegacyRender,
+  MODULAR_SLIDE_HEIGHT_PX,
+  MODULAR_SLIDE_WIDTH_PX,
+  PANEL_META,
+  normalizeModularPanels,
+  rowShapeWeights,
   type DonutKpiData,
+  type ModularPanelsDocument,
+  type ReportModule,
   type SprintScheduleData,
   type StoryPointsMetricsData,
 } from "@/lib/reportPanels";
@@ -135,11 +141,19 @@ const SPRINT_METRIC_LABELS: Record<string, string> = {
   carryOver: "Carry Over To Next",
 };
 
-function NarrativeColumnContent({ text }: { text: string }) {
+function NarrativeColumnContent({
+  text,
+  size = "compact",
+}: {
+  text: string;
+  size?: "compact" | "modular";
+}) {
+  const textClass =
+    size === "modular" ? "text-[12px] leading-[1.25]" : "text-[7px] leading-[1.15]";
   if (isHtmlContent(text)) {
     return (
       <div
-        className="text-[7px] leading-[1.15] [&_ul]:list-disc [&_ul]:pl-3 [&_li]:my-px [&_strong]:font-bold [&_b]:font-bold [&_a]:text-jblue-600 [&_a]:underline [&_p]:mb-px [&_p:last-child]:mb-0"
+        className={`${textClass} [&_ul]:list-disc [&_ul]:pl-3 [&_li]:my-px [&_strong]:font-bold [&_b]:font-bold [&_a]:text-jblue-600 [&_a]:underline [&_p]:mb-px [&_p:last-child]:mb-0`}
         dangerouslySetInnerHTML={{ __html: sanitizeMeetingNotesHtml(text) }}
       />
     );
@@ -149,7 +163,7 @@ function NarrativeColumnContent({ text }: { text: string }) {
       {bulletLines(text)
         .slice(0, 7)
         .map((line, i) => (
-          <p key={i} className="text-[7px] leading-[1.15]">
+          <p key={i} className={textClass}>
             • <TextWithLinks line={line} />
           </p>
         ))}
@@ -290,10 +304,12 @@ function TimelineBlock({
   timeline,
   reportDate,
   scheduleSource,
+  className,
 }: {
   timeline: NonNullable<StatusReportPDFData["timeline"]>;
   reportDate?: string;
   scheduleSource?: StatusReportPDFData["scheduleSource"];
+  className?: string;
 }) {
   const startMs = new Date(timeline.startDate).getTime();
   const endMs = new Date(timeline.endDate).getTime();
@@ -327,7 +343,7 @@ function TimelineBlock({
       : getActiveTimelineRows(timeline);
 
   return (
-    <div className="mt-1 w-full border border-[#d1d5db] relative">
+    <div className={`w-full border border-[#d1d5db] relative ${className ?? "mt-1"}`}>
       <div className="flex flex-row items-stretch">
         {labelCol > 0 && (
           <div
@@ -565,6 +581,250 @@ function milestonesForExport<T extends { completed: boolean }>(milestones: T[]):
     .slice(0, MAX_MILESTONES_ON_PDF);
 }
 
+function ModularModuleBox({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="h-full w-full min-h-0 flex flex-col border border-gray-200 overflow-hidden">
+      <div
+        className="shrink-0 text-center py-0.5 px-1 text-[9px] font-semibold"
+        style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
+      >
+        {title}
+      </div>
+      <div className="flex-1 min-h-0 min-w-0 overflow-hidden p-1">{children}</div>
+    </div>
+  );
+}
+
+function ModularEmptyState({ label }: { label: string }) {
+  return (
+    <p className="text-[11px] text-gray-500 leading-snug">
+      {label} — nothing to show yet.
+    </p>
+  );
+}
+
+function ModularSprintSchedule({ data }: { data: SprintScheduleData }) {
+  if (data.rows.length === 0) {
+    return <ModularEmptyState label={PANEL_META.sprintSchedule.label} />;
+  }
+  return (
+    <div className="h-full w-full border border-gray-200">
+      {data.rows.map((row, i) => (
+        <div
+          key={i}
+          className="flex flex-row text-[8px] border-t border-gray-200 first:border-t-0"
+          style={{ backgroundColor: i % 2 === 0 ? "#ffffff" : "#f3f4f6" }}
+        >
+          <div className="w-20 flex-shrink-0 py-0.5 px-1 font-semibold">{row.dateRange}</div>
+          <div className="flex-1 py-0.5 px-1">{row.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ModularStoryPointMetrics({ data }: { data: StoryPointsMetricsData }) {
+  if (data.systems.length === 0) {
+    return <ModularEmptyState label={PANEL_META.storyPointMetrics.label} />;
+  }
+  return (
+    <div className="h-full w-full border border-gray-200">
+      <div
+        className="flex flex-row text-[8px] font-semibold"
+        style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
+      >
+        <div className="flex-[1.5] py-0.5 px-1" />
+        {data.systems.map((sys, i) => (
+          <div key={i} className="flex-1 py-0.5 px-1 text-center">
+            {sys.name}
+          </div>
+        ))}
+      </div>
+      {data.rows.map((row, i) => (
+        <div
+          key={i}
+          className="flex flex-row text-[8px] border-t border-gray-200"
+          style={{ backgroundColor: i % 2 === 0 ? "#ffffff" : "#f3f4f6" }}
+        >
+          <div className="flex-[1.5] py-0.5 px-1 font-semibold">
+            {SPRINT_METRIC_LABELS[row.metric] ?? row.metric}
+          </div>
+          {row.values.map((v, j) => (
+            <div key={j} className="flex-1 py-0.5 px-1 text-center tabular-nums">
+              {v}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StandardBudgetTable({
+  budget,
+  tableClass = "text-[8px]",
+}: {
+  budget: NonNullable<StatusReportPDFData["budget"]>;
+  tableClass?: string;
+}) {
+  return (
+    <div className="flex flex-row items-start gap-2 h-full min-h-0">
+      <div className="flex-1 min-w-0 border border-gray-200">
+        <div
+          className={`flex flex-row ${tableClass} font-semibold`}
+          style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
+        >
+          <div className="flex-[0.5] py-0.5 px-1"></div>
+          <div className="flex-1 py-0.5 px-1">Est. Budget</div>
+          <div className="flex-1 py-0.5 px-1">$ Spent</div>
+          <div className="flex-1 py-0.5 px-1">$ Remaining</div>
+          <div className="flex-1 py-0.5 px-1">Budgeted Hrs</div>
+          <div className="flex-1 py-0.5 px-1">Actual Hrs</div>
+          <div className="flex-1 py-0.5 px-1">Hrs Remaining</div>
+        </div>
+        <div className={`flex flex-row ${tableClass} border-t border-gray-200`}>
+          <div className="flex-[0.5] py-0.5 px-1 font-semibold">HIGH</div>
+          <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.overallBudget, color: BRAND_COLORS.onHeader }}>{formatDollars(budget.estBudgetHigh)}</div>
+          <div className="flex-1 py-0.5 px-1 text-right">{formatDollars(-budget.spentDollars)}</div>
+          <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.overallBudget, color: BRAND_COLORS.onHeader }}>{formatDollars(budget.remainingDollarsHigh)}</div>
+          <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(budget.budgetedHoursHigh)}</div>
+          <div className="flex-1 py-0.5 px-1 text-right">{formatReportNum(-budget.actualHours)}</div>
+          <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(budget.remainingHoursHigh)}</div>
+        </div>
+        <div className={`flex flex-row ${tableClass} border-t border-gray-200`}>
+          <div className="flex-[0.5] py-0.5 px-1 font-semibold">LOW</div>
+          <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.overallBudget, color: BRAND_COLORS.onHeader }}>{formatDollars(budget.estBudgetLow)}</div>
+          <div className="flex-1 py-0.5 px-1 text-right">{formatDollars(-budget.spentDollars)}</div>
+          <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.overallBudget, color: BRAND_COLORS.onHeader }}>{formatDollars(budget.remainingDollarsLow)}</div>
+          <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(budget.budgetedHoursLow)}</div>
+          <div className="flex-1 py-0.5 px-1 text-right">{formatReportNum(-budget.actualHours)}</div>
+          <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(budget.remainingHoursLow)}</div>
+        </div>
+      </div>
+      <BudgetBurnDonut burnPercent={budget.burnPercentHigh} compact />
+    </div>
+  );
+}
+
+function ModularModuleBody({
+  module,
+  data,
+}: {
+  module: ReportModule;
+  data: StatusReportPDFData;
+}) {
+  switch (module.type) {
+    case "sprintSchedule":
+      return <ModularSprintSchedule data={module.data} />;
+    case "storyPointMetrics":
+      return <ModularStoryPointMetrics data={module.data} />;
+    case "donutKpi": {
+      const kpi = module.data as DonutKpiData;
+      return (
+        <div className="h-full w-full flex items-center justify-center">
+          <BudgetBurnDonut burnPercent={kpi.manualValue ?? 0} compact label={kpi.label} />
+        </div>
+      );
+    }
+    case "narrativeCompleted":
+      return <NarrativeColumnContent text={data.report.completedActivities} size="modular" />;
+    case "narrativeUpcoming":
+      return <NarrativeColumnContent text={data.report.upcomingActivities} size="modular" />;
+    case "narrativeRisks":
+      return <NarrativeColumnContent text={data.report.risksIssuesDecisions} size="modular" />;
+    case "ganttTimeline":
+      if (data.timeline && timelineHasVisibleSchedule(data.timeline)) {
+        return (
+          <TimelineBlock
+            timeline={data.timeline}
+            reportDate={data.report.reportDate}
+            scheduleSource={data.scheduleSource}
+            className="h-full mt-0"
+          />
+        );
+      }
+      return <ModularEmptyState label={PANEL_META.ganttTimeline.label} />;
+    case "budgetFinancials":
+      if (data.budget) {
+        return <StandardBudgetTable budget={data.budget} tableClass="text-[9px]" />;
+      }
+      return <ModularEmptyState label={PANEL_META.budgetFinancials.label} />;
+    default:
+      return <ModularEmptyState label={PANEL_META[module.type].label} />;
+  }
+}
+
+function modularModuleTitle(module: ReportModule): string {
+  switch (module.type) {
+    case "narrativeCompleted":
+      return "Completed Activities";
+    case "narrativeUpcoming":
+      return "Upcoming Activities";
+    case "narrativeRisks":
+      return "Risks / Issues / Decisions";
+    case "storyPointMetrics":
+      return "Key Metrics";
+    case "donutKpi":
+      return module.data.label || PANEL_META.donutKpi.label;
+    default:
+      return PANEL_META[module.type].label;
+  }
+}
+
+function ModularPage1Grid({
+  doc,
+  data,
+}: {
+  doc: ModularPanelsDocument;
+  data: StatusReportPDFData;
+}) {
+  const page = doc.layout.pages[0];
+  if (!page) return null;
+  return (
+    <div className="flex-1 min-h-0 flex flex-col gap-3">
+      {page.rows.map((row) => {
+        const weights = rowShapeWeights(row.shape);
+        return (
+          <div
+            key={row.id}
+            className="flex flex-row gap-3 min-w-0"
+            style={
+              row.height === "tall"
+                ? { flex: "1 1 0", minHeight: 0 }
+                : { flexShrink: 0, height: 168 }
+            }
+          >
+            {row.moduleIds.map((moduleId, i) => {
+              const module = moduleId ? doc.modules[moduleId] : undefined;
+              return (
+                <div
+                  key={`${row.id}-${i}`}
+                  className="min-w-0 h-full"
+                  style={{ flex: `${weights[i] ?? 1} 1 0` }}
+                >
+                  {module ? (
+                    <ModularModuleBox title={modularModuleTitle(module)}>
+                      <ModularModuleBody module={module} data={data} />
+                    </ModularModuleBox>
+                  ) : (
+                    <div className="h-full w-full border border-gray-200 bg-white" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export type StatusReportViewRefs = {
   slideRef?: React.RefObject<HTMLDivElement | null>;
   meetingNotesRef?: React.RefObject<HTMLDivElement | null>;
@@ -582,9 +842,12 @@ export function StatusReportView({
   const { report, project, period, today } = data;
   const { cad, pm, pgm, keyStaff } = getKeyRoleNames(data);
   const bioTitle = project.name.toUpperCase();
+  const isModular = report.variation === "Modular";
+  const modularDoc = isModular ? normalizeModularPanels(data.panels) : null;
 
-  const slideWidth = 720;
-  const slideHeight = slideWidth * (9 / 16); // 16:9 aspect
+  const slideWidth = isModular ? MODULAR_SLIDE_WIDTH_PX : 720;
+  const slideHeight = isModular ? MODULAR_SLIDE_HEIGHT_PX : slideWidth * (9 / 16); // 16:9 aspect
+  const notesWidth = 720;
   const previewScaleMax = 1.5;
   const previewScaleMin = 1.0;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -604,12 +867,13 @@ export function StatusReportView({
 
   // Visual-only scale for the in-app preview (PDF export captures at its own scale).
   const slideScale = useMemo(() => {
-    if (!containerWidth) return previewScaleMax;
+    if (!containerWidth) return isModular ? 0.5 : previewScaleMax;
     // Leave a little breathing room so we don't kiss the edges.
     const available = Math.max(0, containerWidth - 24);
     const fit = available / slideWidth;
+    if (isModular) return Math.min(previewScaleMax, Math.max(0.25, fit));
     return Math.min(previewScaleMax, Math.max(previewScaleMin, fit));
-  }, [containerWidth]);
+  }, [containerWidth, isModular, slideWidth]);
 
   const scaledHeight = slideHeight * slideScale;
 
@@ -628,10 +892,13 @@ export function StatusReportView({
           <div
             ref={slideRef}
             className="status-report-slide relative border border-gray-200 origin-top"
+            data-slide-width={slideWidth}
+            data-slide-height={slideHeight}
             style={{
-              width: 720,
+              width: slideWidth,
+              height: slideHeight,
               aspectRatio: "16/9",
-              minHeight: 360,
+              minHeight: isModular ? MODULAR_SLIDE_HEIGHT_PX : 360,
               transform: `scale(${slideScale})`,
               // Important: scaling from center causes the left edge to go negative and get clipped.
               // Scale from top-left so it expands rightward and stays fully visible in the scroll container.
@@ -699,6 +966,10 @@ export function StatusReportView({
             </div>
           </div>
 
+          {isModular && modularDoc ? (
+            <ModularPage1Grid doc={modularDoc} data={data} />
+          ) : (
+            <>
           {/* Three columns: completed / upcoming / risks — tight spacing to fit 7 items */}
           <div className="flex flex-row gap-3 mb-0 flex-1 min-h-0">
             <div className="flex-1 min-w-0 flex flex-col min-h-0">
@@ -733,8 +1004,10 @@ export function StatusReportView({
               />
             </div>
           )}
+            </>
+          )}
 
-          {/* Budget section — pinned above footer; CDA layout tightened to leave room for 7 activity items */}
+          {!isModular && (
           <div className="mt-1 flex-shrink-0">
             {report.variation === "CDA" && data.cda && (() => {
               const reportMonthKey = data.report.reportDate.slice(0, 7);
@@ -855,38 +1128,7 @@ export function StatusReportView({
             })()}
 
             {report.variation === "Standard" && data.budget && data.showBudget !== false && (
-              <div className="flex flex-row items-start gap-2">
-                <div className="flex-1 min-w-0 border border-gray-200">
-                  <div className="flex flex-row text-[8px] font-semibold" style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}>
-                    <div className="flex-[0.5] py-0.5 px-1"></div>
-                    <div className="flex-1 py-0.5 px-1">Est. Budget</div>
-                    <div className="flex-1 py-0.5 px-1">$ Spent</div>
-                    <div className="flex-1 py-0.5 px-1">$ Remaining</div>
-                    <div className="flex-1 py-0.5 px-1">Budgeted Hrs</div>
-                    <div className="flex-1 py-0.5 px-1">Actual Hrs</div>
-                    <div className="flex-1 py-0.5 px-1">Hrs Remaining</div>
-                  </div>
-                  <div className="flex flex-row text-[8px] border-t border-gray-200">
-                    <div className="flex-[0.5] py-0.5 px-1 font-semibold">HIGH</div>
-                    <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.overallBudget, color: BRAND_COLORS.onHeader }}>{formatDollars(data.budget.estBudgetHigh)}</div>
-                    <div className="flex-1 py-0.5 px-1 text-right">{formatDollars(-data.budget.spentDollars)}</div>
-                    <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.overallBudget, color: BRAND_COLORS.onHeader }}>{formatDollars(data.budget.remainingDollarsHigh)}</div>
-                    <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(data.budget.budgetedHoursHigh)}</div>
-                    <div className="flex-1 py-0.5 px-1 text-right">{formatReportNum(-data.budget.actualHours)}</div>
-                    <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(data.budget.remainingHoursHigh)}</div>
-                  </div>
-                  <div className="flex flex-row text-[8px] border-t border-gray-200">
-                    <div className="flex-[0.5] py-0.5 px-1 font-semibold">LOW</div>
-                    <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.overallBudget, color: BRAND_COLORS.onHeader }}>{formatDollars(data.budget.estBudgetLow)}</div>
-                    <div className="flex-1 py-0.5 px-1 text-right">{formatDollars(-data.budget.spentDollars)}</div>
-                    <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.overallBudget, color: BRAND_COLORS.onHeader }}>{formatDollars(data.budget.remainingDollarsLow)}</div>
-                    <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(data.budget.budgetedHoursLow)}</div>
-                    <div className="flex-1 py-0.5 px-1 text-right">{formatReportNum(-data.budget.actualHours)}</div>
-                    <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(data.budget.remainingHoursLow)}</div>
-                  </div>
-                </div>
-                <BudgetBurnDonut burnPercent={data.budget.burnPercentHigh} compact />
-              </div>
+              <StandardBudgetTable budget={data.budget} />
             )}
 
             {report.variation === "Milestones" && (
@@ -902,96 +1144,8 @@ export function StatusReportView({
                 {data.budget && <BudgetBurnDonut burnPercent={data.budget.burnPercentHigh} compact />}
               </div>
             )}
-
-            {report.variation === "Modular" && (() => {
-              const panels = reportPanelsForLegacyRender(data.panels);
-              if (panels.length === 0) {
-                return <div className="text-[7px] text-gray-400 py-1">No panel data.</div>;
-              }
-              const schedulePanelData = panels.find((p) => p.type === "sprintSchedule")?.data as
-                | SprintScheduleData
-                | undefined;
-              const metricsPanelData = panels.find((p) => p.type === "storyPointMetrics")?.data as
-                | StoryPointsMetricsData
-                | undefined;
-              const donutPanels = panels
-                .filter((p) => p.type === "donutKpi")
-                .map((p) => p.data as DonutKpiData);
-              return (
-                <div className="flex flex-row items-start gap-2">
-                  {schedulePanelData && schedulePanelData.rows.length > 0 && (
-                    <div className="flex-1 min-w-0 border border-gray-200">
-                      <div
-                        className="text-[7px] font-semibold py-px px-1 text-center"
-                        style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
-                      >
-                        Sprint Schedule
-                      </div>
-                      {schedulePanelData.rows.map((row, i) => (
-                        <div
-                          key={i}
-                          className="flex flex-row text-[6px] border-t border-gray-200"
-                          style={{ backgroundColor: i % 2 === 0 ? "#ffffff" : "#f3f4f6" }}
-                        >
-                          <div className="w-16 flex-shrink-0 py-px px-1 font-semibold">{row.dateRange}</div>
-                          <div className="flex-1 py-px px-1">{row.label}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {metricsPanelData && metricsPanelData.systems.length > 0 && (
-                    <div className="flex-1 min-w-0 border border-gray-200">
-                      <div
-                        className="text-[7px] font-semibold py-px px-1 text-center"
-                        style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
-                      >
-                        Key Metrics
-                      </div>
-                      <div
-                        className="flex flex-row text-[6px] font-semibold border-t border-gray-200"
-                        style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
-                      >
-                        <div className="flex-[1.5] py-px px-1" />
-                        {metricsPanelData.systems.map((sys, i) => (
-                          <div key={i} className="flex-1 py-px px-1 text-center">
-                            {sys.name}
-                          </div>
-                        ))}
-                      </div>
-                      {metricsPanelData.rows.map((row, i) => (
-                        <div
-                          key={i}
-                          className="flex flex-row text-[6px] border-t border-gray-200"
-                          style={{ backgroundColor: i % 2 === 0 ? "#ffffff" : "#f3f4f6" }}
-                        >
-                          <div className="flex-[1.5] py-px px-1 font-semibold">
-                            {SPRINT_METRIC_LABELS[row.metric] ?? row.metric}
-                          </div>
-                          {row.values.map((v, j) => (
-                            <div key={j} className="flex-1 py-px px-1 text-center tabular-nums">
-                              {v}
-                            </div>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {donutPanels.length > 0 && (
-                    <div className="flex flex-col gap-0.5 flex-shrink-0">
-                      {donutPanels.map((kpi, i) => (
-                        <BudgetBurnDonut
-                          key={i}
-                          burnPercent={kpi.manualValue ?? 0}
-                          xcompact
-                          label={kpi.label}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
           </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -1017,7 +1171,7 @@ export function StatusReportView({
         <div
           ref={meetingNotesRef}
           className="mx-auto mt-8 pt-9 px-9 pb-11 text-[10px] overflow-visible min-h-0"
-          style={{ width: slideWidth, maxWidth: slideWidth }}
+          style={{ width: notesWidth, maxWidth: notesWidth }}
         >
           <h2 className="text-sm font-bold uppercase mb-0.5" style={{ color: BIO_TITLE_COLOR }}>Meeting Notes</h2>
           <div className="h-px mb-3" style={{ backgroundColor: BIO_TITLE_COLOR }} />

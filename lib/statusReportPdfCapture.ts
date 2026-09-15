@@ -7,8 +7,23 @@
 
 import { PLAN_PDF_PAGE_H_PT, PLAN_PDF_PAGE_W_PT } from "@/lib/planPdfCapture";
 
-const SLIDE_WIDTH_PT = 720;
-const SLIDE_HEIGHT_PT = 405; // 16:9
+/** 16:9 present page (pt). Capture may pin a larger canvas, then scale onto this page. */
+export const SLIDE_PDF_PAGE_WIDTH_PT = 720;
+export const SLIDE_PDF_HEIGHT_PT = 405;
+
+const DEFAULT_SLIDE_CAPTURE_WIDTH = 720;
+const DEFAULT_SLIDE_CAPTURE_HEIGHT = 405;
+
+export function resolveSlideCaptureBox(el: {
+  getAttribute(name: string): string | null;
+}): { width: number; height: number } {
+  const width = Number(el.getAttribute("data-slide-width"));
+  const height = Number(el.getAttribute("data-slide-height"));
+  if (Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) {
+    return { width, height };
+  }
+  return { width: DEFAULT_SLIDE_CAPTURE_WIDTH, height: DEFAULT_SLIDE_CAPTURE_HEIGHT };
+}
 const NOTES_PAGE_WIDTH_PT = 720;
 const MAX_NOTES_PAGE_HEIGHT_PT = 900;
 
@@ -68,11 +83,12 @@ export async function captureStatusReportToPdf(
   const origTransform = slideTarget.style.transform;
   const origTransformOrigin = slideTarget.style.transformOrigin;
   const origOverflow = slideTarget.style.overflow;
+  const captureBox = resolveSlideCaptureBox(slideTarget);
   // Keep the DOM at its native layout size for capture so fonts/spacing match preview.
   // We scale the exported PDF page and image placement instead.
-  slideTarget.style.width = `${SLIDE_WIDTH_PT}px`;
-  slideTarget.style.height = `${SLIDE_HEIGHT_PT}px`;
-  slideTarget.style.minHeight = `${SLIDE_HEIGHT_PT}px`;
+  slideTarget.style.width = `${captureBox.width}px`;
+  slideTarget.style.height = `${captureBox.height}px`;
+  slideTarget.style.minHeight = `${captureBox.height}px`;
   slideTarget.style.transform = "none";
   slideTarget.style.transformOrigin = "top left";
   slideTarget.style.overflow = "hidden";
@@ -110,21 +126,16 @@ export async function captureStatusReportToPdf(
 
     const slideCanvas = await html2canvas(slideTarget, CAPTURE_OPTS);
 
+    const pageW = SLIDE_PDF_PAGE_WIDTH_PT * exportScale;
+    const pageH = SLIDE_PDF_HEIGHT_PT * exportScale;
     const pdf = new jsPDF({
       orientation: "landscape",
       unit: "pt",
-      format: [SLIDE_WIDTH_PT * exportScale, SLIDE_HEIGHT_PT * exportScale],
+      format: [pageW, pageH],
     });
 
     const slideImgData = slideCanvas.toDataURL("image/png");
-    pdf.addImage(
-      slideImgData,
-      "PNG",
-      0,
-      0,
-      SLIDE_WIDTH_PT * exportScale,
-      SLIDE_HEIGHT_PT * exportScale
-    );
+    pdf.addImage(slideImgData, "PNG", 0, 0, pageW, pageH);
 
     if (notesTarget && notesTarget.offsetParent !== null) {
       notesTarget.style.width = `${NOTES_PAGE_WIDTH_PT}px`;

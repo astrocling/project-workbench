@@ -16,9 +16,14 @@ import { BRAND_COLORS } from "@/lib/brandColors";
 import { formatMonthDay } from "@/lib/formatIsoDate";
 import { getWeeksInMonthsForRange } from "@/lib/monthUtils";
 import {
-  reportPanelsForLegacyRender,
+  PANEL_META,
+  MODULAR_SLIDE_HEIGHT_PX,
+  MODULAR_SLIDE_WIDTH_PX,
+  normalizeModularPanels,
+  rowShapeWeights,
   type DonutKpiData,
   type ModularPanelsDocument,
+  type ReportModule,
   type ReportPanel,
   type SprintScheduleData,
   type StoryPointsMetricsData,
@@ -839,6 +844,92 @@ const styles = StyleSheet.create({
     fontSize: 7,
     color: BIO_VALUE_COLOR,
   },
+  modularPage: {
+    width: MODULAR_SLIDE_WIDTH_PX,
+    height: MODULAR_SLIDE_HEIGHT_PX,
+    paddingTop: 24,
+    paddingLeft: 24,
+    paddingRight: 24,
+    paddingBottom: 0,
+    fontSize: 12,
+    fontFamily: "Raleway",
+    flexDirection: "column",
+    overflow: "hidden",
+    position: "relative",
+  },
+  modularPageInner: {
+    position: "relative",
+    width: "100%",
+    height: MODULAR_SLIDE_HEIGHT_PX - 24,
+  },
+  modularContent: {
+    height: MODULAR_SLIDE_HEIGHT_PX - 24 - FOOTER_HEIGHT,
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+  modularGrid: {
+    flex: 1,
+    flexDirection: "column",
+    minHeight: 0,
+    gap: 12,
+  },
+  modularRowTall: {
+    flex: 1,
+    flexDirection: "row",
+    minHeight: 0,
+    gap: 12,
+  },
+  modularRowShort: {
+    flexShrink: 0,
+    height: 168,
+    flexDirection: "row",
+    gap: 12,
+  },
+  modularCell: {
+    minWidth: 0,
+    height: "100%",
+  },
+  modularModuleBox: {
+    width: "100%",
+    height: "100%",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+  modularModuleHeader: {
+    backgroundColor: BRAND_COLORS.header,
+    color: BRAND_COLORS.onHeader,
+    fontSize: 9,
+    fontWeight: 600,
+    textAlign: "center",
+    paddingVertical: 3,
+    paddingHorizontal: 4,
+  },
+  modularModuleBody: {
+    flex: 1,
+    minHeight: 0,
+    padding: 4,
+  },
+  modularEmptySlot: {
+    width: "100%",
+    height: "100%",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    backgroundColor: "#fff",
+  },
+  modularEmptyText: {
+    fontSize: 11,
+    color: "#6b7280",
+  },
+  modularTableText: {
+    fontSize: 8,
+  },
+  modularBullet: {
+    fontSize: 12,
+    marginBottom: 3,
+    lineHeight: 1.25,
+  },
 });
 
 export type RagStatus = "Red" | "Amber" | "Green";
@@ -1455,7 +1546,373 @@ function StatusReportFooter() {
   );
 }
 
+function modularPdfTitle(module: ReportModule): string {
+  switch (module.type) {
+    case "narrativeCompleted":
+      return "Completed Activities";
+    case "narrativeUpcoming":
+      return "Upcoming Activities";
+    case "narrativeRisks":
+      return "Risks / Issues / Decisions";
+    case "storyPointMetrics":
+      return "Key Metrics";
+    case "donutKpi":
+      return module.data.label || PANEL_META.donutKpi.label;
+    default:
+      return PANEL_META[module.type].label;
+  }
+}
+
+function ModularPdfEmpty({ label }: { label: string }) {
+  return <Text style={styles.modularEmptyText}>{label} — nothing to show yet.</Text>;
+}
+
+function ModularPdfModuleBody({
+  module,
+  data,
+}: {
+  module: ReportModule;
+  data: StatusReportPDFData;
+}) {
+  switch (module.type) {
+    case "sprintSchedule": {
+      const schedule = module.data as SprintScheduleData;
+      if (schedule.rows.length === 0) {
+        return <ModularPdfEmpty label={PANEL_META.sprintSchedule.label} />;
+      }
+      return (
+        <View>
+          {schedule.rows.map((row, index) => {
+            const alt = index % 2 === 1;
+            const labelStyle = alt ? styles.srLabelCompactAlt : styles.srLabelCompact;
+            const cellStyle = alt ? styles.srWhiteCompactAlt : styles.srWhiteCompact;
+            return (
+              <View key={index} style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+                <View style={[styles.bottomQuarterCell, styles.srBorder, labelStyle, styles.sprintScheduleDateCol]}>
+                  <Text style={[labelStyle, styles.modularTableText]}>{row.dateRange}</Text>
+                </View>
+                <View style={[styles.bottomQuarterCell, styles.srBorder, cellStyle, { flex: 1 }]}>
+                  <Text style={[cellStyle, styles.modularTableText]}>{row.label}</Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      );
+    }
+    case "storyPointMetrics": {
+      const metrics = module.data as StoryPointsMetricsData;
+      if (metrics.systems.length === 0) {
+        return <ModularPdfEmpty label={PANEL_META.storyPointMetrics.label} />;
+      }
+      return (
+        <View>
+          <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+            <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompact, { flex: 1.5 }]}>
+              <Text style={styles.srHeaderCompact}> </Text>
+            </View>
+            {metrics.systems.map((sys, i) => (
+              <View key={i} style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompact, { flex: 1 }]}>
+                <Text style={[styles.srHeaderCompact, { textAlign: "center" }]}>{sys.name}</Text>
+              </View>
+            ))}
+          </View>
+          {metrics.rows.map((row, rowIndex) => {
+            const alt = rowIndex % 2 === 1;
+            const labelStyle = alt ? styles.srLabelCompactAlt : styles.srLabelCompact;
+            const cellStyle = alt ? styles.srWhiteCompactAlt : styles.srWhiteCompact;
+            return (
+              <View key={rowIndex} style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+                <View style={[styles.bottomQuarterCell, styles.srBorder, labelStyle, { flex: 1.5 }]}>
+                  <Text style={[labelStyle, styles.modularTableText]}>
+                    {MODULAR_METRIC_LABELS[row.metric] ?? row.metric}
+                  </Text>
+                </View>
+                {row.values.map((v, j) => (
+                  <View key={j} style={[styles.bottomQuarterCell, styles.srBorder, cellStyle, { flex: 1 }]}>
+                    <Text style={[cellStyle, styles.modularTableText, { textAlign: "center" }]}>{v}</Text>
+                  </View>
+                ))}
+              </View>
+            );
+          })}
+        </View>
+      );
+    }
+    case "donutKpi": {
+      const kpi = module.data as DonutKpiData;
+      return <BudgetBurnChartPDF burnPercent={kpi.manualValue ?? 0} compact label={kpi.label} />;
+    }
+    case "narrativeCompleted":
+      return (
+        <>
+          {bulletLines(data.report.completedActivities)
+            .slice(0, 7)
+            .map((line, i) => (
+              <Text key={i} style={styles.modularBullet}>
+                • {renderTextWithLinks(line)}
+              </Text>
+            ))}
+        </>
+      );
+    case "narrativeUpcoming":
+      return (
+        <>
+          {bulletLines(data.report.upcomingActivities)
+            .slice(0, 7)
+            .map((line, i) => (
+              <Text key={i} style={styles.modularBullet}>
+                • {renderTextWithLinks(line)}
+              </Text>
+            ))}
+        </>
+      );
+    case "narrativeRisks":
+      return (
+        <>
+          {bulletLines(data.report.risksIssuesDecisions)
+            .slice(0, 7)
+            .map((line, i) => (
+              <Text key={i} style={styles.modularBullet}>
+                • {renderTextWithLinks(line)}
+              </Text>
+            ))}
+        </>
+      );
+    case "ganttTimeline":
+      if (data.timeline && timelineHasVisibleSchedule(data.timeline)) {
+        return (
+          <TimelineBlock
+            timeline={data.timeline}
+            reportDate={data.report.reportDate}
+            scheduleSource={data.scheduleSource}
+          />
+        );
+      }
+      return <ModularPdfEmpty label={PANEL_META.ganttTimeline.label} />;
+    case "budgetFinancials":
+      if (!data.budget) {
+        return <ModularPdfEmpty label={PANEL_META.budgetFinancials.label} />;
+      }
+      return (
+        <View style={styles.bottomQuarterSection}>
+          <View style={[styles.bottomQuarterTableCol, styles.table]}>
+            <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+              <View style={[styles.bottomQuarterCell, styles.srHeaderCompact, { flex: 0.5 }]}>
+                <Text style={styles.srHeaderCompact}>{" "}</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srHeaderCompact, { flex: 1 }]}>
+                <Text style={styles.srHeaderCompact}>Est. Budget</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srHeaderCompact, { flex: 1 }]}>
+                <Text style={styles.srHeaderCompact}>$ Spent</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srHeaderCompact, { flex: 1 }]}>
+                <Text style={styles.srHeaderCompact}>$ Remaining</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srHeaderCompact, { flex: 1 }]}>
+                <Text style={styles.srHeaderCompact}>Budgeted Hrs</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srHeaderCompact, { flex: 1 }]}>
+                <Text style={styles.srHeaderCompact}>Actual Hrs</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srHeaderCompact, { flex: 1 }]}>
+                <Text style={styles.srHeaderCompact}>Hrs Remaining</Text>
+              </View>
+            </View>
+            <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+              <View style={[styles.bottomQuarterCell, styles.srLabelCompact, { flex: 0.5 }]}>
+                <Text style={styles.srLabelCompact}>HIGH</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srGreenCompact, { flex: 1 }]}>
+                <Text style={styles.srGreenCompact}>{formatDollars(data.budget.estBudgetHigh)}</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srWhiteCompact, { flex: 1 }]}>
+                <Text style={styles.srWhiteCompact}>{formatDollars(-data.budget.spentDollars)}</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srGreenCompact, { flex: 1 }]}>
+                <Text style={styles.srGreenCompact}>{formatDollars(data.budget.remainingDollarsHigh)}</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srBlueCompact, { flex: 1 }]}>
+                <Text style={styles.srBlueCompact}>{formatReportNum(data.budget.budgetedHoursHigh)}</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srWhiteCompact, { flex: 1 }]}>
+                <Text style={styles.srWhiteCompact}>{formatReportNum(-data.budget.actualHours)}</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srBlueCompact, { flex: 1 }]}>
+                <Text style={styles.srBlueCompact}>{formatReportNum(data.budget.remainingHoursHigh)}</Text>
+              </View>
+            </View>
+            <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+              <View style={[styles.bottomQuarterCell, styles.srLabelCompact, { flex: 0.5 }]}>
+                <Text style={styles.srLabelCompact}>LOW</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srGreenCompact, { flex: 1 }]}>
+                <Text style={styles.srGreenCompact}>{formatDollars(data.budget.estBudgetLow)}</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srWhiteCompact, { flex: 1 }]}>
+                <Text style={styles.srWhiteCompact}>{formatDollars(-data.budget.spentDollars)}</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srGreenCompact, { flex: 1 }]}>
+                <Text style={styles.srGreenCompact}>{formatDollars(data.budget.remainingDollarsLow)}</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srBlueCompact, { flex: 1 }]}>
+                <Text style={styles.srBlueCompact}>{formatReportNum(data.budget.budgetedHoursLow)}</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srWhiteCompact, { flex: 1 }]}>
+                <Text style={styles.srWhiteCompact}>{formatReportNum(-data.budget.actualHours)}</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srBlueCompact, { flex: 1 }]}>
+                <Text style={styles.srBlueCompact}>{formatReportNum(data.budget.remainingHoursLow)}</Text>
+              </View>
+            </View>
+          </View>
+          <BudgetBurnChartPDF burnPercent={data.budget.burnPercentHigh} compact />
+        </View>
+      );
+    default:
+      return <ModularPdfEmpty label={PANEL_META[module.type].label} />;
+  }
+}
+
+function ModularPdfGrid({
+  doc,
+  data,
+}: {
+  doc: ModularPanelsDocument;
+  data: StatusReportPDFData;
+}) {
+  const page = doc.layout.pages[0];
+  if (!page) return null;
+  return (
+    <View style={styles.modularGrid}>
+      {page.rows.map((row) => {
+        const weights = rowShapeWeights(row.shape);
+        return (
+          <View
+            key={row.id}
+            style={row.height === "tall" ? styles.modularRowTall : styles.modularRowShort}
+          >
+            {row.moduleIds.map((moduleId, i) => {
+              const module = moduleId ? doc.modules[moduleId] : undefined;
+              return (
+                <View
+                  key={`${row.id}-${i}`}
+                  style={[styles.modularCell, { flexGrow: weights[i] ?? 1, flexShrink: 1, flexBasis: 0 }]}
+                >
+                  {module ? (
+                    <View style={styles.modularModuleBox}>
+                      <Text style={styles.modularModuleHeader}>{modularPdfTitle(module)}</Text>
+                      <View style={styles.modularModuleBody}>
+                        <ModularPdfModuleBody module={module} data={data} />
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.modularEmptySlot} />
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function ModularStatusReportDocument({ data }: { data: StatusReportPDFData }) {
+  const { report, project, period, today } = data;
+  const { cad, pm, pgm, keyStaff } = getKeyRoleNames(data);
+  const bioTitle = project.name.toUpperCase();
+  const doc = normalizeModularPanels(data.panels);
+
+  return (
+    <Document>
+      <Page
+        size={[MODULAR_SLIDE_WIDTH_PX, MODULAR_SLIDE_HEIGHT_PX]}
+        style={styles.modularPage}
+        wrap={false}
+      >
+        <View style={styles.modularPageInner}>
+          <View style={styles.modularContent}>
+            <View style={styles.topRow}>
+              <View style={styles.topRowHalf}>
+                <View style={styles.biographicalBlock}>
+                  <Text style={styles.bioTitle}>{bioTitle}</Text>
+                  <View style={styles.bioTitleLine} />
+                  <View style={styles.bioColumns}>
+                    <View style={styles.bioCol}>
+                      <View style={styles.bioRow}>
+                        <Text style={styles.bioLabel}>Account Director:</Text>
+                        <Text style={styles.bioValue}>{cad || "—"}</Text>
+                      </View>
+                      <View style={styles.bioRow}>
+                        <Text style={styles.bioLabel}>Project Manager:</Text>
+                        <Text style={styles.bioValue}>{pm || "—"}</Text>
+                      </View>
+                      <View style={styles.bioRow}>
+                        <Text style={styles.bioLabel}>Program Manager:</Text>
+                        <Text style={styles.bioValue}>{pgm || "—"}</Text>
+                      </View>
+                      <View style={styles.bioRow}>
+                        <Text style={styles.bioLabel}>Team Member:</Text>
+                        <Text style={styles.bioValue}>{keyStaff || "—"}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.bioCol}>
+                      <View style={styles.bioRow}>
+                        <Text style={styles.bioLabel}>Today&apos;s Date:</Text>
+                        <Text style={styles.bioValue}>{today}</Text>
+                      </View>
+                      <View style={styles.bioRow}>
+                        <Text style={styles.bioLabel}>Client Sponsor:</Text>
+                        <Text style={styles.bioValue}>{project.clientSponsor || "—"}</Text>
+                      </View>
+                      <View style={styles.bioRow}>
+                        <Text style={styles.bioLabel}>Client Sponsor:</Text>
+                        <Text style={styles.bioValue}>{project.clientSponsor2 || "—"}</Text>
+                      </View>
+                      <View style={styles.bioRow}>
+                        <Text style={styles.bioLabel}>Other Contact:</Text>
+                        <Text style={styles.bioValue}>{project.otherContact || "—"}</Text>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={styles.bioPeriodRow}>
+                    <Text style={styles.bioPeriodLabel}>Period:</Text>
+                    <Text style={styles.bioPeriodValue}>{period}</Text>
+                  </View>
+                </View>
+              </View>
+              <View style={styles.topRowHalf}>
+                <RagStatusBlock data={data} />
+              </View>
+            </View>
+            <ModularPdfGrid doc={doc} data={data} />
+          </View>
+          <StatusReportFooter />
+        </View>
+      </Page>
+      {report.meetingNotes && report.meetingNotes.trim() && (
+        <Page size={[PAGE_WIDTH, PAGE_HEIGHT]} style={styles.notesPage}>
+          <Text style={styles.notesTitle}>Meeting notes</Text>
+          {bulletLines(report.meetingNotes).map((line, i) => (
+            <Text key={i} style={{ marginBottom: 6, lineHeight: 1.4 }}>
+              {renderTextWithLinks(line)}
+            </Text>
+          ))}
+          <StatusReportFooter />
+        </Page>
+      )}
+    </Document>
+  );
+}
+
 export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
+  if (data.report.variation === "Modular") {
+    return <ModularStatusReportDocument data={data} />;
+  }
+
   const { report, project, period, today } = data;
   const { cad, pm, pgm, keyStaff } = getKeyRoleNames(data);
 
@@ -1862,117 +2319,6 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
               )}
             </View>
           )}
-
-          {report.variation === "Modular" && (() => {
-            const panels = reportPanelsForLegacyRender(data.panels);
-            if (panels.length === 0) {
-              return (
-                <View>
-                  <Text style={styles.sprintNoPanelData}>No panel data.</Text>
-                </View>
-              );
-            }
-            const schedulePanelData = panels.find((p) => p.type === "sprintSchedule")?.data as
-              | SprintScheduleData
-              | undefined;
-            const metricsPanelData = panels.find((p) => p.type === "storyPointMetrics")?.data as
-              | StoryPointsMetricsData
-              | undefined;
-            const donutPanels = panels
-              .filter((p) => p.type === "donutKpi")
-              .map((p) => p.data as DonutKpiData);
-            return (
-              <View style={styles.bottomQuarterSection}>
-                {schedulePanelData && schedulePanelData.rows.length > 0 && (
-                  <View style={[styles.bottomQuarterTableCol, styles.table, styles.cdaTableWrap]}>
-                    <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
-                      <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompact, { flex: 1 }]}>
-                        <Text style={[styles.srHeaderCompact, { textAlign: "center" }]}>Sprint Schedule</Text>
-                      </View>
-                    </View>
-                    {schedulePanelData.rows.map((row, index) => {
-                      const alt = index % 2 === 1;
-                      const labelStyle = alt ? styles.srLabelCompactAlt : styles.srLabelCompact;
-                      const cellStyle = alt ? styles.srWhiteCompactAlt : styles.srWhiteCompact;
-                      return (
-                        <View key={index} style={[styles.tableRow, { borderBottomWidth: 0 }]}>
-                          <View
-                            style={[
-                              styles.bottomQuarterCell,
-                              styles.srBorder,
-                              labelStyle,
-                              styles.sprintScheduleDateCol,
-                            ]}
-                          >
-                            <Text style={[labelStyle, { fontSize: 7 }]}>{row.dateRange}</Text>
-                          </View>
-                          <View style={[styles.bottomQuarterCell, styles.srBorder, cellStyle, { flex: 1 }]}>
-                            <Text style={[cellStyle, { fontSize: 7 }]}>{row.label}</Text>
-                          </View>
-                        </View>
-                      );
-                    })}
-                  </View>
-                )}
-                {metricsPanelData && metricsPanelData.systems.length > 0 && (
-                  <View style={[styles.bottomQuarterTableCol, styles.table, styles.cdaTableWrap]}>
-                    <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
-                      <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompact, { flex: 1 }]}>
-                        <Text style={[styles.srHeaderCompact, { textAlign: "center" }]}>Key Metrics</Text>
-                      </View>
-                    </View>
-                    <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
-                      <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompact, { flex: 1.5 }]}>
-                        <Text style={styles.srHeaderCompact}> </Text>
-                      </View>
-                      {metricsPanelData.systems.map((sys, i) => (
-                        <View
-                          key={i}
-                          style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompact, { flex: 1 }]}
-                        >
-                          <Text style={[styles.srHeaderCompact, { textAlign: "center" }]}>{sys.name}</Text>
-                        </View>
-                      ))}
-                    </View>
-                    {metricsPanelData.rows.map((row, rowIndex) => {
-                      const alt = rowIndex % 2 === 1;
-                      const labelStyle = alt ? styles.srLabelCompactAlt : styles.srLabelCompact;
-                      const cellStyle = alt ? styles.srWhiteCompactAlt : styles.srWhiteCompact;
-                      return (
-                        <View key={rowIndex} style={[styles.tableRow, { borderBottomWidth: 0 }]}>
-                          <View style={[styles.bottomQuarterCell, styles.srBorder, labelStyle, { flex: 1.5 }]}>
-                            <Text style={[labelStyle, { fontSize: 7 }]}>
-                              {MODULAR_METRIC_LABELS[row.metric] ?? row.metric}
-                            </Text>
-                          </View>
-                          {row.values.map((v, j) => (
-                            <View
-                              key={j}
-                              style={[styles.bottomQuarterCell, styles.srBorder, cellStyle, { flex: 1 }]}
-                            >
-                              <Text style={[cellStyle, { fontSize: 7, textAlign: "center" }]}>{v}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      );
-                    })}
-                  </View>
-                )}
-                {donutPanels.length > 0 && (
-                  <View style={styles.sprintDonutCol}>
-                    {donutPanels.map((kpi, i) => (
-                      <BudgetBurnChartPDF
-                        key={i}
-                        burnPercent={kpi.manualValue ?? 0}
-                        compact
-                        label={kpi.label}
-                      />
-                    ))}
-                  </View>
-                )}
-              </View>
-            );
-          })()}
           </View>
         </View>
         <StatusReportFooter />
