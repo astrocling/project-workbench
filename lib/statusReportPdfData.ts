@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { computeBudgetRollups } from "@/lib/budgetCalculations";
 import { buildCdaRowsForProject } from "@/lib/cdaMtdFromResourcing";
 import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument";
-import type { ReportPanel } from "@/lib/reportPanels";
+import { normalizeModularPanels } from "@/lib/reportPanels";
 import { resolveShowBudget, shouldAttachBudgetToPdfData } from "@/lib/statusReportFlags";
 import { getPlanForProject } from "@/lib/plan/api";
 import { serializePlan } from "@/lib/plan/serialize";
@@ -625,7 +625,10 @@ export async function buildStatusReportPdfData(
     timeline,
     cdaReportHoursOnly,
     showBudget,
-    panels: Array.isArray(report.panels) ? (report.panels as ReportPanel[]) : undefined,
+    panels:
+      report.panels != null || report.variation === "Modular"
+        ? normalizeModularPanels(report.panels)
+        : undefined,
     scheduleSource: resolvedSource,
     includeDetailedPlan,
     detailedPlan,

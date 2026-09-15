@@ -15,11 +15,13 @@ import {
 import { BRAND_COLORS } from "@/lib/brandColors";
 import { formatMonthDay } from "@/lib/formatIsoDate";
 import { getWeeksInMonthsForRange } from "@/lib/monthUtils";
-import type {
-  DonutKpiData,
-  ReportPanel,
-  SprintScheduleData,
-  StoryPointsMetricsData,
+import {
+  reportPanelsForLegacyRender,
+  type DonutKpiData,
+  type ModularPanelsDocument,
+  type ReportPanel,
+  type SprintScheduleData,
+  type StoryPointsMetricsData,
 } from "@/lib/reportPanels";
 import { parseLinkSegments } from "@/lib/statusReportLinks";
 import {
@@ -924,7 +926,7 @@ export type StatusReportPDFData = {
   cdaReportHoursOnly?: boolean;
   /** When false, Standard report omits bottom budget table and burn chart. Default true. */
   showBudget?: boolean;
-  panels?: ReportPanel[];
+  panels?: ReportPanel[] | ModularPanelsDocument;
   /** Locked schedule source; omitted on legacy reports (treated as project timeline). */
   scheduleSource?: "timeline" | "plan";
   includeDetailedPlan?: boolean;
@@ -1862,7 +1864,7 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
           )}
 
           {report.variation === "Modular" && (() => {
-            const panels = data.panels ?? [];
+            const panels = reportPanelsForLegacyRender(data.panels);
             if (panels.length === 0) {
               return (
                 <View>

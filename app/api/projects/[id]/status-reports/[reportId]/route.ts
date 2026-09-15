@@ -8,6 +8,7 @@ import { getProjectId } from "@/lib/slug";
 import { deleteCachedPdf } from "@/lib/statusReportPdfCache";
 import { isStatusReportSnapshot, type StatusReportSnapshot } from "@/lib/statusReportPdfData";
 import { z } from "zod";
+import { normalizeModularPanels } from "@/lib/reportPanels";
 
 const variationEnum = z.enum(["Standard", "Milestones", "CDA", "Modular"]);
 const ragEnum = z.enum(["Red", "Amber", "Green"]);
@@ -40,7 +41,7 @@ const patchSchema = z.object({
     })
     .optional(),
   includeDetailedPlan: z.boolean().optional(),
-  panels: z.array(z.any()).optional(),
+  panels: z.unknown().optional(),
 });
 
 export async function GET(
@@ -109,7 +110,9 @@ export async function PATCH(
   };
   const data: UpdateData = {};
   if (parsed.data.variation != null) data.variation = parsed.data.variation as "Standard" | "Milestones" | "CDA" | "Modular";
-  if (parsed.data.panels != null) data.panels = parsed.data.panels as Prisma.InputJsonValue;
+  if (parsed.data.panels != null) {
+    data.panels = normalizeModularPanels(parsed.data.panels) as Prisma.InputJsonValue;
+  }
   if (parsed.data.completedActivities != null) data.completedActivities = parsed.data.completedActivities;
   if (parsed.data.upcomingActivities != null) data.upcomingActivities = parsed.data.upcomingActivities;
   if (parsed.data.risksIssuesDecisions != null) data.risksIssuesDecisions = parsed.data.risksIssuesDecisions;

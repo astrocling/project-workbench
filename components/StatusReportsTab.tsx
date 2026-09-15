@@ -22,7 +22,8 @@ import {
   type ReportPanel,
   type SprintScheduleRow,
   type StoryPointsRow,
-  MODULAR_DEFAULT_PANELS,
+  MODULAR_LEGACY_DEFAULT_PANELS,
+  panelsInputToLegacyFormPanels,
 } from "@/lib/reportPanels";
 import { formatMonthDay } from "@/lib/formatIsoDate";
 import {
@@ -386,7 +387,7 @@ export function StatusReportsTab({
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [formReportDate, setFormReportDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [formVariation, setFormVariation] = useState<FormVariation>("Standard");
-  const [formPanels, setFormPanels] = useState<ReportPanel[]>(MODULAR_DEFAULT_PANELS);
+  const [formPanels, setFormPanels] = useState<ReportPanel[]>(MODULAR_LEGACY_DEFAULT_PANELS);
   const [formShowBudget, setFormShowBudget] = useState(true);
   const [formTimelinePreviousMonths, setFormTimelinePreviousMonths] = useState<number>(1);
   const [formTimelineLookaheadMonths, setFormTimelineLookaheadMonths] = useState<number>(2);
@@ -542,7 +543,7 @@ export function StatusReportsTab({
         setFormReportDate(today);
         const newVariation: FormVariation = cdaEnabled ? "CDA" : "Standard";
         setFormVariation(newVariation);
-        setFormPanels(MODULAR_DEFAULT_PANELS);
+        setFormPanels(MODULAR_LEGACY_DEFAULT_PANELS);
         setFormShowBudget(true);
         setFormTimelinePreviousMonths(1);
         setFormTimelineLookaheadMonths(2);
@@ -578,7 +579,7 @@ export function StatusReportsTab({
         setFormReportDate(today);
         const newVariation: FormVariation = cdaEnabled ? "CDA" : "Standard";
         setFormVariation(newVariation);
-        setFormPanels(MODULAR_DEFAULT_PANELS);
+        setFormPanels(MODULAR_LEGACY_DEFAULT_PANELS);
         setFormShowBudget(true);
         setFormTimelinePreviousMonths(1);
         setFormTimelineLookaheadMonths(2);
@@ -613,7 +614,7 @@ export function StatusReportsTab({
     setEditingReportId(r.id);
     setFormReportDate(r.reportDate.slice(0, 10));
     setFormVariation((r.variation as FormVariation) || "Standard");
-    setFormPanels(Array.isArray(r.panels) ? (r.panels as ReportPanel[]) : MODULAR_DEFAULT_PANELS);
+    setFormPanels(panelsInputToLegacyFormPanels(r.panels));
     setFormShowBudget(
       typeof r.snapshot?.showBudget === "boolean" ? r.snapshot.showBudget : true
     );
@@ -1385,7 +1386,7 @@ export function StatusReportsTab({
                     setFormShowBudget(true);
                   }
                   if (next === "Modular" && !editingReportId) {
-                    setFormPanels(MODULAR_DEFAULT_PANELS);
+                    setFormPanels(MODULAR_LEGACY_DEFAULT_PANELS);
                   }
                   if (
                     !editingReportId &&

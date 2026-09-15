@@ -18,7 +18,7 @@ import {
   PLAN_CREATE_ROLLBACK_FAILED_ERROR,
   rollbackCreatedStatusReport,
 } from "@/lib/statusReportCreateRollback";
-import { MODULAR_DEFAULT_PANELS, type ReportPanel } from "@/lib/reportPanels";
+import { normalizeModularPanels } from "@/lib/reportPanels";
 import { z } from "zod";
 
 const variationEnum = z.enum(["Standard", "Milestones", "CDA", "Modular"]);
@@ -45,7 +45,7 @@ const createSchema = z.object({
   ragBudgetExplanation: z.string().nullable().optional(),
   /** When false, Standard report omits bottom budget table and burn chart. Default true. */
   showBudget: z.boolean().default(true),
-  panels: z.array(z.any()).optional(),
+  panels: z.unknown().optional(),
   scheduleSource: z.enum(["timeline", "plan"]).optional(),
   planDensity: z.enum(["phases", "phases_and_key_dates"]).optional(),
 });
@@ -219,10 +219,12 @@ export async function POST(
       ragScopeExplanation: parsed.data.ragScopeExplanation ?? null,
       ragScheduleExplanation: parsed.data.ragScheduleExplanation ?? null,
       ragBudgetExplanation: parsed.data.ragBudgetExplanation ?? null,
-      panels: ((parsed.data.panels as ReportPanel[] | undefined) ??
-        (parsed.data.variation === "Modular" ? MODULAR_DEFAULT_PANELS : undefined)) as
-        | Prisma.InputJsonValue
-        | undefined,
+      panels:
+        parsed.data.variation === "Modular"
+          ? (normalizeModularPanels(parsed.data.panels) as Prisma.InputJsonValue)
+          : parsed.data.panels != null
+            ? (parsed.data.panels as Prisma.InputJsonValue)
+            : undefined,
     },
   });
 

@@ -14,10 +14,11 @@ import {
   cdaOverallHoursRemaining,
   cdaContractHoursCompletePercent,
 } from "@/components/pdf/StatusReportDocument";
-import type {
-  DonutKpiData,
-  SprintScheduleData,
-  StoryPointsMetricsData,
+import {
+  reportPanelsForLegacyRender,
+  type DonutKpiData,
+  type SprintScheduleData,
+  type StoryPointsMetricsData,
 } from "@/lib/reportPanels";
 import { getWeeksInMonthsForRange } from "@/lib/monthUtils";
 import { formatMonthDay } from "@/lib/formatIsoDate";
@@ -903,7 +904,7 @@ export function StatusReportView({
             )}
 
             {report.variation === "Modular" && (() => {
-              const panels = data.panels ?? [];
+              const panels = reportPanelsForLegacyRender(data.panels);
               if (panels.length === 0) {
                 return <div className="text-[7px] text-gray-400 py-1">No panel data.</div>;
               }
