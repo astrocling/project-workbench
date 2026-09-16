@@ -12,8 +12,9 @@ import {
   resolvePlanScheduleEmptyError,
   validatePlanScheduleCreateEligibility,
 } from "@/lib/plan/reportScheduleErrors";
-import { timelineLayoutMaxRow } from "@/lib/plan/reportSchedule";
+import { TIMELINE_FILL_ROW_MAX, timelineLayoutMaxRow } from "@/lib/plan/reportSchedule";
 import { isValidPlanTimeline } from "@/lib/statusReportScheduleBuild";
+import { persistTimelineLayoutOnSnapshot } from "@/lib/statusReportTimelineLayout";
 import {
   PLAN_CREATE_BUILD_FAILED_ERROR,
   PLAN_CREATE_ROLLBACK_FAILED_ERROR,
@@ -39,6 +40,16 @@ const createSchema = z.object({
   timelinePreviousMonths: z.number().int().min(1).max(4).default(1),
   timelineLookaheadMonths: z.number().int().min(1).max(4).optional(),
   includeDetailedPlan: z.boolean().optional(),
+  timelineLayout: z
+    .object({
+      hiddenBarIds: z.array(z.string()).optional(),
+      hiddenMarkerIds: z.array(z.string()).optional(),
+      labels: z.record(z.string(), z.string()).optional(),
+      rows: z.record(z.string(), z.number().int().min(1).max(TIMELINE_FILL_ROW_MAX)).optional(),
+      windowStartYmd: z.string().optional(),
+      windowEndYmd: z.string().optional(),
+    })
+    .optional(),
   completedActivities: z.string(),
   upcomingActivities: z.string(),
   risksIssuesDecisions: z.string(),
@@ -99,6 +110,7 @@ export async function GET(
         ragScheduleExplanation: true,
         ragBudgetExplanation: true,
         snapshot: true,
+        panels: true,
       },
     });
     return NextResponse.json(report ?? null);
@@ -352,6 +364,8 @@ export async function POST(
       };
     }
 
+    snapshot = persistTimelineLayoutOnSnapshot(snapshot, parsed.data.timelineLayout);
+
     await prisma.statusReport.update({
       where: { id: report.id },
       data: { snapshot: snapshot as Prisma.InputJsonValue },
@@ -426,7 +440,12 @@ export async function POST(
       };
       await prisma.statusReport.update({
         where: { id: report.id },
-        data: { snapshot: snapshot as Prisma.InputJsonValue },
+        data: {
+          snapshot: persistTimelineLayoutOnSnapshot(
+            snapshot,
+            parsed.data.timelineLayout
+          ) as Prisma.InputJsonValue,
+        },
       });
     }
   }

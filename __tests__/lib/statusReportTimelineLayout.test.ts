@@ -8,7 +8,9 @@ import {
   pickSpacedTimelineMarkers,
   groupArrangeSchedule,
   moveArrangePhase,
+  persistTimelineLayoutOnSnapshot,
   pruneTimelineLayout,
+  timelineLayoutFromPreviousSnapshot,
   setTimelineLayoutLabel,
   setTimelineLayoutRow,
   setTimelineLayoutWindow,
@@ -120,7 +122,7 @@ const timeline = {
   ],
   markers: [
     { itemId: "m1", label: "Alpha", date: "2026-04-05", shape: "Pin", rowIndex: 2 },
-    { itemId: "m2", label: "Beta", date: "2026-05-01", shape: "Pin", rowIndex: 2 },
+    { itemId: "m2", label: "Beta", date: "2026-05-01", shape: "BadgeAlert", rowIndex: 2 },
   ],
 };
 
@@ -216,7 +218,11 @@ describe("groupArrangeSchedule", () => {
     expect(groups[0]?.bar).toMatchObject({ id: "p1", hidden: true, label: "Discovery" });
     expect(groups[1]?.bar).toMatchObject({ id: "p2", hidden: false, label: "Build" });
     expect(groups[1]?.markers.map((marker) => marker.id)).toEqual(["m1", "m2"]);
-    expect(groups[1]?.markers.find((marker) => marker.id === "m2")?.hidden).toBe(true);
+    expect(groups[1]?.markers.find((marker) => marker.id === "m1")?.shape).toBe("Pin");
+    expect(groups[1]?.markers.find((marker) => marker.id === "m2")).toMatchObject({
+      hidden: true,
+      shape: "BadgeAlert",
+    });
   });
 });
 
@@ -225,6 +231,39 @@ describe("moveArrangePhase", () => {
     const next = moveArrangePhase({}, timeline, "p1", 1);
     expect(next.rows).toEqual({ p1: 2, p2: 1, m1: 1, m2: 1 });
     expect(moveArrangePhase({}, timeline, "p1", -1)).toEqual({});
+  });
+});
+
+describe("timelineLayoutFromPreviousSnapshot", () => {
+  it("returns Plan arrange overlay from the previous report and ignores timeline-source reports", () => {
+    expect(
+      timelineLayoutFromPreviousSnapshot({
+        scheduleSource: "plan",
+        timelineLayout: { hiddenBarIds: ["p1"] },
+      })
+    ).toEqual({ hiddenBarIds: ["p1"] });
+    expect(
+      timelineLayoutFromPreviousSnapshot({
+        scheduleSource: "timeline",
+        timelineLayout: { hiddenBarIds: ["p1"] },
+      })
+    ).toBeUndefined();
+    expect(timelineLayoutFromPreviousSnapshot({ scheduleSource: "plan", timelineLayout: {} })).toBeUndefined();
+  });
+
+  it("prunes inherited layout onto a new snapshot timeline and keeps unknown ids only when no timeline exists yet", () => {
+    expect(
+      persistTimelineLayoutOnSnapshot(
+        { timeline: { bars: [{ phaseId: "p1" }], markers: [] } },
+        { hiddenBarIds: ["p1", "gone"], labels: { p1: "Kickoff" } }
+      )
+    ).toEqual({
+      timeline: { bars: [{ phaseId: "p1" }], markers: [] },
+      timelineLayout: { hiddenBarIds: ["p1"], labels: { p1: "Kickoff" } },
+    });
+    expect(
+      persistTimelineLayoutOnSnapshot({}, { hiddenBarIds: ["p1"] })
+    ).toEqual({ timelineLayout: { hiddenBarIds: ["p1"] } });
   });
 });
 

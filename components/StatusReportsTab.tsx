@@ -47,8 +47,6 @@ import {
 } from "@/lib/modularLayoutPresets";
 import { formatMonthDay } from "@/lib/formatIsoDate";
 import {
-  PLAN_LOOKAHEAD_MONTHS_LABEL,
-  PREVIOUS_MONTHS_ON_SCHEDULE_LABEL,
   buildScheduleSourceCreatePayload,
   createScheduleFormDefaults,
   detailedPlanCheckboxLabel,
@@ -68,6 +66,7 @@ import { timelineLayoutMaxRow } from "@/lib/plan/reportSchedule";
 import type { PlanReportDensity } from "@/lib/statusReportPdfData";
 import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument";
 import type { TimelineLayoutOverlay } from "@/lib/statusReportTimelineLayout";
+import { timelineLayoutFromPreviousSnapshot } from "@/lib/statusReportTimelineLayout";
 import { ArrangeScheduleFields } from "@/components/ArrangeScheduleFields";
 
 type RagValue = "Red" | "Amber" | "Green";
@@ -781,7 +780,30 @@ export function StatusReportsTab({
     setFormRagScopeExplanation(prev.ragScopeExplanation ?? "");
     setFormRagScheduleExplanation(prev.ragScheduleExplanation ?? "");
     setFormRagBudgetExplanation(prev.ragBudgetExplanation ?? "");
-  }, []);
+    const inheritedLayout = timelineLayoutFromPreviousSnapshot(prev.snapshot);
+    if (!cdaEnabled) {
+      setFormTimelineLayout(inheritedLayout ?? {});
+      if (prev.snapshot?.scheduleSource === "plan") {
+        setFormScheduleSource("plan");
+        setFormPlanDensity(
+          prev.snapshot.planDensity === "phases" ? "phases" : "phases_and_key_dates"
+        );
+        setFormIncludeDetailedPlan(prev.snapshot.includeDetailedPlan === true);
+        const prevMonths = prev.snapshot.timelinePreviousMonths;
+        if (typeof prevMonths === "number" && prevMonths >= 1 && prevMonths <= 4) {
+          setFormTimelinePreviousMonths(prevMonths);
+        }
+        const lookaheadMonths = prev.snapshot.timelineLookaheadMonths;
+        if (typeof lookaheadMonths === "number" && lookaheadMonths >= 1 && lookaheadMonths <= 4) {
+          setFormTimelineLookaheadMonths(lookaheadMonths);
+        }
+      }
+      if (prev.variation === "Modular") {
+        setFormVariation("Modular");
+        setFormModularDoc(normalizeModularPanels(prev.panels));
+      }
+    }
+  }, [cdaEnabled]);
 
   const openNewForm = useCallback(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -933,6 +955,12 @@ export function StatusReportsTab({
           timelineLookaheadMonths: formTimelineLookaheadMonths,
         }),
       ...(formScheduleSource === "plan" && { includeDetailedPlan: formIncludeDetailedPlan }),
+      ...(!editingReportId &&
+        formScheduleSource === "plan" &&
+        timelineLayoutFromPreviousSnapshot({
+          scheduleSource: "plan",
+          timelineLayout: formTimelineLayout,
+        }) && { timelineLayout: formTimelineLayout }),
       variation: formVariation,
       ...(formVariation === "Standard" && { showBudget: formShowBudget }),
       ...(formVariation === "Modular" && { panels: formModularDoc }),
@@ -1755,15 +1783,16 @@ export function StatusReportsTab({
               </div>
             )}
             {isScheduleEligibleVariation(formVariation) && (
-              <div className="space-y-4">
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
                 {shouldShowScheduleSourceFields(planEnabled, editingScheduleSource) && (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">
-                        Schedule source{editingReportId ? " (locked)" : ""}
+                  <>
+                    <div className="min-w-[10rem]">
+                      <label className="block text-label-sm font-semibold uppercase tracking-wide text-surface-500 mb-1">
+                        Source{editingReportId ? " · locked" : ""}
                       </label>
                       {editingReportId ? (
-                        <p className="text-body-sm text-surface-600 dark:text-surface-300 pt-1.5">
+                        <p className="text-body-sm text-surface-700 dark:text-surface-200 h-7 flex items-center">
                           {scheduleSourceLabel(formScheduleSource)}
                         </p>
                       ) : (
@@ -1772,7 +1801,7 @@ export function StatusReportsTab({
                           onChange={(e) =>
                             setFormScheduleSource(e.target.value as ScheduleSource)
                           }
-                          className="block w-full max-w-xs h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
+                          className="block w-full max-w-xs h-8 px-2 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
                         >
                           <option value="timeline">Project timeline</option>
                           <option value="plan">Project Plan</option>
@@ -1780,12 +1809,12 @@ export function StatusReportsTab({
                       )}
                     </div>
                     {formScheduleSource === "plan" && (
-                      <div>
-                        <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">
-                          Plan density{editingReportId ? " (locked)" : ""}
+                      <div className="min-w-[10rem]">
+                        <label className="block text-label-sm font-semibold uppercase tracking-wide text-surface-500 mb-1">
+                          Density{editingReportId ? " · locked" : ""}
                         </label>
                         {editingReportId ? (
-                          <p className="text-body-sm text-surface-600 dark:text-surface-300 pt-1.5">
+                          <p className="text-body-sm text-surface-700 dark:text-surface-200 h-7 flex items-center">
                             {planDensityLabel(formPlanDensity)}
                           </p>
                         ) : (
@@ -1794,7 +1823,7 @@ export function StatusReportsTab({
                             onChange={(e) =>
                               setFormPlanDensity(e.target.value as PlanReportDensity)
                             }
-                            className="block w-full max-w-xs h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
+                            className="block w-full max-w-xs h-8 px-2 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
                           >
                             <option value="phases">Phases only</option>
                             <option value="phases_and_key_dates">Phases + key dates</option>
@@ -1802,16 +1831,15 @@ export function StatusReportsTab({
                         )}
                       </div>
                     )}
-                  </div>
+                  </>
                 )}
                 {shouldShowPreviousMonthsOnSchedule(formScheduleSource) && (
-                  <div>
-                    <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">
-                      {PREVIOUS_MONTHS_ON_SCHEDULE_LABEL}
-                      {editingReportId ? " (locked)" : ""}
+                  <div className="min-w-[8rem]">
+                    <label className="block text-label-sm font-semibold uppercase tracking-wide text-surface-500 mb-1">
+                      Lookback{editingReportId ? " · locked" : ""}
                     </label>
                     {editingReportId ? (
-                      <p className="text-body-sm text-surface-600 dark:text-surface-300 pt-1.5">
+                      <p className="text-body-sm text-surface-700 dark:text-surface-200 h-7 flex items-center">
                         {formTimelinePreviousMonths}{" "}
                         {formTimelinePreviousMonths === 1 ? "month" : "months"}
                       </p>
@@ -1819,11 +1847,11 @@ export function StatusReportsTab({
                       <select
                         value={formTimelinePreviousMonths}
                         onChange={(e) => setFormTimelinePreviousMonths(Number(e.target.value))}
-                        className="block w-full max-w-xs h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
+                        className="block w-full max-w-xs h-8 px-2 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
                       >
                         {[1, 2, 3, 4].map((n) => (
                           <option key={n} value={n}>
-                            {n} {n === 1 ? "month" : "months"} before report date
+                            {n} {n === 1 ? "month" : "months"} before
                           </option>
                         ))}
                       </select>
@@ -1831,13 +1859,12 @@ export function StatusReportsTab({
                   </div>
                 )}
                 {shouldShowPlanLookaheadOnSchedule(formScheduleSource) && (
-                  <div>
-                    <label className="block text-body-sm font-semibold text-surface-800 dark:text-surface-100 mb-1">
-                      {PLAN_LOOKAHEAD_MONTHS_LABEL}
-                      {editingReportId ? " (locked)" : ""}
+                  <div className="min-w-[8rem]">
+                    <label className="block text-label-sm font-semibold uppercase tracking-wide text-surface-500 mb-1">
+                      Lookahead{editingReportId ? " · locked" : ""}
                     </label>
                     {editingReportId ? (
-                      <p className="text-body-sm text-surface-600 dark:text-surface-300 pt-1.5">
+                      <p className="text-body-sm text-surface-700 dark:text-surface-200 h-7 flex items-center">
                         {formTimelineLookaheadMonths}{" "}
                         {formTimelineLookaheadMonths === 1 ? "month" : "months"}
                       </p>
@@ -1845,11 +1872,11 @@ export function StatusReportsTab({
                       <select
                         value={formTimelineLookaheadMonths}
                         onChange={(e) => setFormTimelineLookaheadMonths(Number(e.target.value))}
-                        className="block w-full max-w-xs h-9 px-3 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
+                        className="block w-full max-w-xs h-8 px-2 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
                       >
                         {[1, 2, 3, 4].map((n) => (
                           <option key={n} value={n}>
-                            {n} {n === 1 ? "month" : "months"} after report date
+                            {n} {n === 1 ? "month" : "months"} after
                           </option>
                         ))}
                       </select>
@@ -1857,7 +1884,7 @@ export function StatusReportsTab({
                   </div>
                 )}
                 {formScheduleSource === "plan" && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 h-8 sm:mb-0.5">
                     <input
                       id="include-detailed-plan"
                       type="checkbox"
@@ -1873,6 +1900,7 @@ export function StatusReportsTab({
                     </label>
                   </div>
                 )}
+                </div>
                 {editingReportId && canEdit && editingScheduleSource === "plan" && formTimeline && (
                   <ArrangeScheduleFields
                     timeline={formTimeline}

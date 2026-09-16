@@ -78,6 +78,15 @@ function markerShape(item: PlanItemJson): string {
   }
 }
 
+/** Human label for a compact-schedule marker, from the Plan item type encoded as `shape`. */
+export function reportKeyDateKind(shape: string | undefined): { shape: string; label: string } {
+  if (shape === "ThumbsUp") return { shape, label: "Sign-off" };
+  if (shape === "BadgeAlert") return { shape, label: "Hard deadline" };
+  if (shape === "Rocket") return { shape, label: "Meeting" };
+  if (shape === "Pin") return { shape: "Pin", label: "Milestone" };
+  return { shape: shape ?? "Pin", label: "Key date" };
+}
+
 function minDate(dates: string[]): string {
   return dates.reduce((min, d) => (d < min ? d : min));
 }

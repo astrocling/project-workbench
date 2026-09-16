@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
-import { ChevronDown, ChevronUp, Eye, EyeOff } from "lucide-react";
+import { Calendar, ChevronDown, ChevronUp, Diamond, Eye, EyeOff, Flag, PenLine, type LucideIcon } from "lucide-react";
 import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument";
-import { TIMELINE_RENDERABLE_ROW_MAX } from "@/lib/plan/reportSchedule";
+import { reportKeyDateKind, TIMELINE_RENDERABLE_ROW_MAX } from "@/lib/plan/reportSchedule";
 import {
   groupArrangeSchedule,
   isReadableTimelineWindow,
@@ -14,8 +14,21 @@ import {
   type TimelineLayoutOverlay,
 } from "@/lib/statusReportTimelineLayout";
 
-const INPUT_CLASS =
-  "block w-full h-8 px-2 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted";
+const PHASE_INPUT_CLASS =
+  "h-7 min-w-0 flex-1 px-1.5 rounded text-body-sm bg-transparent border border-transparent hover:border-surface-300 dark:hover:border-dark-muted focus:border-surface-400 dark:focus:border-dark-muted focus:outline-none text-surface-900 dark:text-surface-100";
+
+const CHIP_INPUT_CLASS =
+  "h-5 min-w-[4.5rem] max-w-[10rem] px-0.5 bg-transparent border-0 text-body-sm text-surface-800 dark:text-surface-100 focus:outline-none";
+
+const MONTH_SELECT_CLASS =
+  "h-7 px-1.5 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted";
+
+const KEY_DATE_ICONS: Record<string, LucideIcon> = {
+  Pin: Diamond,
+  ThumbsUp: PenLine,
+  BadgeAlert: Flag,
+  Rocket: Calendar,
+};
 
 type ArrangeScheduleFieldsProps = {
   timeline: NonNullable<StatusReportPDFData["timeline"]>;
@@ -52,6 +65,14 @@ function monthLabel(monthKey: string): string {
   return new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-US", { month: "short", timeZone: "UTC" });
 }
 
+function shortDate(ymd: string): string {
+  return new Date(`${ymd.slice(0, 10)}T00:00:00.000Z`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 function IconButton({
   label,
   disabled,
@@ -70,7 +91,7 @@ function IconButton({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 disabled:opacity-40"
+      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-dark-raised disabled:opacity-30"
     >
       {children}
     </button>
@@ -123,111 +144,105 @@ export function ArrangeScheduleFields({
   }
 
   return (
-    <div className="space-y-3">
-      <div>
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <p className="text-body-sm font-semibold text-surface-800 dark:text-surface-100">
           Arrange this report’s schedule
         </p>
-        <p className="text-body-sm text-surface-600 dark:text-surface-400 mt-1">
-          Show, hide, rename, or reorder for this slide. Plan dates stay as stored on the Plan.
-        </p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-label-sm font-semibold uppercase tracking-wide text-surface-500">
+            Months
+          </span>
+          <select
+            aria-label="Window start"
+            className={MONTH_SELECT_CLASS}
+            disabled={disabled}
+            value={toMonthKey(layout.windowStartYmd ?? timeline.startDate)}
+            onChange={(event) => {
+              const start = `${event.target.value}-01`;
+              const end = layout.windowEndYmd ?? timeline.endDate;
+              if (!isReadableTimelineWindow(start, end)) return;
+              onChange(
+                setTimelineLayoutWindow(
+                  layout,
+                  start,
+                  end,
+                  timeline.startDate,
+                  timeline.endDate
+                ) ?? {}
+              );
+            }}
+          >
+            {boundMonths.map((monthKey) => (
+              <option key={`start-${monthKey}`} value={monthKey}>
+                {monthLabel(monthKey)} {monthKey.slice(0, 4)}
+              </option>
+            ))}
+          </select>
+          <span className="text-surface-400" aria-hidden>
+            –
+          </span>
+          <select
+            aria-label="Window end"
+            className={MONTH_SELECT_CLASS}
+            disabled={disabled}
+            value={toMonthKey(layout.windowEndYmd ?? timeline.endDate)}
+            onChange={(event) => {
+              const end = monthEndYmd(event.target.value);
+              const start = layout.windowStartYmd ?? timeline.startDate;
+              if (!isReadableTimelineWindow(start, end)) return;
+              onChange(
+                setTimelineLayoutWindow(
+                  layout,
+                  start,
+                  end,
+                  timeline.startDate,
+                  timeline.endDate
+                ) ?? {}
+              );
+            }}
+          >
+            {boundMonths.map((monthKey) => (
+              <option key={`end-${monthKey}`} value={monthKey}>
+                {monthLabel(monthKey)} {monthKey.slice(0, 4)}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      <details className="rounded-lg border border-surface-200 dark:border-dark-border px-3 py-2 bg-white dark:bg-dark-surface">
-        <summary className="text-body-sm font-semibold text-surface-800 dark:text-surface-100 cursor-pointer">
-          Months shown
-        </summary>
-        <div className="flex flex-wrap items-end gap-3 mt-3">
-          <div>
-            <label className="block text-label-sm font-semibold uppercase tracking-wide text-surface-500 mb-1">
-              Window start
-            </label>
-            <select
-              className={INPUT_CLASS}
-              disabled={disabled}
-              value={toMonthKey(layout.windowStartYmd ?? timeline.startDate)}
-              onChange={(event) => {
-                const start = `${event.target.value}-01`;
-                const end = layout.windowEndYmd ?? timeline.endDate;
-                if (!isReadableTimelineWindow(start, end)) return;
-                onChange(
-                  setTimelineLayoutWindow(
-                    layout,
-                    start,
-                    end,
-                    timeline.startDate,
-                    timeline.endDate
-                  ) ?? {}
-                );
-              }}
-            >
-              {boundMonths.map((monthKey) => (
-                <option key={`start-${monthKey}`} value={monthKey}>
-                  {monthLabel(monthKey)} {monthKey.slice(0, 4)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-label-sm font-semibold uppercase tracking-wide text-surface-500 mb-1">
-              Window end
-            </label>
-            <select
-              className={INPUT_CLASS}
-              disabled={disabled}
-              value={toMonthKey(layout.windowEndYmd ?? timeline.endDate)}
-              onChange={(event) => {
-                const end = monthEndYmd(event.target.value);
-                const start = layout.windowStartYmd ?? timeline.startDate;
-                if (!isReadableTimelineWindow(start, end)) return;
-                onChange(
-                  setTimelineLayoutWindow(
-                    layout,
-                    start,
-                    end,
-                    timeline.startDate,
-                    timeline.endDate
-                  ) ?? {}
-                );
-              }}
-            >
-              {boundMonths.map((monthKey) => (
-                <option key={`end-${monthKey}`} value={monthKey}>
-                  {monthLabel(monthKey)} {monthKey.slice(0, 4)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <p className="text-body-sm text-surface-500 max-w-md">
-            Month columns stay at least 50px wide so the slide stays readable.
-          </p>
+      <div className="rounded-lg border border-surface-200 dark:border-dark-border overflow-hidden bg-white dark:bg-dark-surface">
+        <div className="hidden sm:grid grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)] gap-3 px-2 py-1 bg-surface-50 dark:bg-dark-raised text-label-sm font-semibold uppercase tracking-wide text-surface-500">
+          <div>Phase</div>
+          <div>Key dates</div>
         </div>
-      </details>
-
-      <div className="rounded-lg border border-surface-200 dark:border-dark-border divide-y divide-surface-200 dark:divide-dark-border bg-white dark:bg-dark-surface">
         {groups.length === 0 ? (
-          <p className="px-3 py-2 text-body-sm text-surface-500">Nothing on this schedule.</p>
+          <p className="px-2 py-2 text-body-sm text-surface-500">Nothing on this schedule.</p>
         ) : null}
         {groups.map((group, groupIndex) => {
           const phaseId = group.bar?.id;
+          const groupKey = phaseId ?? `orphans-${groupIndex}`;
           const canMoveUp = Boolean(phaseId) && groupIndex > 0 && groups[groupIndex - 1]?.bar;
           const canMoveDown =
             Boolean(phaseId) &&
             groupIndex < groups.length - 1 &&
             groups[groupIndex + 1]?.bar;
           return (
-            <div key={phaseId ?? `orphans-${groupIndex}`} className="px-3 py-2 space-y-2">
+            <div
+              key={groupKey}
+              className="grid grid-cols-1 sm:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)] gap-2 sm:gap-3 px-2 py-1.5 border-t border-surface-200 dark:border-dark-border items-center"
+            >
               {group.bar ? (
-                <div className={`flex items-center gap-2 ${group.bar.hidden ? "opacity-50" : ""}`}>
+                <div className={`flex items-center gap-1 min-w-0 ${group.bar.hidden ? "opacity-50" : ""}`}>
                   <span
-                    className="h-3 w-3 rounded-sm shrink-0"
+                    className="h-2.5 w-2.5 rounded-sm shrink-0"
                     style={{ backgroundColor: group.bar.color ?? "#1941FA" }}
                     aria-hidden
                   />
                   <input
                     type="text"
                     aria-label="Phase name on this slide"
-                    className={`${INPUT_CLASS} flex-1 min-w-0`}
+                    className={PHASE_INPUT_CLASS}
                     disabled={disabled}
                     defaultValue={group.bar.label}
                     key={`${group.bar.id}-${group.bar.label}`}
@@ -246,21 +261,21 @@ export function ArrangeScheduleFields({
                     disabled={disabled}
                     onClick={() => toggleHidden("bar", group.bar.id, !group.bar.hidden)}
                   >
-                    {group.bar.hidden ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {group.bar.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
                   </IconButton>
                   <IconButton
                     label="Move phase up"
                     disabled={disabled || !canMoveUp}
                     onClick={() => onChange(moveArrangePhase(layout, timeline, phaseId!, -1, rowMax))}
                   >
-                    <ChevronUp size={16} />
+                    <ChevronUp size={14} />
                   </IconButton>
                   <IconButton
                     label="Move phase down"
                     disabled={disabled || !canMoveDown}
                     onClick={() => onChange(moveArrangePhase(layout, timeline, phaseId!, 1, rowMax))}
                   >
-                    <ChevronDown size={16} />
+                    <ChevronDown size={14} />
                   </IconButton>
                 </div>
               ) : (
@@ -268,38 +283,60 @@ export function ArrangeScheduleFields({
                   Other key dates
                 </p>
               )}
-              {group.markers.map((marker) => (
-                <div
-                  key={marker.id}
-                  className={`flex items-center gap-2 pl-5 ${marker.hidden ? "opacity-50" : ""}`}
-                >
-                  <span className="h-2.5 w-2.5 rounded-full border-2 border-[#FF2020] bg-white shrink-0" aria-hidden />
-                  <input
-                    type="text"
-                    aria-label="Key date name on this slide"
-                    className={`${INPUT_CLASS} flex-1 min-w-0`}
-                    disabled={disabled}
-                    defaultValue={marker.label}
-                    key={`${marker.id}-${marker.label}`}
-                    onBlur={(event) => {
-                      const original =
-                        timeline.markers.find((item) => item.itemId === marker.id)?.label ??
-                        marker.label;
-                      commitLabel(marker.id, original, event.target.value);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") (event.target as HTMLInputElement).blur();
-                    }}
-                  />
-                  <IconButton
-                    label={marker.hidden ? "Show key date on slide" : "Hide key date on this slide"}
-                    disabled={disabled}
-                    onClick={() => toggleHidden("marker", marker.id, !marker.hidden)}
-                  >
-                    {marker.hidden ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </IconButton>
-                </div>
-              ))}
+              <div className="flex flex-wrap gap-1 min-w-0">
+                {group.markers.length === 0 ? (
+                  <span className="text-body-sm text-surface-400">—</span>
+                ) : null}
+                {group.markers.map((marker) => {
+                  const kind = reportKeyDateKind(marker.shape);
+                  const TypeIcon = KEY_DATE_ICONS[kind.shape] ?? Diamond;
+                  return (
+                    <span
+                      key={marker.id}
+                      title={kind.label}
+                      className={`inline-flex items-center gap-1 max-w-full h-7 pl-1.5 pr-0.5 rounded-full border border-surface-200 dark:border-dark-border bg-surface-50 dark:bg-dark-raised ${
+                        marker.hidden ? "opacity-50" : ""
+                      }`}
+                    >
+                      <TypeIcon
+                        size={12}
+                        className="shrink-0 text-surface-600 dark:text-surface-300"
+                        aria-hidden
+                      />
+                      <span className="text-label-sm font-semibold uppercase tracking-wide text-surface-500 whitespace-nowrap">
+                        {kind.label}
+                      </span>
+                      <span className="text-label-sm text-surface-500 whitespace-nowrap">
+                        {shortDate(marker.date)}
+                      </span>
+                      <input
+                        type="text"
+                        aria-label={`${kind.label} name on this slide`}
+                        className={CHIP_INPUT_CLASS}
+                        disabled={disabled}
+                        defaultValue={marker.label}
+                        key={`${marker.id}-${marker.label}`}
+                        onBlur={(event) => {
+                          const original =
+                            timeline.markers.find((item) => item.itemId === marker.id)?.label ??
+                            marker.label;
+                          commitLabel(marker.id, original, event.target.value);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") (event.target as HTMLInputElement).blur();
+                        }}
+                      />
+                      <IconButton
+                        label={marker.hidden ? "Show key date on slide" : "Hide key date on this slide"}
+                        disabled={disabled}
+                        onClick={() => toggleHidden("marker", marker.id, !marker.hidden)}
+                      >
+                        {marker.hidden ? <EyeOff size={12} /> : <Eye size={12} />}
+                      </IconButton>
+                    </span>
+                  );
+                })}
+              </div>
             </div>
           );
         })}

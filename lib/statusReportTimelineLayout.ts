@@ -313,6 +313,7 @@ export type ArrangeScheduleMarker = {
   rowIndex?: number;
   label: string;
   date: string;
+  shape?: string;
   muted?: boolean;
 };
 
@@ -328,6 +329,7 @@ export type ArrangeScheduleGroup = {
     id: string;
     label: string;
     date: string;
+    shape: string;
     hidden: boolean;
     muted: boolean;
   }>;
@@ -381,6 +383,7 @@ export function groupArrangeSchedule(
         id: marker.itemId,
         label: overlayLabel(marker.itemId, layout?.labels, marker.label),
         date: marker.date,
+        shape: marker.shape ?? "Pin",
         hidden: hiddenMarkers.has(marker.itemId),
         muted: marker.muted === true,
       })),
@@ -398,6 +401,7 @@ export function groupArrangeSchedule(
         id: marker.itemId,
         label: overlayLabel(marker.itemId, layout?.labels, marker.label),
         date: marker.date,
+        shape: marker.shape ?? "Pin",
         hidden: hiddenMarkers.has(marker.itemId),
         muted: marker.muted === true,
       })),
@@ -450,6 +454,42 @@ export function moveArrangePhase(
     rows = setTimelineLayoutRow(rows, item.id, item.original, nextRow, maxRow);
   }
   return { ...layout, rows };
+}
+
+export function timelineLayoutFromPreviousSnapshot(
+  snapshot:
+    | {
+        scheduleSource?: string;
+        timelineLayout?: TimelineLayoutOverlay;
+      }
+    | null
+    | undefined
+): TimelineLayoutOverlay | undefined {
+  if (snapshot?.scheduleSource !== "plan" || !snapshot.timelineLayout) return undefined;
+  const layout = snapshot.timelineLayout;
+  if (
+    (layout.hiddenBarIds?.length ?? 0) === 0 &&
+    (layout.hiddenMarkerIds?.length ?? 0) === 0 &&
+    !layout.labels &&
+    !layout.rows &&
+    !layout.windowStartYmd &&
+    !layout.windowEndYmd
+  ) {
+    return undefined;
+  }
+  return layout;
+}
+
+export function persistTimelineLayoutOnSnapshot<
+  T extends {
+    timeline?: Pick<LayoutTimelineSlice, "bars" | "markers">;
+    timelineLayout?: TimelineLayoutOverlay;
+  },
+>(snapshot: T, layout: TimelineLayoutOverlay | undefined): T {
+  if (!layout) return snapshot;
+  const pruned = snapshot.timeline ? pruneTimelineLayout(layout, snapshot.timeline) : layout;
+  if (!pruned) return snapshot;
+  return { ...snapshot, timelineLayout: pruned };
 }
 
 export function inclusiveMonthCount(startYmd: string, endYmd: string): number {

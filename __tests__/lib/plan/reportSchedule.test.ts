@@ -4,6 +4,7 @@ import {
   compactPlanToSchedule,
   applyPlanPhaseColors,
   compactLanePolicyForVariation,
+  reportKeyDateKind,
   getActiveTimelineRows,
   getCompactPlanTimelineRows,
   getVisibleBarSegment,
@@ -127,6 +128,14 @@ describe("compactPlanToSchedule", () => {
       "phases"
     );
     expect(result?.bars[0]?.rowIndex).toBe(1);
+  });
+
+  it("maps compact marker shapes to Plan date-type labels", () => {
+    expect(reportKeyDateKind("Pin")).toEqual({ shape: "Pin", label: "Milestone" });
+    expect(reportKeyDateKind("ThumbsUp")).toEqual({ shape: "ThumbsUp", label: "Sign-off" });
+    expect(reportKeyDateKind("BadgeAlert")).toEqual({ shape: "BadgeAlert", label: "Hard deadline" });
+    expect(reportKeyDateKind("Rocket")).toEqual({ shape: "Rocket", label: "Meeting" });
+    expect(reportKeyDateKind("PencilRuler").label).toBe("Key date");
   });
 
   it("picks onePhasePerRow only for Modular", () => {
