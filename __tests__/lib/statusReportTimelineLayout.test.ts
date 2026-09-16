@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyTimelineLayout,
   getStatusReportTimelineMetrics,
+  scaleStatusReportTimelineMetrics,
   formatPlanKeyDatesLine,
   isReadableTimelineWindow,
   pickSpacedTimelineMarkers,
@@ -31,6 +32,15 @@ describe("statusReportTimelineLayout", () => {
     expect(plan.mode).toBe("lanes");
     expect(plan.labelColPx).toBe(0);
     expect(plan.rowHeightPx * 4).toBeLessThanOrEqual(80);
+  });
+
+  it("doubles overlay metrics for the 1440 Modular canvas", () => {
+    const base = getStatusReportTimelineMetrics("timeline");
+    const scaled = scaleStatusReportTimelineMetrics(base, 2);
+    expect(scaled.rowHeightPx).toBe(base.rowHeightPx * 2);
+    expect(scaled.barFontPx).toBe(base.barFontPx * 2);
+    expect(scaled.markerIconPx).toBe(base.markerIconPx * 2);
+    expect(scaleStatusReportTimelineMetrics(base, 1)).toEqual(base);
   });
 
   it("alternates clustered marker columns left and right of the date", () => {

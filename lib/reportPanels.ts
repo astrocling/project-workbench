@@ -3,6 +3,13 @@ export type PanelCategory = "data-owned" | "feature-linked";
 /** Modular composer canvas (16:9). Standard/CDA/Milestones remain 720×405 in capture. */
 export const MODULAR_SLIDE_WIDTH_PX = 1440;
 export const MODULAR_SLIDE_HEIGHT_PX = 810;
+/** 1440 canvas is 2× 720. Apply only to bio, RAG, and footer so those match Standard after 0.5 scale. */
+export const MODULAR_CHROME_SCALE = 2;
+/** Module body baseline on the 1440 canvas (not 2× Standard). Rows share leftover height. */
+export const MODULAR_BODY_TYPE_PX = 12;
+export const MODULAR_ROW_GAP_PX = 12;
+export const MODULAR_TALL_ROW_GROW = 2;
+export const MODULAR_SHORT_ROW_GROW = 1;
 
 export type SprintScheduleRow = {
   dateRange: string; // e.g. "4/28 – 5/15"

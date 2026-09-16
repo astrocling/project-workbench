@@ -2,8 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   BUDGET_MODULE_TYPES,
   MODULAR_DEFAULT_DOCUMENT,
+  MODULAR_CHROME_SCALE,
+  MODULAR_BODY_TYPE_PX,
+  MODULAR_ROW_GAP_PX,
+  MODULAR_SHORT_ROW_GROW,
   MODULAR_SLIDE_HEIGHT_PX,
   MODULAR_SLIDE_WIDTH_PX,
+  MODULAR_TALL_ROW_GROW,
   PLAN_LIST_MODULE_TYPES,
   modularDocumentHasType,
   modularNeedsBudget,
@@ -115,6 +120,19 @@ describe("modular canvas constants", () => {
   it("locks the Modular slide to 1440×810", () => {
     expect(MODULAR_SLIDE_WIDTH_PX).toBe(1440);
     expect(MODULAR_SLIDE_HEIGHT_PX).toBe(810);
+  });
+
+  it("uses 2× chrome so bio/RAG/footer match Standard after 0.5 scale", () => {
+    expect(MODULAR_CHROME_SCALE).toBe(2);
+    expect(MODULAR_SLIDE_WIDTH_PX / MODULAR_CHROME_SCALE).toBe(720);
+    expect(MODULAR_SLIDE_HEIGHT_PX / MODULAR_CHROME_SCALE).toBe(405);
+  });
+
+  it("keeps module rows sharing leftover height instead of 2× fixed shorts", () => {
+    expect(MODULAR_TALL_ROW_GROW).toBe(2);
+    expect(MODULAR_SHORT_ROW_GROW).toBe(1);
+    expect(MODULAR_ROW_GAP_PX).toBe(12);
+    expect(MODULAR_BODY_TYPE_PX).toBe(12);
   });
 });
 

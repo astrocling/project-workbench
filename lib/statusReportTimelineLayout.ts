@@ -78,6 +78,26 @@ export function getStatusReportTimelineMetrics(
   return scheduleSource === "plan" ? PLAN_TIMELINE_METRICS : PROJECT_TIMELINE_METRICS;
 }
 
+export function scaleStatusReportTimelineMetrics(
+  metrics: StatusReportTimelineMetrics,
+  scale: number
+): StatusReportTimelineMetrics {
+  if (scale === 1) return metrics;
+  return {
+    ...metrics,
+    rowHeightPx: metrics.rowHeightPx * scale,
+    barTopPx: metrics.barTopPx * scale,
+    barHeightPx: metrics.barHeightPx == null ? null : metrics.barHeightPx * scale,
+    markerIconPx: metrics.markerIconPx * scale,
+    markerColPx: metrics.markerColPx * scale,
+    barFontPx: metrics.barFontPx * scale,
+    markerFontPx: metrics.markerFontPx * scale,
+    monthFontPx: metrics.monthFontPx * scale,
+    markerTopPx: metrics.markerTopPx * scale,
+    labelColPx: metrics.labelColPx * scale,
+  };
+}
+
 /** Alternate hanging left/right of the date so clustered key dates do not stack. */
 export function timelineMarkerHangsLeft(indexInRow: number): boolean {
   return indexInRow % 2 === 0;

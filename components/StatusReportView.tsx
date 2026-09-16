@@ -15,8 +15,12 @@ import {
   cdaContractHoursCompletePercent,
 } from "@/components/pdf/StatusReportDocument";
 import {
+  MODULAR_CHROME_SCALE,
+  MODULAR_ROW_GAP_PX,
+  MODULAR_SHORT_ROW_GROW,
   MODULAR_SLIDE_HEIGHT_PX,
   MODULAR_SLIDE_WIDTH_PX,
+  MODULAR_TALL_ROW_GROW,
   PANEL_META,
   normalizeModularPanels,
   rowShapeWeights,
@@ -48,6 +52,7 @@ import {
 } from "@/lib/plan/reportSchedule";
 import {
   getStatusReportTimelineMetrics,
+  scaleStatusReportTimelineMetrics,
   statusReportMonthHeaderLabel,
   timelineLaneLabel,
   timelineMarkerHangsLeft,
@@ -160,7 +165,7 @@ function NarrativeColumnContent({
   size?: "compact" | "modular";
 }) {
   const textClass =
-    size === "modular" ? "text-[12px] leading-[1.25]" : "text-[7px] leading-[1.15]";
+    size === "modular" ? "text-[12px] leading-[1.15]" : "text-[7px] leading-[1.15]";
   if (isHtmlContent(text)) {
     return (
       <div
@@ -207,7 +212,13 @@ function TextWithLinks({ line }: { line: string }) {
   );
 }
 
-function RagStatusBlock({ data }: { data: StatusReportPDFData }) {
+function RagStatusBlock({
+  data,
+  layoutScale = 1,
+}: {
+  data: StatusReportPDFData;
+  layoutScale?: number;
+}) {
   const { report } = data;
   const rows: Array<{ label: string; status: RagStatus | null | undefined; explanation: string | null | undefined }> = [
     { label: "Overall", status: report.ragOverall, explanation: report.ragOverallExplanation },
@@ -215,36 +226,40 @@ function RagStatusBlock({ data }: { data: StatusReportPDFData }) {
     { label: "Schedule", status: report.ragSchedule, explanation: report.ragScheduleExplanation },
     { label: "Budget", status: report.ragBudget, explanation: report.ragBudgetExplanation },
   ];
+  const doubled = layoutScale === MODULAR_CHROME_SCALE;
   return (
     <div className="w-full flex flex-col">
-      <div className="flex flex-row bg-[#220088] min-h-[16px]">
-        <div className="w-[72px] py-0.5 px-1 flex-shrink-0">
-          <span className="text-[9px] font-bold text-white">Project Status</span>
+      <div className={`flex flex-row bg-[#220088] ${doubled ? "min-h-[32px]" : "min-h-[16px]"}`}>
+        <div className={`${doubled ? "w-[144px] py-1 px-2" : "w-[72px] py-0.5 px-1"} flex-shrink-0`}>
+          <span className={`${doubled ? "text-[18px]" : "text-[9px]"} font-bold text-white`}>Project Status</span>
         </div>
-        <div className="w-6 flex-shrink-0" />
-        <div className="flex-1 min-w-0 py-0.5 px-1">
-          <span className="text-[9px] font-bold text-white">Explanation</span>
+        <div className={`${doubled ? "w-12" : "w-6"} flex-shrink-0`} />
+        <div className={`flex-1 min-w-0 ${doubled ? "py-1 px-2" : "py-0.5 px-1"}`}>
+          <span className={`${doubled ? "text-[18px]" : "text-[9px]"} font-bold text-white`}>Explanation</span>
         </div>
       </div>
       {rows.map((row, i) => (
         <div
           key={row.label}
-          className={`flex flex-row items-center border-b border-gray-200 min-h-[14px] ${i % 2 === 1 ? "bg-white" : "bg-[#F5F5F5]"}`}
+          className={`flex flex-row items-center border-b border-gray-200 ${doubled ? "min-h-[28px]" : "min-h-[14px]"} ${i % 2 === 1 ? "bg-white" : "bg-[#F5F5F5]"}`}
         >
-          <div className="w-[72px] py-0.5 px-1 flex-shrink-0">
-            <span className="text-[7px] font-bold" style={{ color: BIO_LABEL_COLOR }}>
+          <div className={`${doubled ? "w-[144px] py-1 px-2" : "w-[72px] py-0.5 px-1"} flex-shrink-0`}>
+            <span className={`${doubled ? "text-[14px]" : "text-[7px]"} font-bold`} style={{ color: BIO_LABEL_COLOR }}>
               {row.label}
             </span>
           </div>
-          <div className="w-6 flex items-center justify-center flex-shrink-0 py-0.5">
+          <div className={`${doubled ? "w-12 py-1" : "w-6 py-0.5"} flex items-center justify-center flex-shrink-0`}>
             {row.status ? (
               <span
-                className="inline-block w-[18px] h-2 rounded-full"
+                className={`inline-block rounded-full ${doubled ? "w-[36px] h-4" : "w-[18px] h-2"}`}
                 style={{ backgroundColor: RAG_COLORS[row.status as RagStatus] }}
               />
             ) : null}
           </div>
-          <div className="flex-1 min-w-0 py-0.5 px-1 text-[7px]" style={{ color: BIO_VALUE_COLOR }}>
+          <div
+            className={`flex-1 min-w-0 ${doubled ? "py-1 px-2 text-[14px]" : "py-0.5 px-1 text-[7px]"}`}
+            style={{ color: BIO_VALUE_COLOR }}
+          >
             {row.explanation?.trim() ? <TextWithLinks line={row.explanation.trim()} /> : "—"}
           </div>
         </div>
@@ -258,21 +273,35 @@ function BudgetBurnDonut({
   compact = false,
   xcompact = false,
   label = "Budget burn ($)",
+  layoutScale = 1,
 }: {
   burnPercent: number | null;
   compact?: boolean;
   xcompact?: boolean;
   label?: string;
+  layoutScale?: number;
 }) {
-  const size = xcompact ? 26 : compact ? 36 : 48;
-  const r = xcompact ? 9 : compact ? 13 : 18;
-  const stroke = xcompact ? 4 : compact ? 5 : 7;
+  const size = (xcompact ? 26 : compact ? 36 : 48) * layoutScale;
+  const r = (xcompact ? 9 : compact ? 13 : 18) * layoutScale;
+  const stroke = (xcompact ? 4 : compact ? 5 : 7) * layoutScale;
   const clamped = burnPercent == null ? 0 : Math.min(100, Math.max(0, burnPercent));
   const circumference = 2 * Math.PI * r;
   const filled = (clamped / 100) * circumference;
   const gap = circumference - filled;
   const percentText = burnPercent != null ? `${burnPercent.toFixed(0)}%` : "—";
-  const textSize = xcompact ? "text-[6px]" : compact ? "text-[8px]" : "text-[10px]";
+  const textSize =
+    layoutScale === MODULAR_CHROME_SCALE
+      ? xcompact
+        ? "text-[12px]"
+        : compact
+          ? "text-[16px]"
+          : "text-[20px]"
+      : xcompact
+        ? "text-[6px]"
+        : compact
+          ? "text-[8px]"
+          : "text-[10px]";
+  const labelSize = layoutScale === MODULAR_CHROME_SCALE ? "text-[12px]" : "text-[6px]";
   return (
     <div className="flex flex-col items-center justify-center flex-shrink-0">
       <div className="relative inline-block" style={{ width: size, height: size }}>
@@ -306,7 +335,7 @@ function BudgetBurnDonut({
           {percentText}
         </span>
       </div>
-      <span className="text-[6px] uppercase tracking-wide text-gray-500 mt-0.5 text-center">{label}</span>
+      <span className={`${labelSize} uppercase tracking-wide text-gray-500 mt-0.5 text-center`}>{label}</span>
     </div>
   );
 }
@@ -316,11 +345,13 @@ function TimelineBlock({
   reportDate,
   scheduleSource,
   className,
+  layoutScale = 1,
 }: {
   timeline: NonNullable<StatusReportPDFData["timeline"]>;
   reportDate?: string;
   scheduleSource?: StatusReportPDFData["scheduleSource"];
   className?: string;
+  layoutScale?: number;
 }) {
   const startMs = new Date(timeline.startDate).getTime();
   const endMs = new Date(timeline.endDate).getTime();
@@ -341,7 +372,10 @@ function TimelineBlock({
     endMs
   );
 
-  const metrics = getStatusReportTimelineMetrics(scheduleSource);
+  const metrics = scaleStatusReportTimelineMetrics(
+    getStatusReportTimelineMetrics(scheduleSource),
+    layoutScale
+  );
   const ROW_HEIGHT_PX = metrics.rowHeightPx;
   const overlay = metrics.mode === "overlay";
   const lanes = metrics.mode === "lanes";
@@ -364,7 +398,7 @@ function TimelineBlock({
             {reportDatePercent != null && <div className="h-2" />}
             <div
               className="px-1 flex items-center"
-              style={{ height: 12, backgroundColor: TIMELINE_MONTH_BG }}
+              style={{ height: 12 * layoutScale, backgroundColor: TIMELINE_MONTH_BG }}
             >
               <span className="font-bold text-white uppercase leading-none" style={{ fontSize: 6 }}>
                 Phase
@@ -402,10 +436,10 @@ function TimelineBlock({
         )}
         <div className="min-w-0 flex-1 relative">
       {reportDatePercent != null && (
-        <div className="relative h-2 w-full">
+        <div className={`relative ${layoutScale === MODULAR_CHROME_SCALE ? "h-4" : "h-2"} w-full`}>
           <span
-            className="absolute text-[5px] font-bold whitespace-nowrap"
-            style={{ left: `calc(${reportDatePercent}% - 18px)`, color: TIMELINE_REPORT_DATE }}
+            className={`absolute ${layoutScale === MODULAR_CHROME_SCALE ? "text-[10px]" : "text-[5px]"} font-bold whitespace-nowrap`}
+            style={{ left: `calc(${reportDatePercent}% - ${18 * layoutScale}px)`, color: TIMELINE_REPORT_DATE }}
           >
             Report date
           </span>
@@ -415,7 +449,7 @@ function TimelineBlock({
         className="grid gap-0 w-full"
         style={{
           backgroundColor: TIMELINE_MONTH_BG,
-          height: 12,
+          height: 12 * layoutScale,
           gridTemplateColumns: weeksInMonths.map((w) => `${w}fr`).join(" "),
         }}
       >
@@ -602,7 +636,7 @@ function ModularModuleBox({
   return (
     <div className="h-full w-full min-h-0 flex flex-col border border-gray-200 overflow-hidden">
       <div
-        className="shrink-0 text-center py-0.5 px-1 text-[9px] font-semibold"
+        className="shrink-0 text-center py-px px-1 text-[12px] font-semibold leading-tight"
         style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
       >
         {title}
@@ -613,7 +647,7 @@ function ModularModuleBox({
 }
 
 function ModularEmptyCopy({ text }: { text: string }) {
-  return <p className="text-[11px] text-gray-500 leading-snug">{text}</p>;
+  return <p className="text-[12px] text-gray-500 leading-snug">{text}</p>;
 }
 
 function formatPlanViewDate(date: string | null): string {
@@ -632,13 +666,13 @@ function ModularPlanItems({
   return (
     <div className="space-y-0.5">
       {items.map((item) => (
-        <p key={item.id} className="text-[11px] leading-snug text-gray-800">
+        <p key={item.id} className="text-[12px] leading-snug text-gray-800">
           • {formatPlanViewDate(item.date)}
           {showExtra && item.extra ? ` ${item.extra}` : ""} — {item.label}
         </p>
       ))}
       {overflowCount > 0 ? (
-        <p className="text-[11px] text-gray-500">+{overflowCount} more</p>
+        <p className="text-[12px] text-gray-500">+{overflowCount} more</p>
       ) : null}
     </div>
   );
@@ -646,7 +680,7 @@ function ModularPlanItems({
 
 function ModularEmptyState({ label }: { label: string }) {
   return (
-    <p className="text-[11px] text-gray-500 leading-snug">
+    <p className="text-[12px] text-gray-500 leading-snug">
       {label} — nothing to show yet.
     </p>
   );
@@ -662,11 +696,11 @@ function ModularSprintSchedule({ data }: { data: SprintScheduleData }) {
       {rows.map((row, i) => (
         <div
           key={i}
-          className="flex flex-row text-[8px] border-t border-gray-200 first:border-t-0"
+          className="flex flex-row text-[12px] border-t border-gray-200 first:border-t-0"
           style={{ backgroundColor: i % 2 === 0 ? "#ffffff" : "#f3f4f6" }}
         >
-          <div className="w-20 flex-shrink-0 py-0.5 px-1 font-semibold">{row.dateRange}</div>
-          <div className="flex-1 py-0.5 px-1">{row.label}</div>
+          <div className="w-40 flex-shrink-0 py-1 px-2 font-semibold">{row.dateRange}</div>
+          <div className="flex-1 py-1 px-2">{row.label}</div>
         </div>
       ))}
     </div>
@@ -682,7 +716,7 @@ function ModularStoryPointMetrics({ data }: { data: StoryPointsMetricsData }) {
   return (
     <div className="h-full w-full border border-gray-200">
       <div
-        className="flex flex-row text-[8px] font-semibold"
+        className="flex flex-row text-[12px] font-semibold"
         style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
       >
         <div className="flex-[1.5] py-0.5 px-1" />
@@ -695,14 +729,14 @@ function ModularStoryPointMetrics({ data }: { data: StoryPointsMetricsData }) {
       {metricRows.map((row, i) => (
         <div
           key={i}
-          className="flex flex-row text-[8px] border-t border-gray-200"
+          className="flex flex-row text-[12px] border-t border-gray-200"
           style={{ backgroundColor: i % 2 === 0 ? "#ffffff" : "#f3f4f6" }}
         >
-          <div className="flex-[1.5] py-0.5 px-1 font-semibold">
+          <div className="flex-[1.5] py-1 px-2 font-semibold">
             {SPRINT_METRIC_LABELS[row.metric] ?? row.metric}
           </div>
           {row.values.map((v, j) => (
-            <div key={j} className="flex-1 py-0.5 px-1 text-center tabular-nums">
+            <div key={j} className="flex-1 py-1 px-2 text-center tabular-nums">
               {v}
             </div>
           ))}
@@ -715,9 +749,11 @@ function ModularStoryPointMetrics({ data }: { data: StoryPointsMetricsData }) {
 function StandardBudgetTable({
   budget,
   tableClass = "text-[8px]",
+  layoutScale = 1,
 }: {
   budget: NonNullable<StatusReportPDFData["budget"]>;
   tableClass?: string;
+  layoutScale?: number;
 }) {
   return (
     <div className="flex flex-row items-start gap-2 h-full min-h-0">
@@ -753,7 +789,7 @@ function StandardBudgetTable({
           <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(budget.remainingHoursLow)}</div>
         </div>
       </div>
-      <BudgetBurnDonut burnPercent={budget.burnPercentHigh} compact />
+      <BudgetBurnDonut burnPercent={budget.burnPercentHigh} compact layoutScale={layoutScale} />
     </div>
   );
 }
@@ -767,14 +803,14 @@ function CompactBudgetDollarsTable({
     <div className="flex flex-row items-center gap-2 h-full min-h-0">
       <div className="flex-1 min-w-0 border border-gray-200">
         <div
-          className="flex flex-row text-[9px] font-semibold"
+          className="flex flex-row text-[12px] font-semibold"
           style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
         >
-          <div className="flex-1 py-0.5 px-1">Est</div>
-          <div className="flex-1 py-0.5 px-1">Spent</div>
-          <div className="flex-1 py-0.5 px-1">Remaining</div>
+          <div className="flex-1 py-1 px-2">Est</div>
+          <div className="flex-1 py-1 px-2">Spent</div>
+          <div className="flex-1 py-1 px-2">Remaining</div>
         </div>
-        <div className="flex flex-row text-[9px] border-t border-gray-200">
+        <div className="flex flex-row text-[12px] border-t border-gray-200">
           <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.overallBudget, color: BRAND_COLORS.onHeader }}>{formatDollars(budget.estBudgetHigh)}</div>
           <div className="flex-1 py-0.5 px-1 text-right">{formatDollars(-budget.spentDollars)}</div>
           <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.overallBudget, color: BRAND_COLORS.onHeader }}>{formatDollars(budget.remainingDollarsHigh)}</div>
@@ -794,14 +830,14 @@ function CompactBudgetHoursTable({
     <div className="flex flex-row items-center gap-2 h-full min-h-0">
       <div className="flex-1 min-w-0 border border-gray-200">
         <div
-          className="flex flex-row text-[9px] font-semibold"
+          className="flex flex-row text-[12px] font-semibold"
           style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
         >
-          <div className="flex-1 py-0.5 px-1">Budgeted</div>
-          <div className="flex-1 py-0.5 px-1">Actual</div>
-          <div className="flex-1 py-0.5 px-1">Remaining</div>
+          <div className="flex-1 py-1 px-2">Budgeted</div>
+          <div className="flex-1 py-1 px-2">Actual</div>
+          <div className="flex-1 py-1 px-2">Remaining</div>
         </div>
-        <div className="flex flex-row text-[9px] border-t border-gray-200">
+        <div className="flex flex-row text-[12px] border-t border-gray-200">
           <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(budget.budgetedHoursHigh)}</div>
           <div className="flex-1 py-0.5 px-1 text-right">{formatReportNum(-budget.actualHours)}</div>
           <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(budget.remainingHoursHigh)}</div>
@@ -853,7 +889,7 @@ function ModularModuleBody({
         <div className="space-y-1.5">
           {capped.needsScheduling.length > 0 ? (
             <div>
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-gray-500">
+              <p className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">
                 Needs scheduling
               </p>
               <ModularPlanItems items={capped.needsScheduling} overflowCount={0} showExtra />
@@ -861,14 +897,14 @@ function ModularModuleBody({
           ) : null}
           {capped.scheduled.length > 0 ? (
             <div>
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-gray-500">
+              <p className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">
                 Scheduled
               </p>
               <ModularPlanItems items={capped.scheduled} overflowCount={0} showExtra />
             </div>
           ) : null}
           {capped.overflowCount > 0 ? (
-            <p className="text-[11px] text-gray-500">+{capped.overflowCount} more</p>
+            <p className="text-[12px] text-gray-500">+{capped.overflowCount} more</p>
           ) : null}
         </div>
       );
@@ -896,14 +932,14 @@ function ModularModuleBody({
             timeline={data.timeline}
             reportDate={data.report.reportDate}
             scheduleSource={data.scheduleSource}
-            className="h-full mt-0"
+            className="h-full mt-0 overflow-hidden"
           />
         );
       }
       return <ModularEmptyState label={PANEL_META.ganttTimeline.label} />;
     case "budgetFinancials":
       if (data.budget) {
-        return <StandardBudgetTable budget={data.budget} tableClass="text-[9px]" />;
+        return <StandardBudgetTable budget={data.budget} tableClass="text-[12px]" />;
       }
       return <ModularEmptyState label={PANEL_META.budgetFinancials.label} />;
     case "budgetCompactDollars":
@@ -968,24 +1004,24 @@ function CompactModularHeader({ data }: { data: StatusReportPDFData }) {
   ];
   return (
     <div
-      className="flex flex-row items-center justify-between gap-4 mb-3 shrink-0"
-      style={{ height: 52 }}
+      className="flex flex-row items-center justify-between gap-4 mb-2 shrink-0"
+      style={{ height: 48 }}
     >
       <div className="min-w-0 flex-1">
         <h2
-          className="text-[12px] font-bold uppercase leading-tight"
+          className="text-[14px] font-bold uppercase leading-tight"
           style={{ color: BIO_TITLE_COLOR }}
         >
           {data.project.name.toUpperCase()}
         </h2>
         <div className="flex flex-row flex-wrap gap-x-4 gap-y-0.5 mt-0.5">
-          <span className="text-[9px] italic" style={{ color: BIO_VALUE_COLOR }}>
+          <span className="text-[11px] italic" style={{ color: BIO_VALUE_COLOR }}>
             <span className="font-bold not-italic" style={{ color: BIO_LABEL_COLOR }}>
               Period:{" "}
             </span>
             {data.period}
           </span>
-          <span className="text-[9px]" style={{ color: BIO_VALUE_COLOR }}>
+          <span className="text-[11px]" style={{ color: BIO_VALUE_COLOR }}>
             <span className="font-bold" style={{ color: BIO_LABEL_COLOR }}>
               Report date:{" "}
             </span>
@@ -996,7 +1032,7 @@ function CompactModularHeader({ data }: { data: StatusReportPDFData }) {
       <div className="flex flex-row items-center gap-3 shrink-0">
         {pills.map((pill) => (
           <div key={pill.label} className="flex flex-col items-center gap-0.5">
-            <span className="text-[7px] font-bold" style={{ color: BIO_LABEL_COLOR }}>
+            <span className="text-[9px] font-bold" style={{ color: BIO_LABEL_COLOR }}>
               {pill.label}
             </span>
             {pill.status ? (
@@ -1014,19 +1050,20 @@ function CompactModularHeader({ data }: { data: StatusReportPDFData }) {
   );
 }
 
-function StatusReportSlideFooter() {
+function StatusReportSlideFooter({ layoutScale = 1 }: { layoutScale?: number }) {
+  const doubled = layoutScale === MODULAR_CHROME_SCALE;
   return (
     <div
-      className="absolute left-6 right-6 bottom-1.5 h-[14px] border-t flex flex-row items-center pt-0.5"
+      className={`absolute ${doubled ? "left-12 right-12 bottom-3 h-[28px] pt-1" : "left-6 right-6 bottom-1.5 h-[14px] pt-0.5"} border-t flex flex-row items-center`}
       style={{ borderColor: FOOTER_LINE_COLOR }}
     >
       <div className="flex-1">
-        <span className="text-[10px] font-bold" style={{ color: FOOTER_BRAND_COLOR }}>JAKALA</span>
+        <span className={`${doubled ? "text-[20px]" : "text-[10px]"} font-bold`} style={{ color: FOOTER_BRAND_COLOR }}>JAKALA</span>
       </div>
-      <div className="flex-1 text-center text-[9px]" style={{ color: FOOTER_MUTED_COLOR }}>Company Confidential</div>
-      <div className="flex-1 flex flex-row items-center justify-end gap-2">
-        <div className="w-px h-3 bg-gray-300" />
-        <span className="text-[9px]" style={{ color: FOOTER_MUTED_COLOR }}>{new Date().getFullYear()}</span>
+      <div className={`flex-1 text-center ${doubled ? "text-[18px]" : "text-[9px]"}`} style={{ color: FOOTER_MUTED_COLOR }}>Company Confidential</div>
+      <div className={`flex-1 flex flex-row items-center justify-end ${doubled ? "gap-4" : "gap-2"}`}>
+        <div className={`${doubled ? "w-0.5 h-6" : "w-px h-3"} bg-gray-300`} />
+        <span className={doubled ? "text-[18px]" : "text-[9px]"} style={{ color: FOOTER_MUTED_COLOR }}>{new Date().getFullYear()}</span>
       </div>
     </div>
   );
@@ -1062,10 +1099,10 @@ function StatusReportSlideShell({
         transformOrigin: "top left",
       }}
     >
-      <div className="h-full flex flex-col pt-6 px-6 pb-8 text-[9px]">
+      <div className={`h-full min-h-0 flex flex-col overflow-hidden ${isModular ? "pt-12 px-12 pb-12 text-[12px]" : "pt-6 px-6 pb-8 text-[9px]"}`}>
         {children}
       </div>
-      <StatusReportSlideFooter />
+      <StatusReportSlideFooter layoutScale={isModular ? MODULAR_CHROME_SCALE : 1} />
     </div>
   );
 }
@@ -1081,18 +1118,22 @@ function ModularPageGrid({
 }) {
   if (!page) return null;
   return (
-    <div className="flex-1 min-h-0 flex flex-col gap-3">
+    <div
+      className="flex-1 min-h-0 flex flex-col overflow-hidden"
+      style={{ gap: MODULAR_ROW_GAP_PX }}
+    >
       {page.rows.map((row) => {
         const weights = rowShapeWeights(row.shape);
+        const grow =
+          row.height === "tall" ? MODULAR_TALL_ROW_GROW : MODULAR_SHORT_ROW_GROW;
         return (
           <div
             key={row.id}
-            className="flex flex-row gap-3 min-w-0"
-            style={
-              row.height === "tall"
-                ? { flex: "1 1 0", minHeight: 0 }
-                : { flexShrink: 0, height: 168 }
-            }
+            className="flex flex-row min-w-0 min-h-0 overflow-hidden"
+            style={{
+              flex: `${grow} 1 0`,
+              gap: MODULAR_ROW_GAP_PX,
+            }}
           >
             {row.moduleIds.map((moduleId, i) => {
               const placedModule = moduleId ? doc.modules[moduleId] : undefined;
@@ -1194,63 +1235,63 @@ export function StatusReportView({
             isModular={isModular}
             slideScale={slideScale}
           >
-          <div className="flex flex-row items-start gap-3 mb-1.5">
+          <div className={`flex flex-row items-start shrink-0 ${isModular ? "gap-6 mb-3" : "gap-3 mb-1.5"}`}>
             {/* Left: biographical block — extra flex so labels/values have room and wrap less */}
             <div className="min-w-0 flex-[1.35]">
               <div className="w-full min-w-0">
                 <h2
-                  className="text-[9px] font-bold uppercase mb-0.5"
+                  className={`${isModular ? "text-[18px] mb-1" : "text-[9px] mb-0.5"} font-bold uppercase`}
                   style={{ color: BIO_TITLE_COLOR }}
                 >
                   {bioTitle}
                 </h2>
-                <div className="h-px mb-1" style={{ backgroundColor: BIO_TITLE_COLOR }} />
-                <div className="flex flex-row gap-1" style={{ backgroundColor: BIO_BLOCK_BG }}>
-                  <div className="flex-1 min-w-0 p-1 flex flex-col gap-0.5">
-                    <div className="flex flex-row items-baseline gap-1 min-w-0">
-                      <span className="text-[7px] font-bold shrink-0 whitespace-nowrap" style={{ color: BIO_LABEL_COLOR }}>Account Director:</span>
-                      <span className="text-[7px] min-w-0 break-words" style={{ color: BIO_VALUE_COLOR }}>{cad || "—"}</span>
+                <div className={isModular ? "h-0.5 mb-2" : "h-px mb-1"} style={{ backgroundColor: BIO_TITLE_COLOR }} />
+                <div className={`flex flex-row ${isModular ? "gap-2" : "gap-1"}`} style={{ backgroundColor: BIO_BLOCK_BG }}>
+                  <div className={`flex-1 min-w-0 ${isModular ? "p-2 gap-1" : "p-1 gap-0.5"} flex flex-col`}>
+                    <div className={`flex flex-row items-baseline ${isModular ? "gap-2" : "gap-1"} min-w-0`}>
+                      <span className={`${isModular ? "text-[14px]" : "text-[7px]"} font-bold shrink-0 whitespace-nowrap`} style={{ color: BIO_LABEL_COLOR }}>Account Director:</span>
+                      <span className={`${isModular ? "text-[14px]" : "text-[7px]"} min-w-0 break-words`} style={{ color: BIO_VALUE_COLOR }}>{cad || "—"}</span>
                     </div>
-                    <div className="flex flex-row items-baseline gap-1 min-w-0">
-                      <span className="text-[7px] font-bold shrink-0 whitespace-nowrap" style={{ color: BIO_LABEL_COLOR }}>Project Manager:</span>
-                      <span className="text-[7px] min-w-0 break-words" style={{ color: BIO_VALUE_COLOR }}>{pm || "—"}</span>
+                    <div className={`flex flex-row items-baseline ${isModular ? "gap-2" : "gap-1"} min-w-0`}>
+                      <span className={`${isModular ? "text-[14px]" : "text-[7px]"} font-bold shrink-0 whitespace-nowrap`} style={{ color: BIO_LABEL_COLOR }}>Project Manager:</span>
+                      <span className={`${isModular ? "text-[14px]" : "text-[7px]"} min-w-0 break-words`} style={{ color: BIO_VALUE_COLOR }}>{pm || "—"}</span>
                     </div>
-                    <div className="flex flex-row items-baseline gap-1 min-w-0">
-                      <span className="text-[7px] font-bold shrink-0 whitespace-nowrap" style={{ color: BIO_LABEL_COLOR }}>Program Manager:</span>
-                      <span className="text-[7px] min-w-0 break-words" style={{ color: BIO_VALUE_COLOR }}>{pgm || "—"}</span>
+                    <div className={`flex flex-row items-baseline ${isModular ? "gap-2" : "gap-1"} min-w-0`}>
+                      <span className={`${isModular ? "text-[14px]" : "text-[7px]"} font-bold shrink-0 whitespace-nowrap`} style={{ color: BIO_LABEL_COLOR }}>Program Manager:</span>
+                      <span className={`${isModular ? "text-[14px]" : "text-[7px]"} min-w-0 break-words`} style={{ color: BIO_VALUE_COLOR }}>{pgm || "—"}</span>
                     </div>
-                    <div className="flex flex-row items-baseline gap-1 min-w-0">
-                      <span className="text-[7px] font-bold shrink-0 whitespace-nowrap" style={{ color: BIO_LABEL_COLOR }}>Team Member:</span>
-                      <span className="text-[7px] min-w-0 break-words" style={{ color: BIO_VALUE_COLOR }}>{keyStaff || "—"}</span>
+                    <div className={`flex flex-row items-baseline ${isModular ? "gap-2" : "gap-1"} min-w-0`}>
+                      <span className={`${isModular ? "text-[14px]" : "text-[7px]"} font-bold shrink-0 whitespace-nowrap`} style={{ color: BIO_LABEL_COLOR }}>Team Member:</span>
+                      <span className={`${isModular ? "text-[14px]" : "text-[7px]"} min-w-0 break-words`} style={{ color: BIO_VALUE_COLOR }}>{keyStaff || "—"}</span>
                     </div>
                   </div>
-                  <div className="flex-1 min-w-0 p-1 flex flex-col gap-0.5">
-                    <div className="flex flex-row items-baseline gap-1 min-w-0">
-                      <span className="text-[7px] font-bold shrink-0 whitespace-nowrap" style={{ color: BIO_LABEL_COLOR }}>Today&apos;s Date:</span>
-                      <span className="text-[7px] min-w-0 break-words" style={{ color: BIO_VALUE_COLOR }}>{today}</span>
+                  <div className={`flex-1 min-w-0 ${isModular ? "p-2 gap-1" : "p-1 gap-0.5"} flex flex-col`}>
+                    <div className={`flex flex-row items-baseline ${isModular ? "gap-2" : "gap-1"} min-w-0`}>
+                      <span className={`${isModular ? "text-[14px]" : "text-[7px]"} font-bold shrink-0 whitespace-nowrap`} style={{ color: BIO_LABEL_COLOR }}>Today&apos;s Date:</span>
+                      <span className={`${isModular ? "text-[14px]" : "text-[7px]"} min-w-0 break-words`} style={{ color: BIO_VALUE_COLOR }}>{today}</span>
                     </div>
-                    <div className="flex flex-row items-baseline gap-1 min-w-0">
-                      <span className="text-[7px] font-bold shrink-0 whitespace-nowrap" style={{ color: BIO_LABEL_COLOR }}>Client Sponsor:</span>
-                      <span className="text-[7px] min-w-0 break-words" style={{ color: BIO_VALUE_COLOR }}>{project.clientSponsor || "—"}</span>
+                    <div className={`flex flex-row items-baseline ${isModular ? "gap-2" : "gap-1"} min-w-0`}>
+                      <span className={`${isModular ? "text-[14px]" : "text-[7px]"} font-bold shrink-0 whitespace-nowrap`} style={{ color: BIO_LABEL_COLOR }}>Client Sponsor:</span>
+                      <span className={`${isModular ? "text-[14px]" : "text-[7px]"} min-w-0 break-words`} style={{ color: BIO_VALUE_COLOR }}>{project.clientSponsor || "—"}</span>
                     </div>
-                    <div className="flex flex-row items-baseline gap-1 min-w-0">
-                      <span className="text-[7px] font-bold shrink-0 whitespace-nowrap" style={{ color: BIO_LABEL_COLOR }}>Client Sponsor:</span>
-                      <span className="text-[7px] min-w-0 break-words" style={{ color: BIO_VALUE_COLOR }}>{project.clientSponsor2 || "—"}</span>
+                    <div className={`flex flex-row items-baseline ${isModular ? "gap-2" : "gap-1"} min-w-0`}>
+                      <span className={`${isModular ? "text-[14px]" : "text-[7px]"} font-bold shrink-0 whitespace-nowrap`} style={{ color: BIO_LABEL_COLOR }}>Client Sponsor:</span>
+                      <span className={`${isModular ? "text-[14px]" : "text-[7px]"} min-w-0 break-words`} style={{ color: BIO_VALUE_COLOR }}>{project.clientSponsor2 || "—"}</span>
                     </div>
-                    <div className="flex flex-row items-baseline gap-1 min-w-0">
-                      <span className="text-[7px] font-bold shrink-0 whitespace-nowrap" style={{ color: BIO_LABEL_COLOR }}>Other Contact:</span>
-                      <span className="text-[7px] min-w-0 break-words" style={{ color: BIO_VALUE_COLOR }}>{project.otherContact || "—"}</span>
+                    <div className={`flex flex-row items-baseline ${isModular ? "gap-2" : "gap-1"} min-w-0`}>
+                      <span className={`${isModular ? "text-[14px]" : "text-[7px]"} font-bold shrink-0 whitespace-nowrap`} style={{ color: BIO_LABEL_COLOR }}>Other Contact:</span>
+                      <span className={`${isModular ? "text-[14px]" : "text-[7px]"} min-w-0 break-words`} style={{ color: BIO_VALUE_COLOR }}>{project.otherContact || "—"}</span>
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-row items-baseline gap-1 mt-0.5 min-w-0">
-                  <span className="text-[7px] italic shrink-0 whitespace-nowrap" style={{ color: BIO_LABEL_COLOR }}>Period:</span>
-                  <span className="text-[7px] italic min-w-0 break-words" style={{ color: BIO_VALUE_COLOR }}>{period}</span>
+                <div className={`flex flex-row items-baseline ${isModular ? "gap-2 mt-1" : "gap-1 mt-0.5"} min-w-0`}>
+                  <span className={`${isModular ? "text-[14px]" : "text-[7px]"} italic shrink-0 whitespace-nowrap`} style={{ color: BIO_LABEL_COLOR }}>Period:</span>
+                  <span className={`${isModular ? "text-[14px]" : "text-[7px]"} italic min-w-0 break-words`} style={{ color: BIO_VALUE_COLOR }}>{period}</span>
                 </div>
               </div>
             </div>
             <div className="flex-1 min-w-0">
-              <RagStatusBlock data={data} />
+              <RagStatusBlock data={data} layoutScale={isModular ? MODULAR_CHROME_SCALE : 1} />
             </div>
           </div>
 

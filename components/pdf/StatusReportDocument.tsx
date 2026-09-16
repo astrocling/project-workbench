@@ -17,8 +17,12 @@ import { formatMonthDay } from "@/lib/formatIsoDate";
 import { getWeeksInMonthsForRange } from "@/lib/monthUtils";
 import {
   PANEL_META,
+  MODULAR_CHROME_SCALE,
+  MODULAR_ROW_GAP_PX,
+  MODULAR_SHORT_ROW_GROW,
   MODULAR_SLIDE_HEIGHT_PX,
   MODULAR_SLIDE_WIDTH_PX,
+  MODULAR_TALL_ROW_GROW,
   normalizeModularPanels,
   rowShapeWeights,
   shouldRenderModularPage2,
@@ -51,6 +55,7 @@ import {
 } from "@/lib/plan/reportSchedule";
 import {
   getStatusReportTimelineMetrics,
+  scaleStatusReportTimelineMetrics,
   SR_TIMELINE_BAR_FONT_PX,
   SR_TIMELINE_MARKER_COL_PX,
   SR_TIMELINE_MARKER_FONT_PX,
@@ -78,6 +83,8 @@ const BOTTOM_QUARTER_HEIGHT = PAGE_HEIGHT / 4;
 const BUDGET_SECTION_GAP = 5;
 /** Actual footer height: blue line + padding + one line of text. Prevents footer from stretching. */
 const FOOTER_HEIGHT = 14;
+const MODULAR_PAD = 24 * MODULAR_CHROME_SCALE;
+const MODULAR_FOOTER_HEIGHT = FOOTER_HEIGHT * MODULAR_CHROME_SCALE;
 /** Small gap between budget block and footer (in points; ~5px). */
 const BUDGET_FOOTER_GAP = 5;
 /** Content area height: page minus top padding and footer so budget sits flush above footer. */
@@ -866,9 +873,9 @@ const styles = StyleSheet.create({
     height: MODULAR_SLIDE_HEIGHT_PX,
     transform: "scale(0.5)",
     transformOrigin: "0 0",
-    paddingTop: 24,
-    paddingLeft: 24,
-    paddingRight: 24,
+    paddingTop: MODULAR_PAD,
+    paddingLeft: MODULAR_PAD,
+    paddingRight: MODULAR_PAD,
     paddingBottom: 0,
     fontSize: 12,
     fontFamily: "Raleway",
@@ -879,10 +886,10 @@ const styles = StyleSheet.create({
   modularPageInner: {
     position: "relative",
     width: "100%",
-    height: MODULAR_SLIDE_HEIGHT_PX - 24,
+    height: MODULAR_SLIDE_HEIGHT_PX - MODULAR_PAD,
   },
   modularContent: {
-    height: MODULAR_SLIDE_HEIGHT_PX - 24 - FOOTER_HEIGHT,
+    height: MODULAR_SLIDE_HEIGHT_PX - MODULAR_PAD - MODULAR_FOOTER_HEIGHT,
     flexDirection: "column",
     overflow: "hidden",
   },
@@ -890,19 +897,23 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "column",
     minHeight: 0,
-    gap: 12,
+    gap: MODULAR_ROW_GAP_PX,
   },
   modularRowTall: {
-    flex: 1,
+    flexGrow: MODULAR_TALL_ROW_GROW,
+    flexShrink: 1,
+    flexBasis: 0,
     flexDirection: "row",
     minHeight: 0,
-    gap: 12,
+    gap: MODULAR_ROW_GAP_PX,
   },
   modularRowShort: {
-    flexShrink: 0,
-    height: 168,
+    flexGrow: MODULAR_SHORT_ROW_GROW,
+    flexShrink: 1,
+    flexBasis: 0,
     flexDirection: "row",
-    gap: 12,
+    minHeight: 0,
+    gap: MODULAR_ROW_GAP_PX,
   },
   modularCell: {
     minWidth: 0,
@@ -919,16 +930,16 @@ const styles = StyleSheet.create({
   modularModuleHeader: {
     backgroundColor: BRAND_COLORS.header,
     color: BRAND_COLORS.onHeader,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: 600,
     textAlign: "center",
-    paddingVertical: 3,
+    paddingVertical: 2,
     paddingHorizontal: 4,
   },
   modularModuleBody: {
     flex: 1,
     minHeight: 0,
-    padding: 4,
+    padding: 8,
   },
   modularEmptySlot: {
     width: "100%",
@@ -938,11 +949,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   modularEmptyText: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#6b7280",
   },
   modularListSectionHeader: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: 700,
     color: "#374151",
     textTransform: "uppercase",
@@ -950,23 +961,23 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   modularTableText: {
-    fontSize: 8,
+    fontSize: 12,
   },
   modularBullet: {
     fontSize: 12,
     marginBottom: 3,
-    lineHeight: 1.25,
+    lineHeight: 1.15,
   },
   compactHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    height: 52,
-    marginBottom: 12,
+    height: 48,
+    marginBottom: 8,
     flexShrink: 0,
   },
   compactHeaderTitle: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: 700,
     color: BIO_TITLE_COLOR,
     textTransform: "uppercase",
@@ -977,11 +988,11 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   compactHeaderMetaText: {
-    fontSize: 9,
+    fontSize: 11,
     color: BIO_VALUE_COLOR,
   },
   compactHeaderMetaLabel: {
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: 700,
     color: BIO_LABEL_COLOR,
   },
@@ -995,7 +1006,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   compactRagLabel: {
-    fontSize: 7,
+    fontSize: 9,
     fontWeight: 700,
     color: BIO_LABEL_COLOR,
   },
@@ -1003,6 +1014,147 @@ const styles = StyleSheet.create({
     width: 18,
     height: 8,
     borderRadius: 4,
+  },
+  modularTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 12,
+    gap: 24,
+  },
+  modularBioTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: BIO_TITLE_COLOR,
+    textAlign: "left",
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
+  modularBioTitleLine: {
+    height: 2,
+    backgroundColor: BIO_TITLE_COLOR,
+    marginBottom: 10,
+  },
+  modularBioCol: {
+    flex: 1,
+    padding: 8,
+  },
+  modularBioRow: {
+    flexDirection: "row",
+    marginBottom: 4,
+  },
+  modularBioLabel: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: BIO_LABEL_COLOR,
+    marginRight: 8,
+  },
+  modularBioValue: {
+    fontSize: 14,
+    fontWeight: "normal",
+    color: BIO_VALUE_COLOR,
+    flex: 1,
+  },
+  modularBioPeriodRow: {
+    flexDirection: "row",
+    marginTop: 6,
+  },
+  modularBioPeriodLabel: {
+    fontSize: 14,
+    fontWeight: "normal",
+    fontStyle: "italic",
+    color: BIO_LABEL_COLOR,
+    marginRight: 8,
+  },
+  modularBioPeriodValue: {
+    fontSize: 14,
+    fontWeight: "normal",
+    fontStyle: "italic",
+    color: BIO_VALUE_COLOR,
+  },
+  modularRagHeaderRow: {
+    flexDirection: "row",
+    backgroundColor: BIO_TITLE_COLOR,
+    minHeight: 32,
+  },
+  modularRagHeaderText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  modularRagHeaderLabel: { width: 144 },
+  modularRagHeaderRag: { width: 48, alignItems: "center", justifyContent: "center" },
+  modularRagDataRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+    backgroundColor: "#F5F5F5",
+    minHeight: 28,
+  },
+  modularRagLabelCell: {
+    width: 144,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    flexShrink: 0,
+  },
+  modularRagLabelText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: BIO_LABEL_COLOR,
+  },
+  modularRagPillCell: {
+    width: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 4,
+    flexShrink: 0,
+  },
+  modularRagPill: {
+    width: 36,
+    height: 16,
+    borderRadius: 8,
+  },
+  modularRagExplanationCell: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  modularRagExplanationText: {
+    fontSize: 14,
+    color: BIO_VALUE_COLOR,
+  },
+  modularFooterWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: MODULAR_FOOTER_HEIGHT,
+    borderTopWidth: 2,
+    borderTopColor: FOOTER_LINE_COLOR,
+    paddingTop: 4,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  modularFooterBrand: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: FOOTER_BRAND_COLOR,
+  },
+  modularFooterCenter: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 18,
+    color: FOOTER_MUTED_COLOR,
+  },
+  modularFooterYear: {
+    fontSize: 18,
+    color: FOOTER_MUTED_COLOR,
+  },
+  modularFooterDivider: {
+    width: 2,
+    height: 24,
+    backgroundColor: "#d1d5db",
   },
 });
 
@@ -1202,10 +1354,12 @@ function TimelineBlock({
   timeline,
   reportDate,
   scheduleSource,
+  layoutScale = 1,
 }: {
   timeline: NonNullable<StatusReportPDFData["timeline"]>;
   reportDate?: string;
   scheduleSource?: StatusReportPDFData["scheduleSource"];
+  layoutScale?: number;
 }) {
   const startMs = new Date(timeline.startDate).getTime();
   const endMs = new Date(timeline.endDate).getTime();
@@ -1230,7 +1384,10 @@ function TimelineBlock({
     endMs
   );
 
-  const metrics = getStatusReportTimelineMetrics(scheduleSource);
+  const metrics = scaleStatusReportTimelineMetrics(
+    getStatusReportTimelineMetrics(scheduleSource),
+    layoutScale
+  );
   const overlay = metrics.mode === "overlay";
   const lanes = metrics.mode === "lanes";
   const fillBar = overlay || lanes;
@@ -1243,7 +1400,7 @@ function TimelineBlock({
       : getActiveTimelineRows(timeline);
 
   const monthHeader = (
-      <View style={[styles.timelineMonthRow, { height: 12 }]}>
+      <View style={[styles.timelineMonthRow, { height: 12 * layoutScale }]}>
         {months.map((monthKey, i) => (
           <View
             key={monthKey}
@@ -1492,7 +1649,13 @@ const RAG_COLORS: Record<RagStatus, string> = {
   Green: "#22c55e",
 };
 
-function RagStatusBlock({ data }: { data: StatusReportPDFData }) {
+function RagStatusBlock({
+  data,
+  layoutScale = 1,
+}: {
+  data: StatusReportPDFData;
+  layoutScale?: number;
+}) {
   const { report } = data;
   const rows: Array<{ label: string; status: RagStatus | null | undefined; explanation: string | null | undefined }> = [
     { label: "Overall", status: report.ragOverall, explanation: report.ragOverallExplanation },
@@ -1500,37 +1663,44 @@ function RagStatusBlock({ data }: { data: StatusReportPDFData }) {
     { label: "Schedule", status: report.ragSchedule, explanation: report.ragScheduleExplanation },
     { label: "Budget", status: report.ragBudget, explanation: report.ragBudgetExplanation },
   ];
+  const modular = layoutScale === MODULAR_CHROME_SCALE;
   return (
     <View style={styles.ragBlock}>
-      <View style={styles.ragHeaderRow}>
-        <View style={[styles.ragHeaderCell, styles.ragHeaderLabel]}>
-          <Text style={styles.ragHeaderText}>Project Status</Text>
+      <View style={modular ? styles.modularRagHeaderRow : styles.ragHeaderRow}>
+        <View style={[styles.ragHeaderCell, modular ? styles.modularRagHeaderLabel : styles.ragHeaderLabel]}>
+          <Text style={modular ? styles.modularRagHeaderText : styles.ragHeaderText}>Project Status</Text>
         </View>
-        <View style={[styles.ragHeaderCell, styles.ragHeaderRag]} />
+        <View style={[styles.ragHeaderCell, modular ? styles.modularRagHeaderRag : styles.ragHeaderRag]} />
         <View style={[styles.ragHeaderCell, styles.ragHeaderExplanation]}>
-          <Text style={styles.ragHeaderText}>Explanation</Text>
+          <Text style={modular ? styles.modularRagHeaderText : styles.ragHeaderText}>Explanation</Text>
         </View>
       </View>
       {rows.map((row, i) => (
         <View
           key={row.label}
-          style={i % 2 === 1 ? [styles.ragDataRow, styles.ragDataRowAlt] : styles.ragDataRow}
+          style={
+            i % 2 === 1
+              ? [modular ? styles.modularRagDataRow : styles.ragDataRow, styles.ragDataRowAlt]
+              : modular
+                ? styles.modularRagDataRow
+                : styles.ragDataRow
+          }
         >
-          <View style={styles.ragLabelCell}>
-            <Text style={styles.ragLabelText}>{row.label}</Text>
+          <View style={modular ? styles.modularRagLabelCell : styles.ragLabelCell}>
+            <Text style={modular ? styles.modularRagLabelText : styles.ragLabelText}>{row.label}</Text>
           </View>
-          <View style={styles.ragPillCell}>
+          <View style={modular ? styles.modularRagPillCell : styles.ragPillCell}>
             {row.status ? (
               <View
                 style={[
-                  styles.ragPill,
+                  modular ? styles.modularRagPill : styles.ragPill,
                   { backgroundColor: RAG_COLORS[row.status as RagStatus] },
                 ]}
               />
             ) : null}
           </View>
-          <View style={styles.ragExplanationCell}>
-            <Text style={styles.ragExplanationText}>
+          <View style={modular ? styles.modularRagExplanationCell : styles.ragExplanationCell}>
+            <Text style={modular ? styles.modularRagExplanationText : styles.ragExplanationText}>
               {row.explanation?.trim() ? renderTextWithLinks(row.explanation.trim()) : "—"}
             </Text>
           </View>
@@ -1609,17 +1779,18 @@ function BudgetBurnChartPDF({
   );
 }
 
-function StatusReportFooter() {
+function StatusReportFooter({ layoutScale = 1 }: { layoutScale?: number }) {
   const year = new Date().getFullYear();
+  const modular = layoutScale === MODULAR_CHROME_SCALE;
   return (
-    <View style={styles.footerWrap} fixed>
+    <View style={modular ? styles.modularFooterWrap : styles.footerWrap} fixed>
       <View style={styles.footerLeft}>
-        <Text style={styles.footerBrand}>JAKALA</Text>
+        <Text style={modular ? styles.modularFooterBrand : styles.footerBrand}>JAKALA</Text>
       </View>
-      <Text style={styles.footerCenter}>Company Confidential</Text>
+      <Text style={modular ? styles.modularFooterCenter : styles.footerCenter}>Company Confidential</Text>
       <View style={styles.footerRight}>
-        <View style={styles.footerDivider} />
-        <Text style={styles.footerYear}>{year}</Text>
+        <View style={modular ? styles.modularFooterDivider : styles.footerDivider} />
+        <Text style={modular ? styles.modularFooterYear : styles.footerYear}>{year}</Text>
       </View>
     </View>
   );
@@ -2132,62 +2303,62 @@ function ModularStatusReportDocument({ data }: { data: StatusReportPDFData }) {
         <View style={styles.modularScaledCanvas}>
         <View style={styles.modularPageInner}>
           <View style={styles.modularContent}>
-            <View style={styles.topRow}>
+            <View style={styles.modularTopRow}>
               <View style={styles.topRowHalf}>
                 <View style={styles.biographicalBlock}>
-                  <Text style={styles.bioTitle}>{bioTitle}</Text>
-                  <View style={styles.bioTitleLine} />
+                  <Text style={styles.modularBioTitle}>{bioTitle}</Text>
+                  <View style={styles.modularBioTitleLine} />
                   <View style={styles.bioColumns}>
-                    <View style={styles.bioCol}>
-                      <View style={styles.bioRow}>
-                        <Text style={styles.bioLabel}>Account Director:</Text>
-                        <Text style={styles.bioValue}>{cad || "—"}</Text>
+                    <View style={styles.modularBioCol}>
+                      <View style={styles.modularBioRow}>
+                        <Text style={styles.modularBioLabel}>Account Director:</Text>
+                        <Text style={styles.modularBioValue}>{cad || "—"}</Text>
                       </View>
-                      <View style={styles.bioRow}>
-                        <Text style={styles.bioLabel}>Project Manager:</Text>
-                        <Text style={styles.bioValue}>{pm || "—"}</Text>
+                      <View style={styles.modularBioRow}>
+                        <Text style={styles.modularBioLabel}>Project Manager:</Text>
+                        <Text style={styles.modularBioValue}>{pm || "—"}</Text>
                       </View>
-                      <View style={styles.bioRow}>
-                        <Text style={styles.bioLabel}>Program Manager:</Text>
-                        <Text style={styles.bioValue}>{pgm || "—"}</Text>
+                      <View style={styles.modularBioRow}>
+                        <Text style={styles.modularBioLabel}>Program Manager:</Text>
+                        <Text style={styles.modularBioValue}>{pgm || "—"}</Text>
                       </View>
-                      <View style={styles.bioRow}>
-                        <Text style={styles.bioLabel}>Team Member:</Text>
-                        <Text style={styles.bioValue}>{keyStaff || "—"}</Text>
+                      <View style={styles.modularBioRow}>
+                        <Text style={styles.modularBioLabel}>Team Member:</Text>
+                        <Text style={styles.modularBioValue}>{keyStaff || "—"}</Text>
                       </View>
                     </View>
-                    <View style={styles.bioCol}>
-                      <View style={styles.bioRow}>
-                        <Text style={styles.bioLabel}>Today&apos;s Date:</Text>
-                        <Text style={styles.bioValue}>{today}</Text>
+                    <View style={styles.modularBioCol}>
+                      <View style={styles.modularBioRow}>
+                        <Text style={styles.modularBioLabel}>Today&apos;s Date:</Text>
+                        <Text style={styles.modularBioValue}>{today}</Text>
                       </View>
-                      <View style={styles.bioRow}>
-                        <Text style={styles.bioLabel}>Client Sponsor:</Text>
-                        <Text style={styles.bioValue}>{project.clientSponsor || "—"}</Text>
+                      <View style={styles.modularBioRow}>
+                        <Text style={styles.modularBioLabel}>Client Sponsor:</Text>
+                        <Text style={styles.modularBioValue}>{project.clientSponsor || "—"}</Text>
                       </View>
-                      <View style={styles.bioRow}>
-                        <Text style={styles.bioLabel}>Client Sponsor:</Text>
-                        <Text style={styles.bioValue}>{project.clientSponsor2 || "—"}</Text>
+                      <View style={styles.modularBioRow}>
+                        <Text style={styles.modularBioLabel}>Client Sponsor:</Text>
+                        <Text style={styles.modularBioValue}>{project.clientSponsor2 || "—"}</Text>
                       </View>
-                      <View style={styles.bioRow}>
-                        <Text style={styles.bioLabel}>Other Contact:</Text>
-                        <Text style={styles.bioValue}>{project.otherContact || "—"}</Text>
+                      <View style={styles.modularBioRow}>
+                        <Text style={styles.modularBioLabel}>Other Contact:</Text>
+                        <Text style={styles.modularBioValue}>{project.otherContact || "—"}</Text>
                       </View>
                     </View>
                   </View>
-                  <View style={styles.bioPeriodRow}>
-                    <Text style={styles.bioPeriodLabel}>Period:</Text>
-                    <Text style={styles.bioPeriodValue}>{period}</Text>
+                  <View style={styles.modularBioPeriodRow}>
+                    <Text style={styles.modularBioPeriodLabel}>Period:</Text>
+                    <Text style={styles.modularBioPeriodValue}>{period}</Text>
                   </View>
                 </View>
               </View>
               <View style={styles.topRowHalf}>
-                <RagStatusBlock data={data} />
+                <RagStatusBlock data={data} layoutScale={MODULAR_CHROME_SCALE} />
               </View>
             </View>
             <ModularPdfGrid doc={doc} data={data} page={doc.layout.pages[0]} />
           </View>
-          <StatusReportFooter />
+          <StatusReportFooter layoutScale={MODULAR_CHROME_SCALE} />
         </View>
         </View>
       </Page>
@@ -2199,7 +2370,7 @@ function ModularStatusReportDocument({ data }: { data: StatusReportPDFData }) {
               <CompactModularPdfHeader data={data} />
               <ModularPdfGrid doc={doc} data={data} page={doc.layout.pages[1]} />
             </View>
-            <StatusReportFooter />
+            <StatusReportFooter layoutScale={MODULAR_CHROME_SCALE} />
           </View>
           </View>
         </Page>
