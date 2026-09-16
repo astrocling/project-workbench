@@ -14,8 +14,10 @@ import {
   shouldResetScheduleDefaultsOnVariationChange,
   shouldShowPreviousMonthsOnSchedule,
   shouldShowRefreshBudget,
+  shouldShowRefreshPlanLists,
   shouldShowRefreshTimeline,
   shouldShowScheduleSourceFields,
+  shouldUseLockedPlanLists,
 } from "@/lib/statusReportFlags";
 
 describe("isScheduleEligibleVariation", () => {
@@ -236,5 +238,52 @@ describe("shouldShowRefreshTimeline", () => {
   it("shows for Modular only when a ganttTimeline module is in the document", () => {
     expect(shouldShowRefreshTimeline("Modular", MODULAR_DEFAULT_DOCUMENT)).toBe(false);
     expect(shouldShowRefreshTimeline("Modular", modularWithTimeline)).toBe(true);
+  });
+});
+
+const modularWithPlanMeetings: ModularPanelsDocument = {
+  version: 1,
+  layout: {
+    pages: [
+      {
+        header: "full",
+        rows: [
+          {
+            id: "r1",
+            shape: "full",
+            height: "tall",
+            moduleIds: ["pm"],
+          },
+        ],
+      },
+    ],
+  },
+  modules: {
+    pm: { id: "pm", type: "planMeetings", data: {} },
+  },
+};
+
+describe("shouldShowRefreshPlanLists", () => {
+  it("is only for Modular reports with a placed plan list module", () => {
+    expect(shouldShowRefreshPlanLists("Standard")).toBe(false);
+    expect(shouldShowRefreshPlanLists("Modular", MODULAR_DEFAULT_DOCUMENT)).toBe(false);
+    expect(shouldShowRefreshPlanLists("Modular", modularWithPlanMeetings)).toBe(true);
+  });
+});
+
+describe("shouldUseLockedPlanLists", () => {
+  const lists = {
+    planMeetings: { needsScheduling: [], scheduled: [] },
+    planActivitiesCompleted: { items: [], overflowCount: 0 },
+    planActivitiesUpcoming: { items: [], overflowCount: 0 },
+  };
+
+  it("uses locked lists when all three snapshot keys exist", () => {
+    expect(shouldUseLockedPlanLists(lists)).toBe(true);
+  });
+
+  it("rebuilds when any list key is missing or refresh is requested", () => {
+    expect(shouldUseLockedPlanLists({})).toBe(false);
+    expect(shouldUseLockedPlanLists(lists, { rebuildPlanListsFromProject: true })).toBe(false);
   });
 });

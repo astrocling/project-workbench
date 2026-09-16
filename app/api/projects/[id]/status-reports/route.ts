@@ -20,9 +20,11 @@ import {
 } from "@/lib/statusReportCreateRollback";
 import {
   modularNeedsBudget,
+  modularNeedsPlanLists,
   modularNeedsTimeline,
   normalizeModularPanels,
 } from "@/lib/reportPanels";
+import { mergePlanListsIntoSnapshot } from "@/lib/plan/reportLists";
 import { z } from "zod";
 
 const variationEnum = z.enum(["Standard", "Milestones", "CDA", "Modular"]);
@@ -248,20 +250,34 @@ export async function POST(
     const panelsDoc = normalizeModularPanels(parsed.data.panels);
     const needsBudget = modularNeedsBudget(panelsDoc);
     const needsTimeline = modularNeedsTimeline(panelsDoc);
-    const snapshot: StatusReportSnapshot = {
+    const needsPlanLists = modularNeedsPlanLists(panelsDoc);
+    let snapshot: StatusReportSnapshot = {
       period: periodStr,
       today: todayStr,
     };
-    if (needsBudget || needsTimeline) {
+    if (needsBudget || needsTimeline || needsPlanLists) {
       try {
         const pdfData = await buildStatusReportPdfData(id, report.id);
         if (pdfData) {
           if (needsBudget) snapshot.budget = pdfData.budget;
           if (needsTimeline) snapshot.timeline = pdfData.timeline;
+          if (needsPlanLists) {
+            snapshot = mergePlanListsIntoSnapshot(snapshot, {
+              planMeetings: pdfData.planMeetings ?? { needsScheduling: [], scheduled: [] },
+              planActivitiesCompleted: pdfData.planActivitiesCompleted ?? {
+                items: [],
+                overflowCount: 0,
+              },
+              planActivitiesUpcoming: pdfData.planActivitiesUpcoming ?? {
+                items: [],
+                overflowCount: 0,
+              },
+            });
+          }
         }
       } catch (buildError) {
         console.error(
-          "Failed to build Modular budget/timeline snapshot after create:",
+          "Failed to build Modular budget/timeline/plan-list snapshot after create:",
           buildError
         );
       }

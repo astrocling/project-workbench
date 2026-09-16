@@ -454,6 +454,16 @@ export function modularNeedsTimeline(doc: ModularPanelsDocument): boolean {
   return modularDocumentHasType(doc, ["ganttTimeline"]);
 }
 
+export const PLAN_LIST_MODULE_TYPES: ModuleType[] = [
+  "planMeetings",
+  "planActivitiesCompleted",
+  "planActivitiesUpcoming",
+];
+
+export function modularNeedsPlanLists(doc: ModularPanelsDocument): boolean {
+  return modularDocumentHasType(doc, PLAN_LIST_MODULE_TYPES);
+}
+
 const LEGACY_FORM_TYPES = new Set([
   "sprintSchedule",
   "storyPointMetrics",

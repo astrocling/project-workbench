@@ -32,6 +32,13 @@ import {
 } from "@/lib/reportPanels";
 import { parseLinkSegments } from "@/lib/statusReportLinks";
 import {
+  capMeetingsForDisplay,
+  planListEmptyMessage,
+  type PlanMeetingsSnapshot,
+  type PlanReportListItem,
+  type PlanReportListSlice,
+} from "@/lib/plan/reportLists";
+import {
   getActiveTimelineRows,
   getCompactPlanTimelineRows,
   getVisibleBarSegmentsForRow,
@@ -1072,6 +1079,11 @@ export type StatusReportPDFData = {
   includeDetailedPlan?: boolean;
   detailedPlan?: PlanJson;
   planAxis?: { kickoffDate: string; endDate: string };
+  planMeetings?: PlanMeetingsSnapshot;
+  planActivitiesCompleted?: PlanReportListSlice;
+  planActivitiesUpcoming?: PlanReportListSlice;
+  /** False when Plan is off or missing; list modules show enable-Plan copy. */
+  planListsAvailable?: boolean;
 };
 
 const MODULAR_METRIC_LABELS: Record<string, string> = {
@@ -1598,11 +1610,15 @@ function StatusReportFooter() {
 function modularPdfTitle(module: ReportModule): string {
   switch (module.type) {
     case "narrativeCompleted":
+    case "planActivitiesCompleted":
       return "Completed Activities";
     case "narrativeUpcoming":
+    case "planActivitiesUpcoming":
       return "Upcoming Activities";
     case "narrativeRisks":
       return "Risks / Issues / Decisions";
+    case "planMeetings":
+      return "Upcoming Meetings";
     case "storyPointMetrics":
       return "Key Metrics";
     case "donutKpi":
@@ -1610,6 +1626,38 @@ function modularPdfTitle(module: ReportModule): string {
     default:
       return PANEL_META[module.type].label;
   }
+}
+
+function ModularPdfEmptyCopy({ text }: { text: string }) {
+  return <Text style={styles.modularEmptyText}>{text}</Text>;
+}
+
+function formatPlanPdfDate(date: string | null): string {
+  return date ? formatMonthDay(date) : "TBD";
+}
+
+function ModularPdfPlanItems({
+  items,
+  overflowCount,
+  showExtra,
+}: {
+  items: PlanReportListItem[];
+  overflowCount: number;
+  showExtra?: boolean;
+}) {
+  return (
+    <View>
+      {items.map((item) => (
+        <Text key={item.id} style={styles.modularBullet}>
+          • {formatPlanPdfDate(item.date)}
+          {showExtra && item.extra ? ` ${item.extra}` : ""} — {item.label}
+        </Text>
+      ))}
+      {overflowCount > 0 ? (
+        <Text style={styles.modularEmptyText}>+{overflowCount} more</Text>
+      ) : null}
+    </View>
+  );
 }
 
 function ModularPdfEmpty({ label }: { label: string }) {
@@ -1728,6 +1776,57 @@ function ModularPdfModuleBody({
             ))}
         </>
       );
+    case "planMeetings": {
+      const available = data.planListsAvailable !== false;
+      const meetings = data.planMeetings ?? { needsScheduling: [], scheduled: [] };
+      const capped = capMeetingsForDisplay(meetings);
+      if (capped.needsScheduling.length === 0 && capped.scheduled.length === 0) {
+        return <ModularPdfEmptyCopy text={planListEmptyMessage("meetings", available)} />;
+      }
+      return (
+        <View>
+          {capped.needsScheduling.length > 0 ? (
+            <View>
+              <Text style={styles.modularEmptyText}>Needs scheduling</Text>
+              <ModularPdfPlanItems
+                items={capped.needsScheduling}
+                overflowCount={0}
+                showExtra
+              />
+            </View>
+          ) : null}
+          {capped.scheduled.length > 0 ? (
+            <View>
+              <Text style={styles.modularEmptyText}>Scheduled</Text>
+              <ModularPdfPlanItems items={capped.scheduled} overflowCount={0} showExtra />
+            </View>
+          ) : null}
+          {capped.overflowCount > 0 ? (
+            <Text style={styles.modularEmptyText}>+{capped.overflowCount} more</Text>
+          ) : null}
+        </View>
+      );
+    }
+    case "planActivitiesCompleted": {
+      const available = data.planListsAvailable !== false;
+      const slice = data.planActivitiesCompleted ?? { items: [], overflowCount: 0 };
+      if (slice.items.length === 0) {
+        return <ModularPdfEmptyCopy text={planListEmptyMessage("completed", available)} />;
+      }
+      return (
+        <ModularPdfPlanItems items={slice.items} overflowCount={slice.overflowCount} />
+      );
+    }
+    case "planActivitiesUpcoming": {
+      const available = data.planListsAvailable !== false;
+      const slice = data.planActivitiesUpcoming ?? { items: [], overflowCount: 0 };
+      if (slice.items.length === 0) {
+        return <ModularPdfEmptyCopy text={planListEmptyMessage("upcoming", available)} />;
+      }
+      return (
+        <ModularPdfPlanItems items={slice.items} overflowCount={slice.overflowCount} />
+      );
+    }
     case "ganttTimeline":
       if (data.timeline && timelineHasVisibleSchedule(data.timeline)) {
         return (

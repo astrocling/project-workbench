@@ -3,10 +3,18 @@ import { prisma } from "@/lib/prisma";
 import { computeBudgetRollups } from "@/lib/budgetCalculations";
 import { buildCdaRowsForProject } from "@/lib/cdaMtdFromResourcing";
 import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument";
-import { normalizeModularPanels } from "@/lib/reportPanels";
-import { resolveShowBudget, shouldAttachBudgetToPdfData } from "@/lib/statusReportFlags";
+import { normalizeModularPanels, modularNeedsPlanLists } from "@/lib/reportPanels";
+import { resolveShowBudget, shouldAttachBudgetToPdfData, shouldUseLockedPlanLists } from "@/lib/statusReportFlags";
 import { getPlanForProject } from "@/lib/plan/api";
 import { serializePlan } from "@/lib/plan/serialize";
+import { isPlanTabEnabled } from "@/lib/plan/feature";
+import {
+  buildPlanReportLists,
+  EMPTY_PLAN_REPORT_LISTS,
+  type PlanMeetingsSnapshot,
+  type PlanReportListSlice,
+  type PlanReportLists,
+} from "@/lib/plan/reportLists";
 import { applyPlanPhaseColors, type PlanReportDensity } from "@/lib/plan/reportSchedule";
 import {
   applyTimelineLayout,
@@ -69,6 +77,9 @@ export type StatusReportSnapshot = {
   planDensity?: PlanReportDensity;
   /** Per-report visual overlay on the locked compact schedule. */
   timelineLayout?: TimelineLayoutOverlay;
+  planMeetings?: PlanMeetingsSnapshot;
+  planActivitiesCompleted?: PlanReportListSlice;
+  planActivitiesUpcoming?: PlanReportListSlice;
 };
 
 export {
@@ -76,6 +87,8 @@ export {
   shouldAttachBudgetToPdfData,
   shouldShowRefreshBudget,
   shouldShowRefreshTimeline,
+  shouldShowRefreshPlanLists,
+  shouldUseLockedPlanLists,
 } from "@/lib/statusReportFlags";
 
 export function isStatusReportSnapshot(obj: unknown): obj is StatusReportSnapshot {
@@ -101,6 +114,8 @@ export type BuildStatusReportPdfDataOptions = {
   rebuildCdaMilestonesFromProject?: boolean;
   /** When true, ignore snapshot.budget and recompute from current project budget lines + actuals. On CDA, also rebuilds locked monthly hours / totalMtdActuals (milestones preserved). */
   rebuildBudgetFromProject?: boolean;
+  /** When true, ignore locked plan list snapshot keys and rebuild from current Plan. */
+  rebuildPlanListsFromProject?: boolean;
   /** Schedule source for timeline when building a new timeline (create or refresh). */
   scheduleSource?: ScheduleSource;
   /** Plan report density when scheduleSource is plan. */
@@ -590,6 +605,35 @@ export async function buildStatusReportPdfData(
     }
   }
 
+  const needsPlanLists =
+    report.variation === "Modular" &&
+    modularNeedsPlanLists(normalizeModularPanels(report.panels));
+  let planLists: PlanReportLists | undefined;
+  let planListsAvailable = true;
+  if (needsPlanLists) {
+    if (shouldUseLockedPlanLists(snapshot, options)) {
+      planLists = {
+        planMeetings: snapshot!.planMeetings!,
+        planActivitiesCompleted: snapshot!.planActivitiesCompleted!,
+        planActivitiesUpcoming: snapshot!.planActivitiesUpcoming!,
+      };
+    } else if (!isPlanTabEnabled(project.planEnabled)) {
+      planLists = EMPTY_PLAN_REPORT_LISTS;
+      planListsAvailable = false;
+    } else {
+      const planRecordForLists = await getPlanForProject(projectId);
+      if (!planRecordForLists) {
+        planLists = EMPTY_PLAN_REPORT_LISTS;
+        planListsAvailable = false;
+      } else {
+        planLists = buildPlanReportLists(
+          serializePlan(planRecordForLists).phases,
+          report.reportDate.toISOString().slice(0, 10)
+        );
+      }
+    }
+  }
+
   return {
     report: {
       reportDate: report.reportDate.toISOString().slice(0, 10),
@@ -634,5 +678,9 @@ export async function buildStatusReportPdfData(
     includeDetailedPlan,
     detailedPlan,
     planAxis,
+    planMeetings: planLists?.planMeetings,
+    planActivitiesCompleted: planLists?.planActivitiesCompleted,
+    planActivitiesUpcoming: planLists?.planActivitiesUpcoming,
+    planListsAvailable,
   };
 }

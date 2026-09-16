@@ -1,8 +1,10 @@
 import {
   modularNeedsBudget,
+  modularNeedsPlanLists,
   modularNeedsTimeline,
   normalizeModularPanels,
 } from "@/lib/reportPanels";
+import { snapshotHasPlanLists } from "@/lib/plan/reportLists";
 import type { PlanReportDensity, ScheduleSource } from "@/lib/statusReportPdfData";
 
 export type { ScheduleSource } from "@/lib/statusReportPdfData";
@@ -70,6 +72,26 @@ export function shouldShowRefreshTimeline(
     return modularNeedsTimeline(normalizeModularPanels(panels));
   }
   return false;
+}
+
+/** Edit-form **Refresh Plan lists** — Modular only, when a plan list module is placed. */
+export function shouldShowRefreshPlanLists(
+  variation: StatusReportVariationLike,
+  panels?: unknown
+): boolean {
+  if (variation !== "Modular") return false;
+  return modularNeedsPlanLists(normalizeModularPanels(panels));
+}
+
+export function shouldUseLockedPlanLists(
+  snapshot: {
+    planMeetings?: unknown;
+    planActivitiesCompleted?: unknown;
+    planActivitiesUpcoming?: unknown;
+  } | null,
+  options?: { rebuildPlanListsFromProject?: boolean }
+): boolean {
+  return snapshotHasPlanLists(snapshot) && !options?.rebuildPlanListsFromProject;
 }
 
 export function isScheduleEligibleVariation(

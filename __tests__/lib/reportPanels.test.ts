@@ -4,8 +4,10 @@ import {
   MODULAR_DEFAULT_DOCUMENT,
   MODULAR_SLIDE_HEIGHT_PX,
   MODULAR_SLIDE_WIDTH_PX,
+  PLAN_LIST_MODULE_TYPES,
   modularDocumentHasType,
   modularNeedsBudget,
+  modularNeedsPlanLists,
   modularNeedsTimeline,
   normalizeModularPanels,
   rowShapeWeights,
@@ -334,5 +336,20 @@ describe("modularNeedsBudget / modularNeedsTimeline", () => {
     expect(modularNeedsTimeline(placeModuleInFirstEmptySlot("ganttTimeline"))).toBe(
       true
     );
+  });
+});
+
+describe("modularNeedsPlanLists", () => {
+  it("is false for Classic Modular default", () => {
+    expect(modularNeedsPlanLists(MODULAR_DEFAULT_DOCUMENT)).toBe(false);
+    expect(modularDocumentHasType(MODULAR_DEFAULT_DOCUMENT, PLAN_LIST_MODULE_TYPES)).toBe(
+      false
+    );
+  });
+
+  it("is true when any plan list module is placed", () => {
+    for (const type of PLAN_LIST_MODULE_TYPES) {
+      expect(modularNeedsPlanLists(placeModuleInFirstEmptySlot(type, type))).toBe(true);
+    }
   });
 });

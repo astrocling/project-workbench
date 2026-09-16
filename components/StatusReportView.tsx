@@ -31,6 +31,11 @@ import {
 import { getWeeksInMonthsForRange } from "@/lib/monthUtils";
 import { formatMonthDay } from "@/lib/formatIsoDate";
 import {
+  capMeetingsForDisplay,
+  planListEmptyMessage,
+  type PlanReportListItem,
+} from "@/lib/plan/reportLists";
+import {
   getActiveTimelineRows,
   getCompactPlanTimelineRows,
   getVisibleBarSegmentsForRow,
@@ -603,6 +608,38 @@ function ModularModuleBox({
   );
 }
 
+function ModularEmptyCopy({ text }: { text: string }) {
+  return <p className="text-[11px] text-gray-500 leading-snug">{text}</p>;
+}
+
+function formatPlanViewDate(date: string | null): string {
+  return date ? formatMonthDay(date) : "TBD";
+}
+
+function ModularPlanItems({
+  items,
+  overflowCount,
+  showExtra,
+}: {
+  items: PlanReportListItem[];
+  overflowCount: number;
+  showExtra?: boolean;
+}) {
+  return (
+    <div className="space-y-0.5">
+      {items.map((item) => (
+        <p key={item.id} className="text-[11px] leading-snug text-gray-800">
+          • {formatPlanViewDate(item.date)}
+          {showExtra && item.extra ? ` ${item.extra}` : ""} — {item.label}
+        </p>
+      ))}
+      {overflowCount > 0 ? (
+        <p className="text-[11px] text-gray-500">+{overflowCount} more</p>
+      ) : null}
+    </div>
+  );
+}
+
 function ModularEmptyState({ label }: { label: string }) {
   return (
     <p className="text-[11px] text-gray-500 leading-snug">
@@ -740,6 +777,53 @@ function ModularModuleBody({
       return <NarrativeColumnContent text={data.report.upcomingActivities} size="modular" />;
     case "narrativeRisks":
       return <NarrativeColumnContent text={data.report.risksIssuesDecisions} size="modular" />;
+    case "planMeetings": {
+      const available = data.planListsAvailable !== false;
+      const meetings = data.planMeetings ?? { needsScheduling: [], scheduled: [] };
+      const capped = capMeetingsForDisplay(meetings);
+      if (capped.needsScheduling.length === 0 && capped.scheduled.length === 0) {
+        return <ModularEmptyCopy text={planListEmptyMessage("meetings", available)} />;
+      }
+      return (
+        <div className="space-y-1.5">
+          {capped.needsScheduling.length > 0 ? (
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-wide text-gray-500">
+                Needs scheduling
+              </p>
+              <ModularPlanItems items={capped.needsScheduling} overflowCount={0} showExtra />
+            </div>
+          ) : null}
+          {capped.scheduled.length > 0 ? (
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-wide text-gray-500">
+                Scheduled
+              </p>
+              <ModularPlanItems items={capped.scheduled} overflowCount={0} showExtra />
+            </div>
+          ) : null}
+          {capped.overflowCount > 0 ? (
+            <p className="text-[11px] text-gray-500">+{capped.overflowCount} more</p>
+          ) : null}
+        </div>
+      );
+    }
+    case "planActivitiesCompleted": {
+      const available = data.planListsAvailable !== false;
+      const slice = data.planActivitiesCompleted ?? { items: [], overflowCount: 0 };
+      if (slice.items.length === 0) {
+        return <ModularEmptyCopy text={planListEmptyMessage("completed", available)} />;
+      }
+      return <ModularPlanItems items={slice.items} overflowCount={slice.overflowCount} />;
+    }
+    case "planActivitiesUpcoming": {
+      const available = data.planListsAvailable !== false;
+      const slice = data.planActivitiesUpcoming ?? { items: [], overflowCount: 0 };
+      if (slice.items.length === 0) {
+        return <ModularEmptyCopy text={planListEmptyMessage("upcoming", available)} />;
+      }
+      return <ModularPlanItems items={slice.items} overflowCount={slice.overflowCount} />;
+    }
     case "ganttTimeline":
       if (data.timeline && timelineHasVisibleSchedule(data.timeline)) {
         return (
@@ -765,11 +849,15 @@ function ModularModuleBody({
 function modularModuleTitle(module: ReportModule): string {
   switch (module.type) {
     case "narrativeCompleted":
+    case "planActivitiesCompleted":
       return "Completed Activities";
     case "narrativeUpcoming":
+    case "planActivitiesUpcoming":
       return "Upcoming Activities";
     case "narrativeRisks":
       return "Risks / Issues / Decisions";
+    case "planMeetings":
+      return "Upcoming Meetings";
     case "storyPointMetrics":
       return "Key Metrics";
     case "donutKpi":

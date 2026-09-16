@@ -39,6 +39,7 @@ import {
   shouldShowPlanLookaheadOnSchedule,
   shouldShowPreviousMonthsOnSchedule,
   shouldShowRefreshBudget,
+  shouldShowRefreshPlanLists,
   shouldShowRefreshTimeline,
   shouldShowScheduleSourceFields,
   type ScheduleSource,
@@ -430,6 +431,10 @@ export function StatusReportsTab({
   const [refreshCdaMilestonesLoading, setRefreshCdaMilestonesLoading] = useState(false);
   const [refreshCdaMilestonesModalError, setRefreshCdaMilestonesModalError] = useState<string | null>(null);
   const [cdaMilestonesRefreshSuccess, setCdaMilestonesRefreshSuccess] = useState<string | null>(null);
+  const [showRefreshPlanListsModal, setShowRefreshPlanListsModal] = useState(false);
+  const [refreshPlanListsLoading, setRefreshPlanListsLoading] = useState(false);
+  const [refreshPlanListsModalError, setRefreshPlanListsModalError] = useState<string | null>(null);
+  const [planListsRefreshSuccess, setPlanListsRefreshSuccess] = useState<string | null>(null);
   const [copiedReportId, setCopiedReportId] = useState<string | null>(null);
   const [slackModalOpen, setSlackModalOpen] = useState(false);
   const [slackNote, setSlackNote] = useState("");
@@ -615,6 +620,8 @@ export function StatusReportsTab({
 
   const openEditForm = useCallback((r: StatusReportRecord) => {
     setTimelineRefreshSuccess(null);
+    setPlanListsRefreshSuccess(null);
+    setBudgetRefreshSuccess(null);
     setEditingReportId(r.id);
     setFormReportDate(r.reportDate.slice(0, 10));
     setFormVariation((r.variation as FormVariation) || "Standard");
@@ -846,6 +853,34 @@ export function StatusReportsTab({
       setTimeout(() => setBudgetRefreshSuccess(null), 4000);
     } finally {
       setRefreshBudgetLoading(false);
+    }
+  }, [editingReportId, projectId, previewReportId, loadReports]);
+
+  const confirmRefreshPlanLists = useCallback(async () => {
+    if (!editingReportId) return;
+    setRefreshPlanListsLoading(true);
+    setRefreshPlanListsModalError(null);
+    try {
+      const res = await fetch(
+        `/api/projects/${projectId}/status-reports/${editingReportId}/refresh-plan-lists`,
+        { method: "POST" }
+      );
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setRefreshPlanListsModalError(data.error ?? "Refresh failed");
+        return;
+      }
+      setShowRefreshPlanListsModal(false);
+      setPlanListsRefreshSuccess(
+        "Plan lists on this report were updated to match the current project Plan."
+      );
+      if (previewReportId === editingReportId) {
+        setPreviewDataKey((k) => k + 1);
+      }
+      loadReports();
+      setTimeout(() => setPlanListsRefreshSuccess(null), 4000);
+    } finally {
+      setRefreshPlanListsLoading(false);
     }
   }, [editingReportId, projectId, previewReportId, loadReports]);
 
@@ -1457,6 +1492,25 @@ export function StatusReportsTab({
                     role="status"
                   >
                     {timelineRefreshSuccess}
+                  </p>
+                )}
+              </div>
+            )}
+            {shouldShowRefreshPlanLists(formVariation, formLayoutPanels) && editingReportId && canEdit && (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRefreshPlanListsModalError(null);
+                    setShowRefreshPlanListsModal(true);
+                  }}
+                  className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-800 dark:text-surface-100 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                >
+                  Refresh Plan lists
+                </button>
+                {planListsRefreshSuccess && (
+                  <p className="text-body-sm text-emerald-700 dark:text-emerald-400" role="status">
+                    {planListsRefreshSuccess}
                   </p>
                 )}
               </div>
@@ -2504,6 +2558,47 @@ export function StatusReportsTab({
                 className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-jred-600 hover:bg-jred-700 text-white font-semibold text-body-sm disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-jred-500 focus:ring-offset-1"
               >
                 {refreshBudgetLoading ? "Refreshing…" : "Refresh budget"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showRefreshPlanListsModal && editingReportId && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="refresh-plan-lists-modal-title"
+        >
+          <div className="max-w-md w-full rounded-lg border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface shadow-lg p-6 space-y-4">
+            <h3
+              id="refresh-plan-lists-modal-title"
+              className="text-title-md font-semibold text-surface-800 dark:text-surface-100"
+            >
+              Replace Plan lists on this report?
+            </h3>
+            <p className="text-body-sm text-surface-600 dark:text-surface-300">
+              This will replace upcoming meetings and Plan activity lists stored on this status report with the current project Plan. Typed Risks and other locked snapshot data are not affected.
+            </p>
+            {refreshPlanListsModalError && (
+              <p className="text-body-sm text-jred-600 dark:text-jred-400">{refreshPlanListsModalError}</p>
+            )}
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowRefreshPlanListsModal(false)}
+                disabled={refreshPlanListsLoading}
+                className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmRefreshPlanLists}
+                disabled={refreshPlanListsLoading}
+                className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-jred-600 hover:bg-jred-700 text-white font-semibold text-body-sm disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-jred-500 focus:ring-offset-1"
+              >
+                {refreshPlanListsLoading ? "Refreshing…" : "Refresh Plan lists"}
               </button>
             </div>
           </div>
