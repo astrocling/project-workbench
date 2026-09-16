@@ -4,9 +4,10 @@ import {
   applyTimelineLayout,
   getStatusReportTimelineMetrics,
   scaleStatusReportTimelineMetrics,
-  formatPlanKeyDatesLine,
   isReadableTimelineWindow,
   pickSpacedTimelineMarkers,
+  groupArrangeSchedule,
+  moveArrangePhase,
   pruneTimelineLayout,
   setTimelineLayoutLabel,
   setTimelineLayoutRow,
@@ -56,6 +57,7 @@ describe("statusReportTimelineLayout", () => {
     expect(filled.monthFontPx).toBe(MODULAR_BODY_TYPE_PX);
     expect(filled.markerFontPx).toBe(MODULAR_BODY_TYPE_PX);
     expect(filled.barHeightPx).toBeGreaterThanOrEqual(16);
+    expect(filled.labelColPx).toBe(112);
   });
 
   it("keeps compact overlay type on Standard while filled Modular uses module body type", () => {
@@ -207,6 +209,25 @@ describe("timeline layout overlay edits", () => {
   });
 });
 
+describe("groupArrangeSchedule", () => {
+  it("nests key dates under the phase that shares their row and keeps hidden items in the list", () => {
+    const groups = groupArrangeSchedule(timeline, { hiddenBarIds: ["p1"], hiddenMarkerIds: ["m2"] });
+    expect(groups).toHaveLength(2);
+    expect(groups[0]?.bar).toMatchObject({ id: "p1", hidden: true, label: "Discovery" });
+    expect(groups[1]?.bar).toMatchObject({ id: "p2", hidden: false, label: "Build" });
+    expect(groups[1]?.markers.map((marker) => marker.id)).toEqual(["m1", "m2"]);
+    expect(groups[1]?.markers.find((marker) => marker.id === "m2")?.hidden).toBe(true);
+  });
+});
+
+describe("moveArrangePhase", () => {
+  it("swaps a phase with its neighbor and takes key dates on those rows along", () => {
+    const next = moveArrangePhase({}, timeline, "p1", 1);
+    expect(next.rows).toEqual({ p1: 2, p2: 1, m1: 1, m2: 1 });
+    expect(moveArrangePhase({}, timeline, "p1", -1)).toEqual({});
+  });
+});
+
 describe("timeline window overlay", () => {
   it("rejects windows that would make month columns narrower than 50px on the slide", () => {
     expect(isReadableTimelineWindow("2026-01-01", "2027-06-30")).toBe(false);
@@ -253,16 +274,5 @@ describe("pickSpacedTimelineMarkers", () => {
       "2026-12-31"
     );
     expect(kept.map((m) => m.label)).toEqual(["A", "Go Live"]);
-  });
-});
-
-describe("formatPlanKeyDatesLine", () => {
-  it("lists in-window key dates so names stay readable off the bars", () => {
-    expect(
-      formatPlanKeyDatesLine([
-        { label: "Go Live", date: "2026-11-15" },
-        { label: "Kickoff", date: "2026-09-02" },
-      ])
-    ).toBe("9/2 Kickoff · 11/15 Go Live");
   });
 });

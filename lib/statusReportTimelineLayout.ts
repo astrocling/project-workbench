@@ -17,6 +17,8 @@ export const SR_TIMELINE_BAR_FONT_PX = 7;
 export const SR_TIMELINE_MARKER_FONT_PX = 6;
 export const SR_TIMELINE_MONTH_FONT_PX = 7;
 export const SR_PLAN_LANE_LABEL_COL_PX = 100;
+/** Modular filled slot: phase names live in this rail so bars stay uncluttered. */
+export const SR_FILL_PHASE_LABEL_COL_PX = 112;
 export const SR_TIMELINE_MARKER_MIN_GAP_PCT = 12;
 export const SR_TIMELINE_MONTH_HEADER_PX = 12;
 export const SR_TIMELINE_REPORT_DATE_LABEL_PX = 8;
@@ -85,8 +87,8 @@ const PLAN_FILL_TIMELINE_METRICS: StatusReportTimelineMetrics = {
   barFontPx: MODULAR_BODY_TYPE_PX,
   markerFontPx: MODULAR_BODY_TYPE_PX,
   monthFontPx: MODULAR_BODY_TYPE_PX,
-  markerTopPx: 24,
-  labelColPx: 0,
+  markerTopPx: 8,
+  labelColPx: SR_FILL_PHASE_LABEL_COL_PX,
 };
 
 const PROJECT_FILL_TIMELINE_METRICS: StatusReportTimelineMetrics = {
@@ -99,8 +101,8 @@ const PROJECT_FILL_TIMELINE_METRICS: StatusReportTimelineMetrics = {
   barFontPx: MODULAR_BODY_TYPE_PX,
   markerFontPx: MODULAR_BODY_TYPE_PX,
   monthFontPx: MODULAR_BODY_TYPE_PX,
-  markerTopPx: 24,
-  labelColPx: 0,
+  markerTopPx: 8,
+  labelColPx: SR_FILL_PHASE_LABEL_COL_PX,
 };
 
 export function getStatusReportTimelineMetrics(
@@ -193,23 +195,6 @@ export function pickSpacedTimelineMarkers<T extends { date: string; label?: stri
     }
   }
   return kept;
-}
-
-export function formatPlanKeyDatesLine(
-  markers: Array<{ label: string; date: string }>,
-  maxItems = 10
-): string {
-  const sorted = [...markers].sort(
-    (a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label)
-  );
-  const shown = sorted.slice(0, maxItems);
-  const extra = sorted.length - shown.length;
-  const parts = shown.map((marker) => {
-    const [y, m, d] = marker.date.slice(0, 10).split("-").map(Number);
-    return `${m}/${d} ${marker.label}`;
-  });
-  if (extra > 0) parts.push(`+${extra} more`);
-  return parts.join(" · ");
 }
 
 export function timelineLaneLabel(
@@ -313,6 +298,158 @@ export function setTimelineLayoutRow(
   if (clamped == null || clamped === original) delete next[id];
   else next[id] = clamped;
   return Object.keys(next).length > 0 ? next : undefined;
+}
+
+export type ArrangeScheduleBar = {
+  phaseId?: string;
+  rowIndex: number;
+  label: string;
+  color?: string | null;
+  muted?: boolean;
+};
+
+export type ArrangeScheduleMarker = {
+  itemId?: string;
+  rowIndex?: number;
+  label: string;
+  date: string;
+  muted?: boolean;
+};
+
+export type ArrangeScheduleGroup = {
+  bar: {
+    id: string;
+    label: string;
+    color: string | null;
+    hidden: boolean;
+    muted: boolean;
+  } | null;
+  markers: Array<{
+    id: string;
+    label: string;
+    date: string;
+    hidden: boolean;
+    muted: boolean;
+  }>;
+};
+
+function displayRow(
+  id: string | undefined,
+  original: number,
+  layout: TimelineLayoutOverlay | undefined,
+  maxRow: number
+): number {
+  if (!id) return original;
+  return clampRow(layout?.rows?.[id] ?? original, maxRow) ?? original;
+}
+
+/** Checklist groups for Arrange: phases in row order, key dates nested, hidden items stay in place. */
+export function groupArrangeSchedule(
+  timeline: { bars: ArrangeScheduleBar[]; markers: ArrangeScheduleMarker[] },
+  layout: TimelineLayoutOverlay | undefined,
+  maxRow = 4
+): ArrangeScheduleGroup[] {
+  const hiddenBars = new Set(layout?.hiddenBarIds ?? []);
+  const hiddenMarkers = new Set(layout?.hiddenMarkerIds ?? []);
+  const phases = timeline.bars
+    .filter((bar): bar is ArrangeScheduleBar & { phaseId: string } => Boolean(bar.phaseId))
+    .map((bar) => ({
+      bar,
+      row: displayRow(bar.phaseId, bar.rowIndex, layout, maxRow),
+    }))
+    .sort(
+      (a, b) =>
+        a.row - b.row || a.bar.label.localeCompare(b.bar.label) || a.bar.phaseId.localeCompare(b.bar.phaseId)
+    );
+
+  const usedMarkerIds = new Set<string>();
+  const groups: ArrangeScheduleGroup[] = phases.map(({ bar, row }) => {
+    const markers = timeline.markers
+      .filter((marker): marker is ArrangeScheduleMarker & { itemId: string } => Boolean(marker.itemId))
+      .filter((marker) => displayRow(marker.itemId, marker.rowIndex ?? 1, layout, maxRow) === row)
+      .sort((a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label));
+    for (const marker of markers) usedMarkerIds.add(marker.itemId);
+    return {
+      bar: {
+        id: bar.phaseId,
+        label: overlayLabel(bar.phaseId, layout?.labels, bar.label),
+        color: bar.color ?? null,
+        hidden: hiddenBars.has(bar.phaseId),
+        muted: bar.muted === true,
+      },
+      markers: markers.map((marker) => ({
+        id: marker.itemId,
+        label: overlayLabel(marker.itemId, layout?.labels, marker.label),
+        date: marker.date,
+        hidden: hiddenMarkers.has(marker.itemId),
+        muted: marker.muted === true,
+      })),
+    };
+  });
+
+  const orphans = timeline.markers
+    .filter((marker): marker is ArrangeScheduleMarker & { itemId: string } => Boolean(marker.itemId))
+    .filter((marker) => !usedMarkerIds.has(marker.itemId))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label));
+  if (orphans.length > 0) {
+    groups.push({
+      bar: null,
+      markers: orphans.map((marker) => ({
+        id: marker.itemId,
+        label: overlayLabel(marker.itemId, layout?.labels, marker.label),
+        date: marker.date,
+        hidden: hiddenMarkers.has(marker.itemId),
+        muted: marker.muted === true,
+      })),
+    });
+  }
+  return groups;
+}
+
+/** Swap a phase with its neighbor in Arrange order; markers on those rows move with them. */
+export function moveArrangePhase(
+  layout: TimelineLayoutOverlay,
+  timeline: { bars: ArrangeScheduleBar[]; markers: ArrangeScheduleMarker[] },
+  phaseId: string,
+  direction: -1 | 1,
+  maxRow = 4
+): TimelineLayoutOverlay {
+  const phases = timeline.bars
+    .filter((bar): bar is ArrangeScheduleBar & { phaseId: string } => Boolean(bar.phaseId))
+    .map((bar) => ({
+      id: bar.phaseId,
+      original: bar.rowIndex,
+      row: displayRow(bar.phaseId, bar.rowIndex, layout, maxRow),
+    }))
+    .sort((a, b) => a.row - b.row || a.id.localeCompare(b.id));
+  const index = phases.findIndex((phase) => phase.id === phaseId);
+  const neighbor = index >= 0 ? phases[index + direction] : undefined;
+  if (index < 0 || !neighbor) return layout;
+
+  const rowA = phases[index].row;
+  const rowB = neighbor.row;
+  if (rowA === rowB) return layout;
+
+  const assignments: Array<{ id: string; original: number }> = [
+    { id: phases[index].id, original: phases[index].original },
+    { id: neighbor.id, original: neighbor.original },
+    ...timeline.markers
+      .filter((marker): marker is ArrangeScheduleMarker & { itemId: string } => Boolean(marker.itemId))
+      .map((marker) => ({
+        id: marker.itemId,
+        original: marker.rowIndex ?? 1,
+        row: displayRow(marker.itemId, marker.rowIndex ?? 1, layout, maxRow),
+      }))
+      .filter((marker) => marker.row === rowA || marker.row === rowB),
+  ];
+
+  let rows = layout.rows;
+  for (const item of assignments) {
+    const current = displayRow(item.id, item.original, layout, maxRow);
+    const nextRow = current === rowA ? rowB : rowA;
+    rows = setTimelineLayoutRow(rows, item.id, item.original, nextRow, maxRow);
+  }
+  return { ...layout, rows };
 }
 
 export function inclusiveMonthCount(startYmd: string, endYmd: string): number {

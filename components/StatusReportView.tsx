@@ -55,7 +55,7 @@ import {
 import {
   getStatusReportTimelineMetrics,
   scaleStatusReportTimelineMetrics,
-  formatPlanKeyDatesLine,
+  pickSpacedTimelineMarkers,
   statusReportMonthHeaderLabel,
   timelineFillMarkerStep,
   timelineLaneLabel,
@@ -397,8 +397,8 @@ function TimelineBlock({
       rowHeightPx: Math.max(
         ROW_HEIGHT_PX,
         fillAvailableHeight
-          ? metrics.markerTopPx + Math.max(markerCount, 1) * markerStep + 4
-          : ROW_HEIGHT_PX
+          ? ROW_HEIGHT_PX
+          : metrics.markerTopPx + Math.max(markerCount, 1) * markerStep + 4
       ),
       lockHeight: lanes && !fillAvailableHeight,
     });
@@ -507,11 +507,15 @@ function TimelineBlock({
           const markersInRow = getVisibleMarkersForRow(chart.markers, row, startYmd, endYmd, rowCap)
             .slice()
             .sort((a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label));
-          const chartMarkers = lanes && !fillAvailableHeight ? [] : markersInRow;
+          const chartMarkers = fillAvailableHeight
+            ? pickSpacedTimelineMarkers(markersInRow, startYmd, endYmd)
+            : lanes
+              ? []
+              : markersInRow;
           return (
             <div
               key={row}
-              className={`border-b border-[#d1d5db] relative${fillBar && !fillAvailableHeight ? "" : fillBar ? "" : " overflow-hidden"}`}
+              className="border-b border-[#d1d5db] relative overflow-hidden"
               style={rowLayout(markersInRow.length)}
             >
               <div className="absolute inset-0 pointer-events-none">
@@ -542,6 +546,7 @@ function TimelineBlock({
                       opacity: bar.muted ? 0.45 : 1,
                     }}
                   >
+                    {!(fillAvailableHeight && labelCol > 0) && (
                     <span
                       className="font-semibold leading-none block w-full"
                       style={{
@@ -554,25 +559,27 @@ function TimelineBlock({
                     >
                       {bar.label}
                     </span>
+                    )}
                   </div>
                   );
                 })}
               </div>
               {chartMarkers.map((m, i) => {
-                const hangLeft = (!fillBar || fillAvailableHeight) && timelineMarkerHangsLeft(i);
+                const hangLeft = !fillBar && !fillAvailableHeight && timelineMarkerHangsLeft(i);
+                const pinOnBar = overlay || fillAvailableHeight;
                 return (
                   <div
                     key={`m-${i}`}
-                    className={`absolute z-[2] flex flex-col${overlay ? " items-center min-w-[11px]" : ""}`}
+                    className={`absolute z-[2] flex flex-col${pinOnBar ? " items-center min-w-[11px]" : ""}`}
                     style={
-                      overlay
+                      pinOnBar
                         ? {
                             left: `calc(${positionPercent(m.date)}% - ${metrics.markerIconPx / 2}px)`,
                             top: timelineMarkerStackTop(
                               metrics.markerTopPx,
                               i,
                               markerStep,
-                              fillAvailableHeight
+                              overlay && !fillAvailableHeight
                             ),
                             opacity: m.muted ? 0.45 : 1,
                           }
@@ -584,12 +591,7 @@ function TimelineBlock({
                             }
                         : {
                             left: `${positionPercent(m.date)}%`,
-                            top: timelineMarkerStackTop(
-                              metrics.markerTopPx,
-                              i,
-                              markerStep,
-                              fillAvailableHeight
-                            ),
+                            top: metrics.markerTopPx,
                             width: metrics.markerColPx,
                             marginLeft: hangLeft ? -metrics.markerColPx : 0,
                             alignItems: hangLeft ? "flex-end" : "flex-start",
@@ -627,7 +629,7 @@ function TimelineBlock({
                       {m.label}
                     </span>
                     )}
-                    {(!fillBar || fillAvailableHeight) && (
+                    {!fillBar && !fillAvailableHeight && (
                     <span
                       className="font-medium text-gray-700 bg-white px-0.5 rounded leading-tight text-right"
                       style={{
@@ -652,24 +654,6 @@ function TimelineBlock({
       </div>
         </div>
       </div>
-      {fillAvailableHeight
-        ? (() => {
-            const line = formatPlanKeyDatesLine(
-              activeRows.flatMap((row) =>
-                getVisibleMarkersForRow(chart.markers, row, startYmd, endYmd, rowCap)
-              ),
-              16
-            );
-            if (!line) return null;
-            return (
-              <p
-                className="shrink-0 px-1 py-0.5 border-t border-[#d1d5db] text-[10px] leading-tight text-gray-600"
-              >
-                {line}
-              </p>
-            );
-          })()
-        : null}
     </div>
   );
 }

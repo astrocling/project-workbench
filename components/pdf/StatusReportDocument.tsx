@@ -63,7 +63,7 @@ import {
   SR_TIMELINE_MARKER_FONT_PX,
   SR_TIMELINE_MARKER_ICON_PX,
   SR_TIMELINE_MONTH_FONT_PX,
-  formatPlanKeyDatesLine,
+  pickSpacedTimelineMarkers,
   statusReportMonthHeaderLabel,
   timelineFillMarkerStep,
   timelineLaneLabel,
@@ -527,16 +527,6 @@ const styles = StyleSheet.create({
   },
   timelineChartCol: {
     flex: 1,
-  },
-  timelineKeyDates: {
-    paddingHorizontal: 3,
-    paddingVertical: 2,
-    borderTopWidth: 1,
-    borderTopColor: TIMELINE_ROW_BORDER,
-  },
-  timelineKeyDatesText: {
-    fontSize: 6,
-    color: "#374151",
   },
   /** Wrapper for bar rows so vertical month-boundary lines can be positioned behind them. */
   timelineBarRowsWrap: {
@@ -1410,8 +1400,8 @@ function TimelineBlock({
       rowHeightPx: Math.max(
         ROW_HEIGHT,
         fillAvailableHeight
-          ? metrics.markerTopPx + Math.max(markerCount, 1) * markerStep + 4
-          : ROW_HEIGHT
+          ? ROW_HEIGHT
+          : metrics.markerTopPx + Math.max(markerCount, 1) * markerStep + 4
       ),
       lockHeight: lanes && !fillAvailableHeight,
     });
@@ -1472,7 +1462,11 @@ function TimelineBlock({
         const markersInRow = getVisibleMarkersForRow(chart.markers, row, startYmd, endYmd, rowCap)
           .slice()
           .sort((a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label));
-        const chartMarkers = lanes && !fillAvailableHeight ? [] : markersInRow;
+        const chartMarkers = fillAvailableHeight
+          ? pickSpacedTimelineMarkers(markersInRow, startYmd, endYmd)
+          : lanes
+            ? []
+            : markersInRow;
         return (
           <View
             key={row}
@@ -1519,6 +1513,7 @@ function TimelineBlock({
                   },
                 ]}
               >
+                {!(fillAvailableHeight && labelCol > 0) && (
                 <Text
                   style={[
                     styles.timelineBarText,
@@ -1527,22 +1522,24 @@ function TimelineBlock({
                 >
                   {displayLabel}
                 </Text>
+                )}
               </View>
               );
             })}
             {chartMarkers.map((m, i) => {
-              const hangLeft = (!fillBar || fillAvailableHeight) && timelineMarkerHangsLeft(i);
+              const hangLeft = !fillBar && !fillAvailableHeight && timelineMarkerHangsLeft(i);
+              const pinOnBar = overlay || fillAvailableHeight;
               const stackedTop = timelineMarkerStackTop(
                 metrics.markerTopPx,
                 i,
                 markerStep,
-                fillAvailableHeight
+                overlay && !fillAvailableHeight
               );
               return (
               <View
                 key={`m-${i}`}
                 style={
-                  overlay || (lanes && !fillAvailableHeight)
+                  pinOnBar || (lanes && !fillAvailableHeight)
                     ? {
                         position: "absolute",
                         left: `${positionPercent(m.date)}%`,
@@ -1578,7 +1575,7 @@ function TimelineBlock({
                   </Text>
                 </View>
                 )}
-                {(!fillBar || fillAvailableHeight) && (
+                {!fillBar && !fillAvailableHeight && (
                 <View style={[styles.timelineMarkerLabelWrap, { maxWidth: metrics.markerColPx }]}>
                   <Text
                     style={[
@@ -1662,22 +1659,6 @@ function TimelineBlock({
           {barRows}
         </View>
       </View>
-      {fillAvailableHeight
-        ? (() => {
-            const line = formatPlanKeyDatesLine(
-              activeRows.flatMap((row) =>
-                getVisibleMarkersForRow(chart.markers, row, startYmd, endYmd, rowCap)
-              ),
-              16
-            );
-            if (!line) return null;
-            return (
-              <View style={styles.timelineKeyDates}>
-                <Text style={[styles.timelineKeyDatesText, { fontSize: 10 }]}>{line}</Text>
-              </View>
-            );
-          })()
-        : null}
     </View>
   );
 }
