@@ -28,6 +28,10 @@ import {
   type SprintScheduleData,
   type StoryPointsMetricsData,
 } from "@/lib/reportPanels";
+import {
+  budgetDollarsBurnPercent,
+  budgetHoursBurnPercent,
+} from "@/lib/statusReportBudgetViews";
 import { getWeeksInMonthsForRange } from "@/lib/monthUtils";
 import { formatMonthDay } from "@/lib/formatIsoDate";
 import {
@@ -751,6 +755,64 @@ function StandardBudgetTable({
   );
 }
 
+function CompactBudgetDollarsTable({
+  budget,
+}: {
+  budget: NonNullable<StatusReportPDFData["budget"]>;
+}) {
+  return (
+    <div className="flex flex-row items-center gap-2 h-full min-h-0">
+      <div className="flex-1 min-w-0 border border-gray-200">
+        <div
+          className="flex flex-row text-[9px] font-semibold"
+          style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
+        >
+          <div className="flex-1 py-0.5 px-1">Est</div>
+          <div className="flex-1 py-0.5 px-1">Spent</div>
+          <div className="flex-1 py-0.5 px-1">Remaining</div>
+        </div>
+        <div className="flex flex-row text-[9px] border-t border-gray-200">
+          <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.overallBudget, color: BRAND_COLORS.onHeader }}>{formatDollars(budget.estBudgetHigh)}</div>
+          <div className="flex-1 py-0.5 px-1 text-right">{formatDollars(-budget.spentDollars)}</div>
+          <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.overallBudget, color: BRAND_COLORS.onHeader }}>{formatDollars(budget.remainingDollarsHigh)}</div>
+        </div>
+      </div>
+      <BudgetBurnDonut burnPercent={budgetDollarsBurnPercent(budget)} compact />
+    </div>
+  );
+}
+
+function CompactBudgetHoursTable({
+  budget,
+}: {
+  budget: NonNullable<StatusReportPDFData["budget"]>;
+}) {
+  return (
+    <div className="flex flex-row items-center gap-2 h-full min-h-0">
+      <div className="flex-1 min-w-0 border border-gray-200">
+        <div
+          className="flex flex-row text-[9px] font-semibold"
+          style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
+        >
+          <div className="flex-1 py-0.5 px-1">Budgeted</div>
+          <div className="flex-1 py-0.5 px-1">Actual</div>
+          <div className="flex-1 py-0.5 px-1">Remaining</div>
+        </div>
+        <div className="flex flex-row text-[9px] border-t border-gray-200">
+          <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(budget.budgetedHoursHigh)}</div>
+          <div className="flex-1 py-0.5 px-1 text-right">{formatReportNum(-budget.actualHours)}</div>
+          <div className="flex-1 py-0.5 px-1 text-right" style={{ backgroundColor: BRAND_COLORS.accent, color: BRAND_COLORS.onAccent }}>{formatReportNum(budget.remainingHoursHigh)}</div>
+        </div>
+      </div>
+      <BudgetBurnDonut
+        burnPercent={budgetHoursBurnPercent(budget)}
+        compact
+        label="Hours burn"
+      />
+    </div>
+  );
+}
+
 function ModularModuleBody({
   module,
   data,
@@ -841,6 +903,29 @@ function ModularModuleBody({
         return <StandardBudgetTable budget={data.budget} tableClass="text-[9px]" />;
       }
       return <ModularEmptyState label={PANEL_META.budgetFinancials.label} />;
+    case "budgetCompactDollars":
+      if (data.budget) {
+        return <CompactBudgetDollarsTable budget={data.budget} />;
+      }
+      return <ModularEmptyState label={PANEL_META.budgetCompactDollars.label} />;
+    case "budgetCompactHours":
+      if (data.budget) {
+        return <CompactBudgetHoursTable budget={data.budget} />;
+      }
+      return <ModularEmptyState label={PANEL_META.budgetCompactHours.label} />;
+    case "budgetBurnOnly":
+      if (data.budget) {
+        return (
+          <div className="h-full w-full flex items-center justify-center">
+            <BudgetBurnDonut
+              burnPercent={budgetDollarsBurnPercent(data.budget)}
+              compact
+              label="Budget used"
+            />
+          </div>
+        );
+      }
+      return <ModularEmptyState label={PANEL_META.budgetBurnOnly.label} />;
     default:
       return <ModularEmptyState label={PANEL_META[module.type].label} />;
   }
@@ -862,6 +947,10 @@ function modularModuleTitle(module: ReportModule): string {
       return "Key Metrics";
     case "donutKpi":
       return module.data.label || PANEL_META.donutKpi.label;
+    case "budgetCompactDollars":
+      return "Budget";
+    case "budgetCompactHours":
+      return "Hours";
     default:
       return PANEL_META[module.type].label;
   }

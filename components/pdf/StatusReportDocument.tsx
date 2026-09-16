@@ -30,6 +30,10 @@ import {
   type SprintScheduleData,
   type StoryPointsMetricsData,
 } from "@/lib/reportPanels";
+import {
+  budgetDollarsBurnPercent,
+  budgetHoursBurnPercent,
+} from "@/lib/statusReportBudgetViews";
 import { parseLinkSegments } from "@/lib/statusReportLinks";
 import {
   capMeetingsForDisplay,
@@ -1631,6 +1635,10 @@ function modularPdfTitle(module: ReportModule): string {
       return "Key Metrics";
     case "donutKpi":
       return module.data.label || PANEL_META.donutKpi.label;
+    case "budgetCompactDollars":
+      return "Budget";
+    case "budgetCompactHours":
+      return "Hours";
     default:
       return PANEL_META[module.type].label;
   }
@@ -1923,7 +1931,90 @@ function ModularPdfModuleBody({
               </View>
             </View>
           </View>
-          <BudgetBurnChartPDF burnPercent={data.budget.burnPercentHigh} compact />
+          <BudgetBurnChartPDF burnPercent={budgetDollarsBurnPercent(data.budget)} compact />
+        </View>
+      );
+    case "budgetCompactDollars":
+      if (!data.budget) {
+        return <ModularPdfEmpty label={PANEL_META.budgetCompactDollars.label} />;
+      }
+      return (
+        <View style={styles.bottomQuarterSection}>
+          <View style={[styles.bottomQuarterTableCol, styles.table]}>
+            <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+              <View style={[styles.bottomQuarterCell, styles.srHeaderCompact, { flex: 1 }]}>
+                <Text style={styles.srHeaderCompact}>Est</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srHeaderCompact, { flex: 1 }]}>
+                <Text style={styles.srHeaderCompact}>Spent</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srHeaderCompact, { flex: 1 }]}>
+                <Text style={styles.srHeaderCompact}>Remaining</Text>
+              </View>
+            </View>
+            <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+              <View style={[styles.bottomQuarterCell, styles.srGreenCompact, { flex: 1 }]}>
+                <Text style={styles.srGreenCompact}>{formatDollars(data.budget.estBudgetHigh)}</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srWhiteCompact, { flex: 1 }]}>
+                <Text style={styles.srWhiteCompact}>{formatDollars(-data.budget.spentDollars)}</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srGreenCompact, { flex: 1 }]}>
+                <Text style={styles.srGreenCompact}>{formatDollars(data.budget.remainingDollarsHigh)}</Text>
+              </View>
+            </View>
+          </View>
+          <BudgetBurnChartPDF burnPercent={budgetDollarsBurnPercent(data.budget)} compact />
+        </View>
+      );
+    case "budgetCompactHours":
+      if (!data.budget) {
+        return <ModularPdfEmpty label={PANEL_META.budgetCompactHours.label} />;
+      }
+      return (
+        <View style={styles.bottomQuarterSection}>
+          <View style={[styles.bottomQuarterTableCol, styles.table]}>
+            <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+              <View style={[styles.bottomQuarterCell, styles.srHeaderCompact, { flex: 1 }]}>
+                <Text style={styles.srHeaderCompact}>Budgeted</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srHeaderCompact, { flex: 1 }]}>
+                <Text style={styles.srHeaderCompact}>Actual</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srHeaderCompact, { flex: 1 }]}>
+                <Text style={styles.srHeaderCompact}>Remaining</Text>
+              </View>
+            </View>
+            <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
+              <View style={[styles.bottomQuarterCell, styles.srBlueCompact, { flex: 1 }]}>
+                <Text style={styles.srBlueCompact}>{formatReportNum(data.budget.budgetedHoursHigh)}</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srWhiteCompact, { flex: 1 }]}>
+                <Text style={styles.srWhiteCompact}>{formatReportNum(-data.budget.actualHours)}</Text>
+              </View>
+              <View style={[styles.bottomQuarterCell, styles.srBlueCompact, { flex: 1 }]}>
+                <Text style={styles.srBlueCompact}>{formatReportNum(data.budget.remainingHoursHigh)}</Text>
+              </View>
+            </View>
+          </View>
+          <BudgetBurnChartPDF
+            burnPercent={budgetHoursBurnPercent(data.budget)}
+            compact
+            label="Hours burn"
+          />
+        </View>
+      );
+    case "budgetBurnOnly":
+      if (!data.budget) {
+        return <ModularPdfEmpty label={PANEL_META.budgetBurnOnly.label} />;
+      }
+      return (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <BudgetBurnChartPDF
+            burnPercent={budgetDollarsBurnPercent(data.budget)}
+            compact
+            label="Budget used"
+          />
         </View>
       );
     default:
