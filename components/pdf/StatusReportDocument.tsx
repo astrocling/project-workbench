@@ -47,10 +47,12 @@ import {
   type PlanReportListSlice,
 } from "@/lib/plan/reportLists";
 import {
+  expandScheduleEntriesToOwnRows,
   getActiveTimelineRows,
   getCompactPlanTimelineRows,
   getVisibleBarSegmentsForRow,
   getVisibleMarkersForRow,
+  TIMELINE_FILL_ROW_MAX,
   timelineHasVisibleSchedule,
 } from "@/lib/plan/reportSchedule";
 import {
@@ -61,9 +63,13 @@ import {
   SR_TIMELINE_MARKER_FONT_PX,
   SR_TIMELINE_MARKER_ICON_PX,
   SR_TIMELINE_MONTH_FONT_PX,
+  formatPlanKeyDatesLine,
   statusReportMonthHeaderLabel,
+  timelineFillMarkerStep,
   timelineLaneLabel,
   timelineMarkerHangsLeft,
+  timelineMarkerStackTop,
+  timelinePhaseRowLayout,
 } from "@/lib/statusReportTimelineLayout";
 import type { PlanJson } from "@/lib/plan/serialize";
 import { ganttBarLabelTextColor } from "@/lib/plan/ganttBarLabel";
@@ -940,6 +946,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     padding: 8,
+    flexDirection: "column",
   },
   modularEmptySlot: {
     width: "100%",
@@ -1355,11 +1362,13 @@ function TimelineBlock({
   reportDate,
   scheduleSource,
   layoutScale = 1,
+  fillAvailableHeight = false,
 }: {
   timeline: NonNullable<StatusReportPDFData["timeline"]>;
   reportDate?: string;
   scheduleSource?: StatusReportPDFData["scheduleSource"];
   layoutScale?: number;
+  fillAvailableHeight?: boolean;
 }) {
   const startMs = new Date(timeline.startDate).getTime();
   const endMs = new Date(timeline.endDate).getTime();
@@ -1385,22 +1394,39 @@ function TimelineBlock({
   );
 
   const metrics = scaleStatusReportTimelineMetrics(
-    getStatusReportTimelineMetrics(scheduleSource),
+    getStatusReportTimelineMetrics(scheduleSource, { fillAvailableHeight }),
     layoutScale
   );
   const overlay = metrics.mode === "overlay";
   const lanes = metrics.mode === "lanes";
   const fillBar = overlay || lanes;
+  const stretchBars = fillBar && !fillAvailableHeight;
   const ROW_HEIGHT = metrics.rowHeightPx;
   const labelCol = metrics.labelColPx;
+  const markerStep = timelineFillMarkerStep(metrics);
+  const rowLayout = (markerCount: number) =>
+    timelinePhaseRowLayout({
+      fillAvailableHeight,
+      rowHeightPx: Math.max(
+        ROW_HEIGHT,
+        fillAvailableHeight
+          ? metrics.markerTopPx + Math.max(markerCount, 1) * markerStep + 4
+          : ROW_HEIGHT
+      ),
+      lockHeight: lanes && !fillAvailableHeight,
+    });
 
-  const activeRows =
-    scheduleSource === "plan"
+  const chart = fillAvailableHeight ? expandScheduleEntriesToOwnRows(timeline) : timeline;
+  const rowCap = fillAvailableHeight ? TIMELINE_FILL_ROW_MAX : undefined;
+  const activeRows = fillAvailableHeight
+    ? getActiveTimelineRows(chart, TIMELINE_FILL_ROW_MAX)
+    : scheduleSource === "plan"
       ? getCompactPlanTimelineRows(timeline, reportDate)
       : getActiveTimelineRows(timeline);
+  const monthHeaderPx = fillAvailableHeight ? metrics.monthFontPx + 8 : 12 * layoutScale;
 
   const monthHeader = (
-      <View style={[styles.timelineMonthRow, { height: 12 * layoutScale }]}>
+      <View style={[styles.timelineMonthRow, { height: monthHeaderPx }]}>
         {months.map((monthKey, i) => (
           <View
             key={monthKey}
@@ -1415,7 +1441,12 @@ function TimelineBlock({
   );
 
   const barRows = (
-      <View style={styles.timelineBarRowsWrap}>
+      <View
+        style={[
+          styles.timelineBarRowsWrap,
+          fillAvailableHeight ? { flex: 1, minHeight: 0 } : {},
+        ]}
+      >
         {reportDatePercent != null && (
           <View
             style={[
@@ -1423,26 +1454,36 @@ function TimelineBlock({
               {
                 left: `${reportDatePercent}%`,
                 marginLeft: -1,
-                height: activeRows.length * ROW_HEIGHT + 2,
+                ...(fillAvailableHeight
+                  ? { bottom: 0 }
+                  : { height: activeRows.length * ROW_HEIGHT + 2 }),
               },
             ]}
           />
         )}
-        <View style={styles.timelineBarRowsContent}>
+        <View
+          style={[
+            styles.timelineBarRowsContent,
+            fillAvailableHeight ? { flex: 1, flexDirection: "column", minHeight: 0 } : {},
+          ]}
+        >
         {activeRows.map((row) => {
-        const clipped = getVisibleBarSegmentsForRow(timeline.bars, row, startYmd, endYmd);
-        const markersInRow = getVisibleMarkersForRow(timeline.markers, row, startYmd, endYmd)
+        const clipped = getVisibleBarSegmentsForRow(chart.bars, row, startYmd, endYmd, rowCap);
+        const markersInRow = getVisibleMarkersForRow(chart.markers, row, startYmd, endYmd, rowCap)
           .slice()
           .sort((a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label));
-        const chartMarkers = lanes ? [] : markersInRow;
+        const chartMarkers = lanes && !fillAvailableHeight ? [] : markersInRow;
         return (
           <View
             key={row}
             style={[
               styles.timelineBarRow,
-              fillBar && !lanes
+              rowLayout(markersInRow.length),
+              stretchBars
                 ? { minHeight: ROW_HEIGHT }
-                : { height: ROW_HEIGHT, overflow: "hidden" },
+                : fillAvailableHeight
+                  ? {}
+                  : { overflow: "hidden" },
             ]}
           >
             <View style={styles.timelineRowMonthLinesLayer}>
@@ -1467,7 +1508,7 @@ function TimelineBlock({
                 key={`bar-${i}`}
                 style={[
                   styles.timelineBar,
-                  fillBar
+                  fillBar && stretchBars
                     ? { top: 1, bottom: 1 }
                     : { top: metrics.barTopPx, height: metrics.barHeightPx ?? undefined },
                   {
@@ -1490,17 +1531,23 @@ function TimelineBlock({
               );
             })}
             {chartMarkers.map((m, i) => {
-              const hangLeft = !fillBar && timelineMarkerHangsLeft(i);
+              const hangLeft = (!fillBar || fillAvailableHeight) && timelineMarkerHangsLeft(i);
+              const stackedTop = timelineMarkerStackTop(
+                metrics.markerTopPx,
+                i,
+                markerStep,
+                fillAvailableHeight
+              );
               return (
               <View
                 key={`m-${i}`}
                 style={
-                  overlay || lanes
+                  overlay || (lanes && !fillAvailableHeight)
                     ? {
                         position: "absolute",
                         left: `${positionPercent(m.date)}%`,
                         marginLeft: -metrics.markerIconPx / 2,
-                        top: metrics.markerTopPx,
+                        top: stackedTop,
                         flexDirection: "column",
                         alignItems: "center",
                         minWidth: metrics.markerIconPx,
@@ -1511,7 +1558,7 @@ function TimelineBlock({
                         position: "absolute",
                         left: `${positionPercent(m.date)}%`,
                         marginLeft: hangLeft ? -metrics.markerColPx : 0,
-                        top: metrics.markerTopPx,
+                        top: stackedTop,
                         width: metrics.markerColPx,
                         flexDirection: "column",
                         alignItems: hangLeft ? "flex-end" : "flex-start",
@@ -1521,7 +1568,7 @@ function TimelineBlock({
                 }
               >
                 <TimelineMarkerIconPdf shape={m.shape ?? "Pin"} size={metrics.markerIconPx} />
-                {overlay && (
+                {overlay && !fillAvailableHeight && (
                 <View style={[styles.timelineMarkerLabelWrap, { maxWidth: metrics.markerColPx }]}>
                   <Text
                     style={[styles.timelineMarkerText, { fontSize: metrics.markerFontPx }]}
@@ -1531,7 +1578,7 @@ function TimelineBlock({
                   </Text>
                 </View>
                 )}
-                {!fillBar && (
+                {(!fillBar || fillAvailableHeight) && (
                 <View style={[styles.timelineMarkerLabelWrap, { maxWidth: metrics.markerColPx }]}>
                   <Text
                     style={[
@@ -1555,19 +1602,29 @@ function TimelineBlock({
   );
 
   return (
-    <View style={styles.timelineWrap}>
-      <View style={styles.timelineBodyRow}>
+    <View
+      style={[
+        styles.timelineWrap,
+        fillAvailableHeight ? { flex: 1, height: "100%", marginTop: 0 } : {},
+      ]}
+    >
+      <View
+        style={[
+          styles.timelineBodyRow,
+          fillAvailableHeight ? { flex: 1, minHeight: 0 } : {},
+        ]}
+      >
         {labelCol > 0 && (
           <View style={[styles.timelineLaneCol, { width: labelCol }]}>
-            {reportDatePercent != null && <View style={{ height: 8 }} />}
-            <View style={styles.timelineLaneHeader}>
-              <Text style={styles.timelineLaneHeaderText}>Phase</Text>
+            {reportDatePercent != null && <View style={{ height: 8 * layoutScale }} />}
+            <View style={[styles.timelineLaneHeader, { height: monthHeaderPx }]}>
+              <Text style={[styles.timelineLaneHeaderText, { fontSize: metrics.monthFontPx }]}>Phase</Text>
             </View>
             {activeRows.map((row) => {
-              const clipped = getVisibleBarSegmentsForRow(timeline.bars, row, startYmd, endYmd);
-              const markersInRow = getVisibleMarkersForRow(timeline.markers, row, startYmd, endYmd);
+              const clipped = getVisibleBarSegmentsForRow(chart.bars, row, startYmd, endYmd, rowCap);
+              const markersInRow = getVisibleMarkersForRow(chart.markers, row, startYmd, endYmd, rowCap);
               return (
-                <View key={`lane-${row}`} style={[styles.timelineLaneCell, { height: ROW_HEIGHT }]}>
+                <View key={`lane-${row}`} style={[styles.timelineLaneCell, rowLayout(markersInRow.length)]}>
                   <Text style={styles.timelineLaneLabel} wrap={false}>
                     {timelineLaneLabel(
                       clipped.map((seg) => seg.bar),
@@ -1580,7 +1637,12 @@ function TimelineBlock({
             })}
           </View>
         )}
-        <View style={styles.timelineChartCol}>
+        <View
+          style={[
+            styles.timelineChartCol,
+            fillAvailableHeight ? { flexDirection: "column", minHeight: 0 } : {},
+          ]}
+        >
           {reportDatePercent != null && (
             <View style={styles.timelineReportDateLabelAbove}>
               <Text
@@ -1600,6 +1662,22 @@ function TimelineBlock({
           {barRows}
         </View>
       </View>
+      {fillAvailableHeight
+        ? (() => {
+            const line = formatPlanKeyDatesLine(
+              activeRows.flatMap((row) =>
+                getVisibleMarkersForRow(chart.markers, row, startYmd, endYmd, rowCap)
+              ),
+              16
+            );
+            if (!line) return null;
+            return (
+              <View style={styles.timelineKeyDates}>
+                <Text style={[styles.timelineKeyDatesText, { fontSize: 10 }]}>{line}</Text>
+              </View>
+            );
+          })()
+        : null}
     </View>
   );
 }
@@ -2024,12 +2102,13 @@ function ModularPdfModuleBody({
       );
     }
     case "ganttTimeline":
-      if (data.timeline && timelineHasVisibleSchedule(data.timeline)) {
+      if (data.timeline && timelineHasVisibleSchedule(data.timeline, TIMELINE_FILL_ROW_MAX)) {
         return (
           <TimelineBlock
             timeline={data.timeline}
             reportDate={data.report.reportDate}
             scheduleSource={data.scheduleSource}
+            fillAvailableHeight
           />
         );
       }

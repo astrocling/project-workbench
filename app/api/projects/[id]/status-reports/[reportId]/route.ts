@@ -15,6 +15,7 @@ import {
   normalizeModularPanels,
 } from "@/lib/reportPanels";
 import { mergePlanListsIntoSnapshot, snapshotHasPlanLists } from "@/lib/plan/reportLists";
+import { TIMELINE_FILL_ROW_MAX } from "@/lib/plan/reportSchedule";
 
 const variationEnum = z.enum(["Standard", "Milestones", "CDA", "Modular"]);
 const ragEnum = z.enum(["Red", "Amber", "Green"]);
@@ -41,7 +42,7 @@ const patchSchema = z.object({
       hiddenBarIds: z.array(z.string()).optional(),
       hiddenMarkerIds: z.array(z.string()).optional(),
       labels: z.record(z.string(), z.string()).optional(),
-      rows: z.record(z.string(), z.number().int().min(1).max(4)).optional(),
+      rows: z.record(z.string(), z.number().int().min(1).max(TIMELINE_FILL_ROW_MAX)).optional(),
       windowStartYmd: z.string().optional(),
       windowEndYmd: z.string().optional(),
     })

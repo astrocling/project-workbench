@@ -12,6 +12,7 @@ import {
   resolvePlanScheduleEmptyError,
   validatePlanScheduleCreateEligibility,
 } from "@/lib/plan/reportScheduleErrors";
+import { timelineLayoutMaxRow } from "@/lib/plan/reportSchedule";
 import { isValidPlanTimeline } from "@/lib/statusReportScheduleBuild";
 import {
   PLAN_CREATE_BUILD_FAILED_ERROR,
@@ -25,6 +26,7 @@ import {
   normalizeModularPanels,
 } from "@/lib/reportPanels";
 import { mergePlanListsIntoSnapshot } from "@/lib/plan/reportLists";
+import { shouldLockModularTimelineOnCreate } from "@/lib/statusReportFlags";
 import { z } from "zod";
 
 const variationEnum = z.enum(["Standard", "Milestones", "CDA", "Modular"]);
@@ -249,18 +251,52 @@ export async function POST(
     const periodStr = `${prevMonday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} – ${prevFriday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
     const panelsDoc = normalizeModularPanels(parsed.data.panels);
     const needsBudget = modularNeedsBudget(panelsDoc);
-    const needsTimeline = modularNeedsTimeline(panelsDoc);
+    const needsTimelineModule = modularNeedsTimeline(panelsDoc);
     const needsPlanLists = modularNeedsPlanLists(panelsDoc);
+    const lockTimeline = shouldLockModularTimelineOnCreate(
+      needsTimelineModule,
+      parsed.data.scheduleSource
+    );
     let snapshot: StatusReportSnapshot = {
       period: periodStr,
       today: todayStr,
     };
-    if (needsBudget || needsTimeline || needsPlanLists) {
+
+    if (needsBudget || lockTimeline || needsPlanLists || usePlanSchedule) {
       try {
-        const pdfData = await buildStatusReportPdfData(id, report.id);
+        const pdfData = await buildStatusReportPdfData(id, report.id, {
+          timelinePreviousMonths: parsed.data.timelinePreviousMonths,
+          ...(usePlanSchedule
+            ? {
+                scheduleSource: "plan" as const,
+                planDensity: parsed.data.planDensity,
+                timelineLookaheadMonths: parsed.data.timelineLookaheadMonths,
+                includeDetailedPlan: parsed.data.includeDetailedPlan === true,
+              }
+            : {}),
+        });
+        if (
+          usePlanSchedule &&
+          !isValidPlanTimeline(pdfData?.timeline, timelineLayoutMaxRow(report.variation))
+        ) {
+          const planError = resolvePlanScheduleEmptyError(parsed.data.planDensity);
+          const rollback = await rollbackCreatedStatusReport(
+            async (reportId) => {
+              await prisma.statusReport.delete({ where: { id: reportId } });
+            },
+            report.id
+          );
+          if (!rollback.ok) {
+            return NextResponse.json(
+              { error: PLAN_CREATE_ROLLBACK_FAILED_ERROR },
+              { status: 500 }
+            );
+          }
+          return NextResponse.json({ error: planError }, { status: 400 });
+        }
         if (pdfData) {
           if (needsBudget) snapshot.budget = pdfData.budget;
-          if (needsTimeline) snapshot.timeline = pdfData.timeline;
+          if (lockTimeline) snapshot.timeline = pdfData.timeline;
           if (needsPlanLists) {
             snapshot = mergePlanListsIntoSnapshot(snapshot, {
               planMeetings: pdfData.planMeetings ?? { needsScheduling: [], scheduled: [] },
@@ -276,12 +312,46 @@ export async function POST(
           }
         }
       } catch (buildError) {
+        if (usePlanSchedule) {
+          console.error("Failed to build Modular Plan snapshot after create:", buildError);
+          const rollback = await rollbackCreatedStatusReport(
+            async (reportId) => {
+              await prisma.statusReport.delete({ where: { id: reportId } });
+            },
+            report.id
+          );
+          if (!rollback.ok) {
+            return NextResponse.json(
+              { error: PLAN_CREATE_ROLLBACK_FAILED_ERROR },
+              { status: 500 }
+            );
+          }
+          return NextResponse.json({ error: PLAN_CREATE_BUILD_FAILED_ERROR }, { status: 500 });
+        }
         console.error(
           "Failed to build Modular budget/timeline/plan-list snapshot after create:",
           buildError
         );
       }
     }
+
+    if (usePlanSchedule) {
+      snapshot = {
+        ...snapshot,
+        scheduleSource: "plan",
+        planDensity: parsed.data.planDensity ?? "phases_and_key_dates",
+        timelinePreviousMonths: parsed.data.timelinePreviousMonths,
+        timelineLookaheadMonths: parsed.data.timelineLookaheadMonths ?? 2,
+        includeDetailedPlan: parsed.data.includeDetailedPlan === true,
+      };
+    } else if (parsed.data.scheduleSource === "timeline") {
+      snapshot = {
+        ...snapshot,
+        scheduleSource: "timeline",
+        timelinePreviousMonths: parsed.data.timelinePreviousMonths,
+      };
+    }
+
     await prisma.statusReport.update({
       where: { id: report.id },
       data: { snapshot: snapshot as Prisma.InputJsonValue },

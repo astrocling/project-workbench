@@ -64,12 +64,13 @@ describe("reportScheduleErrors", () => {
   });
 
   describe("isPlanScheduleCreateRequest", () => {
-    it("is true only for Standard/Milestones with scheduleSource plan", () => {
+    it("is true for Standard, Milestones, and Modular with scheduleSource plan", () => {
       expect(isPlanScheduleCreateRequest("Standard", "plan")).toBe(true);
       expect(isPlanScheduleCreateRequest("Milestones", "plan")).toBe(true);
+      expect(isPlanScheduleCreateRequest("Modular", "plan")).toBe(true);
       expect(isPlanScheduleCreateRequest("Standard", "timeline")).toBe(false);
       expect(isPlanScheduleCreateRequest("CDA", "plan")).toBe(false);
-      expect(isPlanScheduleCreateRequest("Modular", "plan")).toBe(false);
+      expect(isPlanScheduleCreateRequest("Modular", "timeline")).toBe(false);
     });
   });
 

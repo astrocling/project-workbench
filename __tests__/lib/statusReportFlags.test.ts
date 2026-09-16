@@ -7,10 +7,12 @@ import {
   PREVIOUS_MONTHS_ON_SCHEDULE_LABEL,
   buildScheduleSourceCreatePayload,
   createScheduleFormDefaults,
+  detailedPlanCheckboxLabel,
   isScheduleEligibleVariation,
   planDensityLabel,
   scheduleSourceLabel,
   shouldAttachBudgetToPdfData,
+  shouldLockModularTimelineOnCreate,
   shouldResetScheduleDefaultsOnVariationChange,
   shouldShowPreviousMonthsOnSchedule,
   shouldShowRefreshBudget,
@@ -21,11 +23,11 @@ import {
 } from "@/lib/statusReportFlags";
 
 describe("isScheduleEligibleVariation", () => {
-  it("is true for Standard and Milestones only", () => {
+  it("is true for Standard, Milestones, and Modular", () => {
     expect(isScheduleEligibleVariation("Standard")).toBe(true);
     expect(isScheduleEligibleVariation("Milestones")).toBe(true);
+    expect(isScheduleEligibleVariation("Modular")).toBe(true);
     expect(isScheduleEligibleVariation("CDA")).toBe(false);
-    expect(isScheduleEligibleVariation("Modular")).toBe(false);
   });
 });
 
@@ -45,25 +47,31 @@ describe("shouldShowScheduleSourceFields", () => {
 });
 
 describe("shouldResetScheduleDefaultsOnVariationChange", () => {
-  it("preserves schedule choices when switching Standard ↔ Milestones", () => {
+  it("preserves schedule choices among Standard, Milestones, and Modular", () => {
     expect(
       shouldResetScheduleDefaultsOnVariationChange("Standard", "Milestones")
     ).toBe(false);
     expect(
       shouldResetScheduleDefaultsOnVariationChange("Milestones", "Standard")
     ).toBe(false);
+    expect(
+      shouldResetScheduleDefaultsOnVariationChange("Standard", "Modular")
+    ).toBe(false);
+    expect(
+      shouldResetScheduleDefaultsOnVariationChange("Modular", "Milestones")
+    ).toBe(false);
   });
 
-  it("reapplies defaults when entering Standard/Milestones from CDA or Modular", () => {
+  it("reapplies defaults when entering an eligible variation from CDA", () => {
     expect(shouldResetScheduleDefaultsOnVariationChange("CDA", "Standard")).toBe(
       true
     );
-    expect(
-      shouldResetScheduleDefaultsOnVariationChange("Modular", "Milestones")
-    ).toBe(true);
+    expect(shouldResetScheduleDefaultsOnVariationChange("CDA", "Modular")).toBe(
+      true
+    );
   });
 
-  it("does not reset when leaving Standard/Milestones for other variations", () => {
+  it("does not reset when leaving eligible variations for CDA", () => {
     expect(shouldResetScheduleDefaultsOnVariationChange("Standard", "CDA")).toBe(
       false
     );
@@ -94,9 +102,6 @@ describe("buildScheduleSourceCreatePayload", () => {
     expect(
       buildScheduleSourceCreatePayload(true, "CDA", "plan", "phases")
     ).toEqual({});
-    expect(
-      buildScheduleSourceCreatePayload(true, "Modular", "timeline", "phases")
-    ).toEqual({});
   });
 
   it("includes scheduleSource for eligible create when Plan is enabled", () => {
@@ -125,6 +130,42 @@ describe("buildScheduleSourceCreatePayload", () => {
         "phases_and_key_dates"
       )
     ).toEqual({ scheduleSource: "timeline" });
+  });
+
+  it("includes schedule fields for Modular when Plan is enabled", () => {
+    expect(
+      buildScheduleSourceCreatePayload(true, "Modular", "timeline", "phases")
+    ).toEqual({ scheduleSource: "timeline" });
+    expect(
+      buildScheduleSourceCreatePayload(
+        true,
+        "Modular",
+        "plan",
+        "phases_and_key_dates"
+      )
+    ).toEqual({
+      scheduleSource: "plan",
+      planDensity: "phases_and_key_dates",
+    });
+  });
+});
+
+describe("detailedPlanCheckboxLabel", () => {
+  it("uses Modular copy for the detailed-plan checkbox", () => {
+    expect(detailedPlanCheckboxLabel("Modular")).toBe(
+      "Add full project plan to report"
+    );
+    expect(detailedPlanCheckboxLabel("Standard")).toBe(
+      "Include detailed plan page"
+    );
+  });
+});
+
+describe("shouldLockModularTimelineOnCreate", () => {
+  it("locks Modular timeline when Plan is selected even without a gantt module", () => {
+    expect(shouldLockModularTimelineOnCreate(false, "plan")).toBe(true);
+    expect(shouldLockModularTimelineOnCreate(false, "timeline")).toBe(false);
+    expect(shouldLockModularTimelineOnCreate(true, "timeline")).toBe(true);
   });
 });
 

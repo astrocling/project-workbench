@@ -2,7 +2,7 @@ import type { PlanReportDensity } from "@/lib/plan/reportSchedule";
 import type { ScheduleSource } from "@/lib/statusReportPdfData";
 import { isPlanTabEnabled } from "@/lib/plan/feature";
 
-export type PlanScheduleReportVariation = "Standard" | "Milestones";
+export type PlanScheduleReportVariation = "Standard" | "Milestones" | "Modular";
 
 export const PLAN_NOT_ENABLED_ERROR = "Plan is not enabled for this project.";
 
@@ -43,11 +43,14 @@ export function resolvePlanScheduleEmptyError(planDensity?: PlanReportDensity): 
 }
 
 export function isPlanScheduleCreateRequest(
-  variation: PlanScheduleReportVariation | "CDA" | "Modular",
+  variation: PlanScheduleReportVariation | "CDA",
   scheduleSource?: ScheduleSource
 ): variation is PlanScheduleReportVariation {
   return (
-    (variation === "Standard" || variation === "Milestones") && scheduleSource === "plan"
+    (variation === "Standard" ||
+      variation === "Milestones" ||
+      variation === "Modular") &&
+    scheduleSource === "plan"
   );
 }
 

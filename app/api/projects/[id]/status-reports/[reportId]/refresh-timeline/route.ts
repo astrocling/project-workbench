@@ -18,6 +18,7 @@ import {
   PLAN_NOT_ENABLED_ERROR,
   resolveScheduleRebuildError,
 } from "@/lib/plan/reportScheduleErrors";
+import { timelineLayoutMaxRow } from "@/lib/plan/reportSchedule";
 import { isValidPlanTimeline } from "@/lib/statusReportScheduleBuild";
 import { pruneTimelineLayout } from "@/lib/statusReportTimelineLayout";
 import { modularNeedsTimeline, normalizeModularPanels } from "@/lib/reportPanels";
@@ -84,7 +85,7 @@ export async function POST(
   // (a timeline is built whenever the project has an end date, with no visible-schedule gate).
   const rebuiltSchedule =
     scheduleSource === "plan"
-      ? isValidPlanTimeline(pdfData.timeline)
+      ? isValidPlanTimeline(pdfData.timeline, timelineLayoutMaxRow(report.variation))
       : pdfData.timeline != null;
 
   if (!rebuiltSchedule) {

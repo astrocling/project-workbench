@@ -15,7 +15,12 @@ import {
   type PlanReportListSlice,
   type PlanReportLists,
 } from "@/lib/plan/reportLists";
-import { applyPlanPhaseColors, type PlanReportDensity } from "@/lib/plan/reportSchedule";
+import {
+  applyPlanPhaseColors,
+  compactLanePolicyForVariation,
+  timelineLayoutMaxRow,
+  type PlanReportDensity,
+} from "@/lib/plan/reportSchedule";
 import {
   applyTimelineLayout,
   type TimelineLayoutOverlay,
@@ -513,7 +518,9 @@ export async function buildStatusReportPdfData(
     if (shouldBuildTimelineFromPlan(scheduleSource, timelineLocked)) {
       if (planJson) {
         const density = resolvePlanDensity(snapshot, options);
-        timeline = buildPlanTimelineCandidate(planJson.phases, density, axis);
+        timeline = buildPlanTimelineCandidate(planJson.phases, density, axis, {
+          lanePolicy: compactLanePolicyForVariation(report.variation),
+        });
       }
     } else if (shouldBuildTimelineFromLegacy(scheduleSource, timelineLocked)) {
       const bars = (project.timelineBars ?? [])
@@ -550,7 +557,11 @@ export async function buildStatusReportPdfData(
   const showBudget = resolveShowBudget(snapshot);
 
   if (timeline && options?.applyTimelineLayoutOverlay !== false) {
-    timeline = applyTimelineLayout(timeline, snapshot?.timelineLayout);
+    timeline = applyTimelineLayout(
+      timeline,
+      snapshot?.timelineLayout,
+      timelineLayoutMaxRow(report.variation)
+    );
   }
 
   const resolvedSource = snapshot != null ? resolveScheduleSource(snapshot) : "timeline";

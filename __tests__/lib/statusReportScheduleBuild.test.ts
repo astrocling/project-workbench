@@ -10,7 +10,7 @@ import {
   shouldClipLockedTimelineToPreviousMonths,
   shouldUseLockedTimeline,
 } from "@/lib/statusReportScheduleBuild";
-import { timelineHasVisibleSchedule } from "@/lib/plan/reportSchedule";
+import { TIMELINE_FILL_ROW_MAX, timelineHasVisibleSchedule } from "@/lib/plan/reportSchedule";
 import { resolveScheduleSource, type StatusReportSnapshot } from "@/lib/statusReportPdfData";
 
 const baseSnapshot: StatusReportSnapshot = {
@@ -83,6 +83,43 @@ describe("statusReportScheduleBuild", () => {
       expect(timeline?.bars).toEqual([]);
       expect(timeline?.markers).toHaveLength(1);
       expect(isValidPlanTimeline(timeline)).toBe(true);
+    });
+
+    it("places Modular compact phases on their own rows", () => {
+      const phases: PlanPhaseJson[] = [
+        {
+          id: "phase-deploy",
+          planId: "plan-1",
+          name: "Deployment",
+          color: "#1941FA",
+          order: 4,
+          items: [
+            {
+              id: "t1",
+              phaseId: "phase-deploy",
+              type: "task",
+              label: "Ship",
+              startDate: "2026-03-01",
+              endDate: "2026-03-10",
+              order: 0,
+              parentItemId: null,
+              meetingStatus: null,
+              scheduledTime: null,
+            },
+          ],
+        },
+      ];
+      const wrapped = buildPlanTimelineCandidate(phases, "phases", axis);
+      expect(wrapped?.bars[0]?.rowIndex).toBe(1);
+      expect(wrapped?.bars[0]?.label).toBe("Deployment");
+
+      const stacked = buildPlanTimelineCandidate(phases, "phases", axis, {
+        lanePolicy: "onePhasePerRow",
+      });
+      expect(stacked?.bars[0]?.rowIndex).toBe(5);
+      expect(stacked?.bars[0]?.label).toBe("Deployment");
+      expect(isValidPlanTimeline(stacked, TIMELINE_FILL_ROW_MAX)).toBe(true);
+      expect(isValidPlanTimeline(stacked)).toBe(false);
     });
 
     it("rejects phases-only point-only phases", () => {

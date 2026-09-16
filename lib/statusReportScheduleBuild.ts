@@ -2,6 +2,9 @@ import type { PlanPhaseJson } from "@/lib/plan/serialize";
 import {
   compactPlanToSchedule,
   timelineHasVisibleSchedule,
+  TIMELINE_FILL_ROW_MAX,
+  TIMELINE_RENDERABLE_ROW_MAX,
+  type CompactLanePolicy,
   type PlanReportDensity,
   type ReportScheduleSlice,
 } from "@/lib/plan/reportSchedule";
@@ -157,18 +160,26 @@ export function resolveReportTimelineAxis(opts: {
 export function buildPlanTimelineCandidate(
   phases: PlanPhaseJson[],
   density: PlanReportDensity,
-  axis: TimelineAxisInput
+  axis: TimelineAxisInput,
+  options?: { lanePolicy?: CompactLanePolicy }
 ): NonNullable<StatusReportSnapshot["timeline"]> | undefined {
-  const schedule = compactPlanToSchedule(phases, density);
+  const schedule = compactPlanToSchedule(phases, density, {
+    lanePolicy: options?.lanePolicy ?? "wrap4",
+  });
   if (!schedule) {
     return undefined;
   }
-  return assemblePlanTimeline(schedule, axis);
+  const maxRow =
+    options?.lanePolicy === "onePhasePerRow"
+      ? TIMELINE_FILL_ROW_MAX
+      : TIMELINE_RENDERABLE_ROW_MAX;
+  return assemblePlanTimeline(schedule, axis, maxRow);
 }
 
 export function assemblePlanTimeline(
   schedule: ReportScheduleSlice,
-  axis: TimelineAxisInput
+  axis: TimelineAxisInput,
+  maxRow = TIMELINE_RENDERABLE_ROW_MAX
 ): NonNullable<StatusReportSnapshot["timeline"]> | undefined {
   const candidate = {
     startDate: axis.startDate,
@@ -176,7 +187,7 @@ export function assemblePlanTimeline(
     bars: schedule.bars,
     markers: schedule.markers,
   };
-  return timelineHasVisibleSchedule(candidate) ? candidate : undefined;
+  return timelineHasVisibleSchedule(candidate, maxRow) ? candidate : undefined;
 }
 
 export function buildLegacyTimeline(
@@ -194,10 +205,11 @@ export function buildLegacyTimeline(
 
 /**
  * Gate for Plan-sourced schedules: a timeline must draw at least one bar segment or in-axis
- * marker on rows 1–4. Marker-only Plan key-date schedules pass.
+ * marker on rows 1–maxRow (default 4). Marker-only Plan key-date schedules pass.
  */
 export function isValidPlanTimeline(
-  timeline: StatusReportSnapshot["timeline"] | undefined
+  timeline: StatusReportSnapshot["timeline"] | undefined,
+  maxRow = TIMELINE_RENDERABLE_ROW_MAX
 ): timeline is NonNullable<StatusReportSnapshot["timeline"]> {
-  return timeline != null && timelineHasVisibleSchedule(timeline);
+  return timeline != null && timelineHasVisibleSchedule(timeline, maxRow);
 }

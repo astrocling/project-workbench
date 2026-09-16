@@ -14,6 +14,7 @@ export type StatusReportVariationLike = string;
 export const PREVIOUS_MONTHS_ON_SCHEDULE_LABEL = "Previous months on schedule";
 export const PLAN_LOOKAHEAD_MONTHS_LABEL = "Months after report date";
 export const INCLUDE_DETAILED_PLAN_LABEL = "Include detailed plan page";
+export const ADD_FULL_PROJECT_PLAN_LABEL = "Add full project plan to report";
 
 /** Resolves whether Standard report budget block is visible (default true). */
 export function resolveShowBudget(
@@ -97,7 +98,26 @@ export function shouldUseLockedPlanLists(
 export function isScheduleEligibleVariation(
   variation: StatusReportVariationLike
 ): boolean {
-  return variation === "Standard" || variation === "Milestones";
+  return (
+    variation === "Standard" ||
+    variation === "Milestones" ||
+    variation === "Modular"
+  );
+}
+
+export function detailedPlanCheckboxLabel(
+  variation: StatusReportVariationLike
+): string {
+  return variation === "Modular"
+    ? ADD_FULL_PROJECT_PLAN_LABEL
+    : INCLUDE_DETAILED_PLAN_LABEL;
+}
+
+export function shouldLockModularTimelineOnCreate(
+  needsTimelineModule: boolean,
+  scheduleSource: ScheduleSource | undefined
+): boolean {
+  return needsTimelineModule || scheduleSource === "plan";
 }
 
 /** Schedule source / plan density fields on the status report form. */
@@ -109,9 +129,9 @@ export function shouldShowScheduleSourceFields(
 }
 
 /**
- * Reapply project schedule defaults only when entering Standard/Milestones from
- * CDA/Modular (or on open-new initialization). Standard ↔ Milestones preserves
- * the user's current scheduleSource/planDensity.
+ * Reapply project schedule defaults when entering a schedule-eligible variation
+ * from CDA (or on open-new initialization). Standard ↔ Milestones ↔ Modular
+ * preserves the user's current scheduleSource/planDensity.
  */
 export function shouldResetScheduleDefaultsOnVariationChange(
   previousVariation: StatusReportVariationLike,

@@ -30,6 +30,7 @@ type ArrangeScheduleFieldsProps = {
   layout: TimelineLayoutOverlay;
   onChange: (next: TimelineLayoutOverlay) => void;
   disabled?: boolean;
+  maxRow?: number;
 };
 
 function monthKeys(startDate: string, endDate: string): string[] {
@@ -95,7 +96,9 @@ export function ArrangeScheduleFields({
   layout,
   onChange,
   disabled,
+  maxRow = TIMELINE_RENDERABLE_ROW_MAX,
 }: ArrangeScheduleFieldsProps) {
+  const rowMax = maxRow ?? TIMELINE_RENDERABLE_ROW_MAX;
   const [selected, setSelected] = useState<SelectedItem | null>(null);
   const [dropRow, setDropRow] = useState<number | "hidden" | null>(null);
 
@@ -114,7 +117,10 @@ export function ArrangeScheduleFields({
     const end = dates.reduce((max, d) => (d > max ? d : max));
     return monthKeys(start, end);
   }, [timeline]);
-  const placed = useMemo(() => applyTimelineLayout(timeline, layout), [timeline, layout]);
+  const placed = useMemo(
+    () => applyTimelineLayout(timeline, layout, rowMax),
+    [timeline, layout, rowMax]
+  );
   const hiddenBars = timeline.bars.filter(
     (bar) => bar.phaseId && layout.hiddenBarIds?.includes(bar.phaseId)
   );
@@ -144,7 +150,7 @@ export function ArrangeScheduleFields({
       onChange({
         ...layout,
         hiddenBarIds: toggleTimelineHiddenId(layout.hiddenBarIds, payload.id, false),
-        rows: setTimelineLayoutRow(layout.rows, payload.id, bar.rowIndex, target),
+        rows: setTimelineLayoutRow(layout.rows, payload.id, bar.rowIndex, target, rowMax),
       });
       return;
     }
@@ -161,7 +167,7 @@ export function ArrangeScheduleFields({
     onChange({
       ...layout,
       hiddenMarkerIds: toggleTimelineHiddenId(layout.hiddenMarkerIds, payload.id, false),
-      rows: setTimelineLayoutRow(layout.rows, payload.id, originalRow, target),
+      rows: setTimelineLayoutRow(layout.rows, payload.id, originalRow, target, rowMax),
     });
   }
 
@@ -283,7 +289,7 @@ export function ArrangeScheduleFields({
         </div>
 
         {Array.from(
-          { length: TIMELINE_RENDERABLE_ROW_MAX - TIMELINE_RENDERABLE_ROW_MIN + 1 },
+          { length: rowMax - TIMELINE_RENDERABLE_ROW_MIN + 1 },
           (_, i) => TIMELINE_RENDERABLE_ROW_MIN + i
         ).map((row) => {
           const rowBars = placed.bars.filter((bar) => bar.rowIndex === row);

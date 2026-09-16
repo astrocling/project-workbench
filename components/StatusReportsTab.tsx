@@ -47,11 +47,11 @@ import {
 } from "@/lib/modularLayoutPresets";
 import { formatMonthDay } from "@/lib/formatIsoDate";
 import {
-  INCLUDE_DETAILED_PLAN_LABEL,
   PLAN_LOOKAHEAD_MONTHS_LABEL,
   PREVIOUS_MONTHS_ON_SCHEDULE_LABEL,
   buildScheduleSourceCreatePayload,
   createScheduleFormDefaults,
+  detailedPlanCheckboxLabel,
   isScheduleEligibleVariation,
   planDensityLabel,
   scheduleSourceLabel,
@@ -64,6 +64,7 @@ import {
   shouldShowScheduleSourceFields,
   type ScheduleSource,
 } from "@/lib/statusReportFlags";
+import { timelineLayoutMaxRow } from "@/lib/plan/reportSchedule";
 import type { PlanReportDensity } from "@/lib/statusReportPdfData";
 import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument";
 import type { TimelineLayoutOverlay } from "@/lib/statusReportTimelineLayout";
@@ -1868,7 +1869,7 @@ export function StatusReportsTab({
                       htmlFor="include-detailed-plan"
                       className="text-body-sm font-semibold text-surface-800 dark:text-surface-100"
                     >
-                      {INCLUDE_DETAILED_PLAN_LABEL}
+                      {detailedPlanCheckboxLabel(formVariation)}
                     </label>
                   </div>
                 )}
@@ -1876,6 +1877,7 @@ export function StatusReportsTab({
                   <ArrangeScheduleFields
                     timeline={formTimeline}
                     layout={formTimelineLayout}
+                    maxRow={timelineLayoutMaxRow(formVariation)}
                     onChange={(next) => {
                       void saveTimelineLayout(next);
                     }}

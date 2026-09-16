@@ -3,6 +3,7 @@ import type { PlanItemJson, PlanPhaseJson } from "@/lib/plan/serialize";
 import {
   compactPlanToSchedule,
   applyPlanPhaseColors,
+  compactLanePolicyForVariation,
   getActiveTimelineRows,
   getCompactPlanTimelineRows,
   getVisibleBarSegment,
@@ -10,7 +11,10 @@ import {
   getVisibleMarkersForRow,
   isMarkerInAxis,
   isRenderableTimelineRow,
+  expandScheduleEntriesToOwnRows,
+  TIMELINE_FILL_ROW_MAX,
   timelineHasVisibleSchedule,
+  timelineLayoutMaxRow,
 } from "@/lib/plan/reportSchedule";
 
 function item(
@@ -92,6 +96,44 @@ describe("compactPlanToSchedule", () => {
       "phases"
     );
     expect(order4?.bars[0]?.rowIndex).toBe(1);
+  });
+
+  it("maps phase order 4 to row 5 when lanePolicy is onePhasePerRow", () => {
+    const result = compactPlanToSchedule(
+      [
+        phase({
+          id: "p2",
+          name: "Deployment",
+          order: 4,
+          items: [item({ id: "i2", phaseId: "p2", label: "Task" })],
+        }),
+      ],
+      "phases",
+      { lanePolicy: "onePhasePerRow" }
+    );
+    expect(result?.bars[0]?.rowIndex).toBe(5);
+  });
+
+  it("still wraps order 4 onto row 1 by default", () => {
+    const result = compactPlanToSchedule(
+      [
+        phase({
+          id: "p2",
+          name: "Deployment",
+          order: 4,
+          items: [item({ id: "i2", phaseId: "p2", label: "Task" })],
+        }),
+      ],
+      "phases"
+    );
+    expect(result?.bars[0]?.rowIndex).toBe(1);
+  });
+
+  it("picks onePhasePerRow only for Modular", () => {
+    expect(compactLanePolicyForVariation("Modular")).toBe("onePhasePerRow");
+    expect(compactLanePolicyForVariation("Standard")).toBe("wrap4");
+    expect(timelineLayoutMaxRow("Modular")).toBe(16);
+    expect(timelineLayoutMaxRow("Standard")).toBe(4);
   });
 
   it("builds phase bars from min/max item dates with no markers in phases density", () => {
@@ -703,6 +745,58 @@ describe("timeline row content", () => {
       markers: [] as { date: string; rowIndex?: number }[],
     };
     expect(getCompactPlanTimelineRows(timeline, "2026-09-15")).toEqual([1, 2, 3, 4]);
+  });
+
+  it("splits wrapped Plan phases onto their own rows in a filled Modular slot", () => {
+    const wrapped = {
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+      bars: [
+        { label: "Discovery", startDate: "2026-01-01", endDate: "2026-03-01", rowIndex: 1, phaseId: "p1" },
+        { label: "Design", startDate: "2026-03-01", endDate: "2026-05-01", rowIndex: 2, phaseId: "p2" },
+        { label: "Build", startDate: "2026-05-01", endDate: "2026-08-01", rowIndex: 3, phaseId: "p3" },
+        { label: "UAT", startDate: "2026-08-01", endDate: "2026-10-01", rowIndex: 4, phaseId: "p4" },
+        { label: "Launch", startDate: "2026-10-01", endDate: "2026-12-01", rowIndex: 1, phaseId: "p5" },
+      ],
+      markers: [
+        { label: "Kickoff", date: "2026-01-15", rowIndex: 1 },
+        { label: "Go live", date: "2026-10-15", rowIndex: 1 },
+      ],
+    };
+    const expanded = expandScheduleEntriesToOwnRows(wrapped);
+    expect(expanded.bars.map((bar) => [bar.label, bar.rowIndex])).toEqual([
+      ["Discovery", 1],
+      ["Design", 2],
+      ["Build", 3],
+      ["UAT", 4],
+      ["Launch", 5],
+    ]);
+    expect(expanded.markers.find((m) => m.label === "Kickoff")?.rowIndex).toBe(1);
+    expect(expanded.markers.find((m) => m.label === "Go live")?.rowIndex).toBe(5);
+    expect(getActiveTimelineRows(expanded, TIMELINE_FILL_ROW_MAX)).toEqual([1, 2, 3, 4, 5]);
+    expect(getActiveTimelineRows(wrapped)).toEqual([1, 2, 3, 4]);
+  });
+
+  it("keeps unique rowIndexes so Arrange onePhasePerRow survives fill render", () => {
+    const unique = {
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+      bars: [
+        { label: "Discovery", startDate: "2026-03-01", endDate: "2026-04-01", rowIndex: 1, phaseId: "p1" },
+        { label: "Launch", startDate: "2026-01-01", endDate: "2026-02-01", rowIndex: 5, phaseId: "p5" },
+      ],
+      markers: [
+        { label: "Kickoff", date: "2026-03-15", rowIndex: 1 },
+        { label: "Go live", date: "2026-01-15", rowIndex: 5 },
+      ],
+    };
+    const expanded = expandScheduleEntriesToOwnRows(unique);
+    expect(expanded.bars.map((bar) => [bar.label, bar.rowIndex])).toEqual([
+      ["Discovery", 1],
+      ["Launch", 5],
+    ]);
+    expect(expanded.markers.find((m) => m.label === "Kickoff")?.rowIndex).toBe(1);
+    expect(expanded.markers.find((m) => m.label === "Go live")?.rowIndex).toBe(5);
   });
 
   it("agrees with the render gate: no active rows means no visible schedule", () => {

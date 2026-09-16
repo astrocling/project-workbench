@@ -6,6 +6,8 @@
  * Project Timeline schedules keep the original compact overlay so 4 rows still
  * fit the 16:9 slide (the Plan metrics would overflow and cover activities).
  */
+import { MODULAR_BODY_TYPE_PX, MODULAR_CHROME_SCALE } from "@/lib/reportPanels";
+
 export const SR_TIMELINE_ROW_HEIGHT_PX = 18;
 export const SR_TIMELINE_BAR_TOP_PX = 3;
 export const SR_TIMELINE_BAR_HEIGHT_PX = 12;
@@ -72,10 +74,77 @@ const PROJECT_TIMELINE_METRICS: StatusReportTimelineMetrics = {
   labelColPx: 0,
 };
 
+/** Tall Modular slot: module body type, key dates under bars, one lane per phase. */
+const PLAN_FILL_TIMELINE_METRICS: StatusReportTimelineMetrics = {
+  mode: "bands",
+  rowHeightPx: 40,
+  barTopPx: 4,
+  barHeightPx: 18,
+  markerIconPx: 12,
+  markerColPx: 88,
+  barFontPx: MODULAR_BODY_TYPE_PX,
+  markerFontPx: MODULAR_BODY_TYPE_PX,
+  monthFontPx: MODULAR_BODY_TYPE_PX,
+  markerTopPx: 24,
+  labelColPx: 0,
+};
+
+const PROJECT_FILL_TIMELINE_METRICS: StatusReportTimelineMetrics = {
+  mode: "bands",
+  rowHeightPx: 40,
+  barTopPx: 4,
+  barHeightPx: 18,
+  markerIconPx: 12,
+  markerColPx: 88,
+  barFontPx: MODULAR_BODY_TYPE_PX,
+  markerFontPx: MODULAR_BODY_TYPE_PX,
+  monthFontPx: MODULAR_BODY_TYPE_PX,
+  markerTopPx: 24,
+  labelColPx: 0,
+};
+
 export function getStatusReportTimelineMetrics(
-  scheduleSource?: "timeline" | "plan" | null
+  scheduleSource?: "timeline" | "plan" | null,
+  options?: { fillAvailableHeight?: boolean }
 ): StatusReportTimelineMetrics {
-  return scheduleSource === "plan" ? PLAN_TIMELINE_METRICS : PROJECT_TIMELINE_METRICS;
+  const fill = options?.fillAvailableHeight === true;
+  if (scheduleSource === "plan") {
+    return fill ? PLAN_FILL_TIMELINE_METRICS : PLAN_TIMELINE_METRICS;
+  }
+  return fill ? PROJECT_FILL_TIMELINE_METRICS : PROJECT_TIMELINE_METRICS;
+}
+
+export function timelineMarkerStackTop(
+  baseTop: number,
+  index: number,
+  step: number,
+  enabled: boolean
+): number {
+  return enabled ? baseTop + index * step : baseTop;
+}
+
+export function timelineFillMarkerStep(metrics: StatusReportTimelineMetrics): number {
+  return metrics.markerIconPx + metrics.markerFontPx + 4;
+}
+
+export function statusReportTimelineChromeScale(isModular: boolean): number {
+  return isModular ? MODULAR_CHROME_SCALE : 1;
+}
+
+export function timelinePhaseRowLayout({
+  fillAvailableHeight,
+  rowHeightPx,
+  lockHeight,
+}: {
+  fillAvailableHeight: boolean;
+  rowHeightPx: number;
+  lockHeight: boolean;
+}): { minHeight: number; flexGrow?: number; flexShrink?: number; flexBasis?: number; height?: number } {
+  if (fillAvailableHeight) {
+    return { minHeight: rowHeightPx, flexGrow: 1, flexShrink: 1, flexBasis: 0 };
+  }
+  if (lockHeight) return { minHeight: rowHeightPx, height: rowHeightPx };
+  return { minHeight: rowHeightPx };
 }
 
 export function scaleStatusReportTimelineMetrics(
@@ -189,8 +258,8 @@ export type LayoutTimelineSlice = {
   markers: LayoutMarker[];
 };
 
-function clampRow(row: number): number | null {
-  if (!Number.isInteger(row) || row < 1 || row > 4) return null;
+function clampRow(row: number, maxRow = 4): number | null {
+  if (!Number.isInteger(row) || row < 1 || row > maxRow) return null;
   return row;
 }
 
@@ -236,10 +305,11 @@ export function setTimelineLayoutRow(
   rows: Record<string, number> | undefined,
   id: string,
   original: number,
-  value: number
+  value: number,
+  maxRow = 4
 ): Record<string, number> | undefined {
   const next = { ...(rows ?? {}) };
-  const clamped = clampRow(value);
+  const clamped = clampRow(value, maxRow);
   if (clamped == null || clamped === original) delete next[id];
   else next[id] = clamped;
   return Object.keys(next).length > 0 ? next : undefined;
@@ -304,7 +374,8 @@ export function setTimelineLayoutWindow(
 /** Hide, rename, and re-row compact bars/markers by Plan source id. Dates are never changed. */
 export function applyTimelineLayout<T extends LayoutTimelineSlice>(
   timeline: T,
-  layout?: TimelineLayoutOverlay | null
+  layout?: TimelineLayoutOverlay | null,
+  maxRow = 4
 ): T {
   if (!layout) return timeline;
   const hiddenBars = new Set(layout.hiddenBarIds ?? []);
@@ -312,7 +383,7 @@ export function applyTimelineLayout<T extends LayoutTimelineSlice>(
   const bars = timeline.bars
     .filter((bar) => !bar.phaseId || !hiddenBars.has(bar.phaseId))
     .map((bar) => {
-      const row = bar.phaseId ? clampRow(layout.rows?.[bar.phaseId] ?? bar.rowIndex) : bar.rowIndex;
+      const row = bar.phaseId ? clampRow(layout.rows?.[bar.phaseId] ?? bar.rowIndex, maxRow) : bar.rowIndex;
       return {
         ...bar,
         label: overlayLabel(bar.phaseId, layout.labels, bar.label),
@@ -323,7 +394,7 @@ export function applyTimelineLayout<T extends LayoutTimelineSlice>(
     .filter((marker) => !marker.itemId || !hiddenMarkers.has(marker.itemId))
     .map((marker) => {
       const currentRow = marker.rowIndex ?? 1;
-      const row = marker.itemId ? clampRow(layout.rows?.[marker.itemId] ?? currentRow) : currentRow;
+      const row = marker.itemId ? clampRow(layout.rows?.[marker.itemId] ?? currentRow, maxRow) : currentRow;
       return {
         ...marker,
         label: overlayLabel(marker.itemId, layout.labels, marker.label),

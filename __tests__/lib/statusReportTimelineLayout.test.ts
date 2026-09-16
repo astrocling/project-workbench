@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MODULAR_BODY_TYPE_PX } from "@/lib/reportPanels";
 import {
   applyTimelineLayout,
   getStatusReportTimelineMetrics,
@@ -12,6 +13,8 @@ import {
   setTimelineLayoutWindow,
   statusReportMonthHeaderLabel,
   timelineMarkerHangsLeft,
+  timelineMarkerStackTop,
+  timelinePhaseRowLayout,
   toggleTimelineHiddenId,
   type TimelineLayoutOverlay,
 } from "@/lib/statusReportTimelineLayout";
@@ -41,6 +44,48 @@ describe("statusReportTimelineLayout", () => {
     expect(scaled.barFontPx).toBe(base.barFontPx * 2);
     expect(scaled.markerIconPx).toBe(base.markerIconPx * 2);
     expect(scaleStatusReportTimelineMetrics(base, 1)).toEqual(base);
+  });
+
+  it("uses Modular body type in a filled slot instead of Standard strip type", () => {
+    const compact = getStatusReportTimelineMetrics("plan");
+    const filled = getStatusReportTimelineMetrics("plan", { fillAvailableHeight: true });
+    expect(compact.mode).toBe("lanes");
+    expect(filled.mode).toBe("bands");
+    expect(compact.barFontPx).toBeLessThan(12);
+    expect(filled.barFontPx).toBe(MODULAR_BODY_TYPE_PX);
+    expect(filled.monthFontPx).toBe(MODULAR_BODY_TYPE_PX);
+    expect(filled.markerFontPx).toBe(MODULAR_BODY_TYPE_PX);
+    expect(filled.barHeightPx).toBeGreaterThanOrEqual(16);
+  });
+
+  it("keeps compact overlay type on Standard while filled Modular uses module body type", () => {
+    const compact = getStatusReportTimelineMetrics("timeline");
+    const filled = getStatusReportTimelineMetrics("timeline", { fillAvailableHeight: true });
+    expect(compact.barFontPx).toBe(5);
+    expect(filled.barFontPx).toBe(MODULAR_BODY_TYPE_PX);
+    expect(filled.mode).toBe("bands");
+  });
+
+  it("stacks markers vertically when the slot has leftover height", () => {
+    expect(timelineMarkerStackTop(16, 0, 18, true)).toBe(16);
+    expect(timelineMarkerStackTop(16, 2, 18, true)).toBe(52);
+    expect(timelineMarkerStackTop(16, 2, 18, false)).toBe(16);
+  });
+
+  it("stretches phase rows when the Modular cell has leftover height", () => {
+    expect(timelinePhaseRowLayout({ fillAvailableHeight: true, rowHeightPx: 28, lockHeight: true })).toEqual({
+      minHeight: 28,
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 0,
+    });
+    expect(timelinePhaseRowLayout({ fillAvailableHeight: false, rowHeightPx: 14, lockHeight: false })).toEqual({
+      minHeight: 14,
+    });
+    expect(timelinePhaseRowLayout({ fillAvailableHeight: false, rowHeightPx: 18, lockHeight: true })).toEqual({
+      minHeight: 18,
+      height: 18,
+    });
   });
 
   it("alternates clustered marker columns left and right of the date", () => {
@@ -145,6 +190,20 @@ describe("timeline layout overlay edits", () => {
     expect(setTimelineLayoutRow(undefined, "p1", 1, 3)).toEqual({ p1: 3 });
     expect(setTimelineLayoutRow({ p1: 3 }, "p1", 1, 1)).toBeUndefined();
     expect(setTimelineLayoutRow(undefined, "p1", 1, 9)).toBeUndefined();
+  });
+
+  it("accepts row 5 when maxRow is 16", () => {
+    expect(setTimelineLayoutRow(undefined, "p1", 1, 5, 16)).toEqual({ p1: 5 });
+    expect(setTimelineLayoutRow(undefined, "p1", 1, 17, 16)).toBeUndefined();
+  });
+
+  it("applies row 5 overlay when maxRow is 16", () => {
+    const next = applyTimelineLayout(
+      timeline,
+      { rows: { p1: 5 } },
+      16
+    );
+    expect(next.bars.find((bar) => bar.phaseId === "p1")?.rowIndex).toBe(5);
   });
 });
 

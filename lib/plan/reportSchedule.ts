@@ -31,8 +31,29 @@ export type ReportScheduleSlice = {
   markers: ReportScheduleMarker[];
 };
 
-function phaseRowIndex(order: number): number {
+export const TIMELINE_RENDERABLE_ROW_MIN = 1;
+export const TIMELINE_RENDERABLE_ROW_MAX = 4;
+/** Tall Modular slot: Plan phases no longer wrap onto four Standard lanes. */
+export const TIMELINE_FILL_ROW_MAX = 16;
+
+export type CompactLanePolicy = "wrap4" | "onePhasePerRow";
+
+function phaseRowIndex(order: number, lanePolicy: CompactLanePolicy): number {
+  if (lanePolicy === "onePhasePerRow") {
+    return Math.min(
+      TIMELINE_FILL_ROW_MAX,
+      Math.max(TIMELINE_RENDERABLE_ROW_MIN, order + 1)
+    );
+  }
   return (order % 4) + 1;
+}
+
+export function compactLanePolicyForVariation(variation: string): CompactLanePolicy {
+  return variation === "Modular" ? "onePhasePerRow" : "wrap4";
+}
+
+export function timelineLayoutMaxRow(variation: string): number {
+  return variation === "Modular" ? TIMELINE_FILL_ROW_MAX : TIMELINE_RENDERABLE_ROW_MAX;
 }
 
 function isKeyDateMarker(item: PlanItemJson): boolean {
@@ -81,8 +102,10 @@ export function applyPlanPhaseColors<
 
 export function compactPlanToSchedule(
   phases: PlanPhaseJson[],
-  density: PlanReportDensity
+  density: PlanReportDensity,
+  options?: { lanePolicy?: CompactLanePolicy }
 ): ReportScheduleSlice | null {
+  const lanePolicy = options?.lanePolicy ?? "wrap4";
   const datedPhases = phases.filter(
     (phase) => phaseShowsOnReports(phase) && phase.items.length > 0
   );
@@ -103,7 +126,7 @@ export function compactPlanToSchedule(
       const muted = phase.items.every((item) => isPlanItemComplete(item));
       return {
         phaseId: phase.id,
-        rowIndex: phaseRowIndex(phase.order),
+        rowIndex: phaseRowIndex(phase.order, lanePolicy),
         label: phase.name,
         startDate,
         endDate,
@@ -118,7 +141,7 @@ export function compactPlanToSchedule(
   }
 
   const markers = datedPhases.flatMap((phase) => {
-    const rowIndex = phaseRowIndex(phase.order);
+    const rowIndex = phaseRowIndex(phase.order, lanePolicy);
     return phase.items
       .filter((item) => isKeyDateMarker(item) && itemShowsOnReports(item))
       .map((item) => {
@@ -154,12 +177,12 @@ export type TimelineAxisSlice = {
   markers: ScheduleMarker[];
 };
 
-export const TIMELINE_RENDERABLE_ROW_MIN = 1;
-export const TIMELINE_RENDERABLE_ROW_MAX = 4;
-
-export function isRenderableTimelineRow(rowIndex: number | undefined): boolean {
+export function isRenderableTimelineRow(
+  rowIndex: number | undefined,
+  maxRow = TIMELINE_RENDERABLE_ROW_MAX
+): boolean {
   const row = rowIndex ?? 1;
-  return row >= TIMELINE_RENDERABLE_ROW_MIN && row <= TIMELINE_RENDERABLE_ROW_MAX;
+  return row >= TIMELINE_RENDERABLE_ROW_MIN && row <= maxRow;
 }
 
 /** Clip a bar to the axis; returns null when nothing is visible (zero-length or fully outside). */
@@ -199,9 +222,10 @@ export function getVisibleBarSegmentsForRow<B extends ScheduleBar>(
   bars: readonly B[],
   rowIndex: number,
   axisStart: string,
-  axisEnd: string
+  axisEnd: string,
+  maxRow = TIMELINE_RENDERABLE_ROW_MAX
 ): Array<{ bar: B; visibleStart: string; visibleEnd: string }> {
-  if (!isRenderableTimelineRow(rowIndex)) return [];
+  if (!isRenderableTimelineRow(rowIndex, maxRow)) return [];
   const segments: Array<{ bar: B; visibleStart: string; visibleEnd: string }> = [];
   for (const bar of bars) {
     if (rowIndexOf(bar) !== rowIndex) continue;
@@ -219,31 +243,38 @@ export function getVisibleMarkersForRow<M extends ScheduleMarker>(
   markers: readonly M[],
   rowIndex: number,
   axisStart: string,
-  axisEnd: string
+  axisEnd: string,
+  maxRow = TIMELINE_RENDERABLE_ROW_MAX
 ): M[] {
-  if (!isRenderableTimelineRow(rowIndex)) return [];
+  if (!isRenderableTimelineRow(rowIndex, maxRow)) return [];
   return markers.filter(
     (marker) => rowIndexOf(marker) === rowIndex && isMarkerInAxis(marker, axisStart, axisEnd)
   );
 }
 
-/** Rows 1–4 that draw at least one bar segment or marker. Both renderers show exactly these. */
-export function getActiveTimelineRows(timeline: TimelineAxisSlice): number[] {
+/** Rows that draw at least one bar segment or marker. Standard uses 1–4; Modular fill can go higher. */
+export function getActiveTimelineRows(
+  timeline: TimelineAxisSlice,
+  maxRow = TIMELINE_RENDERABLE_ROW_MAX
+): number[] {
   const startYmd = timeline.startDate.slice(0, 10);
   const endYmd = timeline.endDate.slice(0, 10);
   const rows: number[] = [];
-  for (let row = TIMELINE_RENDERABLE_ROW_MIN; row <= TIMELINE_RENDERABLE_ROW_MAX; row += 1) {
+  for (let row = TIMELINE_RENDERABLE_ROW_MIN; row <= maxRow; row += 1) {
     const hasContent =
-      getVisibleBarSegmentsForRow(timeline.bars, row, startYmd, endYmd).length > 0 ||
-      getVisibleMarkersForRow(timeline.markers, row, startYmd, endYmd).length > 0;
+      getVisibleBarSegmentsForRow(timeline.bars, row, startYmd, endYmd, maxRow).length > 0 ||
+      getVisibleMarkersForRow(timeline.markers, row, startYmd, endYmd, maxRow).length > 0;
     if (hasContent) rows.push(row);
   }
   return rows;
 }
 
-/** True when at least one bar segment or marker is visible on rows 1–4 within the axis. */
-export function timelineHasVisibleSchedule(timeline: TimelineAxisSlice): boolean {
-  return getActiveTimelineRows(timeline).length > 0;
+/** True when at least one bar segment or marker is visible on rows 1–maxRow within the axis. */
+export function timelineHasVisibleSchedule(
+  timeline: TimelineAxisSlice,
+  maxRow = TIMELINE_RENDERABLE_ROW_MAX
+): boolean {
+  return getActiveTimelineRows(timeline, maxRow).length > 0;
 }
 
 export const COMPACT_PLAN_TIMELINE_MAX_ROWS = 4;
@@ -257,4 +288,68 @@ export function getCompactPlanTimelineRows(
   maxRows = COMPACT_PLAN_TIMELINE_MAX_ROWS
 ): number[] {
   return getActiveTimelineRows(timeline).slice(0, maxRows);
+}
+
+type ExpandableBar = {
+  startDate: string;
+  endDate: string;
+  rowIndex?: number;
+  label?: string;
+  phaseId?: string;
+};
+type ExpandableMarker = {
+  date: string;
+  rowIndex?: number;
+  label?: string;
+};
+
+function barsHaveUniqueRowIndexes(bars: ExpandableBar[]): boolean {
+  const seen = new Set<number>();
+  for (const bar of bars) {
+    const row = bar.rowIndex ?? 1;
+    if (seen.has(row)) return false;
+    seen.add(row);
+  }
+  return true;
+}
+
+/**
+ * Standard wraps extra Plan phases onto 4 lanes (`order % 4`). In a filled Modular
+ * slot each bar gets its own row so those phases are not stacked/hidden.
+ * Already-unique rows (Arrange / `onePhasePerRow`) are left unchanged.
+ */
+export function expandScheduleEntriesToOwnRows<T extends TimelineAxisSlice>(timeline: T): T {
+  const bars = timeline.bars as ExpandableBar[];
+  if (barsHaveUniqueRowIndexes(bars)) {
+    return timeline;
+  }
+  const order = bars
+    .map((bar, index) => ({ bar, index }))
+    .sort(
+      (a, b) =>
+        a.bar.startDate.localeCompare(b.bar.startDate) ||
+        (a.bar.label ?? "").localeCompare(b.bar.label ?? "") ||
+        a.index - b.index
+    );
+  const newRowByIndex = new Map<number, number>();
+  order.forEach((entry, i) => {
+    newRowByIndex.set(entry.index, i + 1);
+  });
+  const remappedBars = bars.map((bar, index) => ({
+    ...bar,
+    rowIndex: newRowByIndex.get(index) ?? index + 1,
+  }));
+  const remappedMarkers = (timeline.markers as ExpandableMarker[]).map((marker) => {
+    const orig = marker.rowIndex ?? 1;
+    const date = marker.date.slice(0, 10);
+    const candidates = bars
+      .map((bar, index) => ({ bar, newRow: newRowByIndex.get(index) ?? index + 1 }))
+      .filter(({ bar }) => (bar.rowIndex ?? 1) === orig);
+    const hit =
+      candidates.find(
+        ({ bar }) => date >= bar.startDate.slice(0, 10) && date <= bar.endDate.slice(0, 10)
+      ) ?? candidates[0];
+    return { ...marker, rowIndex: hit?.newRow ?? orig };
+  });
+  return { ...timeline, bars: remappedBars, markers: remappedMarkers };
 }
