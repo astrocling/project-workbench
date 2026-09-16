@@ -857,9 +857,15 @@ const styles = StyleSheet.create({
     fontSize: 7,
     color: BIO_VALUE_COLOR,
   },
-  modularPage: {
+  modularPhysicalPage: {
+    overflow: "hidden",
+    fontFamily: "Raleway",
+  },
+  modularScaledCanvas: {
     width: MODULAR_SLIDE_WIDTH_PX,
     height: MODULAR_SLIDE_HEIGHT_PX,
+    transform: "scale(0.5)",
+    transformOrigin: "0 0",
     paddingTop: 24,
     paddingLeft: 24,
     paddingRight: 24,
@@ -1689,13 +1695,14 @@ function ModularPdfModuleBody({
 }) {
   switch (module.type) {
     case "sprintSchedule": {
-      const schedule = module.data as SprintScheduleData;
-      if (schedule.rows.length === 0) {
+      const schedule = module.data as SprintScheduleData | undefined;
+      const scheduleRows = schedule?.rows ?? [];
+      if (scheduleRows.length === 0) {
         return <ModularPdfEmpty label={PANEL_META.sprintSchedule.label} />;
       }
       return (
         <View>
-          {schedule.rows.map((row, index) => {
+          {scheduleRows.map((row, index) => {
             const alt = index % 2 === 1;
             const labelStyle = alt ? styles.srLabelCompactAlt : styles.srLabelCompact;
             const cellStyle = alt ? styles.srWhiteCompactAlt : styles.srWhiteCompact;
@@ -1714,8 +1721,10 @@ function ModularPdfModuleBody({
       );
     }
     case "storyPointMetrics": {
-      const metrics = module.data as StoryPointsMetricsData;
-      if (metrics.systems.length === 0) {
+      const metrics = module.data as StoryPointsMetricsData | undefined;
+      const systems = metrics?.systems ?? [];
+      const metricRows = metrics?.rows ?? [];
+      if (systems.length === 0) {
         return <ModularPdfEmpty label={PANEL_META.storyPointMetrics.label} />;
       }
       return (
@@ -1724,13 +1733,13 @@ function ModularPdfModuleBody({
             <View style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompact, { flex: 1.5 }]}>
               <Text style={styles.srHeaderCompact}> </Text>
             </View>
-            {metrics.systems.map((sys, i) => (
+            {systems.map((sys, i) => (
               <View key={i} style={[styles.bottomQuarterCell, styles.srBorder, styles.srHeaderCompact, { flex: 1 }]}>
                 <Text style={[styles.srHeaderCompact, { textAlign: "center" }]}>{sys.name}</Text>
               </View>
             ))}
           </View>
-          {metrics.rows.map((row, rowIndex) => {
+          {metricRows.map((row, rowIndex) => {
             const alt = rowIndex % 2 === 1;
             const labelStyle = alt ? styles.srLabelCompactAlt : styles.srLabelCompact;
             const cellStyle = alt ? styles.srWhiteCompactAlt : styles.srWhiteCompact;
@@ -2085,17 +2094,17 @@ function ModularPdfGrid({
             style={row.height === "tall" ? styles.modularRowTall : styles.modularRowShort}
           >
             {row.moduleIds.map((moduleId, i) => {
-              const module = moduleId ? doc.modules[moduleId] : undefined;
+              const placedModule = moduleId ? doc.modules[moduleId] : undefined;
               return (
                 <View
                   key={`${row.id}-${i}`}
                   style={[styles.modularCell, { flexGrow: weights[i] ?? 1, flexShrink: 1, flexBasis: 0 }]}
                 >
-                  {module ? (
+                  {placedModule ? (
                     <View style={styles.modularModuleBox}>
-                      <Text style={styles.modularModuleHeader}>{modularPdfTitle(module)}</Text>
+                      <Text style={styles.modularModuleHeader}>{modularPdfTitle(placedModule)}</Text>
                       <View style={styles.modularModuleBody}>
-                        <ModularPdfModuleBody module={module} data={data} />
+                        <ModularPdfModuleBody module={placedModule} data={data} />
                       </View>
                     </View>
                   ) : (
@@ -2119,11 +2128,8 @@ function ModularStatusReportDocument({ data }: { data: StatusReportPDFData }) {
 
   return (
     <Document>
-      <Page
-        size={[MODULAR_SLIDE_WIDTH_PX, MODULAR_SLIDE_HEIGHT_PX]}
-        style={styles.modularPage}
-        wrap={false}
-      >
+      <Page size={[PAGE_WIDTH, PAGE_HEIGHT]} style={styles.modularPhysicalPage} wrap={false}>
+        <View style={styles.modularScaledCanvas}>
         <View style={styles.modularPageInner}>
           <View style={styles.modularContent}>
             <View style={styles.topRow}>
@@ -2183,19 +2189,18 @@ function ModularStatusReportDocument({ data }: { data: StatusReportPDFData }) {
           </View>
           <StatusReportFooter />
         </View>
+        </View>
       </Page>
       {shouldRenderModularPage2(doc) && (
-        <Page
-          size={[MODULAR_SLIDE_WIDTH_PX, MODULAR_SLIDE_HEIGHT_PX]}
-          style={styles.modularPage}
-          wrap={false}
-        >
+        <Page size={[PAGE_WIDTH, PAGE_HEIGHT]} style={styles.modularPhysicalPage} wrap={false}>
+          <View style={styles.modularScaledCanvas}>
           <View style={styles.modularPageInner}>
             <View style={styles.modularContent}>
               <CompactModularPdfHeader data={data} />
               <ModularPdfGrid doc={doc} data={data} page={doc.layout.pages[1]} />
             </View>
             <StatusReportFooter />
+          </View>
           </View>
         </Page>
       )}

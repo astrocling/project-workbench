@@ -236,6 +236,8 @@ export function appendModularContinuationPage(
   return next;
 }
 
+export const MAX_MODULAR_ROWS_PER_PAGE = 4;
+
 export function addModularRow(
   doc: ModularPanelsDocument,
   pageIndex: number,
@@ -244,6 +246,7 @@ export function addModularRow(
 ): ModularPanelsDocument {
   const page = doc.layout.pages[pageIndex];
   if (!page) return doc;
+  if (page.rows.length >= MAX_MODULAR_ROWS_PER_PAGE) return doc;
   const next = cloneDoc(doc);
   const used = usedIds(next);
   next.layout.pages[pageIndex].rows.push({
@@ -316,9 +319,9 @@ export function addModuleToSlot(
   if (!canPlaceModuleType(doc, type)) return doc;
   const next = cloneDoc(doc);
   const used = usedIds(next);
-  const module = makeModule(nextId(used, "m"), type);
-  next.modules[module.id] = module;
-  next.layout.pages[pageIndex].rows[rowIndex].moduleIds[slotIndex] = module.id;
+  const nextModule = makeModule(nextId(used, "m"), type);
+  next.modules[nextModule.id] = nextModule;
+  next.layout.pages[pageIndex].rows[rowIndex].moduleIds[slotIndex] = nextModule.id;
   return next;
 }
 

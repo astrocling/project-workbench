@@ -6,9 +6,15 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { getProjectId } from "@/lib/slug";
 import { deleteCachedPdf } from "@/lib/statusReportPdfCache";
-import { isStatusReportSnapshot, type StatusReportSnapshot } from "@/lib/statusReportPdfData";
+import { buildStatusReportPdfData, isStatusReportSnapshot, type StatusReportSnapshot } from "@/lib/statusReportPdfData";
 import { z } from "zod";
-import { normalizeModularPanels } from "@/lib/reportPanels";
+import {
+  modularNeedsBudget,
+  modularNeedsPlanLists,
+  modularNeedsTimeline,
+  normalizeModularPanels,
+} from "@/lib/reportPanels";
+import { mergePlanListsIntoSnapshot, snapshotHasPlanLists } from "@/lib/plan/reportLists";
 
 const variationEnum = z.enum(["Standard", "Milestones", "CDA", "Modular"]);
 const ragEnum = z.enum(["Red", "Amber", "Green"]);
@@ -109,9 +115,13 @@ export async function PATCH(
     ragBudgetExplanation?: string | null;
   };
   const data: UpdateData = {};
+  const effectiveVariation = parsed.data.variation ?? existing.variation;
   if (parsed.data.variation != null) data.variation = parsed.data.variation as "Standard" | "Milestones" | "CDA" | "Modular";
   if (parsed.data.panels != null) {
-    data.panels = normalizeModularPanels(parsed.data.panels) as Prisma.InputJsonValue;
+    data.panels =
+      effectiveVariation === "Modular"
+        ? (normalizeModularPanels(parsed.data.panels) as Prisma.InputJsonValue)
+        : (parsed.data.panels as Prisma.InputJsonValue);
   }
   if (parsed.data.completedActivities != null) data.completedActivities = parsed.data.completedActivities;
   if (parsed.data.upcomingActivities != null) data.upcomingActivities = parsed.data.upcomingActivities;
@@ -158,13 +168,59 @@ export async function PATCH(
     }
   }
 
-  const report = await prisma.statusReport.update({
+  let report = await prisma.statusReport.update({
     where: { id: reportId },
     data: {
       ...data,
       ...(snapshotUpdate !== undefined ? { snapshot: snapshotUpdate } : {}),
     },
   });
+
+  if (parsed.data.panels != null && effectiveVariation === "Modular") {
+    const panelsDoc = normalizeModularPanels(parsed.data.panels);
+    const needsBudget = modularNeedsBudget(panelsDoc);
+    const needsTimeline = modularNeedsTimeline(panelsDoc);
+    const needsPlanLists = modularNeedsPlanLists(panelsDoc);
+    const currentSnap: StatusReportSnapshot = isStatusReportSnapshot(report.snapshot)
+      ? report.snapshot
+      : { period: "", today: "" };
+    const missingBudget = needsBudget && currentSnap.budget === undefined;
+    const missingTimeline = needsTimeline && currentSnap.timeline === undefined;
+    const missingPlanLists = needsPlanLists && !snapshotHasPlanLists(currentSnap);
+    if (missingBudget || missingTimeline || missingPlanLists) {
+      try {
+        const pdfData = await buildStatusReportPdfData(projectId, reportId);
+        if (pdfData) {
+          let nextSnap: StatusReportSnapshot = { ...currentSnap };
+          if (missingBudget) nextSnap.budget = pdfData.budget;
+          if (missingTimeline) nextSnap.timeline = pdfData.timeline;
+          if (missingPlanLists) {
+            nextSnap = mergePlanListsIntoSnapshot(nextSnap, {
+              planMeetings: pdfData.planMeetings ?? { needsScheduling: [], scheduled: [] },
+              planActivitiesCompleted: pdfData.planActivitiesCompleted ?? {
+                items: [],
+                overflowCount: 0,
+              },
+              planActivitiesUpcoming: pdfData.planActivitiesUpcoming ?? {
+                items: [],
+                overflowCount: 0,
+              },
+            });
+          }
+          report = await prisma.statusReport.update({
+            where: { id: reportId },
+            data: { snapshot: nextSnap as Prisma.InputJsonValue },
+          });
+        }
+      } catch (buildError) {
+        console.error(
+          "Failed to lock Modular budget/timeline/plan-list snapshot after panel update:",
+          buildError
+        );
+      }
+    }
+  }
+
   await deleteCachedPdf(reportId);
   revalidateTag(`status-report-${reportId}`, "default");
   return NextResponse.json(report);

@@ -302,6 +302,49 @@ function isReportModule(value: unknown): value is ReportModule {
   return typeof rec.id === "string" && typeof rec.type === "string" && MODULE_TYPES.has(rec.type);
 }
 
+function coerceModuleData(mod: ReportModule): ReportModule {
+  const raw =
+    mod.data && typeof mod.data === "object" && !Array.isArray(mod.data)
+      ? (mod.data as Record<string, unknown>)
+      : {};
+  switch (mod.type) {
+    case "sprintSchedule":
+      return {
+        ...mod,
+        data: { rows: Array.isArray(raw.rows) ? (raw.rows as SprintScheduleData["rows"]) : [] },
+      };
+    case "storyPointMetrics":
+      return {
+        ...mod,
+        data: {
+          systems: Array.isArray(raw.systems)
+            ? (raw.systems as StoryPointsMetricsData["systems"])
+            : [],
+          rows: Array.isArray(raw.rows) ? (raw.rows as StoryPointsMetricsData["rows"]) : [],
+        },
+      };
+    case "donutKpi": {
+      const source =
+        raw.source === "budgetBurnPct" ||
+        raw.source === "hoursUtilization" ||
+        raw.source === "manual"
+          ? raw.source
+          : "manual";
+      return {
+        ...mod,
+        data: {
+          source,
+          manualValue: typeof raw.manualValue === "number" ? raw.manualValue : 0,
+          label: typeof raw.label === "string" ? raw.label : "",
+          size: raw.size === "small" ? "small" : "large",
+        },
+      };
+    }
+    default:
+      return { ...mod, data: {} };
+  }
+}
+
 function parseV1Document(input: unknown): ModularPanelsDocument | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const rec = input as Record<string, unknown>;
@@ -314,19 +357,20 @@ function parseV1Document(input: unknown): ModularPanelsDocument | null {
   }
 
   const pagesRaw = (layout as { pages?: unknown }).pages;
-  if (!Array.isArray(pagesRaw) || pagesRaw.length < 1 || pagesRaw.length > 2) {
+  if (!Array.isArray(pagesRaw) || pagesRaw.length < 1) {
     return null;
   }
+  const pagesLimited = pagesRaw.slice(0, 2);
 
   const modules: Record<string, ReportModule> = {};
   for (const [key, value] of Object.entries(modulesRaw as Record<string, unknown>)) {
     if (!isReportModule(value) || value.id !== key) return null;
-    modules[key] = value;
+    modules[key] = coerceModuleData(value);
   }
 
   const pages: ModularLayoutPage[] = [];
-  for (let i = 0; i < pagesRaw.length; i++) {
-    const page = pagesRaw[i];
+  for (let i = 0; i < pagesLimited.length; i++) {
+    const page = pagesLimited[i];
     if (!page || typeof page !== "object" || Array.isArray(page)) return null;
     const header = (page as { header?: unknown }).header;
     const rowsRaw = (page as { rows?: unknown }).rows;

@@ -14,6 +14,7 @@ import {
   buildBudgetForwardDocument,
   buildClassicModularDocument,
   buildPlanDeliveryDocument,
+  MAX_MODULAR_ROWS_PER_PAGE,
   moveModularRow,
   removeModularRow,
   removeModuleFromSlot,
@@ -206,6 +207,17 @@ describe("row and slot edits", () => {
       height: "tall",
       moduleIds: [null, null],
     });
+  });
+
+  it("no-ops when a page already has MAX_MODULAR_ROWS_PER_PAGE rows", () => {
+    expect(MAX_MODULAR_ROWS_PER_PAGE).toBe(4);
+    let doc = buildClassicModularDocument();
+    expect(doc.layout.pages[0].rows).toHaveLength(3);
+    doc = addModularRow(doc, 0, "full", "short");
+    expect(doc.layout.pages[0].rows).toHaveLength(4);
+    const capped = addModularRow(doc, 0, "halves", "tall");
+    expect(capped).toBe(doc);
+    expect(capped.layout.pages[0].rows).toHaveLength(4);
   });
 
   it("moves and removes rows", () => {

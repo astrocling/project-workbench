@@ -653,12 +653,13 @@ function ModularEmptyState({ label }: { label: string }) {
 }
 
 function ModularSprintSchedule({ data }: { data: SprintScheduleData }) {
-  if (data.rows.length === 0) {
+  const rows = data?.rows ?? [];
+  if (rows.length === 0) {
     return <ModularEmptyState label={PANEL_META.sprintSchedule.label} />;
   }
   return (
     <div className="h-full w-full border border-gray-200">
-      {data.rows.map((row, i) => (
+      {rows.map((row, i) => (
         <div
           key={i}
           className="flex flex-row text-[8px] border-t border-gray-200 first:border-t-0"
@@ -673,7 +674,9 @@ function ModularSprintSchedule({ data }: { data: SprintScheduleData }) {
 }
 
 function ModularStoryPointMetrics({ data }: { data: StoryPointsMetricsData }) {
-  if (data.systems.length === 0) {
+  const systems = data?.systems ?? [];
+  const metricRows = data?.rows ?? [];
+  if (systems.length === 0) {
     return <ModularEmptyState label={PANEL_META.storyPointMetrics.label} />;
   }
   return (
@@ -683,13 +686,13 @@ function ModularStoryPointMetrics({ data }: { data: StoryPointsMetricsData }) {
         style={{ backgroundColor: BRAND_COLORS.header, color: BRAND_COLORS.onHeader }}
       >
         <div className="flex-[1.5] py-0.5 px-1" />
-        {data.systems.map((sys, i) => (
+        {systems.map((sys, i) => (
           <div key={i} className="flex-1 py-0.5 px-1 text-center">
             {sys.name}
           </div>
         ))}
       </div>
-      {data.rows.map((row, i) => (
+      {metricRows.map((row, i) => (
         <div
           key={i}
           className="flex flex-row text-[8px] border-t border-gray-200"
@@ -1092,16 +1095,16 @@ function ModularPageGrid({
             }
           >
             {row.moduleIds.map((moduleId, i) => {
-              const module = moduleId ? doc.modules[moduleId] : undefined;
+              const placedModule = moduleId ? doc.modules[moduleId] : undefined;
               return (
                 <div
                   key={`${row.id}-${i}`}
                   className="min-w-0 h-full"
                   style={{ flex: `${weights[i] ?? 1} 1 0` }}
                 >
-                  {module ? (
-                    <ModularModuleBox title={modularModuleTitle(module)}>
-                      <ModularModuleBody module={module} data={data} />
+                  {placedModule ? (
+                    <ModularModuleBox title={modularModuleTitle(placedModule)}>
+                      <ModularModuleBody module={placedModule} data={data} />
                     </ModularModuleBox>
                   ) : (
                     <div className="h-full w-full border border-gray-200 bg-white" />

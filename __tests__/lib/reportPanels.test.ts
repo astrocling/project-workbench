@@ -193,6 +193,59 @@ describe("normalizeModularPanels", () => {
     expect(normalizeModularPanels({ foo: 1 })).toEqual(MODULAR_DEFAULT_DOCUMENT);
     expect(normalizeModularPanels([{ not: "a panel" }])).toEqual(MODULAR_DEFAULT_DOCUMENT);
   });
+
+  it("slices a v1 document with more than 2 pages instead of replacing with Classic default", () => {
+    const extraPage = {
+      header: "compact" as const,
+      rows: [
+        {
+          id: "r-extra",
+          shape: "full" as const,
+          height: "short" as const,
+          moduleIds: [null],
+        },
+      ],
+    };
+    const threePages = {
+      ...MODULAR_DEFAULT_DOCUMENT,
+      layout: {
+        pages: [
+          MODULAR_DEFAULT_DOCUMENT.layout.pages[0],
+          extraPage,
+          { ...extraPage, rows: [{ ...extraPage.rows[0], id: "r-dropped" }] },
+        ],
+      },
+    };
+    const doc = normalizeModularPanels(threePages);
+    expect(doc.layout.pages).toHaveLength(2);
+    expect(doc.layout.pages[0]).toEqual(MODULAR_DEFAULT_DOCUMENT.layout.pages[0]);
+    expect(doc.layout.pages[1]).toEqual(extraPage);
+    expect(doc.modules).toEqual(MODULAR_DEFAULT_DOCUMENT.modules);
+  });
+
+  it("fills empty sprint/story/donut data when missing instead of throwing", () => {
+    const broken = structuredClone(MODULAR_DEFAULT_DOCUMENT) as {
+      version: 1;
+      layout: typeof MODULAR_DEFAULT_DOCUMENT.layout;
+      modules: Record<string, { id: string; type: string; data?: unknown }>;
+    };
+    delete broken.modules.m1.data;
+    delete broken.modules.m2.data;
+    delete broken.modules.m3.data;
+    const doc = normalizeModularPanels(broken);
+    expect(doc.modules.m1).toMatchObject({
+      type: "sprintSchedule",
+      data: { rows: [] },
+    });
+    expect(doc.modules.m2).toMatchObject({
+      type: "storyPointMetrics",
+      data: { systems: [], rows: [] },
+    });
+    expect(doc.modules.m3).toMatchObject({
+      type: "donutKpi",
+      data: { source: "manual", manualValue: 0, size: "large" },
+    });
+  });
 });
 
 describe("shouldRenderModularPage2", () => {
