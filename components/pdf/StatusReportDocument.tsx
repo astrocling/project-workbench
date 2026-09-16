@@ -931,6 +931,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#6b7280",
   },
+  modularListSectionHeader: {
+    fontSize: 9,
+    fontWeight: 700,
+    color: "#374151",
+    textTransform: "uppercase",
+    marginBottom: 2,
+    marginTop: 2,
+  },
   modularTableText: {
     fontSize: 8,
   },
@@ -1787,7 +1795,7 @@ function ModularPdfModuleBody({
         <View>
           {capped.needsScheduling.length > 0 ? (
             <View>
-              <Text style={styles.modularEmptyText}>Needs scheduling</Text>
+              <Text style={styles.modularListSectionHeader}>Needs scheduling</Text>
               <ModularPdfPlanItems
                 items={capped.needsScheduling}
                 overflowCount={0}
@@ -1797,7 +1805,7 @@ function ModularPdfModuleBody({
           ) : null}
           {capped.scheduled.length > 0 ? (
             <View>
-              <Text style={styles.modularEmptyText}>Scheduled</Text>
+              <Text style={styles.modularListSectionHeader}>Scheduled</Text>
               <ModularPdfPlanItems items={capped.scheduled} overflowCount={0} showExtra />
             </View>
           ) : null}

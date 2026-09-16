@@ -130,6 +130,31 @@ describe("buildPlanReportLists — meetings", () => {
     ).not.toContain("done");
   });
 
+  it("excludes complete+unscheduled meetings from both upcoming buckets and completed activities", () => {
+    const lists = buildPlanReportLists(
+      [
+        phase("p", 0, [
+          meeting({
+            id: "done-unsched",
+            order: 0,
+            meetingStatus: "unscheduled",
+            status: "complete",
+          }),
+          meeting({
+            id: "open-unsched",
+            order: 1,
+            meetingStatus: "unscheduled",
+          }),
+        ]),
+      ],
+      REPORT_DATE
+    );
+
+    expect(lists.planMeetings.needsScheduling.map((m) => m.id)).toEqual(["open-unsched"]);
+    expect(lists.planMeetings.scheduled.map((m) => m.id)).not.toContain("done-unsched");
+    expect(lists.planActivitiesCompleted.items.map((a) => a.id)).not.toContain("done-unsched");
+  });
+
   it("does not filter showOnReports on meetings", () => {
     const lists = buildPlanReportLists(
       [

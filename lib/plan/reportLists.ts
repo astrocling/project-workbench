@@ -58,7 +58,12 @@ function buildMeetings(
   rows: Array<{ phaseOrder: number; item: PlanItemJson }>
 ): PlanMeetingsSnapshot {
   const needsScheduling = rows
-    .filter(({ item }) => item.type === "meeting" && item.meetingStatus === "unscheduled")
+    .filter(
+      ({ item }) =>
+        item.type === "meeting" &&
+        item.meetingStatus === "unscheduled" &&
+        item.status !== "complete"
+    )
     .sort((a, b) => a.phaseOrder - b.phaseOrder || a.item.order - b.item.order)
     .map(({ item }) => ({
       id: item.id,
