@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 How-to for these items is in the [User Guide](docs/USER_GUIDE.md). APIs, schema, and deploy details are in the [Technical Reference](docs/TECHNICAL.md).
 
+### Added
+
+- **Modular layout editor** — Status Reports **Modular** variation composes a 1440×810 grid (Classic / Plan delivery / Budget-forward presets, row shapes, continuation slide). Create/update persist the v1 `{ layout, modules }` document so budget, timeline, and Plan modules survive save.
+
 ## [1.3.4] - 2026-09-15
 
 Patch release: Plan **Chart** / **Present** (labeled Gantt, collapsible columns, PDF) and Overview **Post week to Slack** hours plus clearer start/end dates. **Deploy:** no new migrations; redeploy the app.

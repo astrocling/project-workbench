@@ -74,8 +74,16 @@ function expectClassicLayout(doc: ModularPanelsDocument) {
 
   expect(rows[0].shape).toBe("thirds");
   expect(rows[0].height).toBe("tall");
-  expect(rows[0].moduleIds).toEqual([null, null, null]);
   expect(rows[0].moduleIds.length).toBe(rowSlotCount("thirds"));
+  expect(rows[0].moduleIds.every((id) => typeof id === "string")).toBe(true);
+  const narrativeTypes = rows[0].moduleIds.map(
+    (id) => doc.modules[id as string]?.type
+  );
+  expect(narrativeTypes).toEqual([
+    "narrativeCompleted",
+    "narrativeUpcoming",
+    "narrativeRisks",
+  ]);
 
   expect(rows[1].shape).toBe("halves");
   expect(rows[1].height).toBe("short");
@@ -129,7 +137,7 @@ describe("rowShapeWeights", () => {
 });
 
 describe("normalizeModularPanels", () => {
-  it("returns Classic Modular default for undefined (empty thirds + sprint/metrics + two donuts)", () => {
+  it("returns Classic Modular default for undefined (typed narrative thirds + sprint/metrics + two donuts)", () => {
     const doc = normalizeModularPanels(undefined);
     expect(doc).toEqual(MODULAR_DEFAULT_DOCUMENT);
     expectClassicLayout(doc);
@@ -165,7 +173,7 @@ describe("normalizeModularPanels", () => {
     expect(doc.modules[storyId as string]?.data).toEqual(legacyFourPanels[1].data);
     expect(doc.modules[donut1Id as string]?.data).toEqual(legacyFourPanels[2].data);
     expect(doc.modules[donut2Id as string]?.data).toEqual(legacyFourPanels[3].data);
-    expect(Object.keys(doc.modules)).toHaveLength(4);
+    expect(Object.keys(doc.modules)).toHaveLength(7);
   });
 
   it("is identity for an already-v1 document (stable ids)", () => {
@@ -266,7 +274,13 @@ function placeModuleInFirstEmptySlot(
       }
     }
   }
-  throw new Error("no empty slot");
+  doc.layout.pages[0].rows.push({
+    id: "placed-row",
+    shape: "full",
+    height: "short",
+    moduleIds: [id],
+  });
+  return doc;
 }
 
 describe("modularDocumentHasType", () => {

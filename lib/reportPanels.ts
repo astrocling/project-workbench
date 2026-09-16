@@ -202,6 +202,21 @@ function classicModularDocumentFromModules(
   donut1: ReportModule,
   donut2: ReportModule
 ): ModularPanelsDocument {
+  const completed: ReportModule = {
+    id: "n1",
+    type: "narrativeCompleted",
+    data: {},
+  };
+  const upcoming: ReportModule = {
+    id: "n2",
+    type: "narrativeUpcoming",
+    data: {},
+  };
+  const risks: ReportModule = {
+    id: "n3",
+    type: "narrativeRisks",
+    data: {},
+  };
   return {
     version: 1,
     layout: {
@@ -213,7 +228,7 @@ function classicModularDocumentFromModules(
               id: "r1",
               shape: "thirds",
               height: "tall",
-              moduleIds: [null, null, null],
+              moduleIds: [completed.id, upcoming.id, risks.id],
             },
             {
               id: "r2",
@@ -232,6 +247,9 @@ function classicModularDocumentFromModules(
       ],
     },
     modules: {
+      [completed.id]: completed,
+      [upcoming.id]: upcoming,
+      [risks.id]: risks,
       [sprint.id]: sprint,
       [story.id]: story,
       [donut1.id]: donut1,

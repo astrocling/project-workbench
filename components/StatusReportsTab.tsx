@@ -19,12 +19,32 @@ import { StatusReportPreview } from "@/components/StatusReportPreview";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { Toggle } from "@/components/Toggle";
 import {
-  type ReportPanel,
+  PANEL_META,
+  type ModularPanelsDocument,
+  type RowHeight,
+  type RowShape,
   type SprintScheduleRow,
   type StoryPointsRow,
-  MODULAR_LEGACY_DEFAULT_PANELS,
-  panelsInputToLegacyFormPanels,
+  MODULAR_DEFAULT_DOCUMENT,
+  normalizeModularPanels,
 } from "@/lib/reportPanels";
+import {
+  ADDABLE_MODULE_TYPES,
+  ROW_SHAPE_OPTIONS,
+  addModularRow,
+  addModuleToSlot,
+  appendModularContinuationPage,
+  applyModularPreset,
+  canPlaceModuleType,
+  isPlanGatedModuleType,
+  modulesInLayoutOrder,
+  moveModularRow,
+  removeModularRow,
+  removeModuleFromSlot,
+  updateModuleById,
+  updateModulesByType,
+  type ModularPresetId,
+} from "@/lib/modularLayoutPresets";
 import { formatMonthDay } from "@/lib/formatIsoDate";
 import {
   INCLUDE_DETAILED_PLAN_LABEL,
@@ -344,6 +364,227 @@ function storyPointRowsForDisplay(
   });
 }
 
+function ModularLayoutEditor({
+  doc,
+  onChange,
+  planEnabled,
+}: {
+  doc: ModularPanelsDocument;
+  onChange: (next: ModularPanelsDocument) => void;
+  planEnabled: boolean;
+}) {
+  const [pageIndex, setPageIndex] = useState(0);
+  const [newShape, setNewShape] = useState<RowShape>("full");
+  const [newHeight, setNewHeight] = useState<RowHeight>("short");
+  const pageCount = doc.layout.pages.length;
+  const safePage = Math.min(pageIndex, Math.max(0, pageCount - 1));
+  const page = doc.layout.pages[safePage];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="block text-label-sm font-semibold text-surface-700 dark:text-surface-200 mb-1">
+            Layout preset (applies a full layout)
+          </label>
+          <select
+            defaultValue="classic"
+            onChange={(e) => {
+              const next = e.target.value as ModularPresetId;
+              onChange(applyModularPreset(doc, next, { planEnabled }));
+              setPageIndex(0);
+            }}
+            className={`${FORM_INPUT_CLASS} max-w-xs`}
+            aria-label="Layout preset"
+          >
+            <option value="classic">Classic Modular</option>
+            <option value="planDelivery" disabled={!planEnabled}>
+              Plan delivery{planEnabled ? "" : " (Plan off)"}
+            </option>
+            <option value="budgetForward">Budget-forward</option>
+          </select>
+        </div>
+        {pageCount < 2 && (
+          <button
+            type="button"
+            onClick={() => {
+              onChange(appendModularContinuationPage(doc));
+              setPageIndex(1);
+            }}
+            className="inline-flex items-center justify-center h-9 px-3 rounded text-label-sm border border-jblue-500 text-jblue-600 dark:text-jblue-400 font-medium hover:bg-jblue-50 dark:hover:bg-jblue-950"
+          >
+            Add continuation slide
+          </button>
+        )}
+      </div>
+      {pageCount > 1 && (
+        <div className="flex gap-2" role="tablist" aria-label="Slide pages">
+          {doc.layout.pages.map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              role="tab"
+              aria-selected={safePage === i}
+              onClick={() => setPageIndex(i)}
+              className={`h-8 px-3 rounded text-label-sm border ${
+                safePage === i
+                  ? "border-jblue-500 bg-jblue-50 dark:bg-jblue-950 text-jblue-700 dark:text-jblue-300"
+                  : "border-surface-300 dark:border-dark-muted text-surface-700 dark:text-surface-200"
+              }`}
+            >
+              Page {i + 1}
+              {i === 1 ? " (compact header)" : ""}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="flex flex-wrap items-end gap-2">
+        <div>
+          <label className="block text-label-sm font-semibold text-surface-700 dark:text-surface-200 mb-1">
+            Row shape
+          </label>
+          <select
+            value={newShape}
+            onChange={(e) => setNewShape(e.target.value as RowShape)}
+            className={`${FORM_INPUT_CLASS} w-40`}
+          >
+            {ROW_SHAPE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-label-sm font-semibold text-surface-700 dark:text-surface-200 mb-1">
+            Height
+          </label>
+          <select
+            value={newHeight}
+            onChange={(e) => setNewHeight(e.target.value as RowHeight)}
+            className={`${FORM_INPUT_CLASS} w-28`}
+          >
+            <option value="tall">Tall</option>
+            <option value="short">Short</option>
+          </select>
+        </div>
+        <button
+          type="button"
+          onClick={() => onChange(addModularRow(doc, safePage, newShape, newHeight))}
+          className="inline-flex items-center justify-center h-9 px-3 rounded text-label-sm border border-jblue-500 text-jblue-600 dark:text-jblue-400 font-medium hover:bg-jblue-50 dark:hover:bg-jblue-950"
+        >
+          Add slide row
+        </button>
+      </div>
+      <div className="space-y-3">
+        {page?.rows.map((row, rowIndex) => (
+          <div
+            key={row.id}
+            className="rounded-md border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface p-3 space-y-2"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-label-sm font-semibold text-surface-800 dark:text-surface-100">
+                {ROW_SHAPE_OPTIONS.find((o) => o.value === row.shape)?.label ?? row.shape} ·{" "}
+                {row.height}
+              </p>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  disabled={rowIndex === 0}
+                  onClick={() => onChange(moveModularRow(doc, safePage, rowIndex, "up"))}
+                  className="h-8 px-2 rounded border border-surface-300 dark:border-dark-muted text-label-sm disabled:opacity-40"
+                >
+                  Up
+                </button>
+                <button
+                  type="button"
+                  disabled={rowIndex === page.rows.length - 1}
+                  onClick={() => onChange(moveModularRow(doc, safePage, rowIndex, "down"))}
+                  className="h-8 px-2 rounded border border-surface-300 dark:border-dark-muted text-label-sm disabled:opacity-40"
+                >
+                  Down
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange(removeModularRow(doc, safePage, rowIndex))}
+                  className="h-8 px-2 rounded border border-surface-300 dark:border-dark-muted text-label-sm"
+                >
+                  Remove row
+                </button>
+              </div>
+            </div>
+            <div
+              className="grid gap-2"
+              style={{ gridTemplateColumns: `repeat(${row.moduleIds.length}, minmax(0, 1fr))` }}
+            >
+              {row.moduleIds.map((moduleId, slotIndex) => {
+                const mod = moduleId ? doc.modules[moduleId] : null;
+                return (
+                  <div
+                    key={`${row.id}-${slotIndex}`}
+                    className="rounded border border-dashed border-surface-300 dark:border-dark-muted p-2 space-y-2 min-h-[4.5rem]"
+                  >
+                    {mod ? (
+                      <>
+                        <p className="text-label-sm font-medium text-surface-800 dark:text-surface-100">
+                          {PANEL_META[mod.type].label}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onChange(removeModuleFromSlot(doc, safePage, rowIndex, slotIndex))
+                          }
+                          className="text-label-sm text-surface-600 dark:text-surface-300 underline"
+                        >
+                          Remove module
+                        </button>
+                      </>
+                    ) : (
+                      <select
+                        defaultValue=""
+                        aria-label={`Add module to slot ${slotIndex + 1}`}
+                        onChange={(e) => {
+                          const type = e.target.value;
+                          if (!type) return;
+                          onChange(
+                            addModuleToSlot(
+                              doc,
+                              safePage,
+                              rowIndex,
+                              slotIndex,
+                              type as (typeof ADDABLE_MODULE_TYPES)[number]
+                            )
+                          );
+                          e.target.value = "";
+                        }}
+                        className={`${FORM_INPUT_CLASS} text-label-sm`}
+                      >
+                        <option value="">Add module…</option>
+                        {ADDABLE_MODULE_TYPES.map((type) => {
+                          const uniqueBlocked = !canPlaceModuleType(doc, type);
+                          const planBlocked =
+                            isPlanGatedModuleType(type) && !planEnabled;
+                          const disabled = uniqueBlocked || planBlocked;
+                          return (
+                            <option key={type} value={type} disabled={disabled}>
+                              {PANEL_META[type].label}
+                              {planBlocked ? " (Plan off)" : uniqueBlocked ? " (already used)" : ""}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 type InitialBudgetData = {
   budgetLines: BudgetLine[];
   rollups: Rollups | null | unknown;
@@ -389,8 +630,9 @@ export function StatusReportsTab({
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [formReportDate, setFormReportDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [formVariation, setFormVariation] = useState<FormVariation>("Standard");
-  const [formPanels, setFormPanels] = useState<ReportPanel[]>(MODULAR_LEGACY_DEFAULT_PANELS);
-  const [formLayoutPanels, setFormLayoutPanels] = useState<unknown>(undefined);
+  const [formModularDoc, setFormModularDoc] = useState<ModularPanelsDocument>(
+    () => structuredClone(MODULAR_DEFAULT_DOCUMENT)
+  );
   const [formShowBudget, setFormShowBudget] = useState(true);
   const [formTimelinePreviousMonths, setFormTimelinePreviousMonths] = useState<number>(1);
   const [formTimelineLookaheadMonths, setFormTimelineLookaheadMonths] = useState<number>(2);
@@ -550,8 +792,7 @@ export function StatusReportsTab({
         setFormReportDate(today);
         const newVariation: FormVariation = cdaEnabled ? "CDA" : "Standard";
         setFormVariation(newVariation);
-        setFormPanels(MODULAR_LEGACY_DEFAULT_PANELS);
-        setFormLayoutPanels(undefined);
+        setFormModularDoc(structuredClone(MODULAR_DEFAULT_DOCUMENT));
         setFormShowBudget(true);
         setFormTimelinePreviousMonths(1);
         setFormTimelineLookaheadMonths(2);
@@ -587,8 +828,7 @@ export function StatusReportsTab({
         setFormReportDate(today);
         const newVariation: FormVariation = cdaEnabled ? "CDA" : "Standard";
         setFormVariation(newVariation);
-        setFormPanels(MODULAR_LEGACY_DEFAULT_PANELS);
-        setFormLayoutPanels(undefined);
+        setFormModularDoc(structuredClone(MODULAR_DEFAULT_DOCUMENT));
         setFormShowBudget(true);
         setFormTimelinePreviousMonths(1);
         setFormTimelineLookaheadMonths(2);
@@ -625,8 +865,7 @@ export function StatusReportsTab({
     setEditingReportId(r.id);
     setFormReportDate(r.reportDate.slice(0, 10));
     setFormVariation((r.variation as FormVariation) || "Standard");
-    setFormPanels(panelsInputToLegacyFormPanels(r.panels));
-    setFormLayoutPanels(r.panels);
+    setFormModularDoc(normalizeModularPanels(r.panels));
     setFormShowBudget(
       typeof r.snapshot?.showBudget === "boolean" ? r.snapshot.showBudget : true
     );
@@ -695,7 +934,7 @@ export function StatusReportsTab({
       ...(formScheduleSource === "plan" && { includeDetailedPlan: formIncludeDetailedPlan }),
       variation: formVariation,
       ...(formVariation === "Standard" && { showBudget: formShowBudget }),
-      ...(formVariation === "Modular" && { panels: formPanels }),
+      ...(formVariation === "Modular" && { panels: formModularDoc }),
       completedActivities: formCompleted,
       upcomingActivities: formUpcoming,
       risksIssuesDecisions: formRisks,
@@ -749,7 +988,7 @@ export function StatusReportsTab({
     } finally {
       setFormSaving(false);
     }
-  }, [projectId, editingReportId, reportsPage, rollups, formReportDate, formVariation, formPanels, formShowBudget, formTimelinePreviousMonths, formTimelineLookaheadMonths, formIncludeDetailedPlan, formScheduleSource, formPlanDensity, planEnabled, formCompleted, formUpcoming, formRisks, formMeetingNotes, formRagOverall, formRagScope, formRagSchedule, formRagBudget, formRagOverallExplanation, formRagScopeExplanation, formRagScheduleExplanation, formRagBudgetExplanation, loadReports]);
+  }, [projectId, editingReportId, reportsPage, rollups, formReportDate, formVariation, formModularDoc, formShowBudget, formTimelinePreviousMonths, formTimelineLookaheadMonths, formIncludeDetailedPlan, formScheduleSource, formPlanDensity, planEnabled, formCompleted, formUpcoming, formRisks, formMeetingNotes, formRagOverall, formRagScope, formRagSchedule, formRagBudget, formRagOverallExplanation, formRagScopeExplanation, formRagScheduleExplanation, formRagBudgetExplanation, loadReports]);
 
   const submitSlackHealthUpdate = useCallback(async () => {
     setSlackError("");
@@ -1426,8 +1665,7 @@ export function StatusReportsTab({
                     setFormShowBudget(true);
                   }
                   if (next === "Modular" && !editingReportId) {
-                    setFormPanels(MODULAR_LEGACY_DEFAULT_PANELS);
-                    setFormLayoutPanels(undefined);
+                    setFormModularDoc(structuredClone(MODULAR_DEFAULT_DOCUMENT));
                   }
                   if (
                     !editingReportId &&
@@ -1453,7 +1691,7 @@ export function StatusReportsTab({
                 aria-label="Show project budget on report"
               />
             )}
-            {shouldShowRefreshBudget(formVariation, formLayoutPanels) && editingReportId && canEdit && (
+            {shouldShowRefreshBudget(formVariation, formModularDoc) && editingReportId && canEdit && (
               <div className="space-y-2">
                 <button
                   type="button"
@@ -1472,7 +1710,7 @@ export function StatusReportsTab({
                 )}
               </div>
             )}
-            {shouldShowRefreshTimeline(formVariation, formLayoutPanels) && editingReportId && canEdit && (
+            {shouldShowRefreshTimeline(formVariation, formModularDoc) && editingReportId && canEdit && (
               <div className="space-y-2">
                 <button
                   type="button"
@@ -1496,7 +1734,7 @@ export function StatusReportsTab({
                 )}
               </div>
             )}
-            {shouldShowRefreshPlanLists(formVariation, formLayoutPanels) && editingReportId && canEdit && (
+            {shouldShowRefreshPlanLists(formVariation, formModularDoc) && editingReportId && canEdit && (
               <div className="space-y-2">
                 <button
                   type="button"
@@ -1646,16 +1884,17 @@ export function StatusReportsTab({
               </div>
             )}
             {formVariation === "Modular" && (() => {
-              const sprintSchedulePanel = formPanels.find(
-                (p): p is Extract<ReportPanel, { type: "sprintSchedule" }> =>
-                  p.type === "sprintSchedule"
+              const ordered = modulesInLayoutOrder(formModularDoc);
+              const sprintSchedulePanel = ordered.find(
+                (m): m is Extract<typeof m, { type: "sprintSchedule" }> =>
+                  m.type === "sprintSchedule"
               );
-              const storyPointPanel = formPanels.find(
-                (p): p is Extract<ReportPanel, { type: "storyPointMetrics" }> =>
-                  p.type === "storyPointMetrics"
+              const storyPointPanel = ordered.find(
+                (m): m is Extract<typeof m, { type: "storyPointMetrics" }> =>
+                  m.type === "storyPointMetrics"
               );
-              const donutPanels = formPanels.filter(
-                (p): p is Extract<ReportPanel, { type: "donutKpi" }> => p.type === "donutKpi"
+              const donutPanels = ordered.filter(
+                (m): m is Extract<typeof m, { type: "donutKpi" }> => m.type === "donutKpi"
               );
               const scheduleRows = sprintSchedulePanel?.data.rows ?? [];
               const systems = storyPointPanel?.data.systems ?? [];
@@ -1665,10 +1904,11 @@ export function StatusReportsTab({
               );
 
               const updateSprintSchedule = (rows: SprintScheduleRow[]) => {
-                setFormPanels((panels) =>
-                  panels.map((p) =>
-                    p.type === "sprintSchedule" ? { ...p, data: { rows } } : p
-                  )
+                setFormModularDoc((doc) =>
+                  updateModulesByType(doc, "sprintSchedule", (m) => ({
+                    ...m,
+                    data: { rows },
+                  }))
                 );
               };
 
@@ -1676,25 +1916,33 @@ export function StatusReportsTab({
                 nextSystems: { name: string }[],
                 nextRows: StoryPointsRow[]
               ) => {
-                setFormPanels((panels) =>
-                  panels.map((p) =>
-                    p.type === "storyPointMetrics"
-                      ? { ...p, data: { systems: nextSystems, rows: nextRows } }
-                      : p
-                  )
+                setFormModularDoc((doc) =>
+                  updateModulesByType(doc, "storyPointMetrics", (m) => ({
+                    ...m,
+                    data: { systems: nextSystems, rows: nextRows },
+                  }))
                 );
               };
 
-              const updateDonutKpi = (order: number, data: Extract<ReportPanel, { type: "donutKpi" }>["data"]) => {
-                setFormPanels((panels) =>
-                  panels.map((p) =>
-                    p.type === "donutKpi" && p.order === order ? { ...p, data } : p
+              const updateDonutKpi = (
+                moduleId: string,
+                data: Extract<(typeof ordered)[number], { type: "donutKpi" }>["data"]
+              ) => {
+                setFormModularDoc((doc) =>
+                  updateModuleById(doc, moduleId, (m) =>
+                    m.type === "donutKpi" ? { ...m, data } : m
                   )
                 );
               };
 
               return (
                 <div className="space-y-6 rounded-lg border border-surface-200 dark:border-dark-border p-4 bg-surface-50/50 dark:bg-dark-raised/30">
+                  <ModularLayoutEditor
+                    doc={formModularDoc}
+                    onChange={setFormModularDoc}
+                    planEnabled={planEnabled}
+                  />
+                  {sprintSchedulePanel && (
                   <div className="space-y-3">
                     <h4 className="text-body-sm font-semibold text-surface-800 dark:text-surface-100">
                       Sprint Schedule
@@ -1784,7 +2032,9 @@ export function StatusReportsTab({
                       Add row
                     </button>
                   </div>
+                  )}
 
+                  {storyPointPanel && (
                   <div className="space-y-3">
                     <h4 className="text-body-sm font-semibold text-surface-800 dark:text-surface-100">
                       Story Points
@@ -1910,19 +2160,20 @@ export function StatusReportsTab({
                       </div>
                     )}
                   </div>
+                  )}
 
                   {donutPanels.length > 0 && (
                     <div className="space-y-2">
                         {donutPanels.map((panel) => (
                           <div
-                            key={panel.order}
+                            key={panel.id}
                             className="flex flex-wrap items-center gap-3 rounded-md border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface p-3"
                           >
                             <input
                               type="text"
                               value={panel.data.label}
                               onChange={(e) =>
-                                updateDonutKpi(panel.order, {
+                                updateDonutKpi(panel.id, {
                                   ...panel.data,
                                   label: e.target.value,
                                 })
@@ -1943,7 +2194,7 @@ export function StatusReportsTab({
                                   const safe = Number.isFinite(num)
                                     ? Math.min(100, Math.max(0, num))
                                     : 0;
-                                  updateDonutKpi(panel.order, {
+                                  updateDonutKpi(panel.id, {
                                     ...panel.data,
                                     source: "manual",
                                     size: "large",
