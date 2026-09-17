@@ -59,7 +59,6 @@ import {
 } from "@/lib/plan/reportSchedule";
 import {
   getStatusReportTimelineMetrics,
-  partitionPromotedTimelineMarkers,
   scaleStatusReportTimelineMetrics,
   SR_TIMELINE_BAR_FONT_PX,
   SR_TIMELINE_MARKER_COL_PX,
@@ -1405,98 +1404,6 @@ function TimelineMarkerIconPdf({
   );
 }
 
-function PromotedDateRailPdf({
-  markers,
-  height,
-  metrics,
-  positionPercent,
-  align,
-}: {
-  markers: Array<{
-    date: string;
-    label: string;
-    shape?: string;
-    color?: string | null;
-    muted?: boolean;
-    staggerRow: 0 | 1;
-  }>;
-  height: number;
-  metrics: StatusReportTimelineMetrics;
-  positionPercent: (dateStr: string) => number;
-  align: "top" | "bottom";
-}) {
-  if (height <= 0) return null;
-  return (
-    <View style={{ height, width: "100%", position: "relative", overflow: "hidden" }}>
-      {markers.map((m, i) => {
-        const stroke = m.color || "#1941FA";
-        const lift = m.staggerRow * (metrics.markerFontPx + 2);
-        const hangLeft = m.staggerRow === 1;
-        return (
-          <View
-            key={`rail-${align}-${i}`}
-            style={{
-              position: "absolute",
-              left: `${positionPercent(m.date)}%`,
-              width: metrics.markerColPx,
-              marginLeft: hangLeft ? -metrics.markerColPx : -metrics.markerColPx / 2,
-              ...(align === "top" ? { bottom: 1 } : { top: 1 }),
-              alignItems: hangLeft ? "flex-end" : "center",
-              opacity: m.muted ? 0.45 : 1,
-            }}
-          >
-            {align === "top" ? (
-              <>
-                <Text
-                  style={{
-                    fontSize: metrics.markerFontPx,
-                    color: stroke,
-                    marginBottom: lift,
-                    textAlign: "center",
-                  }}
-                  wrap={false}
-                >
-                  {m.label}
-                </Text>
-                <Text style={{ fontSize: Math.max(5, metrics.markerFontPx - 1), color: "#64748b" }}>
-                  {formatMonthDay(m.date)}
-                </Text>
-                <TimelineMarkerIconPdf
-                  shape={m.shape ?? "Pin"}
-                  size={metrics.markerIconPx}
-                  color={stroke}
-                />
-              </>
-            ) : (
-              <>
-                <TimelineMarkerIconPdf
-                  shape={m.shape ?? "Pin"}
-                  size={metrics.markerIconPx}
-                  color={stroke}
-                />
-                <Text
-                  style={{
-                    fontSize: metrics.markerFontPx,
-                    color: stroke,
-                    marginTop: lift,
-                    textAlign: "center",
-                  }}
-                  wrap={false}
-                >
-                  {m.label}
-                </Text>
-                <Text style={{ fontSize: Math.max(5, metrics.markerFontPx - 1), color: "#64748b" }}>
-                  {formatMonthDay(m.date)}
-                </Text>
-              </>
-            )}
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
 function TimelineBlock({
   timeline,
   reportDate,
@@ -1549,8 +1456,7 @@ function TimelineBlock({
   const overlay = metrics.mode === "overlay";
   const lanes = metrics.mode === "lanes";
   const pinned = metrics.mode === "pinned";
-  const promotedLegacy = metrics.mode === "promoted";
-  const fillBar = overlay || lanes || (promotedLegacy && !fillAvailableHeight);
+  const fillBar = overlay || lanes;
   const stretchBars = fillBar && !fillAvailableHeight;
   const ROW_HEIGHT = metrics.rowHeightPx;
   const labelCol = metrics.labelColPx;
@@ -1621,20 +1527,8 @@ function TimelineBlock({
                 ? ROW_HEIGHT
                 : metrics.markerTopPx + Math.max(markerCount, 1) * markerStep + 4
             ),
-      lockHeight: (lanes || promotedLegacy) && !fillAvailableHeight,
+      lockHeight: lanes && !fillAvailableHeight,
     });
-
-  const promotedSplit = promotedLegacy
-    ? partitionPromotedTimelineMarkers(chart.markers, startYmd, endYmd, {
-        includeBottomRail: fillAvailableHeight && metrics.bottomRailPx > 0,
-      })
-    : { top: [], bottom: [], overflowCount: 0 };
-  const colorize = <T extends { color?: string | null; phaseId?: string; rowIndex?: number }>(marker: T) => ({
-    ...marker,
-    color: timelineMarkerPhaseColor(marker, chart.bars),
-  });
-  const topRail = promotedSplit.top.map(colorize);
-  const bottomRail = promotedSplit.bottom.map(colorize);
 
   const monthHeader = (
       <View style={[styles.timelineMonthRow, { height: monthHeaderPx }]}>
@@ -1683,15 +1577,13 @@ function TimelineBlock({
         const markersInRow = getVisibleMarkersForRow(chart.markers, row, startYmd, endYmd, rowCap)
           .slice()
           .sort((a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label));
-        const chartMarkers = promotedLegacy
-          ? []
-          : fillAvailableHeight
-            ? pinned
-              ? markersInRow
-              : pickSpacedTimelineMarkers(markersInRow, startYmd, endYmd)
-            : lanes
-              ? []
-              : markersInRow;
+        const chartMarkers = fillAvailableHeight
+          ? pinned
+            ? markersInRow
+            : pickSpacedTimelineMarkers(markersInRow, startYmd, endYmd)
+          : lanes
+            ? []
+            : markersInRow;
         const rowHeightPx = pinnedRowData[row]?.heightPx ?? ROW_HEIGHT;
         const pinnedLayout = pinnedRowData[row]?.layout ?? {};
         const rowWash = timelinePhaseWash(clipped[0]?.bar.color);
@@ -1999,26 +1891,8 @@ function TimelineBlock({
               </Text>
             </View>
           )}
-          {promotedLegacy ? (
-            <PromotedDateRailPdf
-              markers={topRail}
-              height={metrics.topBandPx}
-              metrics={metrics}
-              positionPercent={positionPercent}
-              align="top"
-            />
-          ) : null}
           {monthHeader}
           {barRows}
-          {promotedLegacy ? (
-            <PromotedDateRailPdf
-              markers={bottomRail}
-              height={metrics.bottomRailPx}
-              metrics={metrics}
-              positionPercent={positionPercent}
-              align="bottom"
-            />
-          ) : null}
         </View>
       </View>
     </View>

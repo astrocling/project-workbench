@@ -47,7 +47,7 @@ export const SR_TIMELINE_MARKER_TOP_PX =
 export const SR_TIMELINE_SLOT_HEIGHT_PX = 70;
 
 export type StatusReportTimelineMetrics = {
-  mode: "overlay" | "bands" | "lanes" | "pinned" | "promoted";
+  mode: "overlay" | "bands" | "lanes" | "pinned";
   rowHeightPx: number;
   barTopPx: number;
   barHeightPx: number | null;
@@ -254,26 +254,6 @@ export function timelineMarkerPhaseColor(
   return byRow?.color ?? null;
 }
 
-export function isBottomRailKeyDateShape(shape?: string): boolean {
-  return shape === "Rocket" || shape === "Calendar";
-}
-
-export function defaultPromotedMarkerRail(
-  shape: string | undefined,
-  includeBottomRail: boolean
-): "top" | "bottom" {
-  return includeBottomRail && isBottomRailKeyDateShape(shape) ? "bottom" : "top";
-}
-
-export function promotedMarkerRail(
-  marker: { shape?: string; rail?: "top" | "bottom" },
-  includeBottomRail: boolean
-): "top" | "bottom" {
-  if (!includeBottomRail) return "top";
-  if (marker.rail === "top" || marker.rail === "bottom") return marker.rail;
-  return defaultPromotedMarkerRail(marker.shape, includeBottomRail);
-}
-
 export function timelinePhaseWash(hex: string | null | undefined): string | undefined {
   if (!hex) return undefined;
   const match = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
@@ -283,75 +263,6 @@ export function timelinePhaseWash(hex: string | null | undefined): string | unde
   const g = parseInt(n.slice(2, 4), 16);
   const b = parseInt(n.slice(4, 6), 16);
   return `rgba(${r},${g},${b},0.1)`;
-}
-
-export function staggerPromotedMarkers<T extends { date: string; label?: string }>(
-  markers: T[],
-  axisStart: string,
-  axisEnd: string,
-  minGapPct = SR_TIMELINE_MARKER_MIN_GAP_PCT
-): { placed: Array<T & { staggerRow: 0 | 1 }>; overflow: T[] } {
-  const startMs = new Date(axisStart).getTime();
-  const totalMs = new Date(axisEnd).getTime() - startMs || 1;
-  const pct = (date: string) => ((new Date(date).getTime() - startMs) / totalMs) * 100;
-  const sorted = [...markers].sort(
-    (a, b) => a.date.localeCompare(b.date) || (a.label ?? "").localeCompare(b.label ?? "")
-  );
-  const lastPct = [-Infinity, -Infinity];
-  const placed: Array<T & { staggerRow: 0 | 1 }> = [];
-  for (const marker of sorted) {
-    const x = pct(marker.date);
-    const gap0 = x - lastPct[0];
-    const gap1 = x - lastPct[1];
-    const row: 0 | 1 =
-      gap0 >= minGapPct ? 0 : gap1 >= minGapPct ? 1 : gap0 >= gap1 ? 0 : 1;
-    lastPct[row] = x;
-    placed.push({ ...marker, staggerRow: row });
-  }
-  return { placed, overflow: [] };
-}
-
-export function partitionPromotedTimelineMarkers<
-  T extends { date: string; shape?: string; label?: string; rail?: "top" | "bottom" },
->(
-  markers: T[],
-  axisStart: string,
-  axisEnd: string,
-  options: { includeBottomRail: boolean; minGapPct?: number }
-): {
-  top: Array<T & { staggerRow: 0 | 1 }>;
-  bottom: Array<T & { staggerRow: 0 | 1 }>;
-  overflowCount: number;
-} {
-  const startYmd = axisStart.slice(0, 10);
-  const endYmd = axisEnd.slice(0, 10);
-  const inAxis = markers.filter((marker) => {
-    const date = marker.date.slice(0, 10);
-    return date >= startYmd && date <= endYmd;
-  });
-  const topCandidates = inAxis.filter(
-    (marker) => promotedMarkerRail(marker, options.includeBottomRail) === "top"
-  );
-  const bottomSeed = options.includeBottomRail
-    ? inAxis.filter((marker) => promotedMarkerRail(marker, options.includeBottomRail) === "bottom")
-    : [];
-  const topStagger = staggerPromotedMarkers(
-    topCandidates,
-    axisStart,
-    axisEnd,
-    options.minGapPct
-  );
-  const bottomStagger = staggerPromotedMarkers(
-    bottomSeed,
-    axisStart,
-    axisEnd,
-    options.minGapPct
-  );
-  return {
-    top: topStagger.placed,
-    bottom: bottomStagger.placed,
-    overflowCount: 0,
-  };
 }
 
 /** Alternate hanging left/right of the date so clustered key dates do not stack. */
@@ -573,7 +484,6 @@ type LayoutMarker = {
   shape?: string;
   rowIndex?: number;
   color?: string | null;
-  rail?: "top" | "bottom";
   muted?: boolean;
 };
 
@@ -637,18 +547,6 @@ function overlayHasContent(layout: TimelineLayoutOverlay): boolean {
     Boolean(layout.markerLabelLayout) ||
     Boolean(layout.windowStartYmd && layout.windowEndYmd)
   );
-}
-
-export function setTimelineLayoutMarkerRail(
-  rails: Record<string, "top" | "bottom"> | undefined,
-  id: string,
-  value: "top" | "bottom",
-  automatic: "top" | "bottom"
-): Record<string, "top" | "bottom"> | undefined {
-  const next = { ...(rails ?? {}) };
-  if (value === automatic) delete next[id];
-  else next[id] = value;
-  return Object.keys(next).length > 0 ? next : undefined;
 }
 
 export function setTimelineLayoutRow(
@@ -945,9 +843,6 @@ export function applyTimelineLayout<T extends LayoutTimelineSlice>(
         ...marker,
         label: overlayLabel(marker.itemId, layout.labels, marker.label),
         rowIndex: row ?? currentRow,
-        ...(marker.itemId && layout.markerRails?.[marker.itemId]
-          ? { rail: layout.markerRails[marker.itemId] }
-          : {}),
       };
     });
   const startDate = layout.windowStartYmd?.slice(0, 10) || timeline.startDate;

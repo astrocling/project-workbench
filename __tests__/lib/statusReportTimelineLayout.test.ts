@@ -19,13 +19,10 @@ import {
   timelineMarkerStackTop,
   timelinePhaseRowLayout,
   timelinePhaseWash,
-  staggerPromotedMarkers,
-  partitionPromotedTimelineMarkers,
   statusReportTimelineSlotHeightPx,
   usesPromotedTimeline,
   toggleTimelineHiddenId,
   moveArrangeKeyDate,
-  setTimelineLayoutMarkerRail,
   defaultPinnedLabelLayout,
   movePinnedLabelBox,
   resolvePinnedLabelLayout,
@@ -304,13 +301,6 @@ describe("moveArrangeKeyDate", () => {
   });
 });
 
-describe("setTimelineLayoutMarkerRail", () => {
-  it("stores a rail override only when it differs from the automatic placement", () => {
-    expect(setTimelineLayoutMarkerRail(undefined, "m1", "bottom", "top")).toEqual({ m1: "bottom" });
-    expect(setTimelineLayoutMarkerRail({ m1: "bottom" }, "m1", "top", "top")).toBeUndefined();
-  });
-});
-
 describe("timelineLayoutFromPreviousSnapshot", () => {
   it("returns Plan arrange overlay from the previous report and ignores timeline-source reports", () => {
     expect(
@@ -393,79 +383,16 @@ describe("pickSpacedTimelineMarkers", () => {
   });
 });
 
-describe("promoted key-date rails", () => {
+describe("pinned key-date labels", () => {
   it("washes a phase hex at 10% opacity", () => {
     expect(timelinePhaseWash("#1941FA")).toBe("rgba(25,65,250,0.1)");
     expect(timelinePhaseWash("not-a-color")).toBeUndefined();
   });
 
-  it("staggers a cluster onto two rows and still places every date", () => {
-    const result = staggerPromotedMarkers(
-      [
-        { label: "A", date: "2026-09-02" },
-        { label: "B", date: "2026-09-03" },
-        { label: "C", date: "2026-09-04" },
-        { label: "Go Live", date: "2026-11-15" },
-      ],
-      "2026-07-01",
-      "2026-12-31"
-    );
-    expect(result.placed.map((m) => `${m.label}:${m.staggerRow}`)).toEqual([
-      "A:0",
-      "B:1",
-      "C:0",
-      "Go Live:0",
-    ]);
-    expect(result.overflow).toEqual([]);
-  });
-
-  it("sends meetings to the bottom rail and keeps leftover key dates on the top band", () => {
-    const split = partitionPromotedTimelineMarkers(
-      [
-        { label: "Alpha", date: "2026-09-02", shape: "Pin" },
-        { label: "Beta", date: "2026-09-03", shape: "Flag" },
-        { label: "Gamma", date: "2026-09-04", shape: "ThumbsUp" },
-        { label: "Standup", date: "2026-09-10", shape: "Calendar" },
-        { label: "Go Live", date: "2026-11-15", shape: "Pin" },
-      ],
-      "2026-07-01",
-      "2026-12-31",
-      { includeBottomRail: true }
-    );
-    expect(split.top.map((m) => m.label)).toEqual(["Alpha", "Beta", "Gamma", "Go Live"]);
-    expect(split.bottom.map((m) => m.label)).toEqual(["Standup"]);
-    expect(split.overflowCount).toBe(0);
-  });
-
-  it("keeps meetings on the top band when there is no bottom rail", () => {
-    const split = partitionPromotedTimelineMarkers(
-      [
-        { label: "Alpha", date: "2026-09-02", shape: "Pin" },
-        { label: "Standup", date: "2026-11-15", shape: "Calendar" },
-      ],
-      "2026-07-01",
-      "2026-12-31",
-      { includeBottomRail: false }
-    );
-    expect(split.top.map((m) => m.label)).toEqual(["Alpha", "Standup"]);
-    expect(split.bottom).toEqual([]);
+  it("gates Advanced Plan density via usesPromotedTimeline", () => {
     expect(usesPromotedTimeline("plan", "phases")).toBe(false);
     expect(usesPromotedTimeline("plan", "phases_and_key_dates")).toBe(true);
     expect(usesPromotedTimeline("timeline", "phases_and_key_dates")).toBe(false);
-  });
-
-  it("honors an Arrange rail override so a date can move off the automatic band", () => {
-    const split = partitionPromotedTimelineMarkers(
-      [
-        { label: "Alpha", date: "2026-09-02", shape: "Pin", rail: "bottom" as const },
-        { label: "Standup", date: "2026-09-10", shape: "Calendar", rail: "top" as const },
-      ],
-      "2026-07-01",
-      "2026-12-31",
-      { includeBottomRail: true }
-    );
-    expect(split.top.map((m) => m.label)).toEqual(["Standup"]);
-    expect(split.bottom.map((m) => m.label)).toEqual(["Alpha"]);
   });
 
   const opts = { markerTopPx: 8, markerIconPx: 10, stackStepPx: 14 };
