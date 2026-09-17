@@ -37,14 +37,10 @@ export const SR_TIMELINE_MAX_VISIBLE_MONTHS = Math.floor(
 export const SR_TIMELINE_MARKER_TOP_PX =
   SR_TIMELINE_BAR_TOP_PX + SR_TIMELINE_BAR_HEIGHT_PX + 1;
 
-export const SR_TIMELINE_PROMOTED_TOP_BAND_PX = 32;
-export const SR_TIMELINE_PROMOTED_BOTTOM_RAIL_PX = 32;
 export const SR_TIMELINE_SLOT_HEIGHT_PX = 70;
-export const SR_TIMELINE_ADVANCED_SLOT_HEIGHT_PX =
-  SR_TIMELINE_SLOT_HEIGHT_PX + SR_TIMELINE_PROMOTED_TOP_BAND_PX;
 
 export type StatusReportTimelineMetrics = {
-  mode: "overlay" | "bands" | "lanes" | "promoted";
+  mode: "overlay" | "bands" | "lanes" | "pinned" | "promoted";
   rowHeightPx: number;
   barTopPx: number;
   barHeightPx: number | null;
@@ -77,8 +73,8 @@ const PLAN_TIMELINE_METRICS: StatusReportTimelineMetrics = {
 
 const PLAN_ADVANCED_TIMELINE_METRICS: StatusReportTimelineMetrics = {
   ...PLAN_TIMELINE_METRICS,
-  mode: "promoted",
-  topBandPx: SR_TIMELINE_PROMOTED_TOP_BAND_PX,
+  mode: "pinned",
+  topBandPx: 0,
   bottomRailPx: 0,
 };
 
@@ -117,15 +113,9 @@ const PLAN_FILL_TIMELINE_METRICS: StatusReportTimelineMetrics = {
 
 const PLAN_ADVANCED_FILL_TIMELINE_METRICS: StatusReportTimelineMetrics = {
   ...PLAN_FILL_TIMELINE_METRICS,
-  mode: "promoted",
-  rowHeightPx: 22,
-  barTopPx: 3,
-  barHeightPx: 14,
-  markerIconPx: 10,
-  markerColPx: 64,
-  markerFontPx: 8,
-  topBandPx: 32,
-  bottomRailPx: 24,
+  mode: "pinned",
+  topBandPx: 0,
+  bottomRailPx: 0,
   labelColPx: SR_FILL_ADVANCED_PHASE_LABEL_COL_PX,
 };
 
@@ -155,10 +145,12 @@ export function usesPromotedTimeline(
 export function statusReportTimelineSlotHeightPx(opts: {
   scheduleSource?: "timeline" | "plan" | null;
   planDensity?: PlanReportDensity | null;
+  contentHeightPx?: number;
 }): number {
-  return usesPromotedTimeline(opts.scheduleSource, opts.planDensity)
-    ? SR_TIMELINE_ADVANCED_SLOT_HEIGHT_PX
-    : SR_TIMELINE_SLOT_HEIGHT_PX;
+  if (!usesPromotedTimeline(opts.scheduleSource, opts.planDensity)) {
+    return SR_TIMELINE_SLOT_HEIGHT_PX;
+  }
+  return Math.max(SR_TIMELINE_SLOT_HEIGHT_PX, opts.contentHeightPx ?? SR_TIMELINE_SLOT_HEIGHT_PX);
 }
 
 export function getStatusReportTimelineMetrics(

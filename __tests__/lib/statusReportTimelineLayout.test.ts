@@ -84,7 +84,7 @@ describe("statusReportTimelineLayout", () => {
     expect(filled.mode).toBe("bands");
   });
 
-  it("promotes Plan Advanced key dates into rails instead of overlay or in-row pins", () => {
+  it("uses pinned mode for Plan Advanced with no rails and content-sized slot height", () => {
     const compact = getStatusReportTimelineMetrics("plan", {
       planDensity: "phases_and_key_dates",
     });
@@ -96,14 +96,15 @@ describe("statusReportTimelineLayout", () => {
     const timeline = getStatusReportTimelineMetrics("timeline", {
       planDensity: "phases_and_key_dates",
     });
-    expect(compact.mode).toBe("promoted");
+    expect(compact.mode).toBe("pinned");
     expect(omitted).toEqual(compact);
-    expect(compact.topBandPx).toBeGreaterThan(0);
+    expect(compact.topBandPx).toBe(0);
     expect(compact.bottomRailPx).toBe(0);
-    expect(filled.mode).toBe("promoted");
-    expect(filled.bottomRailPx).toBeGreaterThan(0);
+    expect(filled.mode).toBe("pinned");
+    expect(filled.topBandPx).toBe(0);
+    expect(filled.bottomRailPx).toBe(0);
     expect(filled.labelColPx).toBe(240);
-    expect(filled.rowHeightPx).toBe(22);
+    expect(filled.rowHeightPx).toBe(40);
     expect(timeline.mode).toBe("overlay");
     expect(statusReportTimelineSlotHeightPx({ scheduleSource: "plan", planDensity: "phases" })).toBe(
       70
@@ -112,8 +113,9 @@ describe("statusReportTimelineLayout", () => {
       statusReportTimelineSlotHeightPx({
         scheduleSource: "plan",
         planDensity: "phases_and_key_dates",
+        contentHeightPx: 140,
       })
-    ).toBeGreaterThan(70);
+    ).toBe(140);
     expect(statusReportTimelineSlotHeightPx({ scheduleSource: "timeline" })).toBe(70);
   });
 

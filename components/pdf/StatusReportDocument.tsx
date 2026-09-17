@@ -1535,7 +1535,7 @@ function TimelineBlock({
   );
   const overlay = metrics.mode === "overlay";
   const lanes = metrics.mode === "lanes";
-  const promoted = metrics.mode === "promoted";
+  const promoted = metrics.mode === "promoted" || metrics.mode === "pinned";
   const fillBar = overlay || lanes || (promoted && !fillAvailableHeight);
   const stretchBars = fillBar && !fillAvailableHeight;
   const ROW_HEIGHT = metrics.rowHeightPx;
