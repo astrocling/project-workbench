@@ -26,6 +26,9 @@ import {
   toggleTimelineHiddenId,
   moveArrangeKeyDate,
   setTimelineLayoutMarkerRail,
+  defaultPinnedLabelLayout,
+  resolvePinnedLabelLayout,
+  timelinePinnedRowHeightPx,
   type TimelineLayoutOverlay,
 } from "@/lib/statusReportTimelineLayout";
 
@@ -460,5 +463,43 @@ describe("promoted key-date rails", () => {
     );
     expect(split.top.map((m) => m.label)).toEqual(["Standup"]);
     expect(split.bottom.map((m) => m.label)).toEqual(["Alpha"]);
+  });
+
+  const opts = { markerTopPx: 8, markerIconPx: 10, stackStepPx: 14 };
+
+  it("stacks a same-row cluster downward and leaves a distant date on the first band", () => {
+    const layout = defaultPinnedLabelLayout(
+      [
+        { itemId: "a", date: "2026-09-02" },
+        { itemId: "b", date: "2026-09-03" },
+        { itemId: "c", date: "2026-11-15" },
+      ],
+      "2026-07-01",
+      "2026-12-31",
+      opts
+    );
+    expect(layout.a?.topPx).toBe(20);
+    expect(layout.b?.topPx).toBe(34);
+    expect(layout.c?.topPx).toBe(20);
+  });
+
+  it("lets a saved box win over the automatic stack", () => {
+    const resolved = resolvePinnedLabelLayout(
+      [
+        { itemId: "a", date: "2026-09-02" },
+        { itemId: "b", date: "2026-09-03" },
+      ],
+      { markerLabelLayout: { b: { cxPct: 55, topPx: 48 } } },
+      "2026-07-01",
+      "2026-12-31",
+      opts
+    );
+    expect(resolved.b).toEqual({ cxPct: 55, topPx: 48 });
+  });
+
+  it("grows row height to the lowest label", () => {
+    expect(
+      timelinePinnedRowHeightPx(40, ["a", "b"], { a: { cxPct: 10, topPx: 20 }, b: { cxPct: 12, topPx: 48 } }, 12, 4)
+    ).toBe(64);
   });
 });

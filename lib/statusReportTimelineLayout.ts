@@ -383,6 +383,76 @@ export function pickSpacedTimelineMarkers<T extends { date: string; label?: stri
   return kept;
 }
 
+export type PinnedLabelBox = { cxPct: number; topPx: number };
+
+function timelineAxisDatePercent(date: string, axisStart: string, axisEnd: string): number {
+  const startMs = new Date(axisStart).getTime();
+  const totalMs = new Date(axisEnd).getTime() - startMs || 1;
+  return ((new Date(date).getTime() - startMs) / totalMs) * 100;
+}
+
+export function defaultPinnedLabelLayout<T extends { itemId?: string; date: string }>(
+  markers: T[],
+  axisStart: string,
+  axisEnd: string,
+  opts: { markerTopPx: number; markerIconPx: number; stackStepPx: number; minGapPct?: number }
+): Record<string, PinnedLabelBox> {
+  const minGapPct = opts.minGapPct ?? SR_TIMELINE_MARKER_MIN_GAP_PCT;
+  const baseTopPx = opts.markerTopPx + opts.markerIconPx + 2;
+  const sorted = markers
+    .filter((marker): marker is T & { itemId: string } => Boolean(marker.itemId))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const layout: Record<string, PinnedLabelBox> = {};
+  let lastPct = Number.NEGATIVE_INFINITY;
+  let stackIndex = 0;
+  for (const marker of sorted) {
+    const cxPct = timelineAxisDatePercent(marker.date, axisStart, axisEnd);
+    if (cxPct - lastPct < minGapPct) {
+      stackIndex += 1;
+    } else {
+      stackIndex = 0;
+    }
+    lastPct = cxPct;
+    layout[marker.itemId] = {
+      cxPct,
+      topPx: baseTopPx + stackIndex * opts.stackStepPx,
+    };
+  }
+  return layout;
+}
+
+export function resolvePinnedLabelLayout<T extends { itemId?: string; date: string }>(
+  markers: T[],
+  overlay: TimelineLayoutOverlay | undefined,
+  axisStart: string,
+  axisEnd: string,
+  opts: { markerTopPx: number; markerIconPx: number; stackStepPx: number; minGapPct?: number }
+): Record<string, PinnedLabelBox> {
+  const layout = defaultPinnedLabelLayout(markers, axisStart, axisEnd, opts);
+  const saved = overlay?.markerLabelLayout;
+  if (!saved) return layout;
+  const resolved = { ...layout };
+  for (const [id, box] of Object.entries(saved)) {
+    if (id in resolved) resolved[id] = box;
+  }
+  return resolved;
+}
+
+export function timelinePinnedRowHeightPx(
+  baseRowHeightPx: number,
+  markerIds: string[],
+  layout: Record<string, PinnedLabelBox>,
+  labelHeightPx: number,
+  padPx = 0
+): number {
+  let max = baseRowHeightPx;
+  for (const id of markerIds) {
+    const box = layout[id];
+    if (box) max = Math.max(max, box.topPx + labelHeightPx + padPx);
+  }
+  return max;
+}
+
 export function timelineLaneLabel(
   bars: Array<{ label: string }>,
   markers: Array<{ label: string }>,
