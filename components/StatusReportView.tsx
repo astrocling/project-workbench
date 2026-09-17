@@ -55,6 +55,10 @@ import {
 import {
   getStatusReportTimelineMetrics,
   movePinnedLabelBox,
+  pinnedLabelBlockHeightPx,
+  pinnedLabelCxPctBounds,
+  pinnedLabelStackStepPx,
+  PINNED_LABEL_DRAG_THRESHOLD_PX,
   resolvePinnedLabelLayout,
   scaleStatusReportTimelineMetrics,
   pickSpacedTimelineMarkers,
@@ -393,11 +397,14 @@ function timelineMarkerIconElements(shape: string | undefined, niPrefix = "") {
 
 type LabelDragState = {
   id: string;
+  row: number;
   startBox: PinnedLabelBox;
   startClientX: number;
   startClientY: number;
   chartWidthPx: number;
+  markerColPx: number;
   minTopPx: number;
+  maxTopPx: number;
 };
 
 export function TimelineBlock({
@@ -421,7 +428,7 @@ export function TimelineBlock({
   layoutScale?: number;
   fillAvailableHeight?: boolean;
   interactive?: boolean;
-  onLabelLayoutChange?: (id: string, box: PinnedLabelBox) => void;
+  onLabelLayoutChange?: (id: string, box: PinnedLabelBox | null) => void;
 }) {
   const [dragPreview, setDragPreview] = useState<{ id: string; box: PinnedLabelBox } | null>(null);
   const labelDragRef = useRef<LabelDragState | null>(null);
@@ -460,8 +467,8 @@ export function TimelineBlock({
   const stretchBars = fillBar && !fillAvailableHeight;
   const labelCol = metrics.labelColPx;
   const markerStep = timelineFillMarkerStep(metrics);
-  const pinnedStackStepPx = baseMetrics.markerFontPx + 4;
-  const pinnedLabelHeightPx = baseMetrics.markerFontPx + 4;
+  const pinnedStackStepPx = pinnedLabelStackStepPx(baseMetrics.markerFontPx);
+  const pinnedLabelHeightPx = pinnedLabelBlockHeightPx(baseMetrics.markerFontPx);
   const pinnedMinTopPx = baseMetrics.barTopPx + (baseMetrics.barHeightPx ?? 0);
   const pinnedLayoutOpts = {
     markerTopPx: baseMetrics.markerTopPx,
@@ -479,10 +486,23 @@ export function TimelineBlock({
         }
       : labelOverlay;
 
+  const labelDragBounds = (chartWidthPx: number) =>
+    pinnedLabelCxPctBounds(baseMetrics.markerColPx, chartWidthPx);
+
+  const labelDragMaxTopPx = (row: number, layout: Record<string, PinnedLabelBox>) => {
+    const maxAutoTop = Object.values(layout).reduce(
+      (max, box) => Math.max(max, box.topPx),
+      pinnedMinTopPx
+    );
+    return maxAutoTop + pinnedStackStepPx;
+  };
+
   const beginLabelDrag = (
     event: React.PointerEvent<HTMLElement>,
+    row: number,
     id: string,
-    box: PinnedLabelBox
+    box: PinnedLabelBox,
+    rowLayout: Record<string, PinnedLabelBox>
   ) => {
     if (!interactive || !onLabelLayoutChange) return;
     event.preventDefault();
@@ -494,11 +514,14 @@ export function TimelineBlock({
     event.currentTarget.setPointerCapture(event.pointerId);
     labelDragRef.current = {
       id,
+      row,
       startBox: box,
       startClientX: event.clientX,
       startClientY: event.clientY,
       chartWidthPx,
+      markerColPx: baseMetrics.markerColPx,
       minTopPx: pinnedMinTopPx,
+      maxTopPx: labelDragMaxTopPx(row, rowLayout),
     };
   };
 
@@ -509,30 +532,38 @@ export function TimelineBlock({
     const deltaYPx = (event.clientY - drag.startClientY) / layoutScale;
     const box = movePinnedLabelBox(drag.startBox, deltaXPct, deltaYPx, {
       minTopPx: drag.minTopPx,
-      minCxPct: 0,
-      maxCxPct: 100,
+      maxTopPx: drag.maxTopPx,
+      ...labelDragBounds(drag.chartWidthPx),
     });
     setDragPreview({ id: drag.id, box });
   };
 
-  const endLabelDrag = (event: React.PointerEvent<HTMLElement>) => {
+  const finishLabelDrag = (event: React.PointerEvent<HTMLElement>, commit: boolean) => {
     const drag = labelDragRef.current;
-    if (!drag || !onLabelLayoutChange) return;
+    if (!drag) return;
     try {
       event.currentTarget.releasePointerCapture(event.pointerId);
     } catch {
       // pointer may already be released
     }
-    const deltaXPct = ((event.clientX - drag.startClientX) / drag.chartWidthPx) * 100;
-    const deltaYPx = (event.clientY - drag.startClientY) / layoutScale;
-    const box = movePinnedLabelBox(drag.startBox, deltaXPct, deltaYPx, {
-      minTopPx: drag.minTopPx,
-      minCxPct: 0,
-      maxCxPct: 100,
-    });
-    onLabelLayoutChange(drag.id, box);
     labelDragRef.current = null;
     setDragPreview(null);
+    if (!commit || !onLabelLayoutChange) return;
+    const deltaXPx = event.clientX - drag.startClientX;
+    const deltaYPx = (event.clientY - drag.startClientY) / layoutScale;
+    if (
+      Math.abs(deltaXPx) < PINNED_LABEL_DRAG_THRESHOLD_PX &&
+      Math.abs(deltaYPx) < PINNED_LABEL_DRAG_THRESHOLD_PX
+    ) {
+      return;
+    }
+    const deltaXPct = (deltaXPx / drag.chartWidthPx) * 100;
+    const box = movePinnedLabelBox(drag.startBox, deltaXPct, deltaYPx, {
+      minTopPx: drag.minTopPx,
+      maxTopPx: drag.maxTopPx,
+      ...labelDragBounds(drag.chartWidthPx),
+    });
+    onLabelLayoutChange(drag.id, box);
   };
 
   const chart = fillAvailableHeight ? expandScheduleEntriesToOwnRows(timeline) : timeline;
@@ -785,7 +816,8 @@ export function TimelineBlock({
               </div>
               {pinned && chartMarkers.length > 0 && (
                 <svg
-                  className="absolute inset-0 z-[1] pointer-events-none overflow-visible w-full h-full"
+                  className="absolute left-0 top-0 z-[1] pointer-events-none overflow-visible w-full"
+                  style={{ height: rowHeightPx }}
                   viewBox={`0 0 100 ${rowHeightPx}`}
                   preserveAspectRatio="none"
                 >
@@ -861,12 +893,25 @@ export function TimelineBlock({
                         }}
                         onPointerDown={
                           interactive && itemId
-                            ? (event) => beginLabelDrag(event, itemId, box)
+                            ? (event) => beginLabelDrag(event, row, itemId, box, pinnedLayout)
                             : undefined
                         }
                         onPointerMove={interactive ? moveLabelDrag : undefined}
-                        onPointerUp={interactive ? endLabelDrag : undefined}
-                        onPointerCancel={interactive ? endLabelDrag : undefined}
+                        onPointerUp={interactive ? (event) => finishLabelDrag(event, true) : undefined}
+                        onPointerCancel={
+                          interactive ? (event) => finishLabelDrag(event, false) : undefined
+                        }
+                        onDoubleClick={
+                          interactive && itemId && onLabelLayoutChange
+                            ? (event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                labelDragRef.current = null;
+                                setDragPreview(null);
+                                onLabelLayoutChange(itemId, null);
+                              }
+                            : undefined
+                        }
                       >
                         <span
                           className="font-semibold leading-tight text-center w-full"

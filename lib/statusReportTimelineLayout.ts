@@ -81,6 +81,7 @@ const PLAN_TIMELINE_METRICS: StatusReportTimelineMetrics = {
 const PLAN_ADVANCED_TIMELINE_METRICS: StatusReportTimelineMetrics = {
   ...PLAN_TIMELINE_METRICS,
   mode: "pinned",
+  markerTopPx: SR_TIMELINE_MARKER_TOP_PX,
   topBandPx: 0,
   bottomRailPx: 0,
 };
@@ -121,6 +122,8 @@ const PLAN_FILL_TIMELINE_METRICS: StatusReportTimelineMetrics = {
 const PLAN_ADVANCED_FILL_TIMELINE_METRICS: StatusReportTimelineMetrics = {
   ...PLAN_FILL_TIMELINE_METRICS,
   mode: "pinned",
+  markerTopPx:
+    PLAN_FILL_TIMELINE_METRICS.barTopPx + (PLAN_FILL_TIMELINE_METRICS.barHeightPx ?? 0) + 1,
   topBandPx: 0,
   bottomRailPx: 0,
   labelColPx: SR_FILL_ADVANCED_PHASE_LABEL_COL_PX,
@@ -295,16 +298,71 @@ export function pickSpacedTimelineMarkers<T extends { date: string; label?: stri
 
 export type PinnedLabelBox = { cxPct: number; topPx: number };
 
+export const PINNED_LABEL_DRAG_THRESHOLD_PX = 3;
+
+/** One line of pinned label text (matches leading-tight + font size in TimelineBlock). */
+export function pinnedLabelLineHeightPx(markerFontPx: number): number {
+  return markerFontPx + 4;
+}
+
+/** Two-line clamp height for pinned labels (HTML WebkitLineClamp: 2 and PDF wrap). */
+export function pinnedLabelBlockHeightPx(markerFontPx: number): number {
+  return pinnedLabelLineHeightPx(markerFontPx) * 2;
+}
+
+/** Vertical step when stacking clustered pinned labels. */
+export function pinnedLabelStackStepPx(markerFontPx: number): number {
+  return pinnedLabelBlockHeightPx(markerFontPx) + 4;
+}
+
+/** Chart column width inside slide padding (672 − phase label rail). */
+export function statusReportTimelineChartWidthPx(labelColPx: number): number {
+  return SR_TIMELINE_CHART_WIDTH_PX - labelColPx;
+}
+
+export function pinnedLabelCxPctBounds(
+  markerColPx: number,
+  chartWidthPx: number
+): { minCxPct: number; maxCxPct: number } {
+  if (chartWidthPx <= 0) return { minCxPct: 0, maxCxPct: 100 };
+  const halfWidthPct = (markerColPx / 2 / chartWidthPx) * 100;
+  return { minCxPct: halfWidthPct, maxCxPct: 100 - halfWidthPct };
+}
+
+export function truncatePinnedLabelText(
+  label: string,
+  markerColPx: number,
+  markerFontPx: number,
+  maxLines = 2
+): string {
+  const charsPerLine = Math.max(4, Math.floor(markerColPx / (markerFontPx * 0.55)));
+  const maxChars = charsPerLine * maxLines;
+  if (label.length <= maxChars) return label;
+  return `${label.slice(0, maxChars - 1)}…`;
+}
+
 export function movePinnedLabelBox(
   start: PinnedLabelBox,
   deltaXPct: number,
   deltaYPx: number,
-  opts: { minTopPx: number; minCxPct: number; maxCxPct: number }
+  opts: { minTopPx: number; maxTopPx?: number; minCxPct: number; maxCxPct: number }
 ): PinnedLabelBox {
+  const maxTopPx = opts.maxTopPx ?? Number.POSITIVE_INFINITY;
   return {
     cxPct: Math.min(opts.maxCxPct, Math.max(opts.minCxPct, start.cxPct + deltaXPct)),
-    topPx: Math.max(opts.minTopPx, start.topPx + deltaYPx),
+    topPx: Math.min(maxTopPx, Math.max(opts.minTopPx, start.topPx + deltaYPx)),
   };
+}
+
+export function setTimelineLayoutMarkerLabel(
+  markerLabelLayout: Record<string, PinnedLabelBox> | undefined,
+  id: string,
+  box: PinnedLabelBox | null
+): Record<string, PinnedLabelBox> | undefined {
+  const next = { ...(markerLabelLayout ?? {}) };
+  if (box == null) delete next[id];
+  else next[id] = box;
+  return Object.keys(next).length > 0 ? next : undefined;
 }
 
 function timelineAxisDatePercent(date: string, axisStart: string, axisEnd: string): number {
@@ -393,8 +451,8 @@ export function timelinePinnedContentHeightPx(opts: {
 
   const layoutScale = opts.layoutScale ?? 1;
   const fillAvailableHeight = opts.fillAvailableHeight === true;
-  const stackStepPx = baseMetrics.markerFontPx + 4;
-  const labelHeightPx = baseMetrics.markerFontPx + 4;
+  const stackStepPx = pinnedLabelStackStepPx(baseMetrics.markerFontPx);
+  const labelHeightPx = pinnedLabelBlockHeightPx(baseMetrics.markerFontPx);
   const pinnedOpts = {
     markerTopPx: baseMetrics.markerTopPx,
     markerIconPx: baseMetrics.markerIconPx,

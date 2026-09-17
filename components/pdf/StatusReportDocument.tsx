@@ -77,9 +77,13 @@ import {
   timelineMarkerStackTop,
   timelinePhaseRowLayout,
   timelinePhaseWash,
+  pinnedLabelBlockHeightPx,
+  pinnedLabelStackStepPx,
+  statusReportTimelineChartWidthPx,
   timelinePinnedContentHeightPx,
   timelinePinnedRowHeightPx,
   timelineReportDateRowPx,
+  truncatePinnedLabelText,
   type StatusReportTimelineMetrics,
   type TimelineLayoutOverlay,
 } from "@/lib/statusReportTimelineLayout";
@@ -1461,8 +1465,9 @@ function TimelineBlock({
   const ROW_HEIGHT = metrics.rowHeightPx;
   const labelCol = metrics.labelColPx;
   const markerStep = timelineFillMarkerStep(metrics);
-  const pinnedStackStepPx = baseMetrics.markerFontPx + 4;
-  const pinnedLabelHeightPx = baseMetrics.markerFontPx + 4;
+  const pinnedStackStepPx = pinnedLabelStackStepPx(baseMetrics.markerFontPx);
+  const pinnedLabelHeightPx = pinnedLabelBlockHeightPx(baseMetrics.markerFontPx);
+  const chartWidthPx = statusReportTimelineChartWidthPx(labelCol);
   const pinnedLayoutOpts = {
     markerTopPx: baseMetrics.markerTopPx,
     markerIconPx: baseMetrics.markerIconPx,
@@ -1650,10 +1655,9 @@ function TimelineBlock({
             {pinned && chartMarkers.length > 0 && (
               <Svg
                 width="100%"
-                height="100%"
-                viewBox={`0 0 100 ${rowHeightPx}`}
-                preserveAspectRatio="none"
-                style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 1 }}
+                height={rowHeightPx}
+                viewBox={`0 0 ${chartWidthPx} ${rowHeightPx}`}
+                style={{ position: "absolute", top: 0, left: 0, width: "100%", height: rowHeightPx, zIndex: 1 }}
               >
                 {chartMarkers.map((m, i) => {
                   const itemId = m.itemId;
@@ -1663,12 +1667,14 @@ function TimelineBlock({
                   const pinLeftPct = positionPercent(m.date);
                   const pinCenterY = metrics.markerTopPx + metrics.markerIconPx / 2;
                   const labelTop = box.topPx * layoutScale;
+                  const pinX = (pinLeftPct / 100) * chartWidthPx;
+                  const labelX = (box.cxPct / 100) * chartWidthPx;
                   return (
                     <Line
                       key={`leader-${i}`}
-                      x1={pinLeftPct}
+                      x1={pinX}
                       y1={pinCenterY}
-                      x2={box.cxPct}
+                      x2={labelX}
                       y2={labelTop}
                       stroke={stroke}
                       strokeWidth={1}
@@ -1685,7 +1691,6 @@ function TimelineBlock({
                 if (!box) return null;
                 const stroke = timelineMarkerPhaseColor(m, chart.bars) || "#1941FA";
                 const pinLeftPct = positionPercent(m.date);
-                const isParked = Boolean(itemId && labelOverlay?.markerLabelLayout?.[itemId]);
                 return (
                   <React.Fragment key={`m-${itemId ?? i}`}>
                     <View
@@ -1711,9 +1716,11 @@ function TimelineBlock({
                         marginLeft: -metrics.markerColPx / 2,
                         top: box.topPx * layoutScale,
                         width: metrics.markerColPx,
+                        minHeight: pinnedLabelHeightPx * layoutScale,
                         alignItems: "center",
                         zIndex: 2,
                         opacity: m.muted ? 0.45 : 1,
+                        overflow: "hidden",
                       }}
                     >
                       <Text
@@ -1722,10 +1729,10 @@ function TimelineBlock({
                           color: stroke,
                           textAlign: "center",
                           width: metrics.markerColPx,
+                          lineHeight: 1.25,
                         }}
-                        wrap={!isParked}
                       >
-                        {m.label}
+                        {truncatePinnedLabelText(m.label, metrics.markerColPx, metrics.markerFontPx)}
                       </Text>
                     </View>
                   </React.Fragment>

@@ -25,7 +25,14 @@ import {
   moveArrangeKeyDate,
   defaultPinnedLabelLayout,
   movePinnedLabelBox,
+  pinnedLabelBlockHeightPx,
+  pinnedLabelCxPctBounds,
+  pinnedLabelStackStepPx,
   resolvePinnedLabelLayout,
+  setTimelineLayoutMarkerLabel,
+  SR_TIMELINE_MARKER_ICON_PX,
+  SR_TIMELINE_MARKER_TOP_PX,
+  timelinePinnedContentHeightPx,
   timelinePinnedRowHeightPx,
   type TimelineLayoutOverlay,
 } from "@/lib/statusReportTimelineLayout";
@@ -395,7 +402,18 @@ describe("pinned key-date labels", () => {
     expect(usesPromotedTimeline("timeline", "phases_and_key_dates")).toBe(false);
   });
 
-  const opts = { markerTopPx: 8, markerIconPx: 10, stackStepPx: 14 };
+  it("places advanced compact pins below the phase bar", () => {
+    const metrics = getStatusReportTimelineMetrics("plan", { planDensity: "phases_and_key_dates" });
+    expect(metrics.markerTopPx).toBe(SR_TIMELINE_MARKER_TOP_PX);
+  });
+
+  const markerFontPx = 6;
+  const opts = {
+    markerTopPx: SR_TIMELINE_MARKER_TOP_PX,
+    markerIconPx: SR_TIMELINE_MARKER_ICON_PX,
+    stackStepPx: pinnedLabelStackStepPx(markerFontPx),
+  };
+  const baseTopPx = SR_TIMELINE_MARKER_TOP_PX + SR_TIMELINE_MARKER_ICON_PX + 2;
 
   it("stacks a same-row cluster downward and leaves a distant date on the first band", () => {
     const layout = defaultPinnedLabelLayout(
@@ -408,9 +426,9 @@ describe("pinned key-date labels", () => {
       "2026-12-31",
       opts
     );
-    expect(layout.a?.topPx).toBe(20);
-    expect(layout.b?.topPx).toBe(34);
-    expect(layout.c?.topPx).toBe(20);
+    expect(layout.a?.topPx).toBe(baseTopPx);
+    expect(layout.b?.topPx).toBe(baseTopPx + pinnedLabelStackStepPx(markerFontPx));
+    expect(layout.c?.topPx).toBe(baseTopPx);
   });
 
   it("lets a saved box win over the automatic stack", () => {
@@ -428,9 +446,93 @@ describe("pinned key-date labels", () => {
   });
 
   it("grows row height to the lowest label", () => {
+    const labelHeightPx = pinnedLabelBlockHeightPx(markerFontPx);
     expect(
-      timelinePinnedRowHeightPx(40, ["a", "b"], { a: { cxPct: 10, topPx: 20 }, b: { cxPct: 12, topPx: 48 } }, 12, 4)
-    ).toBe(64);
+      timelinePinnedRowHeightPx(
+        40,
+        ["a", "b"],
+        { a: { cxPct: 10, topPx: 20 }, b: { cxPct: 12, topPx: 48 } },
+        labelHeightPx,
+        4
+      )
+    ).toBe(72);
+  });
+});
+
+describe("timelinePinnedContentHeightPx", () => {
+  const pinnedTimeline = {
+    startDate: "2026-01-01",
+    endDate: "2026-12-31",
+    bars: [
+      {
+        phaseId: "p1",
+        rowIndex: 1,
+        label: "Discovery",
+        startDate: "2026-03-01",
+        endDate: "2026-04-01",
+        color: null as string | null,
+      },
+      {
+        phaseId: "p2",
+        rowIndex: 2,
+        label: "Build",
+        startDate: "2026-04-01",
+        endDate: "2026-06-01",
+        color: null as string | null,
+      },
+    ],
+    markers: [
+      { itemId: "m1", label: "Alpha", date: "2026-04-05", shape: "Pin", rowIndex: 2 },
+      { itemId: "m2", label: "Beta", date: "2026-04-06", shape: "BadgeAlert", rowIndex: 2 },
+    ],
+  };
+
+  it("returns null for condensed plan and project timeline", () => {
+    expect(
+      timelinePinnedContentHeightPx({
+        timeline: pinnedTimeline,
+        scheduleSource: "plan",
+        planDensity: "phases",
+      })
+    ).toBeNull();
+    expect(
+      timelinePinnedContentHeightPx({
+        timeline: pinnedTimeline,
+        scheduleSource: "timeline",
+        planDensity: "phases_and_key_dates",
+      })
+    ).toBeNull();
+  });
+
+  it("sums stacked pinned row heights for advanced plan", () => {
+    const compact = getStatusReportTimelineMetrics("plan", { planDensity: "phases_and_key_dates" });
+    const height = timelinePinnedContentHeightPx({
+      timeline: pinnedTimeline,
+      scheduleSource: "plan",
+      planDensity: "phases_and_key_dates",
+    });
+    const stackedRowMin =
+      compact.rowHeightPx +
+      pinnedLabelStackStepPx(compact.markerFontPx) +
+      pinnedLabelBlockHeightPx(compact.markerFontPx);
+    expect(height).toBeGreaterThan(compact.rowHeightPx * 2);
+    expect(height).toBeGreaterThanOrEqual(stackedRowMin + compact.rowHeightPx + 12);
+  });
+});
+
+describe("setTimelineLayoutMarkerLabel", () => {
+  it("stores and clears saved label boxes", () => {
+    const box = { cxPct: 40, topPx: 22 };
+    expect(setTimelineLayoutMarkerLabel(undefined, "m1", box)).toEqual({ m1: box });
+    expect(setTimelineLayoutMarkerLabel({ m1: box }, "m1", null)).toBeUndefined();
+  });
+});
+
+describe("pinnedLabelCxPctBounds", () => {
+  it("pads cxPct bounds so half-width labels stay inside the chart", () => {
+    const { minCxPct, maxCxPct } = pinnedLabelCxPctBounds(76, 400);
+    expect(minCxPct).toBeCloseTo(9.5);
+    expect(maxCxPct).toBeCloseTo(90.5);
   });
 });
 
@@ -444,6 +546,13 @@ describe("movePinnedLabelBox", () => {
 
   it("stops topPx at minTopPx when dragged up past the bar", () => {
     expect(movePinnedLabelBox(start, 0, -20, bounds)).toEqual({ cxPct: 40, topPx: 15 });
+  });
+
+  it("stops topPx at maxTopPx when dragged down past the row", () => {
+    expect(movePinnedLabelBox(start, 0, 100, { ...bounds, maxTopPx: 50 })).toEqual({
+      cxPct: 40,
+      topPx: 50,
+    });
   });
 
   it("clamps cxPct to the chart edges", () => {

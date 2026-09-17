@@ -1935,10 +1935,16 @@ export function StatusReportsTab({
                       onLabelLayoutChange={(id, box) =>
                         void saveTimelineLayout({
                           ...formTimelineLayout,
-                          markerLabelLayout: {
-                            ...formTimelineLayout.markerLabelLayout,
-                            [id]: box,
-                          },
+                          markerLabelLayout: box
+                            ? {
+                                ...formTimelineLayout.markerLabelLayout,
+                                [id]: box,
+                              }
+                            : (() => {
+                                const next = { ...formTimelineLayout.markerLabelLayout };
+                                delete next[id];
+                                return Object.keys(next).length > 0 ? next : undefined;
+                              })(),
                         })
                       }
                       className="mt-2 max-h-[360px] overflow-auto"
