@@ -686,6 +686,7 @@ export async function buildStatusReportPdfData(
         ? normalizeModularPanels(report.panels)
         : undefined,
     scheduleSource: resolvedSource,
+    planDensity: resolvedSource === "plan" ? resolvePlanDensity(snapshot) : undefined,
     includeDetailedPlan,
     detailedPlan,
     planAxis,

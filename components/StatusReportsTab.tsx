@@ -1825,8 +1825,8 @@ export function StatusReportsTab({
                             }
                             className="block w-full max-w-xs h-8 px-2 rounded-md text-body-sm bg-white dark:bg-dark-raised border border-surface-300 dark:border-dark-muted"
                           >
-                            <option value="phases">Phases only</option>
-                            <option value="phases_and_key_dates">Phases + key dates</option>
+                            <option value="phases">Condensed</option>
+                            <option value="phases_and_key_dates">Advanced</option>
                           </select>
                         )}
                       </div>

@@ -134,7 +134,9 @@ describe("compactPlanToSchedule", () => {
     expect(reportKeyDateKind("Pin")).toEqual({ shape: "Pin", label: "Milestone" });
     expect(reportKeyDateKind("ThumbsUp")).toEqual({ shape: "ThumbsUp", label: "Sign-off" });
     expect(reportKeyDateKind("BadgeAlert")).toEqual({ shape: "BadgeAlert", label: "Hard deadline" });
+    expect(reportKeyDateKind("Flag")).toEqual({ shape: "Flag", label: "Hard deadline" });
     expect(reportKeyDateKind("Rocket")).toEqual({ shape: "Rocket", label: "Meeting" });
+    expect(reportKeyDateKind("Calendar")).toEqual({ shape: "Calendar", label: "Meeting" });
     expect(reportKeyDateKind("PencilRuler").label).toBe("Key date");
   });
 
@@ -225,7 +227,17 @@ describe("compactPlanToSchedule", () => {
             color: "#111111",
           },
         ],
-        markers: [],
+        markers: [
+          {
+            itemId: "m1",
+            phaseId: "p1",
+            label: "Alpha",
+            date: "2026-08-15",
+            shape: "Pin",
+            rowIndex: 1,
+            color: null,
+          },
+        ],
       },
       [
         { id: "p1", color: "#6d28d9" },
@@ -234,6 +246,36 @@ describe("compactPlanToSchedule", () => {
     );
     expect(painted.bars[0]?.color).toBe("#6d28d9");
     expect(painted.bars[1]?.color).toBe("#111111");
+    expect(painted.markers[0]?.color).toBe("#6d28d9");
+  });
+
+  it("paints markers from the phase bar on the same row when phaseId is missing", () => {
+    const painted = applyPlanPhaseColors(
+      {
+        bars: [
+          {
+            phaseId: "p1",
+            rowIndex: 2,
+            label: "Design",
+            startDate: "2026-04-01",
+            endDate: "2026-05-01",
+            color: "#6d28d9",
+          },
+        ],
+        markers: [
+          {
+            itemId: "m1",
+            label: "Sign-off",
+            date: "2026-04-10",
+            shape: "ThumbsUp",
+            rowIndex: 2,
+            color: null,
+          },
+        ],
+      },
+      [{ id: "p1", color: "#6d28d9" }]
+    );
+    expect(painted.markers[0]?.color).toBe("#6d28d9");
   });
 
   it("includes key-date markers and omits tasks, unscheduled meetings, and waiting_on_client", () => {
@@ -319,10 +361,42 @@ describe("compactPlanToSchedule", () => {
       },
     ]);
     expect(result?.markers).toEqual([
-      { itemId: "milestone", label: "Alpha", date: "2026-04-05", shape: "Pin", rowIndex: 2 },
-      { itemId: "signoff", label: "Client sign-off", date: "2026-04-08", shape: "ThumbsUp", rowIndex: 2 },
-      { itemId: "deadline", label: "Launch deadline", date: "2026-04-15", shape: "BadgeAlert", rowIndex: 2 },
-      { itemId: "meeting", label: "Kickoff call", date: "2026-04-02", shape: "Rocket", rowIndex: 2 },
+      {
+        itemId: "milestone",
+        phaseId: "p1",
+        label: "Alpha",
+        date: "2026-04-05",
+        shape: "Pin",
+        rowIndex: 2,
+        color: "#1941FA",
+      },
+      {
+        itemId: "signoff",
+        phaseId: "p1",
+        label: "Client sign-off",
+        date: "2026-04-08",
+        shape: "ThumbsUp",
+        rowIndex: 2,
+        color: "#1941FA",
+      },
+      {
+        itemId: "deadline",
+        phaseId: "p1",
+        label: "Launch deadline",
+        date: "2026-04-15",
+        shape: "Flag",
+        rowIndex: 2,
+        color: "#1941FA",
+      },
+      {
+        itemId: "meeting",
+        phaseId: "p1",
+        label: "Kickoff call",
+        date: "2026-04-02",
+        shape: "Calendar",
+        rowIndex: 2,
+        color: "#1941FA",
+      },
     ]);
   });
 
@@ -379,7 +453,15 @@ describe("compactPlanToSchedule", () => {
       },
     ]);
     expect(result?.markers).toEqual([
-      { itemId: "milestone", label: "Code complete", date: "2026-05-15", shape: "Pin", rowIndex: 3 },
+      {
+        itemId: "milestone",
+        phaseId: "p1",
+        label: "Code complete",
+        date: "2026-05-15",
+        shape: "Pin",
+        rowIndex: 3,
+        color: "#1941FA",
+      },
     ]);
   });
 
@@ -423,7 +505,15 @@ describe("compactPlanToSchedule", () => {
     const result = compactPlanToSchedule([pointOnlyPhase], "phases_and_key_dates");
     expect(result?.bars).toEqual([]);
     expect(result?.markers).toEqual([
-      { itemId: "m1", label: "Go live", date: "2026-06-01", shape: "Pin", rowIndex: 1 },
+      {
+        itemId: "m1",
+        phaseId: "p1",
+        label: "Go live",
+        date: "2026-06-01",
+        shape: "Pin",
+        rowIndex: 1,
+        color: "#1941FA",
+      },
     ]);
     expect(
       timelineHasVisibleSchedule({
@@ -480,10 +570,12 @@ describe("compactPlanToSchedule", () => {
     expect(result?.markers).toEqual([
       {
         itemId: "m1",
+        phaseId: "shown",
         label: "Kickoff workshop with stakeholders",
         date: "2026-03-03",
         shape: "Pin",
         rowIndex: 2,
+        color: "#1941FA",
       },
     ]);
   });
@@ -528,7 +620,15 @@ describe("compactPlanToSchedule", () => {
 
     expect(result?.bars[0]?.endDate).toBe("2026-03-12");
     expect(result?.markers).toEqual([
-      { itemId: "m-shown", label: "Alpha", date: "2026-03-05", shape: "Pin", rowIndex: 1 },
+      {
+        itemId: "m-shown",
+        phaseId: "p1",
+        label: "Alpha",
+        date: "2026-03-05",
+        shape: "Pin",
+        rowIndex: 1,
+        color: "#1941FA",
+      },
     ]);
   });
 
@@ -567,10 +667,12 @@ describe("compactPlanToSchedule", () => {
     expect(result?.markers).toEqual([
       {
         itemId: "m1",
+        phaseId: "p1",
         label: "Ship",
         date: "2026-03-10",
         shape: "Pin",
         rowIndex: 1,
+        color: "#1941FA",
         muted: true,
       },
     ]);

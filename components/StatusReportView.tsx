@@ -54,14 +54,19 @@ import {
 } from "@/lib/plan/reportSchedule";
 import {
   getStatusReportTimelineMetrics,
+  partitionPromotedTimelineMarkers,
   scaleStatusReportTimelineMetrics,
   pickSpacedTimelineMarkers,
   statusReportMonthHeaderLabel,
   timelineFillMarkerStep,
   timelineLaneLabel,
   timelineMarkerHangsLeft,
+  timelineMarkerPhaseColor,
   timelineMarkerStackTop,
   timelinePhaseRowLayout,
+  timelinePhaseWash,
+  timelineReportDateRowPx,
+  type StatusReportTimelineMetrics,
 } from "@/lib/statusReportTimelineLayout";
 import { PlanPrintDocument } from "@/components/plan/PlanPrintDocument";
 import { ganttBarLabelTextColor } from "@/lib/plan/ganttBarLabel";
@@ -81,7 +86,10 @@ const TIMELINE_ROW_BORDER = "#d1d5db";
 const TIMELINE_MONTH_DIVIDER = "#9ca3af";
 
 /** Lucide icon path/line data for timeline markers (same icons as Timeline tab). viewBox 0 0 24 24. */
-type IconNode = { type: "path"; d: string } | { type: "line"; x1: number; y1: number; x2: number; y2: number };
+type IconNode =
+  | { type: "path"; d: string }
+  | { type: "line"; x1: number; y1: number; x2: number; y2: number }
+  | { type: "rect"; x: number; y: number; width: number; height: number; rx?: number };
 const TIMELINE_MARKER_ICONS: Record<string, IconNode[]> = {
   BadgeAlert: [
     { type: "path", d: "M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z" },
@@ -115,6 +123,16 @@ const TIMELINE_MARKER_ICONS: Record<string, IconNode[]> = {
   Pin: [
     { type: "path", d: "M12 17v5" },
     { type: "path", d: "M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" },
+  ],
+  Flag: [
+    { type: "path", d: "M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" },
+    { type: "line", x1: 4, y1: 22, x2: 4, y2: 15 },
+  ],
+  Calendar: [
+    { type: "rect", x: 3, y: 4, width: 18, height: 18, rx: 2 },
+    { type: "line", x1: 16, y1: 2, x2: 16, y2: 6 },
+    { type: "line", x1: 8, y1: 2, x2: 8, y2: 6 },
+    { type: "line", x1: 3, y1: 10, x2: 21, y2: 10 },
   ],
 };
 const RAG_COLORS: Record<RagStatus, string> = {
@@ -346,10 +364,144 @@ function BudgetBurnDonut({
   );
 }
 
+function timelineMarkerIconElements(shape: string | undefined, niPrefix = "") {
+  const nodes = TIMELINE_MARKER_ICONS[shape ?? "Pin"] ?? TIMELINE_MARKER_ICONS.Pin;
+  return nodes.map((node, ni) => {
+    const key = `${niPrefix}${ni}`;
+    if (node.type === "path") return <path key={key} d={node.d} />;
+    if (node.type === "rect") {
+      return (
+        <rect
+          key={key}
+          x={node.x}
+          y={node.y}
+          width={node.width}
+          height={node.height}
+          rx={node.rx}
+        />
+      );
+    }
+    return <line key={key} x1={node.x1} y1={node.y1} x2={node.x2} y2={node.y2} />;
+  });
+}
+
+function PromotedDateRail({
+  markers,
+  height,
+  metrics,
+  positionPercent,
+  align,
+}: {
+  markers: Array<{
+    date: string;
+    label: string;
+    shape?: string;
+    color?: string | null;
+    muted?: boolean;
+    staggerRow: 0 | 1;
+  }>;
+  height: number;
+  metrics: StatusReportTimelineMetrics;
+  positionPercent: (dateStr: string) => number;
+  align: "top" | "bottom";
+}) {
+  if (height <= 0) return null;
+  return (
+    <div className="relative w-full shrink-0 overflow-hidden" style={{ height }}>
+      {markers.map((m, i) => {
+        const stroke = m.color || "#1941FA";
+        const lift = m.staggerRow * (metrics.markerFontPx + 2);
+        const hangLeft = m.staggerRow === 1;
+        return (
+          <div
+            key={`rail-${align}-${i}`}
+            className="absolute z-[2] flex flex-col"
+            style={{
+              left: `${positionPercent(m.date)}%`,
+              width: metrics.markerColPx,
+              marginLeft: hangLeft ? -metrics.markerColPx : -metrics.markerColPx / 2,
+              alignItems: hangLeft ? "flex-end" : "center",
+              ...(align === "top" ? { bottom: 1 } : { top: 1 }),
+              opacity: m.muted ? 0.45 : 1,
+            }}
+          >
+            {align === "top" ? (
+              <>
+                <span
+                  className="font-semibold leading-none text-center truncate w-full"
+                  style={{
+                    fontSize: metrics.markerFontPx,
+                    color: stroke,
+                    marginBottom: lift,
+                  }}
+                >
+                  {m.label}
+                </span>
+                <span
+                  className="leading-none text-center"
+                  style={{ fontSize: Math.max(5, metrics.markerFontPx - 1), color: "#64748b" }}
+                >
+                  {formatMonthDay(m.date)}
+                </span>
+                <svg
+                  width={metrics.markerIconPx}
+                  height={metrics.markerIconPx}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={stroke}
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="flex-shrink-0"
+                >
+                  {timelineMarkerIconElements(m.shape, `${i}-`)}
+                </svg>
+              </>
+            ) : (
+              <>
+                <svg
+                  width={metrics.markerIconPx}
+                  height={metrics.markerIconPx}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={stroke}
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="flex-shrink-0"
+                >
+                  {timelineMarkerIconElements(m.shape, `${i}-`)}
+                </svg>
+                <span
+                  className="font-semibold leading-none text-center truncate w-full"
+                  style={{
+                    fontSize: metrics.markerFontPx,
+                    color: stroke,
+                    marginTop: lift,
+                  }}
+                >
+                  {m.label}
+                </span>
+                <span
+                  className="leading-none text-center"
+                  style={{ fontSize: Math.max(5, metrics.markerFontPx - 1), color: "#64748b" }}
+                >
+                  {formatMonthDay(m.date)}
+                </span>
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function TimelineBlock({
   timeline,
   reportDate,
   scheduleSource,
+  planDensity,
   className,
   layoutScale = 1,
   fillAvailableHeight = false,
@@ -357,6 +509,7 @@ function TimelineBlock({
   timeline: NonNullable<StatusReportPDFData["timeline"]>;
   reportDate?: string;
   scheduleSource?: StatusReportPDFData["scheduleSource"];
+  planDensity?: StatusReportPDFData["planDensity"];
   className?: string;
   layoutScale?: number;
   fillAvailableHeight?: boolean;
@@ -381,13 +534,14 @@ function TimelineBlock({
   );
 
   const metrics = scaleStatusReportTimelineMetrics(
-    getStatusReportTimelineMetrics(scheduleSource, { fillAvailableHeight }),
+    getStatusReportTimelineMetrics(scheduleSource, { fillAvailableHeight, planDensity }),
     layoutScale
   );
   const ROW_HEIGHT_PX = metrics.rowHeightPx;
   const overlay = metrics.mode === "overlay";
   const lanes = metrics.mode === "lanes";
-  const fillBar = overlay || lanes;
+  const promoted = metrics.mode === "promoted";
+  const fillBar = overlay || lanes || (promoted && !fillAvailableHeight);
   const stretchBars = fillBar && !fillAvailableHeight;
   const labelCol = metrics.labelColPx;
   const markerStep = timelineFillMarkerStep(metrics);
@@ -400,7 +554,7 @@ function TimelineBlock({
           ? ROW_HEIGHT_PX
           : metrics.markerTopPx + Math.max(markerCount, 1) * markerStep + 4
       ),
-      lockHeight: lanes && !fillAvailableHeight,
+      lockHeight: (lanes || promoted) && !fillAvailableHeight,
     });
 
   const chart = fillAvailableHeight ? expandScheduleEntriesToOwnRows(timeline) : timeline;
@@ -411,16 +565,41 @@ function TimelineBlock({
       ? getCompactPlanTimelineRows(timeline, reportDate)
       : getActiveTimelineRows(timeline);
   const monthHeaderPx = fillAvailableHeight ? metrics.monthFontPx + 8 : 12 * layoutScale;
+  const promotedSplit = promoted
+    ? partitionPromotedTimelineMarkers(chart.markers, startYmd, endYmd, {
+        includeBottomRail: fillAvailableHeight && metrics.bottomRailPx > 0,
+      })
+    : { top: [], bottom: [], overflowCount: 0 };
+  const colorize = <T extends { color?: string | null; phaseId?: string; rowIndex?: number }>(marker: T) => ({
+    ...marker,
+    color: timelineMarkerPhaseColor(marker, chart.bars),
+  });
+  const topRail = promotedSplit.top.map(colorize);
+  const bottomRail = promotedSplit.bottom.map(colorize);
 
   return (
-    <div className={`w-full border border-[#d1d5db] relative ${fillAvailableHeight ? "h-full min-h-0 flex flex-col" : ""} ${className ?? "mt-1"}`}>
+    <div className={`w-full border border-[#d1d5db] relative ${fillAvailableHeight ? "h-full min-h-0 flex flex-col overflow-y-auto" : ""} ${className ?? "mt-1"}`}>
       <div className={`flex flex-row items-stretch ${fillAvailableHeight ? "flex-1 min-h-0" : ""}`}>
         {labelCol > 0 && (
           <div
             className="shrink-0 border-r border-[#d1d5db] flex flex-col"
             style={{ width: labelCol }}
           >
-            {reportDatePercent != null && <div className="h-2" />}
+            {reportDatePercent != null && (
+              <div
+                className="shrink-0"
+                style={{
+                  height: timelineReportDateRowPx(
+                    fillAvailableHeight,
+                    layoutScale,
+                    MODULAR_CHROME_SCALE
+                  ),
+                }}
+              />
+            )}
+            {metrics.topBandPx > 0 && (
+              <div className="shrink-0" style={{ height: metrics.topBandPx }} />
+            )}
             <div
               className="px-1 flex items-center shrink-0"
               style={{ height: monthHeaderPx, backgroundColor: TIMELINE_MONTH_BG }}
@@ -457,11 +636,23 @@ function TimelineBlock({
                 </div>
               );
             })}
+            {metrics.bottomRailPx > 0 && (
+              <div className="shrink-0" style={{ height: metrics.bottomRailPx }} />
+            )}
           </div>
         )}
         <div className={`min-w-0 flex-1 relative ${fillAvailableHeight ? "flex flex-col min-h-0" : ""}`}>
       {reportDatePercent != null && (
-        <div className={`relative shrink-0 ${fillAvailableHeight || layoutScale === MODULAR_CHROME_SCALE ? "h-4" : "h-2"} w-full`}>
+        <div
+          className="relative shrink-0 w-full"
+          style={{
+            height: timelineReportDateRowPx(
+              fillAvailableHeight,
+              layoutScale,
+              MODULAR_CHROME_SCALE
+            ),
+          }}
+        >
           <span
             className={`absolute ${fillAvailableHeight ? "text-[12px]" : layoutScale === MODULAR_CHROME_SCALE ? "text-[10px]" : "text-[5px]"} font-bold whitespace-nowrap`}
             style={{ left: `calc(${reportDatePercent}% - ${18 * layoutScale}px)`, color: TIMELINE_REPORT_DATE }}
@@ -469,6 +660,15 @@ function TimelineBlock({
             Report date
           </span>
         </div>
+      )}
+      {promoted && (
+        <PromotedDateRail
+          markers={topRail}
+          height={metrics.topBandPx}
+          metrics={metrics}
+          positionPercent={positionPercent}
+          align="top"
+        />
       )}
       <div
         className="grid gap-0 w-full shrink-0"
@@ -507,16 +707,22 @@ function TimelineBlock({
           const markersInRow = getVisibleMarkersForRow(chart.markers, row, startYmd, endYmd, rowCap)
             .slice()
             .sort((a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label));
-          const chartMarkers = fillAvailableHeight
+          const chartMarkers = promoted
+            ? []
+            : fillAvailableHeight
             ? pickSpacedTimelineMarkers(markersInRow, startYmd, endYmd)
             : lanes
               ? []
               : markersInRow;
+          const rowWash = timelinePhaseWash(clipped[0]?.bar.color);
           return (
             <div
               key={row}
               className="border-b border-[#d1d5db] relative overflow-hidden"
-              style={rowLayout(markersInRow.length)}
+              style={{
+                ...rowLayout(markersInRow.length),
+                ...(rowWash ? { backgroundColor: rowWash } : {}),
+              }}
             >
               <div className="absolute inset-0 pointer-events-none">
                 {monthBoundaryPositions.map((leftPct, i) => (
@@ -610,13 +816,7 @@ function TimelineBlock({
                       strokeLinejoin="round"
                       className="flex-shrink-0"
                     >
-                      {(TIMELINE_MARKER_ICONS[m.shape ?? "Pin"] ?? TIMELINE_MARKER_ICONS.Pin).map((node, ni) =>
-                        node.type === "path" ? (
-                          <path key={ni} d={node.d} />
-                        ) : (
-                          <line key={ni} x1={node.x1} y1={node.y1} x2={node.x2} y2={node.y2} />
-                        )
-                      )}
+                      {timelineMarkerIconElements(m.shape, `${i}-`)}
                     </svg>
                     {overlay && !fillAvailableHeight && (
                     <span
@@ -652,6 +852,15 @@ function TimelineBlock({
           );
         })}
       </div>
+      {promoted && (
+        <PromotedDateRail
+          markers={bottomRail}
+          height={metrics.bottomRailPx}
+          metrics={metrics}
+          positionPercent={positionPercent}
+          align="bottom"
+        />
+      )}
         </div>
       </div>
     </div>
@@ -971,6 +1180,7 @@ function ModularModuleBody({
             timeline={data.timeline}
             reportDate={data.report.reportDate}
             scheduleSource={data.scheduleSource}
+            planDensity={data.planDensity}
             fillAvailableHeight
             className="h-full mt-0 overflow-hidden"
           />
@@ -1370,6 +1580,7 @@ export function StatusReportView({
                 timeline={data.timeline}
                 reportDate={data.report.reportDate}
                 scheduleSource={data.scheduleSource}
+            planDensity={data.planDensity}
               />
             </div>
           )}

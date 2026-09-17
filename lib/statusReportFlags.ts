@@ -181,5 +181,5 @@ export function scheduleSourceLabel(source: ScheduleSource): string {
 }
 
 export function planDensityLabel(density: PlanReportDensity): string {
-  return density === "phases" ? "Phases only" : "Phases + key dates";
+  return density === "phases" ? "Condensed" : "Advanced";
 }

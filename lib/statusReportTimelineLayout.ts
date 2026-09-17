@@ -7,6 +7,7 @@
  * fit the 16:9 slide (the Plan metrics would overflow and cover activities).
  */
 import { MODULAR_BODY_TYPE_PX, MODULAR_CHROME_SCALE } from "@/lib/reportPanels";
+import type { PlanReportDensity } from "@/lib/plan/reportSchedule";
 
 export const SR_TIMELINE_ROW_HEIGHT_PX = 18;
 export const SR_TIMELINE_BAR_TOP_PX = 3;
@@ -19,6 +20,8 @@ export const SR_TIMELINE_MONTH_FONT_PX = 7;
 export const SR_PLAN_LANE_LABEL_COL_PX = 100;
 /** Modular filled slot: phase names live in this rail so bars stay uncluttered. */
 export const SR_FILL_PHASE_LABEL_COL_PX = 112;
+/** Advanced Modular: wide enough for names like "Kickoff and Discovery". */
+export const SR_FILL_ADVANCED_PHASE_LABEL_COL_PX = 240;
 export const SR_TIMELINE_MARKER_MIN_GAP_PCT = 12;
 export const SR_TIMELINE_MONTH_HEADER_PX = 12;
 export const SR_TIMELINE_REPORT_DATE_LABEL_PX = 8;
@@ -34,8 +37,14 @@ export const SR_TIMELINE_MAX_VISIBLE_MONTHS = Math.floor(
 export const SR_TIMELINE_MARKER_TOP_PX =
   SR_TIMELINE_BAR_TOP_PX + SR_TIMELINE_BAR_HEIGHT_PX + 1;
 
+export const SR_TIMELINE_PROMOTED_TOP_BAND_PX = 32;
+export const SR_TIMELINE_PROMOTED_BOTTOM_RAIL_PX = 32;
+export const SR_TIMELINE_SLOT_HEIGHT_PX = 70;
+export const SR_TIMELINE_ADVANCED_SLOT_HEIGHT_PX =
+  SR_TIMELINE_SLOT_HEIGHT_PX + SR_TIMELINE_PROMOTED_TOP_BAND_PX;
+
 export type StatusReportTimelineMetrics = {
-  mode: "overlay" | "bands" | "lanes";
+  mode: "overlay" | "bands" | "lanes" | "promoted";
   rowHeightPx: number;
   barTopPx: number;
   barHeightPx: number | null;
@@ -46,6 +55,8 @@ export type StatusReportTimelineMetrics = {
   monthFontPx: number;
   markerTopPx: number;
   labelColPx: number;
+  topBandPx: number;
+  bottomRailPx: number;
 };
 
 const PLAN_TIMELINE_METRICS: StatusReportTimelineMetrics = {
@@ -60,6 +71,15 @@ const PLAN_TIMELINE_METRICS: StatusReportTimelineMetrics = {
   monthFontPx: SR_TIMELINE_MONTH_FONT_PX,
   markerTopPx: 4,
   labelColPx: 0,
+  topBandPx: 0,
+  bottomRailPx: 0,
+};
+
+const PLAN_ADVANCED_TIMELINE_METRICS: StatusReportTimelineMetrics = {
+  ...PLAN_TIMELINE_METRICS,
+  mode: "promoted",
+  topBandPx: SR_TIMELINE_PROMOTED_TOP_BAND_PX,
+  bottomRailPx: 0,
 };
 
 const PROJECT_TIMELINE_METRICS: StatusReportTimelineMetrics = {
@@ -74,6 +94,8 @@ const PROJECT_TIMELINE_METRICS: StatusReportTimelineMetrics = {
   monthFontPx: 6,
   markerTopPx: 0,
   labelColPx: 0,
+  topBandPx: 0,
+  bottomRailPx: 0,
 };
 
 /** Tall Modular slot: module body type, key dates under bars, one lane per phase. */
@@ -89,6 +111,22 @@ const PLAN_FILL_TIMELINE_METRICS: StatusReportTimelineMetrics = {
   monthFontPx: MODULAR_BODY_TYPE_PX,
   markerTopPx: 8,
   labelColPx: SR_FILL_PHASE_LABEL_COL_PX,
+  topBandPx: 0,
+  bottomRailPx: 0,
+};
+
+const PLAN_ADVANCED_FILL_TIMELINE_METRICS: StatusReportTimelineMetrics = {
+  ...PLAN_FILL_TIMELINE_METRICS,
+  mode: "promoted",
+  rowHeightPx: 22,
+  barTopPx: 3,
+  barHeightPx: 14,
+  markerIconPx: 10,
+  markerColPx: 64,
+  markerFontPx: 8,
+  topBandPx: 32,
+  bottomRailPx: 24,
+  labelColPx: SR_FILL_ADVANCED_PHASE_LABEL_COL_PX,
 };
 
 const PROJECT_FILL_TIMELINE_METRICS: StatusReportTimelineMetrics = {
@@ -103,14 +141,35 @@ const PROJECT_FILL_TIMELINE_METRICS: StatusReportTimelineMetrics = {
   monthFontPx: MODULAR_BODY_TYPE_PX,
   markerTopPx: 8,
   labelColPx: SR_FILL_PHASE_LABEL_COL_PX,
+  topBandPx: 0,
+  bottomRailPx: 0,
 };
+
+export function usesPromotedTimeline(
+  scheduleSource?: "timeline" | "plan" | null,
+  planDensity?: PlanReportDensity | null
+): boolean {
+  return scheduleSource === "plan" && planDensity !== "phases";
+}
+
+export function statusReportTimelineSlotHeightPx(opts: {
+  scheduleSource?: "timeline" | "plan" | null;
+  planDensity?: PlanReportDensity | null;
+}): number {
+  return usesPromotedTimeline(opts.scheduleSource, opts.planDensity)
+    ? SR_TIMELINE_ADVANCED_SLOT_HEIGHT_PX
+    : SR_TIMELINE_SLOT_HEIGHT_PX;
+}
 
 export function getStatusReportTimelineMetrics(
   scheduleSource?: "timeline" | "plan" | null,
-  options?: { fillAvailableHeight?: boolean }
+  options?: { fillAvailableHeight?: boolean; planDensity?: PlanReportDensity | null }
 ): StatusReportTimelineMetrics {
   const fill = options?.fillAvailableHeight === true;
   if (scheduleSource === "plan") {
+    if (usesPromotedTimeline(scheduleSource, options?.planDensity)) {
+      return fill ? PLAN_ADVANCED_FILL_TIMELINE_METRICS : PLAN_ADVANCED_TIMELINE_METRICS;
+    }
     return fill ? PLAN_FILL_TIMELINE_METRICS : PLAN_TIMELINE_METRICS;
   }
   return fill ? PROJECT_FILL_TIMELINE_METRICS : PROJECT_TIMELINE_METRICS;
@@ -129,6 +188,15 @@ export function timelineFillMarkerStep(metrics: StatusReportTimelineMetrics): nu
   return metrics.markerIconPx + metrics.markerFontPx + 4;
 }
 
+export function timelineReportDateRowPx(
+  fillAvailableHeight: boolean,
+  layoutScale: number,
+  modularChromeScale: number
+): number {
+  if (fillAvailableHeight || layoutScale === modularChromeScale) return 16;
+  return 8 * layoutScale;
+}
+
 export function statusReportTimelineChromeScale(isModular: boolean): number {
   return isModular ? MODULAR_CHROME_SCALE : 1;
 }
@@ -143,7 +211,7 @@ export function timelinePhaseRowLayout({
   lockHeight: boolean;
 }): { minHeight: number; flexGrow?: number; flexShrink?: number; flexBasis?: number; height?: number } {
   if (fillAvailableHeight) {
-    return { minHeight: rowHeightPx, flexGrow: 1, flexShrink: 1, flexBasis: 0 };
+    return { minHeight: rowHeightPx, flexGrow: 1, flexShrink: 0, flexBasis: 0 };
   }
   if (lockHeight) return { minHeight: rowHeightPx, height: rowHeightPx };
   return { minHeight: rowHeightPx };
@@ -166,6 +234,124 @@ export function scaleStatusReportTimelineMetrics(
     monthFontPx: metrics.monthFontPx * scale,
     markerTopPx: metrics.markerTopPx * scale,
     labelColPx: metrics.labelColPx * scale,
+    topBandPx: metrics.topBandPx * scale,
+    bottomRailPx: metrics.bottomRailPx * scale,
+  };
+}
+
+export function timelineMarkerPhaseColor(
+  marker: { color?: string | null; phaseId?: string; rowIndex?: number },
+  bars: Array<{ color?: string | null; phaseId?: string; rowIndex?: number }>
+): string | null {
+  if (marker.color) return marker.color;
+  const byPhase = marker.phaseId
+    ? bars.find((bar) => bar.phaseId === marker.phaseId && bar.color)
+    : undefined;
+  if (byPhase?.color) return byPhase.color;
+  const byRow =
+    marker.rowIndex != null
+      ? bars.find((bar) => bar.rowIndex === marker.rowIndex && bar.color)
+      : undefined;
+  return byRow?.color ?? null;
+}
+
+export function isBottomRailKeyDateShape(shape?: string): boolean {
+  return shape === "Rocket" || shape === "Calendar";
+}
+
+export function defaultPromotedMarkerRail(
+  shape: string | undefined,
+  includeBottomRail: boolean
+): "top" | "bottom" {
+  return includeBottomRail && isBottomRailKeyDateShape(shape) ? "bottom" : "top";
+}
+
+export function promotedMarkerRail(
+  marker: { shape?: string; rail?: "top" | "bottom" },
+  includeBottomRail: boolean
+): "top" | "bottom" {
+  if (!includeBottomRail) return "top";
+  if (marker.rail === "top" || marker.rail === "bottom") return marker.rail;
+  return defaultPromotedMarkerRail(marker.shape, includeBottomRail);
+}
+
+export function timelinePhaseWash(hex: string | null | undefined): string | undefined {
+  if (!hex) return undefined;
+  const match = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
+  if (!match) return undefined;
+  const n = match[1];
+  const r = parseInt(n.slice(0, 2), 16);
+  const g = parseInt(n.slice(2, 4), 16);
+  const b = parseInt(n.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},0.1)`;
+}
+
+export function staggerPromotedMarkers<T extends { date: string; label?: string }>(
+  markers: T[],
+  axisStart: string,
+  axisEnd: string,
+  minGapPct = SR_TIMELINE_MARKER_MIN_GAP_PCT
+): { placed: Array<T & { staggerRow: 0 | 1 }>; overflow: T[] } {
+  const startMs = new Date(axisStart).getTime();
+  const totalMs = new Date(axisEnd).getTime() - startMs || 1;
+  const pct = (date: string) => ((new Date(date).getTime() - startMs) / totalMs) * 100;
+  const sorted = [...markers].sort(
+    (a, b) => a.date.localeCompare(b.date) || (a.label ?? "").localeCompare(b.label ?? "")
+  );
+  const lastPct = [-Infinity, -Infinity];
+  const placed: Array<T & { staggerRow: 0 | 1 }> = [];
+  for (const marker of sorted) {
+    const x = pct(marker.date);
+    const gap0 = x - lastPct[0];
+    const gap1 = x - lastPct[1];
+    const row: 0 | 1 =
+      gap0 >= minGapPct ? 0 : gap1 >= minGapPct ? 1 : gap0 >= gap1 ? 0 : 1;
+    lastPct[row] = x;
+    placed.push({ ...marker, staggerRow: row });
+  }
+  return { placed, overflow: [] };
+}
+
+export function partitionPromotedTimelineMarkers<
+  T extends { date: string; shape?: string; label?: string; rail?: "top" | "bottom" },
+>(
+  markers: T[],
+  axisStart: string,
+  axisEnd: string,
+  options: { includeBottomRail: boolean; minGapPct?: number }
+): {
+  top: Array<T & { staggerRow: 0 | 1 }>;
+  bottom: Array<T & { staggerRow: 0 | 1 }>;
+  overflowCount: number;
+} {
+  const startYmd = axisStart.slice(0, 10);
+  const endYmd = axisEnd.slice(0, 10);
+  const inAxis = markers.filter((marker) => {
+    const date = marker.date.slice(0, 10);
+    return date >= startYmd && date <= endYmd;
+  });
+  const topCandidates = inAxis.filter(
+    (marker) => promotedMarkerRail(marker, options.includeBottomRail) === "top"
+  );
+  const bottomSeed = options.includeBottomRail
+    ? inAxis.filter((marker) => promotedMarkerRail(marker, options.includeBottomRail) === "bottom")
+    : [];
+  const topStagger = staggerPromotedMarkers(
+    topCandidates,
+    axisStart,
+    axisEnd,
+    options.minGapPct
+  );
+  const bottomStagger = staggerPromotedMarkers(
+    bottomSeed,
+    axisStart,
+    axisEnd,
+    options.minGapPct
+  );
+  return {
+    top: topStagger.placed,
+    bottom: bottomStagger.placed,
+    overflowCount: 0,
   };
 }
 
@@ -213,6 +399,7 @@ export type TimelineLayoutOverlay = {
   hiddenMarkerIds?: string[];
   labels?: Record<string, string>;
   rows?: Record<string, number>;
+  markerRails?: Record<string, "top" | "bottom">;
   windowStartYmd?: string;
   windowEndYmd?: string;
 };
@@ -229,10 +416,13 @@ type LayoutBar = {
 
 type LayoutMarker = {
   itemId?: string;
+  phaseId?: string;
   label: string;
   date: string;
   shape?: string;
   rowIndex?: number;
+  color?: string | null;
+  rail?: "top" | "bottom";
   muted?: boolean;
 };
 
@@ -283,6 +473,29 @@ export function setTimelineLayoutLabel(
   } else {
     next[id] = trimmed;
   }
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+function overlayHasContent(layout: TimelineLayoutOverlay): boolean {
+  return (
+    (layout.hiddenBarIds?.length ?? 0) > 0 ||
+    (layout.hiddenMarkerIds?.length ?? 0) > 0 ||
+    Boolean(layout.labels) ||
+    Boolean(layout.rows) ||
+    Boolean(layout.markerRails) ||
+    Boolean(layout.windowStartYmd && layout.windowEndYmd)
+  );
+}
+
+export function setTimelineLayoutMarkerRail(
+  rails: Record<string, "top" | "bottom"> | undefined,
+  id: string,
+  value: "top" | "bottom",
+  automatic: "top" | "bottom"
+): Record<string, "top" | "bottom"> | undefined {
+  const next = { ...(rails ?? {}) };
+  if (value === automatic) delete next[id];
+  else next[id] = value;
   return Object.keys(next).length > 0 ? next : undefined;
 }
 
@@ -456,6 +669,27 @@ export function moveArrangePhase(
   return { ...layout, rows };
 }
 
+/** Move a key date to the neighboring phase group in Arrange (row overlay only). */
+export function moveArrangeKeyDate(
+  layout: TimelineLayoutOverlay,
+  timeline: { bars: ArrangeScheduleBar[]; markers: ArrangeScheduleMarker[] },
+  markerId: string,
+  direction: -1 | 1,
+  maxRow = 4
+): TimelineLayoutOverlay {
+  const groups = groupArrangeSchedule(timeline, layout, maxRow).filter((group) => group.bar);
+  const groupIndex = groups.findIndex((group) => group.markers.some((marker) => marker.id === markerId));
+  const target = groupIndex >= 0 ? groups[groupIndex + direction] : undefined;
+  if (groupIndex < 0 || !target?.bar) return layout;
+  const marker = timeline.markers.find((item) => item.itemId === markerId);
+  if (!marker) return layout;
+  const targetPhase = timeline.bars.find((bar) => bar.phaseId === target.bar.id);
+  const targetRow = displayRow(target.bar.id, targetPhase?.rowIndex ?? 1, layout, maxRow);
+  const original = marker.rowIndex ?? 1;
+  const rows = setTimelineLayoutRow(layout.rows, markerId, original, targetRow, maxRow);
+  return { ...layout, rows };
+}
+
 export function timelineLayoutFromPreviousSnapshot(
   snapshot:
     | {
@@ -467,17 +701,7 @@ export function timelineLayoutFromPreviousSnapshot(
 ): TimelineLayoutOverlay | undefined {
   if (snapshot?.scheduleSource !== "plan" || !snapshot.timelineLayout) return undefined;
   const layout = snapshot.timelineLayout;
-  if (
-    (layout.hiddenBarIds?.length ?? 0) === 0 &&
-    (layout.hiddenMarkerIds?.length ?? 0) === 0 &&
-    !layout.labels &&
-    !layout.rows &&
-    !layout.windowStartYmd &&
-    !layout.windowEndYmd
-  ) {
-    return undefined;
-  }
-  return layout;
+  return overlayHasContent(layout) ? layout : undefined;
 }
 
 export function persistTimelineLayoutOnSnapshot<
@@ -535,14 +759,7 @@ export function setTimelineLayoutWindow(
     next.windowStartYmd = start;
     next.windowEndYmd = end;
   }
-  if (
-    (next.hiddenBarIds?.length ?? 0) === 0 &&
-    (next.hiddenMarkerIds?.length ?? 0) === 0 &&
-    !next.labels &&
-    !next.rows &&
-    !next.windowStartYmd &&
-    !next.windowEndYmd
-  ) {
+  if (!overlayHasContent(next)) {
     return undefined;
   }
   return next;
@@ -576,6 +793,9 @@ export function applyTimelineLayout<T extends LayoutTimelineSlice>(
         ...marker,
         label: overlayLabel(marker.itemId, layout.labels, marker.label),
         rowIndex: row ?? currentRow,
+        ...(marker.itemId && layout.markerRails?.[marker.itemId]
+          ? { rail: layout.markerRails[marker.itemId] }
+          : {}),
       };
     });
   const startDate = layout.windowStartYmd?.slice(0, 10) || timeline.startDate;
@@ -609,25 +829,19 @@ export function pruneTimelineLayout(
   const hiddenMarkerIds = (layout.hiddenMarkerIds ?? []).filter((id) => markerIds.has(id));
   const labels = pickExisting(layout.labels, new Set([...barIds, ...markerIds]));
   const rows = pickExisting(layout.rows, new Set([...barIds, ...markerIds]));
+  const markerRails = pickExisting(layout.markerRails, markerIds);
   const windowStartYmd = layout.windowStartYmd?.slice(0, 10);
   const windowEndYmd = layout.windowEndYmd?.slice(0, 10);
   const hasWindow =
     Boolean(windowStartYmd && windowEndYmd) &&
     isReadableTimelineWindow(windowStartYmd!, windowEndYmd!);
-  if (
-    hiddenBarIds.length === 0 &&
-    hiddenMarkerIds.length === 0 &&
-    !labels &&
-    !rows &&
-    !hasWindow
-  ) {
-    return undefined;
-  }
-  return {
+  const next: TimelineLayoutOverlay = {
     ...(hiddenBarIds.length > 0 ? { hiddenBarIds } : {}),
     ...(hiddenMarkerIds.length > 0 ? { hiddenMarkerIds } : {}),
     ...(labels ? { labels } : {}),
     ...(rows ? { rows } : {}),
+    ...(markerRails ? { markerRails } : {}),
     ...(hasWindow ? { windowStartYmd, windowEndYmd } : {}),
   };
+  return overlayHasContent(next) ? next : undefined;
 }

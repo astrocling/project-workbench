@@ -10,7 +10,7 @@ export const PLAN_SCHEDULE_EMPTY_ERROR =
   "Add phases and dated items on the Plan tab (or choose Project timeline).";
 
 export const PLAN_SCHEDULE_PHASES_ONLY_POINT_DATES_ERROR =
-  'Switch to "Phases + key dates" or add phases with date ranges on the Plan tab (or choose Project timeline).';
+  'Switch to "Advanced" or add phases with date ranges on the Plan tab (or choose Project timeline).';
 
 export const PROJECT_END_DATE_REQUIRED_ERROR =
   "Set a project end date before creating or refreshing the schedule on a status report.";

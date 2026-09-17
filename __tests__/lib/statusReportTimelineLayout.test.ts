@@ -18,7 +18,14 @@ import {
   timelineMarkerHangsLeft,
   timelineMarkerStackTop,
   timelinePhaseRowLayout,
+  timelinePhaseWash,
+  staggerPromotedMarkers,
+  partitionPromotedTimelineMarkers,
+  statusReportTimelineSlotHeightPx,
+  usesPromotedTimeline,
   toggleTimelineHiddenId,
+  moveArrangeKeyDate,
+  setTimelineLayoutMarkerRail,
   type TimelineLayoutOverlay,
 } from "@/lib/statusReportTimelineLayout";
 
@@ -34,9 +41,10 @@ describe("statusReportTimelineLayout", () => {
   });
 
   it("uses Plan lanes without a left name column so labels sit in the bars", () => {
-    const plan = getStatusReportTimelineMetrics("plan");
+    const plan = getStatusReportTimelineMetrics("plan", { planDensity: "phases" });
     expect(plan.mode).toBe("lanes");
     expect(plan.labelColPx).toBe(0);
+    expect(plan.topBandPx).toBe(0);
     expect(plan.rowHeightPx * 4).toBeLessThanOrEqual(80);
   });
 
@@ -50,8 +58,11 @@ describe("statusReportTimelineLayout", () => {
   });
 
   it("uses Modular body type in a filled slot instead of Standard strip type", () => {
-    const compact = getStatusReportTimelineMetrics("plan");
-    const filled = getStatusReportTimelineMetrics("plan", { fillAvailableHeight: true });
+    const compact = getStatusReportTimelineMetrics("plan", { planDensity: "phases" });
+    const filled = getStatusReportTimelineMetrics("plan", {
+      fillAvailableHeight: true,
+      planDensity: "phases",
+    });
     expect(compact.mode).toBe("lanes");
     expect(filled.mode).toBe("bands");
     expect(compact.barFontPx).toBeLessThan(12);
@@ -70,6 +81,39 @@ describe("statusReportTimelineLayout", () => {
     expect(filled.mode).toBe("bands");
   });
 
+  it("promotes Plan Advanced key dates into rails instead of overlay or in-row pins", () => {
+    const compact = getStatusReportTimelineMetrics("plan", {
+      planDensity: "phases_and_key_dates",
+    });
+    const omitted = getStatusReportTimelineMetrics("plan");
+    const filled = getStatusReportTimelineMetrics("plan", {
+      fillAvailableHeight: true,
+      planDensity: "phases_and_key_dates",
+    });
+    const timeline = getStatusReportTimelineMetrics("timeline", {
+      planDensity: "phases_and_key_dates",
+    });
+    expect(compact.mode).toBe("promoted");
+    expect(omitted).toEqual(compact);
+    expect(compact.topBandPx).toBeGreaterThan(0);
+    expect(compact.bottomRailPx).toBe(0);
+    expect(filled.mode).toBe("promoted");
+    expect(filled.bottomRailPx).toBeGreaterThan(0);
+    expect(filled.labelColPx).toBe(240);
+    expect(filled.rowHeightPx).toBe(22);
+    expect(timeline.mode).toBe("overlay");
+    expect(statusReportTimelineSlotHeightPx({ scheduleSource: "plan", planDensity: "phases" })).toBe(
+      70
+    );
+    expect(
+      statusReportTimelineSlotHeightPx({
+        scheduleSource: "plan",
+        planDensity: "phases_and_key_dates",
+      })
+    ).toBeGreaterThan(70);
+    expect(statusReportTimelineSlotHeightPx({ scheduleSource: "timeline" })).toBe(70);
+  });
+
   it("stacks markers vertically when the slot has leftover height", () => {
     expect(timelineMarkerStackTop(16, 0, 18, true)).toBe(16);
     expect(timelineMarkerStackTop(16, 2, 18, true)).toBe(52);
@@ -80,7 +124,7 @@ describe("statusReportTimelineLayout", () => {
     expect(timelinePhaseRowLayout({ fillAvailableHeight: true, rowHeightPx: 28, lockHeight: true })).toEqual({
       minHeight: 28,
       flexGrow: 1,
-      flexShrink: 1,
+      flexShrink: 0,
       flexBasis: 0,
     });
     expect(timelinePhaseRowLayout({ fillAvailableHeight: false, rowHeightPx: 14, lockHeight: false })).toEqual({
@@ -234,6 +278,21 @@ describe("moveArrangePhase", () => {
   });
 });
 
+describe("moveArrangeKeyDate", () => {
+  it("moves a key date onto the neighboring phase row", () => {
+    const next = moveArrangeKeyDate({}, timeline, "m1", -1);
+    expect(next.rows).toEqual({ m1: 1 });
+    expect(moveArrangeKeyDate({}, timeline, "m1", 1)).toEqual({});
+  });
+});
+
+describe("setTimelineLayoutMarkerRail", () => {
+  it("stores a rail override only when it differs from the automatic placement", () => {
+    expect(setTimelineLayoutMarkerRail(undefined, "m1", "bottom", "top")).toEqual({ m1: "bottom" });
+    expect(setTimelineLayoutMarkerRail({ m1: "bottom" }, "m1", "top", "top")).toBeUndefined();
+  });
+});
+
 describe("timelineLayoutFromPreviousSnapshot", () => {
   it("returns Plan arrange overlay from the previous report and ignores timeline-source reports", () => {
     expect(
@@ -313,5 +372,81 @@ describe("pickSpacedTimelineMarkers", () => {
       "2026-12-31"
     );
     expect(kept.map((m) => m.label)).toEqual(["A", "Go Live"]);
+  });
+});
+
+describe("promoted key-date rails", () => {
+  it("washes a phase hex at 10% opacity", () => {
+    expect(timelinePhaseWash("#1941FA")).toBe("rgba(25,65,250,0.1)");
+    expect(timelinePhaseWash("not-a-color")).toBeUndefined();
+  });
+
+  it("staggers a cluster onto two rows and still places every date", () => {
+    const result = staggerPromotedMarkers(
+      [
+        { label: "A", date: "2026-09-02" },
+        { label: "B", date: "2026-09-03" },
+        { label: "C", date: "2026-09-04" },
+        { label: "Go Live", date: "2026-11-15" },
+      ],
+      "2026-07-01",
+      "2026-12-31"
+    );
+    expect(result.placed.map((m) => `${m.label}:${m.staggerRow}`)).toEqual([
+      "A:0",
+      "B:1",
+      "C:0",
+      "Go Live:0",
+    ]);
+    expect(result.overflow).toEqual([]);
+  });
+
+  it("sends meetings to the bottom rail and keeps leftover key dates on the top band", () => {
+    const split = partitionPromotedTimelineMarkers(
+      [
+        { label: "Alpha", date: "2026-09-02", shape: "Pin" },
+        { label: "Beta", date: "2026-09-03", shape: "Flag" },
+        { label: "Gamma", date: "2026-09-04", shape: "ThumbsUp" },
+        { label: "Standup", date: "2026-09-10", shape: "Calendar" },
+        { label: "Go Live", date: "2026-11-15", shape: "Pin" },
+      ],
+      "2026-07-01",
+      "2026-12-31",
+      { includeBottomRail: true }
+    );
+    expect(split.top.map((m) => m.label)).toEqual(["Alpha", "Beta", "Gamma", "Go Live"]);
+    expect(split.bottom.map((m) => m.label)).toEqual(["Standup"]);
+    expect(split.overflowCount).toBe(0);
+  });
+
+  it("keeps meetings on the top band when there is no bottom rail", () => {
+    const split = partitionPromotedTimelineMarkers(
+      [
+        { label: "Alpha", date: "2026-09-02", shape: "Pin" },
+        { label: "Standup", date: "2026-11-15", shape: "Calendar" },
+      ],
+      "2026-07-01",
+      "2026-12-31",
+      { includeBottomRail: false }
+    );
+    expect(split.top.map((m) => m.label)).toEqual(["Alpha", "Standup"]);
+    expect(split.bottom).toEqual([]);
+    expect(usesPromotedTimeline("plan", "phases")).toBe(false);
+    expect(usesPromotedTimeline("plan", "phases_and_key_dates")).toBe(true);
+    expect(usesPromotedTimeline("timeline", "phases_and_key_dates")).toBe(false);
+  });
+
+  it("honors an Arrange rail override so a date can move off the automatic band", () => {
+    const split = partitionPromotedTimelineMarkers(
+      [
+        { label: "Alpha", date: "2026-09-02", shape: "Pin", rail: "bottom" as const },
+        { label: "Standup", date: "2026-09-10", shape: "Calendar", rail: "top" as const },
+      ],
+      "2026-07-01",
+      "2026-12-31",
+      { includeBottomRail: true }
+    );
+    expect(split.top.map((m) => m.label)).toEqual(["Standup"]);
+    expect(split.bottom.map((m) => m.label)).toEqual(["Alpha"]);
   });
 });

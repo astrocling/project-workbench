@@ -19,10 +19,12 @@ export type ReportScheduleBar = {
 
 export type ReportScheduleMarker = {
   itemId?: string;
+  phaseId?: string;
   label: string;
   date: string;
   shape: string;
   rowIndex: number;
+  color?: string | null;
   muted?: boolean;
 };
 
@@ -70,9 +72,9 @@ function markerShape(item: PlanItemJson): string {
     case "sign_off":
       return "ThumbsUp";
     case "hard_deadline":
-      return "BadgeAlert";
+      return "Flag";
     case "meeting":
-      return "Rocket";
+      return "Calendar";
     default:
       return "Pin";
   }
@@ -81,8 +83,8 @@ function markerShape(item: PlanItemJson): string {
 /** Human label for a compact-schedule marker, from the Plan item type encoded as `shape`. */
 export function reportKeyDateKind(shape: string | undefined): { shape: string; label: string } {
   if (shape === "ThumbsUp") return { shape, label: "Sign-off" };
-  if (shape === "BadgeAlert") return { shape, label: "Hard deadline" };
-  if (shape === "Rocket") return { shape, label: "Meeting" };
+  if (shape === "BadgeAlert" || shape === "Flag") return { shape, label: "Hard deadline" };
+  if (shape === "Rocket" || shape === "Calendar") return { shape, label: "Meeting" };
   if (shape === "Pin") return { shape: "Pin", label: "Milestone" };
   return { shape: shape ?? "Pin", label: "Key date" };
 }
@@ -97,15 +99,37 @@ function maxDate(dates: string[]): string {
 
 /** Paint missing snapshot bar colors from live Plan phases (locked reports created before colors). */
 export function applyPlanPhaseColors<
-  T extends { bars: Array<{ phaseId?: string; color?: string | null }> },
+  T extends {
+    bars: Array<{ phaseId?: string; rowIndex?: number; color?: string | null }>;
+    markers?: Array<{ phaseId?: string; rowIndex?: number; color?: string | null }>;
+  },
 >(timeline: T, phases: Array<{ id: string; color: string }>): T {
   const colorById = new Map(phases.map((phase) => [phase.id, phase.color]));
+  const paintBar = <E extends { phaseId?: string; color?: string | null }>(entry: E): E => ({
+    ...entry,
+    color: entry.color || (entry.phaseId ? colorById.get(entry.phaseId) ?? null : null) || null,
+  });
+  const bars = timeline.bars.map(paintBar);
+  const colorByRow = new Map<number, string>();
+  for (const bar of bars) {
+    if (bar.color && bar.rowIndex != null && !colorByRow.has(bar.rowIndex)) {
+      colorByRow.set(bar.rowIndex, bar.color);
+    }
+  }
+  const paintMarker = <E extends { phaseId?: string; rowIndex?: number; color?: string | null }>(
+    entry: E
+  ): E => ({
+    ...entry,
+    color:
+      entry.color ||
+      (entry.phaseId ? colorById.get(entry.phaseId) ?? null : null) ||
+      (entry.rowIndex != null ? colorByRow.get(entry.rowIndex) ?? null : null) ||
+      null,
+  });
   return {
     ...timeline,
-    bars: timeline.bars.map((bar) => ({
-      ...bar,
-      color: bar.color || (bar.phaseId ? colorById.get(bar.phaseId) ?? null : null) || null,
-    })),
+    bars,
+    ...(timeline.markers ? { markers: timeline.markers.map(paintMarker) } : {}),
   };
 }
 
@@ -157,10 +181,12 @@ export function compactPlanToSchedule(
         const muted = isPlanItemComplete(item);
         return {
           itemId: item.id,
+          phaseId: phase.id,
           label: item.label,
           date: item.startDate,
           shape: markerShape(item),
           rowIndex,
+          color: phase.color || null,
           ...(muted ? { muted: true } : {}),
         };
       });

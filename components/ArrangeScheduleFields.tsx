@@ -1,14 +1,29 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
-import { Calendar, ChevronDown, ChevronUp, Diamond, Eye, EyeOff, Flag, PenLine, type LucideIcon } from "lucide-react";
+import {
+  Calendar,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Diamond,
+  Eye,
+  EyeOff,
+  Flag,
+  PenLine,
+  type LucideIcon,
+} from "lucide-react";
 import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument";
 import { reportKeyDateKind, TIMELINE_RENDERABLE_ROW_MAX } from "@/lib/plan/reportSchedule";
 import {
+  defaultPromotedMarkerRail,
   groupArrangeSchedule,
   isReadableTimelineWindow,
+  moveArrangeKeyDate,
   moveArrangePhase,
   setTimelineLayoutLabel,
+  setTimelineLayoutMarkerRail,
   setTimelineLayoutWindow,
   toggleTimelineHiddenId,
   type TimelineLayoutOverlay,
@@ -27,7 +42,9 @@ const KEY_DATE_ICONS: Record<string, LucideIcon> = {
   Pin: Diamond,
   ThumbsUp: PenLine,
   BadgeAlert: Flag,
+  Flag,
   Rocket: Calendar,
+  Calendar,
 };
 
 type ArrangeScheduleFieldsProps = {
@@ -290,22 +307,52 @@ export function ArrangeScheduleFields({
                 {group.markers.map((marker) => {
                   const kind = reportKeyDateKind(marker.shape);
                   const TypeIcon = KEY_DATE_ICONS[kind.shape] ?? Diamond;
+                  const canMoveMarkerPrev = Boolean(phaseId) && groupIndex > 0 && Boolean(groups[groupIndex - 1]?.bar);
+                  const canMoveMarkerNext =
+                    Boolean(phaseId) && groupIndex < groups.length - 1 && Boolean(groups[groupIndex + 1]?.bar);
+                  const includeBottomRail = rowMax > 4;
+                  const automaticRail = defaultPromotedMarkerRail(kind.shape, includeBottomRail);
+                  const currentRail = layout.markerRails?.[marker.id] ?? automaticRail;
+                  const phaseColor = group.bar?.color ?? "#1941FA";
                   return (
                     <span
                       key={marker.id}
                       title={kind.label}
-                      className={`inline-flex items-center gap-1 max-w-full h-7 pl-1.5 pr-0.5 rounded-full border border-surface-200 dark:border-dark-border bg-surface-50 dark:bg-dark-raised ${
+                      className={`inline-flex items-center gap-0.5 max-w-full h-7 pl-1.5 pr-0.5 rounded-full border border-surface-200 dark:border-dark-border bg-surface-50 dark:bg-dark-raised ${
                         marker.hidden ? "opacity-50" : ""
                       }`}
                     >
                       <TypeIcon
                         size={12}
-                        className="shrink-0 text-surface-600 dark:text-surface-300"
+                        className="shrink-0"
+                        style={{ color: phaseColor }}
                         aria-hidden
                       />
                       <span className="text-label-sm font-semibold uppercase tracking-wide text-surface-500 whitespace-nowrap">
                         {kind.label}
                       </span>
+                      {includeBottomRail ? (
+                        <button
+                          type="button"
+                          className="text-label-sm font-semibold uppercase tracking-wide text-surface-600 dark:text-surface-300 whitespace-nowrap rounded px-0.5 hover:bg-surface-100 dark:hover:bg-dark-raised disabled:opacity-30"
+                          disabled={disabled}
+                          title="Show this date on the top band or bottom rail"
+                          aria-label={`Place ${kind.label} on the ${currentRail === "top" ? "bottom" : "top"} rail`}
+                          onClick={() =>
+                            onChange({
+                              ...layout,
+                              markerRails: setTimelineLayoutMarkerRail(
+                                layout.markerRails,
+                                marker.id,
+                                currentRail === "top" ? "bottom" : "top",
+                                automaticRail
+                              ),
+                            })
+                          }
+                        >
+                          {currentRail === "bottom" ? "Bottom" : "Top"}
+                        </button>
+                      ) : null}
                       <span className="text-label-sm text-surface-500 whitespace-nowrap">
                         {shortDate(marker.date)}
                       </span>
@@ -326,6 +373,24 @@ export function ArrangeScheduleFields({
                           if (event.key === "Enter") (event.target as HTMLInputElement).blur();
                         }}
                       />
+                      <IconButton
+                        label="Move key date to previous phase"
+                        disabled={disabled || !canMoveMarkerPrev}
+                        onClick={() =>
+                          onChange(moveArrangeKeyDate(layout, timeline, marker.id, -1, rowMax))
+                        }
+                      >
+                        <ChevronLeft size={12} />
+                      </IconButton>
+                      <IconButton
+                        label="Move key date to next phase"
+                        disabled={disabled || !canMoveMarkerNext}
+                        onClick={() =>
+                          onChange(moveArrangeKeyDate(layout, timeline, marker.id, 1, rowMax))
+                        }
+                      >
+                        <ChevronRight size={12} />
+                      </IconButton>
                       <IconButton
                         label={marker.hidden ? "Show key date on slide" : "Hide key date on this slide"}
                         disabled={disabled}

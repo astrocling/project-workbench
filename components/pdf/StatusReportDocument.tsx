@@ -10,6 +10,7 @@ import {
   Circle,
   Path,
   Line,
+  Rect,
   G,
 } from "@react-pdf/renderer";
 import { BRAND_COLORS } from "@/lib/brandColors";
@@ -54,22 +55,30 @@ import {
   getVisibleMarkersForRow,
   TIMELINE_FILL_ROW_MAX,
   timelineHasVisibleSchedule,
+  type PlanReportDensity,
 } from "@/lib/plan/reportSchedule";
 import {
   getStatusReportTimelineMetrics,
+  partitionPromotedTimelineMarkers,
   scaleStatusReportTimelineMetrics,
   SR_TIMELINE_BAR_FONT_PX,
   SR_TIMELINE_MARKER_COL_PX,
   SR_TIMELINE_MARKER_FONT_PX,
   SR_TIMELINE_MARKER_ICON_PX,
   SR_TIMELINE_MONTH_FONT_PX,
+  SR_TIMELINE_SLOT_HEIGHT_PX,
   pickSpacedTimelineMarkers,
   statusReportMonthHeaderLabel,
+  statusReportTimelineSlotHeightPx,
   timelineFillMarkerStep,
   timelineLaneLabel,
   timelineMarkerHangsLeft,
+  timelineMarkerPhaseColor,
   timelineMarkerStackTop,
   timelinePhaseRowLayout,
+  timelinePhaseWash,
+  timelineReportDateRowPx,
+  type StatusReportTimelineMetrics,
 } from "@/lib/statusReportTimelineLayout";
 import type { PlanJson } from "@/lib/plan/serialize";
 import { ganttBarLabelTextColor } from "@/lib/plan/ganttBarLabel";
@@ -97,8 +106,8 @@ const BUDGET_FOOTER_GAP = 5;
 const MAIN_CONTENT_HEIGHT = PAGE_HEIGHT - 24 - FOOTER_HEIGHT;
 /** Space to reserve at bottom of main column so content doesn't overlap the fixed budget block (content-sized budget + gap). */
 const BUDGET_BLOCK_RESERVED = 70;
-/** Height reserved for the timeline so it can be pinned above the budget; month row + 4 bar rows + report date. */
-const TIMELINE_SLOT_HEIGHT = 70;
+/** Height reserved for the timeline so it can be pinned above the budget; month row + 4 bar rows + report date. Advanced Plan adds a top key-date band. */
+const TIMELINE_SLOT_HEIGHT = SR_TIMELINE_SLOT_HEIGHT_PX;
 
 const BIO_TITLE_COLOR = "#220088";
 const BIO_LABEL_COLOR = "#220088";
@@ -120,7 +129,10 @@ const TIMELINE_ROW_BORDER = "#d1d5db"; // surface-300 — stronger than surface-
 const TIMELINE_MONTH_DIVIDER = "#9ca3af"; // vertical month boundaries (surface-400)
 
 /** Lucide icon path/line data for timeline markers (same icons as Timeline tab). viewBox 0 0 24 24. */
-type IconNode = { type: "path"; d: string } | { type: "line"; x1: number; y1: number; x2: number; y2: number };
+type IconNode =
+  | { type: "path"; d: string }
+  | { type: "line"; x1: number; y1: number; x2: number; y2: number }
+  | { type: "rect"; x: number; y: number; width: number; height: number; rx?: number };
 const TIMELINE_MARKER_ICONS: Record<string, IconNode[]> = {
   BadgeAlert: [
     { type: "path", d: "M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z" },
@@ -154,6 +166,16 @@ const TIMELINE_MARKER_ICONS: Record<string, IconNode[]> = {
   Pin: [
     { type: "path", d: "M12 17v5" },
     { type: "path", d: "M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" },
+  ],
+  Flag: [
+    { type: "path", d: "M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" },
+    { type: "line", x1: 4, y1: 22, x2: 4, y2: 15 },
+  ],
+  Calendar: [
+    { type: "rect", x: 3, y: 4, width: 18, height: 18, rx: 2 },
+    { type: "line", x1: 16, y1: 2, x2: 16, y2: 6 },
+    { type: "line", x1: 8, y1: 2, x2: 8, y2: 6 },
+    { type: "line", x1: 3, y1: 10, x2: 21, y2: 10 },
   ],
 };
 const TIMELINE_MARKER_ICON_SIZE = SR_TIMELINE_MARKER_ICON_PX;
@@ -1229,10 +1251,12 @@ export type StatusReportPDFData = {
     }>;
     markers: Array<{
       itemId?: string;
+      phaseId?: string;
       label: string;
       date: string;
       shape?: string;
       rowIndex?: number;
+      color?: string | null;
       muted?: boolean;
     }>;
   };
@@ -1243,6 +1267,7 @@ export type StatusReportPDFData = {
   panels?: ReportPanel[] | ModularPanelsDocument;
   /** Locked schedule source; omitted on legacy reports (treated as project timeline). */
   scheduleSource?: "timeline" | "plan";
+  planDensity?: PlanReportDensity;
   includeDetailedPlan?: boolean;
   detailedPlan?: PlanJson;
   planAxis?: { kickoffDate: string; endDate: string };
@@ -1315,11 +1340,28 @@ function getMonthsForTimeline(startDate: string, endDate: string): string[] {
   return months;
 }
 
-const TIMELINE_ICON_STROKE = { stroke: TIMELINE_MARKER, strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, fill: "none" };
+function timelineIconStroke(color: string) {
+  return {
+    stroke: color,
+    strokeWidth: 2,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    fill: "none",
+  };
+}
 
 /** Renders a timeline marker icon (same Lucide icons as Timeline tab) for PDF. */
-function TimelineMarkerIconPdf({ shape, size = TIMELINE_MARKER_ICON_SIZE }: { shape: string; size?: number }) {
+function TimelineMarkerIconPdf({
+  shape,
+  size = TIMELINE_MARKER_ICON_SIZE,
+  color = TIMELINE_MARKER,
+}: {
+  shape: string;
+  size?: number;
+  color?: string;
+}) {
   const nodes = TIMELINE_MARKER_ICONS[shape] ?? TIMELINE_MARKER_ICONS.Pin;
+  const stroke = timelineIconStroke(color);
   return (
     <Svg
       width={size}
@@ -1330,7 +1372,17 @@ function TimelineMarkerIconPdf({ shape, size = TIMELINE_MARKER_ICON_SIZE }: { sh
       <G>
         {nodes.map((node, i) =>
           node.type === "path" ? (
-            <Path key={i} d={node.d} {...TIMELINE_ICON_STROKE} />
+            <Path key={i} d={node.d} {...stroke} />
+          ) : node.type === "rect" ? (
+            <Rect
+              key={i}
+              x={node.x}
+              y={node.y}
+              width={node.width}
+              height={node.height}
+              rx={node.rx}
+              {...stroke}
+            />
           ) : (
             <Line
               key={i}
@@ -1338,7 +1390,7 @@ function TimelineMarkerIconPdf({ shape, size = TIMELINE_MARKER_ICON_SIZE }: { sh
               y1={node.y1}
               x2={node.x2}
               y2={node.y2}
-              {...TIMELINE_ICON_STROKE}
+              {...stroke}
             />
           )
         )}
@@ -1347,16 +1399,110 @@ function TimelineMarkerIconPdf({ shape, size = TIMELINE_MARKER_ICON_SIZE }: { sh
   );
 }
 
+function PromotedDateRailPdf({
+  markers,
+  height,
+  metrics,
+  positionPercent,
+  align,
+}: {
+  markers: Array<{
+    date: string;
+    label: string;
+    shape?: string;
+    color?: string | null;
+    muted?: boolean;
+    staggerRow: 0 | 1;
+  }>;
+  height: number;
+  metrics: StatusReportTimelineMetrics;
+  positionPercent: (dateStr: string) => number;
+  align: "top" | "bottom";
+}) {
+  if (height <= 0) return null;
+  return (
+    <View style={{ height, width: "100%", position: "relative", overflow: "hidden" }}>
+      {markers.map((m, i) => {
+        const stroke = m.color || "#1941FA";
+        const lift = m.staggerRow * (metrics.markerFontPx + 2);
+        const hangLeft = m.staggerRow === 1;
+        return (
+          <View
+            key={`rail-${align}-${i}`}
+            style={{
+              position: "absolute",
+              left: `${positionPercent(m.date)}%`,
+              width: metrics.markerColPx,
+              marginLeft: hangLeft ? -metrics.markerColPx : -metrics.markerColPx / 2,
+              ...(align === "top" ? { bottom: 1 } : { top: 1 }),
+              alignItems: hangLeft ? "flex-end" : "center",
+              opacity: m.muted ? 0.45 : 1,
+            }}
+          >
+            {align === "top" ? (
+              <>
+                <Text
+                  style={{
+                    fontSize: metrics.markerFontPx,
+                    color: stroke,
+                    marginBottom: lift,
+                    textAlign: "center",
+                  }}
+                  wrap={false}
+                >
+                  {m.label}
+                </Text>
+                <Text style={{ fontSize: Math.max(5, metrics.markerFontPx - 1), color: "#64748b" }}>
+                  {formatMonthDay(m.date)}
+                </Text>
+                <TimelineMarkerIconPdf
+                  shape={m.shape ?? "Pin"}
+                  size={metrics.markerIconPx}
+                  color={stroke}
+                />
+              </>
+            ) : (
+              <>
+                <TimelineMarkerIconPdf
+                  shape={m.shape ?? "Pin"}
+                  size={metrics.markerIconPx}
+                  color={stroke}
+                />
+                <Text
+                  style={{
+                    fontSize: metrics.markerFontPx,
+                    color: stroke,
+                    marginTop: lift,
+                    textAlign: "center",
+                  }}
+                  wrap={false}
+                >
+                  {m.label}
+                </Text>
+                <Text style={{ fontSize: Math.max(5, metrics.markerFontPx - 1), color: "#64748b" }}>
+                  {formatMonthDay(m.date)}
+                </Text>
+              </>
+            )}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 function TimelineBlock({
   timeline,
   reportDate,
   scheduleSource,
+  planDensity,
   layoutScale = 1,
   fillAvailableHeight = false,
 }: {
   timeline: NonNullable<StatusReportPDFData["timeline"]>;
   reportDate?: string;
   scheduleSource?: StatusReportPDFData["scheduleSource"];
+  planDensity?: StatusReportPDFData["planDensity"];
   layoutScale?: number;
   fillAvailableHeight?: boolean;
 }) {
@@ -1384,12 +1530,13 @@ function TimelineBlock({
   );
 
   const metrics = scaleStatusReportTimelineMetrics(
-    getStatusReportTimelineMetrics(scheduleSource, { fillAvailableHeight }),
+    getStatusReportTimelineMetrics(scheduleSource, { fillAvailableHeight, planDensity }),
     layoutScale
   );
   const overlay = metrics.mode === "overlay";
   const lanes = metrics.mode === "lanes";
-  const fillBar = overlay || lanes;
+  const promoted = metrics.mode === "promoted";
+  const fillBar = overlay || lanes || (promoted && !fillAvailableHeight);
   const stretchBars = fillBar && !fillAvailableHeight;
   const ROW_HEIGHT = metrics.rowHeightPx;
   const labelCol = metrics.labelColPx;
@@ -1403,7 +1550,7 @@ function TimelineBlock({
           ? ROW_HEIGHT
           : metrics.markerTopPx + Math.max(markerCount, 1) * markerStep + 4
       ),
-      lockHeight: lanes && !fillAvailableHeight,
+      lockHeight: (lanes || promoted) && !fillAvailableHeight,
     });
 
   const chart = fillAvailableHeight ? expandScheduleEntriesToOwnRows(timeline) : timeline;
@@ -1414,6 +1561,17 @@ function TimelineBlock({
       ? getCompactPlanTimelineRows(timeline, reportDate)
       : getActiveTimelineRows(timeline);
   const monthHeaderPx = fillAvailableHeight ? metrics.monthFontPx + 8 : 12 * layoutScale;
+  const promotedSplit = promoted
+    ? partitionPromotedTimelineMarkers(chart.markers, startYmd, endYmd, {
+        includeBottomRail: fillAvailableHeight && metrics.bottomRailPx > 0,
+      })
+    : { top: [], bottom: [], overflowCount: 0 };
+  const colorize = <T extends { color?: string | null; phaseId?: string; rowIndex?: number }>(marker: T) => ({
+    ...marker,
+    color: timelineMarkerPhaseColor(marker, chart.bars),
+  });
+  const topRail = promotedSplit.top.map(colorize);
+  const bottomRail = promotedSplit.bottom.map(colorize);
 
   const monthHeader = (
       <View style={[styles.timelineMonthRow, { height: monthHeaderPx }]}>
@@ -1462,11 +1620,14 @@ function TimelineBlock({
         const markersInRow = getVisibleMarkersForRow(chart.markers, row, startYmd, endYmd, rowCap)
           .slice()
           .sort((a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label));
-        const chartMarkers = fillAvailableHeight
+        const chartMarkers = promoted
+          ? []
+          : fillAvailableHeight
           ? pickSpacedTimelineMarkers(markersInRow, startYmd, endYmd)
           : lanes
             ? []
             : markersInRow;
+        const rowWash = timelinePhaseWash(clipped[0]?.bar.color);
         return (
           <View
             key={row}
@@ -1478,6 +1639,7 @@ function TimelineBlock({
                 : fillAvailableHeight
                   ? {}
                   : { overflow: "hidden" },
+              rowWash ? { backgroundColor: rowWash } : {},
             ]}
           >
             <View style={styles.timelineRowMonthLinesLayer}>
@@ -1613,7 +1775,18 @@ function TimelineBlock({
       >
         {labelCol > 0 && (
           <View style={[styles.timelineLaneCol, { width: labelCol }]}>
-            {reportDatePercent != null && <View style={{ height: 8 * layoutScale }} />}
+            {reportDatePercent != null && (
+              <View
+                style={{
+                  height: timelineReportDateRowPx(
+                    fillAvailableHeight,
+                    layoutScale,
+                    MODULAR_CHROME_SCALE
+                  ),
+                }}
+              />
+            )}
+            {metrics.topBandPx > 0 && <View style={{ height: metrics.topBandPx }} />}
             <View style={[styles.timelineLaneHeader, { height: monthHeaderPx }]}>
               <Text style={[styles.timelineLaneHeaderText, { fontSize: metrics.monthFontPx }]}>Phase</Text>
             </View>
@@ -1622,7 +1795,10 @@ function TimelineBlock({
               const markersInRow = getVisibleMarkersForRow(chart.markers, row, startYmd, endYmd, rowCap);
               return (
                 <View key={`lane-${row}`} style={[styles.timelineLaneCell, rowLayout(markersInRow.length)]}>
-                  <Text style={styles.timelineLaneLabel} wrap={false}>
+                  <Text
+                    style={[styles.timelineLaneLabel, { fontSize: metrics.barFontPx }]}
+                    wrap={false}
+                  >
                     {timelineLaneLabel(
                       clipped.map((seg) => seg.bar),
                       markersInRow,
@@ -1632,6 +1808,7 @@ function TimelineBlock({
                 </View>
               );
             })}
+            {metrics.bottomRailPx > 0 && <View style={{ height: metrics.bottomRailPx }} />}
           </View>
         )}
         <View
@@ -1641,7 +1818,23 @@ function TimelineBlock({
           ]}
         >
           {reportDatePercent != null && (
-            <View style={styles.timelineReportDateLabelAbove}>
+            <View
+              style={[
+                styles.timelineReportDateLabelAbove,
+                {
+                  height: timelineReportDateRowPx(
+                    fillAvailableHeight,
+                    layoutScale,
+                    MODULAR_CHROME_SCALE
+                  ),
+                  minHeight: timelineReportDateRowPx(
+                    fillAvailableHeight,
+                    layoutScale,
+                    MODULAR_CHROME_SCALE
+                  ),
+                },
+              ]}
+            >
               <Text
                 style={[
                   styles.timelineReportDateLabel,
@@ -1655,8 +1848,26 @@ function TimelineBlock({
               </Text>
             </View>
           )}
+          {promoted ? (
+            <PromotedDateRailPdf
+              markers={topRail}
+              height={metrics.topBandPx}
+              metrics={metrics}
+              positionPercent={positionPercent}
+              align="top"
+            />
+          ) : null}
           {monthHeader}
           {barRows}
+          {promoted ? (
+            <PromotedDateRailPdf
+              markers={bottomRail}
+              height={metrics.bottomRailPx}
+              metrics={metrics}
+              positionPercent={positionPercent}
+              align="bottom"
+            />
+          ) : null}
         </View>
       </View>
     </View>
@@ -2089,6 +2300,7 @@ function ModularPdfModuleBody({
             timeline={data.timeline}
             reportDate={data.report.reportDate}
             scheduleSource={data.scheduleSource}
+            planDensity={data.planDensity}
             fillAvailableHeight
           />
         );
@@ -2523,11 +2735,17 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
           <View
             style={[
               styles.mainContentPadding,
-              ...(!(report.variation !== "CDA" &&
-                data.timeline &&
-                timelineHasVisibleSchedule(data.timeline))
-                ? [{ paddingBottom: 0 }]
-                : []),
+              {
+                paddingBottom:
+                  report.variation !== "CDA" &&
+                  data.timeline &&
+                  timelineHasVisibleSchedule(data.timeline)
+                    ? statusReportTimelineSlotHeightPx({
+                        scheduleSource: data.scheduleSource,
+                        planDensity: data.planDensity,
+                      })
+                    : 0,
+              },
             ]}
           >
             <View style={styles.middleContent}>
@@ -2562,6 +2780,7 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
                 timeline={data.timeline}
                 reportDate={data.report.reportDate}
                 scheduleSource={data.scheduleSource}
+            planDensity={data.planDensity}
               />
             </View>
           )}

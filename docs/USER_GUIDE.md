@@ -318,7 +318,7 @@ When **Plan** is enabled for the project (**Settings → Enable Plan tab (beta)*
 | Field | Purpose |
 |-------|---------|
 | **Schedule source** | **Project timeline** (bars and markers from the **Timeline** tab) or **Project Plan** (compact phase bars and key-date markers from the **Plan** tab). Defaults to the value set on the **Plan** tab (**New status reports use**). |
-| **Plan density** | Shown when source is **Project Plan**: **Phases only** or **Phases + key dates** (default). Fine-grained show/hide lives on the **Plan** tab (**Rpt**), then freeze into the report snapshot at create time. Short names for that slide are edited on **Arrange this report’s schedule**. |
+| **Plan density** | Shown when source is **Project Plan**: **Condensed** (phases only) or **Advanced** (phases + key dates; default). Fine-grained show/hide lives on the **Plan** tab (**Rpt**), then freeze into the report snapshot at create time. Short names for that slide are edited on **Arrange this report’s schedule**. Advanced reports pull key dates out of the swimlanes onto a band above the month axis (and a bottom rail on Modular). |
 | **Previous months on schedule** | For both sources: how many months before the report date to include. Plan-source also never starts before **Plan kickoff**. |
 | **Months after report date** | Plan-source only (default **2**). Stops the strip from running to a distant plan/project end. |
 | **Include detailed plan page** | Plan-source: optional extra PDF/preview page with the full Plan Gantt (kickoff to launch). The 16:9 slide stays a compact strip. |

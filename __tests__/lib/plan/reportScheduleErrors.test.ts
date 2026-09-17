@@ -19,11 +19,11 @@ describe("reportScheduleErrors", () => {
   });
 
   describe("resolvePlanScheduleEmptyError", () => {
-    it("suggests Phases + key dates when density is phases", () => {
+    it("suggests Advanced when density is condensed", () => {
       expect(resolvePlanScheduleEmptyError("phases")).toBe(
         PLAN_SCHEDULE_PHASES_ONLY_POINT_DATES_ERROR
       );
-      expect(PLAN_SCHEDULE_PHASES_ONLY_POINT_DATES_ERROR).toContain("Phases + key dates");
+      expect(PLAN_SCHEDULE_PHASES_ONLY_POINT_DATES_ERROR).toContain("Advanced");
     });
 
     it("uses generic Plan empty copy for key-dates density", () => {

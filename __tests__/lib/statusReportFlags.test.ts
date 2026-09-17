@@ -178,8 +178,8 @@ describe("scheduleSourceLabel", () => {
 
 describe("planDensityLabel", () => {
   it("maps plan density values to UI labels", () => {
-    expect(planDensityLabel("phases")).toBe("Phases only");
-    expect(planDensityLabel("phases_and_key_dates")).toBe("Phases + key dates");
+    expect(planDensityLabel("phases")).toBe("Condensed");
+    expect(planDensityLabel("phases_and_key_dates")).toBe("Advanced");
   });
 });
 
