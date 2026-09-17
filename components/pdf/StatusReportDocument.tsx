@@ -68,6 +68,7 @@ import {
   SR_TIMELINE_MONTH_FONT_PX,
   SR_TIMELINE_SLOT_HEIGHT_PX,
   pickSpacedTimelineMarkers,
+  resolvePinnedLabelLayout,
   statusReportMonthHeaderLabel,
   statusReportTimelineSlotHeightPx,
   timelineFillMarkerStep,
@@ -77,8 +78,11 @@ import {
   timelineMarkerStackTop,
   timelinePhaseRowLayout,
   timelinePhaseWash,
+  timelinePinnedContentHeightPx,
+  timelinePinnedRowHeightPx,
   timelineReportDateRowPx,
   type StatusReportTimelineMetrics,
+  type TimelineLayoutOverlay,
 } from "@/lib/statusReportTimelineLayout";
 import type { PlanJson } from "@/lib/plan/serialize";
 import { ganttBarLabelTextColor } from "@/lib/plan/ganttBarLabel";
@@ -1498,6 +1502,7 @@ function TimelineBlock({
   reportDate,
   scheduleSource,
   planDensity,
+  labelOverlay,
   layoutScale = 1,
   fillAvailableHeight = false,
 }: {
@@ -1505,6 +1510,8 @@ function TimelineBlock({
   reportDate?: string;
   scheduleSource?: StatusReportPDFData["scheduleSource"];
   planDensity?: StatusReportPDFData["planDensity"];
+  /** Offsets in markerLabelLayout are unscaled slide px (match getStatusReportTimelineMetrics before scale). */
+  labelOverlay?: TimelineLayoutOverlay;
   layoutScale?: number;
   fillAvailableHeight?: boolean;
 }) {
@@ -1535,25 +1542,26 @@ function TimelineBlock({
     getStatusReportTimelineMetrics(scheduleSource, { fillAvailableHeight, planDensity }),
     layoutScale
   );
+  const baseMetrics = getStatusReportTimelineMetrics(scheduleSource, {
+    fillAvailableHeight,
+    planDensity,
+  });
   const overlay = metrics.mode === "overlay";
   const lanes = metrics.mode === "lanes";
-  const promoted = metrics.mode === "promoted" || metrics.mode === "pinned";
-  const fillBar = overlay || lanes || (promoted && !fillAvailableHeight);
+  const pinned = metrics.mode === "pinned";
+  const promotedLegacy = metrics.mode === "promoted";
+  const fillBar = overlay || lanes || (promotedLegacy && !fillAvailableHeight);
   const stretchBars = fillBar && !fillAvailableHeight;
   const ROW_HEIGHT = metrics.rowHeightPx;
   const labelCol = metrics.labelColPx;
   const markerStep = timelineFillMarkerStep(metrics);
-  const rowLayout = (markerCount: number) =>
-    timelinePhaseRowLayout({
-      fillAvailableHeight,
-      rowHeightPx: Math.max(
-        ROW_HEIGHT,
-        fillAvailableHeight
-          ? ROW_HEIGHT
-          : metrics.markerTopPx + Math.max(markerCount, 1) * markerStep + 4
-      ),
-      lockHeight: (lanes || promoted) && !fillAvailableHeight,
-    });
+  const pinnedStackStepPx = baseMetrics.markerFontPx + 4;
+  const pinnedLabelHeightPx = baseMetrics.markerFontPx + 4;
+  const pinnedLayoutOpts = {
+    markerTopPx: baseMetrics.markerTopPx,
+    markerIconPx: baseMetrics.markerIconPx,
+    stackStepPx: pinnedStackStepPx,
+  };
 
   const chart = fillAvailableHeight ? expandScheduleEntriesToOwnRows(timeline) : timeline;
   const rowCap = fillAvailableHeight ? TIMELINE_FILL_ROW_MAX : undefined;
@@ -1563,7 +1571,60 @@ function TimelineBlock({
       ? getCompactPlanTimelineRows(timeline, reportDate)
       : getActiveTimelineRows(timeline);
   const monthHeaderPx = fillAvailableHeight ? metrics.monthFontPx + 8 : 12 * layoutScale;
-  const promotedSplit = promoted
+
+  const pinnedRowData: Record<
+    number,
+    { layout: Record<string, { cxPct: number; topPx: number }>; heightPx: number }
+  > = {};
+  if (pinned) {
+    for (const row of activeRows) {
+      const markersInRow = getVisibleMarkersForRow(chart.markers, row, startYmd, endYmd, rowCap);
+      const layout = resolvePinnedLabelLayout(
+        markersInRow,
+        labelOverlay,
+        startYmd,
+        endYmd,
+        pinnedLayoutOpts
+      );
+      const ids = markersInRow
+        .map((marker) => marker.itemId)
+        .filter((id): id is string => Boolean(id));
+      pinnedRowData[row] = {
+        layout,
+        heightPx:
+          timelinePinnedRowHeightPx(
+            baseMetrics.rowHeightPx,
+            ids,
+            layout,
+            pinnedLabelHeightPx
+          ) * layoutScale,
+      };
+    }
+  }
+
+  const totalRowChartHeightPx = pinned
+    ? activeRows.reduce(
+        (sum, row) => sum + (pinnedRowData[row]?.heightPx ?? ROW_HEIGHT),
+        0
+      )
+    : activeRows.length * ROW_HEIGHT;
+
+  const rowLayout = (markerCount: number, row?: number) =>
+    timelinePhaseRowLayout({
+      fillAvailableHeight,
+      rowHeightPx:
+        row != null && pinned
+          ? (pinnedRowData[row]?.heightPx ?? ROW_HEIGHT)
+          : Math.max(
+              ROW_HEIGHT,
+              fillAvailableHeight
+                ? ROW_HEIGHT
+                : metrics.markerTopPx + Math.max(markerCount, 1) * markerStep + 4
+            ),
+      lockHeight: (lanes || promotedLegacy) && !fillAvailableHeight,
+    });
+
+  const promotedSplit = promotedLegacy
     ? partitionPromotedTimelineMarkers(chart.markers, startYmd, endYmd, {
         includeBottomRail: fillAvailableHeight && metrics.bottomRailPx > 0,
       })
@@ -1606,7 +1667,7 @@ function TimelineBlock({
                 marginLeft: -1,
                 ...(fillAvailableHeight
                   ? { bottom: 0 }
-                  : { height: activeRows.length * ROW_HEIGHT + 2 }),
+                  : { height: totalRowChartHeightPx + 2 }),
               },
             ]}
           />
@@ -1622,20 +1683,24 @@ function TimelineBlock({
         const markersInRow = getVisibleMarkersForRow(chart.markers, row, startYmd, endYmd, rowCap)
           .slice()
           .sort((a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label));
-        const chartMarkers = promoted
+        const chartMarkers = promotedLegacy
           ? []
           : fillAvailableHeight
-          ? pickSpacedTimelineMarkers(markersInRow, startYmd, endYmd)
-          : lanes
-            ? []
-            : markersInRow;
+            ? pinned
+              ? markersInRow
+              : pickSpacedTimelineMarkers(markersInRow, startYmd, endYmd)
+            : lanes
+              ? []
+              : markersInRow;
+        const rowHeightPx = pinnedRowData[row]?.heightPx ?? ROW_HEIGHT;
+        const pinnedLayout = pinnedRowData[row]?.layout ?? {};
         const rowWash = timelinePhaseWash(clipped[0]?.bar.color);
         return (
           <View
             key={row}
             style={[
               styles.timelineBarRow,
-              rowLayout(markersInRow.length),
+              rowLayout(markersInRow.length, row),
               stretchBars
                 ? { minHeight: ROW_HEIGHT }
                 : fillAvailableHeight
@@ -1690,7 +1755,91 @@ function TimelineBlock({
               </View>
               );
             })}
+            {pinned && chartMarkers.length > 0 && (
+              <Svg
+                width="100%"
+                height="100%"
+                viewBox={`0 0 100 ${rowHeightPx}`}
+                preserveAspectRatio="none"
+                style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 1 }}
+              >
+                {chartMarkers.map((m, i) => {
+                  const itemId = m.itemId;
+                  const box = itemId ? pinnedLayout[itemId] : undefined;
+                  if (!box) return null;
+                  const stroke = timelineMarkerPhaseColor(m, chart.bars) || "#1941FA";
+                  const pinLeftPct = positionPercent(m.date);
+                  const pinCenterY = metrics.markerTopPx + metrics.markerIconPx / 2;
+                  const labelTop = box.topPx * layoutScale;
+                  return (
+                    <Line
+                      key={`leader-${i}`}
+                      x1={pinLeftPct}
+                      y1={pinCenterY}
+                      x2={box.cxPct}
+                      y2={labelTop}
+                      stroke={stroke}
+                      strokeWidth={1}
+                      opacity={m.muted ? 0.45 : 1}
+                    />
+                  );
+                })}
+              </Svg>
+            )}
             {chartMarkers.map((m, i) => {
+              if (pinned) {
+                const itemId = m.itemId;
+                const box = itemId ? pinnedLayout[itemId] : undefined;
+                if (!box) return null;
+                const stroke = timelineMarkerPhaseColor(m, chart.bars) || "#1941FA";
+                const pinLeftPct = positionPercent(m.date);
+                const isParked = Boolean(itemId && labelOverlay?.markerLabelLayout?.[itemId]);
+                return (
+                  <React.Fragment key={`m-${itemId ?? i}`}>
+                    <View
+                      style={{
+                        position: "absolute",
+                        left: `${pinLeftPct}%`,
+                        marginLeft: -metrics.markerIconPx / 2,
+                        top: metrics.markerTopPx,
+                        zIndex: 2,
+                        opacity: m.muted ? 0.45 : 1,
+                      }}
+                    >
+                      <TimelineMarkerIconPdf
+                        shape={m.shape ?? "Pin"}
+                        size={metrics.markerIconPx}
+                        color={stroke}
+                      />
+                    </View>
+                    <View
+                      style={{
+                        position: "absolute",
+                        left: `${box.cxPct}%`,
+                        marginLeft: -metrics.markerColPx / 2,
+                        top: box.topPx * layoutScale,
+                        width: metrics.markerColPx,
+                        alignItems: "center",
+                        zIndex: 2,
+                        opacity: m.muted ? 0.45 : 1,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: metrics.markerFontPx,
+                          color: stroke,
+                          textAlign: "center",
+                          width: metrics.markerColPx,
+                        }}
+                        wrap={!isParked}
+                      >
+                        {m.label}
+                      </Text>
+                    </View>
+                  </React.Fragment>
+                );
+              }
+
               const hangLeft = !fillBar && !fillAvailableHeight && timelineMarkerHangsLeft(i);
               const pinOnBar = overlay || fillAvailableHeight;
               const stackedTop = timelineMarkerStackTop(
@@ -1796,7 +1945,7 @@ function TimelineBlock({
               const clipped = getVisibleBarSegmentsForRow(chart.bars, row, startYmd, endYmd, rowCap);
               const markersInRow = getVisibleMarkersForRow(chart.markers, row, startYmd, endYmd, rowCap);
               return (
-                <View key={`lane-${row}`} style={[styles.timelineLaneCell, rowLayout(markersInRow.length)]}>
+                <View key={`lane-${row}`} style={[styles.timelineLaneCell, rowLayout(markersInRow.length, row)]}>
                   <Text
                     style={[styles.timelineLaneLabel, { fontSize: metrics.barFontPx }]}
                     wrap={false}
@@ -1850,7 +1999,7 @@ function TimelineBlock({
               </Text>
             </View>
           )}
-          {promoted ? (
+          {promotedLegacy ? (
             <PromotedDateRailPdf
               markers={topRail}
               height={metrics.topBandPx}
@@ -1861,7 +2010,7 @@ function TimelineBlock({
           ) : null}
           {monthHeader}
           {barRows}
-          {promoted ? (
+          {promotedLegacy ? (
             <PromotedDateRailPdf
               markers={bottomRail}
               height={metrics.bottomRailPx}
@@ -2303,6 +2452,7 @@ function ModularPdfModuleBody({
             reportDate={data.report.reportDate}
             scheduleSource={data.scheduleSource}
             planDensity={data.planDensity}
+            labelOverlay={data.timelineLayout}
             fillAvailableHeight
           />
         );
@@ -2673,6 +2823,24 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
   const { cad, pm, pgm, keyStaff } = getKeyRoleNames(data);
 
   const bioTitle = project.name.toUpperCase();
+  const standardTimelineSlotHeightPx =
+    report.variation !== "CDA" &&
+    data.timeline &&
+    timelineHasVisibleSchedule(data.timeline)
+      ? statusReportTimelineSlotHeightPx({
+          scheduleSource: data.scheduleSource,
+          planDensity: data.planDensity,
+          contentHeightPx:
+            timelinePinnedContentHeightPx({
+              timeline: data.timeline,
+              scheduleSource: data.scheduleSource,
+              planDensity: data.planDensity,
+              labelOverlay: data.timelineLayout,
+              reportDate: data.report.reportDate,
+              layoutScale: 1,
+            }) ?? undefined,
+        })
+      : 0;
 
   return (
     <Document>
@@ -2738,15 +2906,7 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
             style={[
               styles.mainContentPadding,
               {
-                paddingBottom:
-                  report.variation !== "CDA" &&
-                  data.timeline &&
-                  timelineHasVisibleSchedule(data.timeline)
-                    ? statusReportTimelineSlotHeightPx({
-                        scheduleSource: data.scheduleSource,
-                        planDensity: data.planDensity,
-                      })
-                    : 0,
+                paddingBottom: standardTimelineSlotHeightPx,
               },
             ]}
           >
@@ -2782,7 +2942,8 @@ export function StatusReportDocument({ data }: { data: StatusReportPDFData }) {
                 timeline={data.timeline}
                 reportDate={data.report.reportDate}
                 scheduleSource={data.scheduleSource}
-            planDensity={data.planDensity}
+                planDensity={data.planDensity}
+                labelOverlay={data.timelineLayout}
               />
             </View>
           )}
