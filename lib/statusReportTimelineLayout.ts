@@ -400,6 +400,7 @@ export type TimelineLayoutOverlay = {
   labels?: Record<string, string>;
   rows?: Record<string, number>;
   markerRails?: Record<string, "top" | "bottom">;
+  markerLabelLayout?: Record<string, { cxPct: number; topPx: number }>;
   windowStartYmd?: string;
   windowEndYmd?: string;
 };
@@ -483,6 +484,7 @@ function overlayHasContent(layout: TimelineLayoutOverlay): boolean {
     Boolean(layout.labels) ||
     Boolean(layout.rows) ||
     Boolean(layout.markerRails) ||
+    Boolean(layout.markerLabelLayout) ||
     Boolean(layout.windowStartYmd && layout.windowEndYmd)
   );
 }
@@ -803,7 +805,7 @@ export function applyTimelineLayout<T extends LayoutTimelineSlice>(
   return { ...timeline, startDate, endDate, bars, markers };
 }
 
-function pickExisting<T extends string | number>(
+function pickExisting<T>(
   record: Record<string, T> | undefined,
   ids: Set<string>
 ): Record<string, T> | undefined {
@@ -829,7 +831,7 @@ export function pruneTimelineLayout(
   const hiddenMarkerIds = (layout.hiddenMarkerIds ?? []).filter((id) => markerIds.has(id));
   const labels = pickExisting(layout.labels, new Set([...barIds, ...markerIds]));
   const rows = pickExisting(layout.rows, new Set([...barIds, ...markerIds]));
-  const markerRails = pickExisting(layout.markerRails, markerIds);
+  const markerLabelLayout = pickExisting(layout.markerLabelLayout, markerIds);
   const windowStartYmd = layout.windowStartYmd?.slice(0, 10);
   const windowEndYmd = layout.windowEndYmd?.slice(0, 10);
   const hasWindow =
@@ -840,7 +842,7 @@ export function pruneTimelineLayout(
     ...(hiddenMarkerIds.length > 0 ? { hiddenMarkerIds } : {}),
     ...(labels ? { labels } : {}),
     ...(rows ? { rows } : {}),
-    ...(markerRails ? { markerRails } : {}),
+    ...(markerLabelLayout ? { markerLabelLayout } : {}),
     ...(hasWindow ? { windowStartYmd, windowEndYmd } : {}),
   };
   return overlayHasContent(next) ? next : undefined;

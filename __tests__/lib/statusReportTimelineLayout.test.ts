@@ -207,6 +207,18 @@ describe("applyTimelineLayout", () => {
 });
 
 describe("pruneTimelineLayout", () => {
+  it("prunes markerLabelLayout to ids still on the compact schedule", () => {
+    const stale = {
+      markerLabelLayout: {
+        m1: { cxPct: 40, topPx: 20 },
+        gone: { cxPct: 10, topPx: 8 },
+      },
+    };
+    expect(pruneTimelineLayout(stale, timeline)).toEqual({
+      markerLabelLayout: { m1: { cxPct: 40, topPx: 20 } },
+    });
+  });
+
   it("drops overrides for ids that are no longer on the compact schedule", () => {
     const stale: TimelineLayoutOverlay = {
       hiddenBarIds: ["p1", "gone-phase"],

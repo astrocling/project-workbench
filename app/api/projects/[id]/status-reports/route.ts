@@ -46,7 +46,15 @@ const createSchema = z.object({
       hiddenMarkerIds: z.array(z.string()).optional(),
       labels: z.record(z.string(), z.string()).optional(),
       rows: z.record(z.string(), z.number().int().min(1).max(TIMELINE_FILL_ROW_MAX)).optional(),
-      markerRails: z.record(z.string(), z.enum(["top", "bottom"])).optional(),
+      markerLabelLayout: z
+        .record(
+          z.string(),
+          z.object({
+            cxPct: z.number().min(0).max(100),
+            topPx: z.number().min(0),
+          })
+        )
+        .optional(),
       windowStartYmd: z.string().optional(),
       windowEndYmd: z.string().optional(),
     })
