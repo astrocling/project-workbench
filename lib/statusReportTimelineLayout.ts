@@ -7,7 +7,14 @@
  * fit the 16:9 slide (the Plan metrics would overflow and cover activities).
  */
 import { MODULAR_BODY_TYPE_PX, MODULAR_CHROME_SCALE } from "@/lib/reportPanels";
-import type { PlanReportDensity } from "@/lib/plan/reportSchedule";
+import {
+  expandScheduleEntriesToOwnRows,
+  getActiveTimelineRows,
+  getCompactPlanTimelineRows,
+  getVisibleMarkersForRow,
+  TIMELINE_FILL_ROW_MAX,
+  type PlanReportDensity,
+} from "@/lib/plan/reportSchedule";
 
 export const SR_TIMELINE_ROW_HEIGHT_PX = 18;
 export const SR_TIMELINE_BAR_TOP_PX = 3;
@@ -443,6 +450,75 @@ export function timelinePinnedRowHeightPx(
     if (box) max = Math.max(max, box.topPx + labelHeightPx + padPx);
   }
   return max;
+}
+
+/** Sum of pinned row heights + month header + report-date row (unscaled slide px). */
+export function timelinePinnedContentHeightPx(opts: {
+  timeline: LayoutTimelineSlice;
+  scheduleSource?: "timeline" | "plan" | null;
+  planDensity?: PlanReportDensity | null;
+  fillAvailableHeight?: boolean;
+  layoutScale?: number;
+  labelOverlay?: TimelineLayoutOverlay;
+  reportDate?: string;
+}): number | null {
+  const baseMetrics = getStatusReportTimelineMetrics(opts.scheduleSource, {
+    fillAvailableHeight: opts.fillAvailableHeight,
+    planDensity: opts.planDensity,
+  });
+  if (baseMetrics.mode !== "pinned") return null;
+
+  const layoutScale = opts.layoutScale ?? 1;
+  const fillAvailableHeight = opts.fillAvailableHeight === true;
+  const stackStepPx = baseMetrics.markerFontPx + 4;
+  const labelHeightPx = baseMetrics.markerFontPx + 4;
+  const pinnedOpts = {
+    markerTopPx: baseMetrics.markerTopPx,
+    markerIconPx: baseMetrics.markerIconPx,
+    stackStepPx,
+  };
+
+  const chart = fillAvailableHeight
+    ? expandScheduleEntriesToOwnRows(opts.timeline)
+    : opts.timeline;
+  const rowCap = fillAvailableHeight ? TIMELINE_FILL_ROW_MAX : undefined;
+  const startYmd = opts.timeline.startDate.slice(0, 10);
+  const endYmd = opts.timeline.endDate.slice(0, 10);
+  const activeRows = fillAvailableHeight
+    ? getActiveTimelineRows(chart, TIMELINE_FILL_ROW_MAX)
+    : opts.scheduleSource === "plan"
+      ? getCompactPlanTimelineRows(opts.timeline, opts.reportDate)
+      : getActiveTimelineRows(opts.timeline);
+
+  let rowsSum = 0;
+  for (const row of activeRows) {
+    const markersInRow = getVisibleMarkersForRow(chart.markers, row, startYmd, endYmd, rowCap);
+    const layout = resolvePinnedLabelLayout(
+      markersInRow,
+      opts.labelOverlay,
+      startYmd,
+      endYmd,
+      pinnedOpts
+    );
+    const ids = markersInRow
+      .map((marker) => marker.itemId)
+      .filter((id): id is string => Boolean(id));
+    rowsSum += timelinePinnedRowHeightPx(
+      baseMetrics.rowHeightPx,
+      ids,
+      layout,
+      labelHeightPx
+    );
+  }
+
+  const monthHeaderPx = fillAvailableHeight ? baseMetrics.monthFontPx + 8 : 12 * layoutScale;
+  const reportDateInRange =
+    opts.reportDate && opts.reportDate >= startYmd && opts.reportDate <= endYmd;
+  const reportDateRowPx = reportDateInRange
+    ? timelineReportDateRowPx(fillAvailableHeight, layoutScale, MODULAR_CHROME_SCALE)
+    : 0;
+
+  return rowsSum * layoutScale + monthHeaderPx + reportDateRowPx;
 }
 
 export function timelineLaneLabel(

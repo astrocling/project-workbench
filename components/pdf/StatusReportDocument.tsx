@@ -1260,6 +1260,8 @@ export type StatusReportPDFData = {
       muted?: boolean;
     }>;
   };
+  /** Per-report visual overlay on the locked compact schedule (markerLabelLayout topPx is unscaled slide px). */
+  timelineLayout?: import("@/lib/statusReportTimelineLayout").TimelineLayoutOverlay;
   /** When true, CDA Overall table omits Budget ($) row; first chart uses hours completion. */
   cdaReportHoursOnly?: boolean;
   /** When false, Standard report omits bottom budget table and burn chart. Default true. */

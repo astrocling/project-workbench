@@ -687,6 +687,7 @@ export async function buildStatusReportPdfData(
         : undefined,
     scheduleSource: resolvedSource,
     planDensity: resolvedSource === "plan" ? resolvePlanDensity(snapshot) : undefined,
+    timelineLayout: snapshot?.timelineLayout,
     includeDetailedPlan,
     detailedPlan,
     planAxis,
