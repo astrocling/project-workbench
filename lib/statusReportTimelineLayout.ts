@@ -384,6 +384,18 @@ export function pickSpacedTimelineMarkers<T extends { date: string; label?: stri
 
 export type PinnedLabelBox = { cxPct: number; topPx: number };
 
+export function movePinnedLabelBox(
+  start: PinnedLabelBox,
+  deltaXPct: number,
+  deltaYPx: number,
+  opts: { minTopPx: number; minCxPct: number; maxCxPct: number }
+): PinnedLabelBox {
+  return {
+    cxPct: Math.min(opts.maxCxPct, Math.max(opts.minCxPct, start.cxPct + deltaXPct)),
+    topPx: Math.max(opts.minTopPx, start.topPx + deltaYPx),
+  };
+}
+
 function timelineAxisDatePercent(date: string, axisStart: string, axisEnd: string): number {
   const startMs = new Date(axisStart).getTime();
   const totalMs = new Date(axisEnd).getTime() - startMs || 1;

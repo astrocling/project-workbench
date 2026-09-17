@@ -16,6 +16,7 @@ import {
 import { SlackIcon } from "@/components/SlackIcon";
 import { BRAND_COLORS } from "@/lib/brandColors";
 import { StatusReportPreview } from "@/components/StatusReportPreview";
+import { TimelineBlock } from "@/components/StatusReportView";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { Toggle } from "@/components/Toggle";
 import {
@@ -66,7 +67,10 @@ import { timelineLayoutMaxRow } from "@/lib/plan/reportSchedule";
 import type { PlanReportDensity } from "@/lib/statusReportPdfData";
 import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument";
 import type { TimelineLayoutOverlay } from "@/lib/statusReportTimelineLayout";
-import { timelineLayoutFromPreviousSnapshot } from "@/lib/statusReportTimelineLayout";
+import {
+  applyTimelineLayout,
+  timelineLayoutFromPreviousSnapshot,
+} from "@/lib/statusReportTimelineLayout";
 import { ArrangeScheduleFields } from "@/components/ArrangeScheduleFields";
 
 type RagValue = "Red" | "Amber" | "Green";
@@ -1911,6 +1915,35 @@ export function StatusReportsTab({
                     }}
                   />
                 )}
+                {editingReportId &&
+                  canEdit &&
+                  editingScheduleSource === "plan" &&
+                  formPlanDensity !== "phases" &&
+                  formTimeline && (
+                    <TimelineBlock
+                      timeline={applyTimelineLayout(
+                        formTimeline,
+                        formTimelineLayout,
+                        timelineLayoutMaxRow(formVariation)
+                      )}
+                      reportDate={formReportDate}
+                      scheduleSource="plan"
+                      planDensity={formPlanDensity}
+                      fillAvailableHeight={formVariation === "Modular"}
+                      interactive
+                      labelOverlay={formTimelineLayout}
+                      onLabelLayoutChange={(id, box) =>
+                        void saveTimelineLayout({
+                          ...formTimelineLayout,
+                          markerLabelLayout: {
+                            ...formTimelineLayout.markerLabelLayout,
+                            [id]: box,
+                          },
+                        })
+                      }
+                      className="mt-2 max-h-[360px] overflow-auto"
+                    />
+                  )}
               </div>
             )}
             {formVariation === "Modular" && (() => {

@@ -54,6 +54,7 @@ import {
 } from "@/lib/plan/reportSchedule";
 import {
   getStatusReportTimelineMetrics,
+  movePinnedLabelBox,
   partitionPromotedTimelineMarkers,
   resolvePinnedLabelLayout,
   scaleStatusReportTimelineMetrics,
@@ -70,6 +71,7 @@ import {
   timelinePinnedContentHeightPx,
   timelinePinnedRowHeightPx,
   timelineReportDateRowPx,
+  type PinnedLabelBox,
   type StatusReportTimelineMetrics,
   type TimelineLayoutOverlay,
 } from "@/lib/statusReportTimelineLayout";
@@ -502,7 +504,16 @@ function PromotedDateRail({
   );
 }
 
-function TimelineBlock({
+type LabelDragState = {
+  id: string;
+  startBox: PinnedLabelBox;
+  startClientX: number;
+  startClientY: number;
+  chartWidthPx: number;
+  minTopPx: number;
+};
+
+export function TimelineBlock({
   timeline,
   reportDate,
   scheduleSource,
@@ -511,6 +522,8 @@ function TimelineBlock({
   className,
   layoutScale = 1,
   fillAvailableHeight = false,
+  interactive = false,
+  onLabelLayoutChange,
 }: {
   timeline: NonNullable<StatusReportPDFData["timeline"]>;
   reportDate?: string;
@@ -520,7 +533,11 @@ function TimelineBlock({
   className?: string;
   layoutScale?: number;
   fillAvailableHeight?: boolean;
+  interactive?: boolean;
+  onLabelLayoutChange?: (id: string, box: PinnedLabelBox) => void;
 }) {
+  const [dragPreview, setDragPreview] = useState<{ id: string; box: PinnedLabelBox } | null>(null);
+  const labelDragRef = useRef<LabelDragState | null>(null);
   const startMs = new Date(timeline.startDate).getTime();
   const endMs = new Date(timeline.endDate).getTime();
   const totalMs = endMs - startMs || 1;
@@ -559,10 +576,77 @@ function TimelineBlock({
   const markerStep = timelineFillMarkerStep(metrics);
   const pinnedStackStepPx = baseMetrics.markerFontPx + 4;
   const pinnedLabelHeightPx = baseMetrics.markerFontPx + 4;
+  const pinnedMinTopPx = baseMetrics.barTopPx + (baseMetrics.barHeightPx ?? 0);
   const pinnedLayoutOpts = {
     markerTopPx: baseMetrics.markerTopPx,
     markerIconPx: baseMetrics.markerIconPx,
     stackStepPx: pinnedStackStepPx,
+  };
+  const effectiveLabelOverlay =
+    dragPreview != null
+      ? {
+          ...labelOverlay,
+          markerLabelLayout: {
+            ...labelOverlay?.markerLabelLayout,
+            [dragPreview.id]: dragPreview.box,
+          },
+        }
+      : labelOverlay;
+
+  const beginLabelDrag = (
+    event: React.PointerEvent<HTMLElement>,
+    id: string,
+    box: PinnedLabelBox
+  ) => {
+    if (!interactive || !onLabelLayoutChange) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rowChartEl = (event.currentTarget as HTMLElement).closest("[data-timeline-row-chart]");
+    if (!(rowChartEl instanceof HTMLElement)) return;
+    const chartWidthPx = rowChartEl.getBoundingClientRect().width;
+    if (chartWidthPx <= 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    labelDragRef.current = {
+      id,
+      startBox: box,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      chartWidthPx,
+      minTopPx: pinnedMinTopPx,
+    };
+  };
+
+  const moveLabelDrag = (event: React.PointerEvent<HTMLElement>) => {
+    const drag = labelDragRef.current;
+    if (!drag || drag.chartWidthPx <= 0) return;
+    const deltaXPct = ((event.clientX - drag.startClientX) / drag.chartWidthPx) * 100;
+    const deltaYPx = (event.clientY - drag.startClientY) / layoutScale;
+    const box = movePinnedLabelBox(drag.startBox, deltaXPct, deltaYPx, {
+      minTopPx: drag.minTopPx,
+      minCxPct: 0,
+      maxCxPct: 100,
+    });
+    setDragPreview({ id: drag.id, box });
+  };
+
+  const endLabelDrag = (event: React.PointerEvent<HTMLElement>) => {
+    const drag = labelDragRef.current;
+    if (!drag || !onLabelLayoutChange) return;
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // pointer may already be released
+    }
+    const deltaXPct = ((event.clientX - drag.startClientX) / drag.chartWidthPx) * 100;
+    const deltaYPx = (event.clientY - drag.startClientY) / layoutScale;
+    const box = movePinnedLabelBox(drag.startBox, deltaXPct, deltaYPx, {
+      minTopPx: drag.minTopPx,
+      minCxPct: 0,
+      maxCxPct: 100,
+    });
+    onLabelLayoutChange(drag.id, box);
+    labelDragRef.current = null;
+    setDragPreview(null);
   };
 
   const chart = fillAvailableHeight ? expandScheduleEntriesToOwnRows(timeline) : timeline;
@@ -583,7 +667,7 @@ function TimelineBlock({
       const markersInRow = getVisibleMarkersForRow(chart.markers, row, startYmd, endYmd, rowCap);
       const layout = resolvePinnedLabelLayout(
         markersInRow,
-        labelOverlay,
+        effectiveLabelOverlay,
         startYmd,
         endYmd,
         pinnedLayoutOpts
@@ -783,6 +867,7 @@ function TimelineBlock({
           return (
             <div
               key={row}
+              data-timeline-row-chart
               className="border-b border-[#d1d5db] relative overflow-hidden"
               style={{
                 ...rowLayout(markersInRow.length, row),
@@ -898,14 +983,27 @@ function TimelineBlock({
                         </svg>
                       </div>
                       <div
-                        className="absolute z-[2] flex flex-col items-center"
+                        className={`absolute z-[2] flex flex-col items-center${interactive ? " touch-none select-none" : ""}`}
                         style={{
                           left: `${box.cxPct}%`,
                           top: box.topPx * layoutScale,
                           transform: "translateX(-50%)",
                           width: metrics.markerColPx,
                           opacity: m.muted ? 0.45 : 1,
+                          ...(interactive
+                            ? {
+                                cursor: dragPreview?.id === itemId ? "grabbing" : "grab",
+                              }
+                            : {}),
                         }}
+                        onPointerDown={
+                          interactive && itemId
+                            ? (event) => beginLabelDrag(event, itemId, box)
+                            : undefined
+                        }
+                        onPointerMove={interactive ? moveLabelDrag : undefined}
+                        onPointerUp={interactive ? endLabelDrag : undefined}
+                        onPointerCancel={interactive ? endLabelDrag : undefined}
                       >
                         <span
                           className="font-semibold leading-tight text-center w-full"

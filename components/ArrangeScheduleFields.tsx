@@ -17,13 +17,11 @@ import {
 import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument";
 import { reportKeyDateKind, TIMELINE_RENDERABLE_ROW_MAX } from "@/lib/plan/reportSchedule";
 import {
-  defaultPromotedMarkerRail,
   groupArrangeSchedule,
   isReadableTimelineWindow,
   moveArrangeKeyDate,
   moveArrangePhase,
   setTimelineLayoutLabel,
-  setTimelineLayoutMarkerRail,
   setTimelineLayoutWindow,
   toggleTimelineHiddenId,
   type TimelineLayoutOverlay,
@@ -310,9 +308,6 @@ export function ArrangeScheduleFields({
                   const canMoveMarkerPrev = Boolean(phaseId) && groupIndex > 0 && Boolean(groups[groupIndex - 1]?.bar);
                   const canMoveMarkerNext =
                     Boolean(phaseId) && groupIndex < groups.length - 1 && Boolean(groups[groupIndex + 1]?.bar);
-                  const includeBottomRail = rowMax > 4;
-                  const automaticRail = defaultPromotedMarkerRail(kind.shape, includeBottomRail);
-                  const currentRail = layout.markerRails?.[marker.id] ?? automaticRail;
                   const phaseColor = group.bar?.color ?? "#1941FA";
                   return (
                     <span
@@ -331,28 +326,6 @@ export function ArrangeScheduleFields({
                       <span className="text-label-sm font-semibold uppercase tracking-wide text-surface-500 whitespace-nowrap">
                         {kind.label}
                       </span>
-                      {includeBottomRail ? (
-                        <button
-                          type="button"
-                          className="text-label-sm font-semibold uppercase tracking-wide text-surface-600 dark:text-surface-300 whitespace-nowrap rounded px-0.5 hover:bg-surface-100 dark:hover:bg-dark-raised disabled:opacity-30"
-                          disabled={disabled}
-                          title="Show this date on the top band or bottom rail"
-                          aria-label={`Place ${kind.label} on the ${currentRail === "top" ? "bottom" : "top"} rail`}
-                          onClick={() =>
-                            onChange({
-                              ...layout,
-                              markerRails: setTimelineLayoutMarkerRail(
-                                layout.markerRails,
-                                marker.id,
-                                currentRail === "top" ? "bottom" : "top",
-                                automaticRail
-                              ),
-                            })
-                          }
-                        >
-                          {currentRail === "bottom" ? "Bottom" : "Top"}
-                        </button>
-                      ) : null}
                       <span className="text-label-sm text-surface-500 whitespace-nowrap">
                         {shortDate(marker.date)}
                       </span>

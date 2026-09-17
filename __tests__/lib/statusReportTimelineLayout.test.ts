@@ -27,6 +27,7 @@ import {
   moveArrangeKeyDate,
   setTimelineLayoutMarkerRail,
   defaultPinnedLabelLayout,
+  movePinnedLabelBox,
   resolvePinnedLabelLayout,
   timelinePinnedRowHeightPx,
   type TimelineLayoutOverlay,
@@ -503,5 +504,23 @@ describe("promoted key-date rails", () => {
     expect(
       timelinePinnedRowHeightPx(40, ["a", "b"], { a: { cxPct: 10, topPx: 20 }, b: { cxPct: 12, topPx: 48 } }, 12, 4)
     ).toBe(64);
+  });
+});
+
+describe("movePinnedLabelBox", () => {
+  const start = { cxPct: 40, topPx: 22 };
+  const bounds = { minTopPx: 15, minCxPct: 5, maxCxPct: 95 };
+
+  it("increases topPx when dragged down", () => {
+    expect(movePinnedLabelBox(start, 0, 10, bounds)).toEqual({ cxPct: 40, topPx: 32 });
+  });
+
+  it("stops topPx at minTopPx when dragged up past the bar", () => {
+    expect(movePinnedLabelBox(start, 0, -20, bounds)).toEqual({ cxPct: 40, topPx: 15 });
+  });
+
+  it("clamps cxPct to the chart edges", () => {
+    expect(movePinnedLabelBox(start, -50, 0, bounds)).toEqual({ cxPct: 5, topPx: 22 });
+    expect(movePinnedLabelBox(start, 60, 0, bounds)).toEqual({ cxPct: 95, topPx: 22 });
   });
 });
