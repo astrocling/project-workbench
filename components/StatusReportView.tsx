@@ -72,6 +72,7 @@ import {
   timelinePhaseRowLayout,
   timelinePhaseWash,
   timelinePinnedContentHeightPx,
+  timelinePinnedPinBottomY,
   timelinePinnedRowHeightPx,
   timelineReportDateRowPx,
   type PinnedLabelBox,
@@ -827,13 +828,12 @@ export function TimelineBlock({
                     if (!box) return null;
                     const stroke = timelineMarkerPhaseColor(m, chart.bars) || "#1941FA";
                     const pinLeftPct = positionPercent(m.date);
-                    const pinCenterY = metrics.markerTopPx + metrics.markerIconPx / 2;
                     const labelTop = box.topPx * layoutScale;
                     return (
                       <line
                         key={`leader-${i}`}
                         x1={pinLeftPct}
-                        y1={pinCenterY}
+                        y1={timelinePinnedPinBottomY(metrics)}
                         x2={box.cxPct}
                         y2={labelTop}
                         stroke={stroke}

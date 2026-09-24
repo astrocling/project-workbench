@@ -33,6 +33,7 @@ import {
   SR_TIMELINE_MARKER_ICON_PX,
   SR_TIMELINE_MARKER_TOP_PX,
   timelinePinnedContentHeightPx,
+  timelinePinnedPinBottomY,
   timelinePinnedRowHeightPx,
   type TimelineLayoutOverlay,
 } from "@/lib/statusReportTimelineLayout";
@@ -405,6 +406,10 @@ describe("pinned key-date labels", () => {
   it("places advanced compact pins below the phase bar", () => {
     const metrics = getStatusReportTimelineMetrics("plan", { planDensity: "phases_and_key_dates" });
     expect(metrics.markerTopPx).toBe(SR_TIMELINE_MARKER_TOP_PX);
+  });
+
+  it("attaches pinned leaders at the pin icon bottom", () => {
+    expect(timelinePinnedPinBottomY({ markerTopPx: 16, markerIconPx: 8 })).toBe(24);
   });
 
   const markerFontPx = 6;

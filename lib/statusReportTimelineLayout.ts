@@ -418,6 +418,13 @@ export function resolvePinnedLabelLayout<T extends { itemId?: string; date: stri
   return resolved;
 }
 
+export function timelinePinnedPinBottomY(metrics: {
+  markerTopPx: number;
+  markerIconPx: number;
+}): number {
+  return metrics.markerTopPx + metrics.markerIconPx;
+}
+
 export function timelinePinnedRowHeightPx(
   baseRowHeightPx: number,
   markerIds: string[],

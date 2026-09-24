@@ -81,6 +81,7 @@ import {
   pinnedLabelStackStepPx,
   statusReportTimelineChartWidthPx,
   timelinePinnedContentHeightPx,
+  timelinePinnedPinBottomY,
   timelinePinnedRowHeightPx,
   timelineReportDateRowPx,
   truncatePinnedLabelText,
@@ -1665,7 +1666,6 @@ function TimelineBlock({
                   if (!box) return null;
                   const stroke = timelineMarkerPhaseColor(m, chart.bars) || "#1941FA";
                   const pinLeftPct = positionPercent(m.date);
-                  const pinCenterY = metrics.markerTopPx + metrics.markerIconPx / 2;
                   const labelTop = box.topPx * layoutScale;
                   const pinX = (pinLeftPct / 100) * chartWidthPx;
                   const labelX = (box.cxPct / 100) * chartWidthPx;
@@ -1673,7 +1673,7 @@ function TimelineBlock({
                     <Line
                       key={`leader-${i}`}
                       x1={pinX}
-                      y1={pinCenterY}
+                      y1={timelinePinnedPinBottomY(metrics)}
                       x2={labelX}
                       y2={labelTop}
                       stroke={stroke}
