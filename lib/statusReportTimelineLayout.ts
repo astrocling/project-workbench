@@ -126,7 +126,7 @@ const PLAN_ADVANCED_FILL_TIMELINE_METRICS: StatusReportTimelineMetrics = {
     PLAN_FILL_TIMELINE_METRICS.barTopPx + (PLAN_FILL_TIMELINE_METRICS.barHeightPx ?? 0) + 1,
   topBandPx: 0,
   bottomRailPx: 0,
-  labelColPx: SR_FILL_ADVANCED_PHASE_LABEL_COL_PX,
+  labelColPx: 0,
 };
 
 const PROJECT_FILL_TIMELINE_METRICS: StatusReportTimelineMetrics = {

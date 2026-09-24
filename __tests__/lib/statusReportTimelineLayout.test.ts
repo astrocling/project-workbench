@@ -108,7 +108,7 @@ describe("statusReportTimelineLayout", () => {
     expect(filled.mode).toBe("pinned");
     expect(filled.topBandPx).toBe(0);
     expect(filled.bottomRailPx).toBe(0);
-    expect(filled.labelColPx).toBe(240);
+    expect(filled.labelColPx).toBe(0);
     expect(filled.rowHeightPx).toBe(40);
     expect(timeline.mode).toBe("overlay");
     expect(statusReportTimelineSlotHeightPx({ scheduleSource: "plan", planDensity: "phases" })).toBe(
