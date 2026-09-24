@@ -412,6 +412,9 @@ type BarDragState = {
   phaseId: string;
   startClientX: number;
   startClientY: number;
+  bodyTop: number;
+  rowBoxes: Array<{ row: number; top: number; height: number }>;
+  lastLine: number;
 };
 
 export function TimelineBlock({
@@ -440,6 +443,7 @@ export function TimelineBlock({
   onPhaseRowChange?: (phaseId: string, row: number) => void;
 }) {
   const [dragPreview, setDragPreview] = useState<{ id: string; box: PinnedLabelBox } | null>(null);
+  const [barDragUi, setBarDragUi] = useState<{ phaseId: string; dy: number } | null>(null);
   const labelDragRef = useRef<LabelDragState | null>(null);
   const barDragRef = useRef<BarDragState | null>(null);
   const startMs = new Date(timeline.startDate).getTime();
@@ -578,18 +582,46 @@ export function TimelineBlock({
 
   const barDragEnabled = interactive && Boolean(onPhaseRowChange);
 
-  const beginBarDrag = (event: React.PointerEvent<HTMLElement>, phaseId: string) => {
+  const readChartRowBoxes = (from: HTMLElement) => {
+    const body = from.closest("[data-timeline-chart-body]");
+    if (!(body instanceof HTMLElement)) return null;
+    const rect = body.getBoundingClientRect();
+    const rowBoxes = [...body.querySelectorAll("[data-timeline-row-chart]")].flatMap((el) => {
+      if (!(el instanceof HTMLElement)) return [];
+      const row = Number(el.dataset.timelineRow);
+      if (!Number.isInteger(row)) return [];
+      const box = el.getBoundingClientRect();
+      return [{ row, top: box.top - rect.top, height: box.height }];
+    });
+    return { bodyTop: rect.top, rowBoxes };
+  };
+
+  const beginBarDrag = (event: React.PointerEvent<HTMLElement>, phaseId: string, currentRow: number) => {
     if (!barDragEnabled) return;
     const target = event.target;
     if (target instanceof Element && target.closest("[data-timeline-pinned-label]")) return;
     event.preventDefault();
     event.stopPropagation();
+    const hit = readChartRowBoxes(event.currentTarget);
+    if (!hit || hit.rowBoxes.length === 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     barDragRef.current = {
       phaseId,
       startClientX: event.clientX,
       startClientY: event.clientY,
+      bodyTop: hit.bodyTop,
+      rowBoxes: hit.rowBoxes,
+      lastLine: currentRow,
     };
+    setBarDragUi({ phaseId, dy: 0 });
+  };
+
+  const moveBarDrag = (event: React.PointerEvent<HTMLElement>) => {
+    const drag = barDragRef.current;
+    if (!drag) return;
+    const dy = event.clientY - drag.startClientY;
+    drag.lastLine = timelineLineFromRowHit(event.clientY - drag.bodyTop, drag.rowBoxes, 4);
+    setBarDragUi({ phaseId: drag.phaseId, dy });
   };
 
   const finishBarDrag = (event: React.PointerEvent<HTMLElement>, commit: boolean) => {
@@ -600,27 +632,12 @@ export function TimelineBlock({
     } catch {
       // pointer may already be released
     }
+    const line = timelineLineFromRowHit(event.clientY - drag.bodyTop, drag.rowBoxes, 4);
     barDragRef.current = null;
+    setBarDragUi(null);
     if (!commit || !onPhaseRowChange) return;
-    const deltaXPx = event.clientX - drag.startClientX;
     const deltaYPx = event.clientY - drag.startClientY;
-    if (
-      Math.abs(deltaXPx) < PINNED_LABEL_DRAG_THRESHOLD_PX &&
-      Math.abs(deltaYPx) < PINNED_LABEL_DRAG_THRESHOLD_PX
-    ) {
-      return;
-    }
-    const body = event.currentTarget.closest("[data-timeline-chart-body]");
-    if (!(body instanceof HTMLElement)) return;
-    const rect = body.getBoundingClientRect();
-    const boxes = [...body.querySelectorAll("[data-timeline-row-chart]")].flatMap((el) => {
-      if (!(el instanceof HTMLElement)) return [];
-      const row = Number(el.dataset.timelineRow);
-      if (!Number.isInteger(row)) return [];
-      const box = el.getBoundingClientRect();
-      return [{ row, top: box.top - rect.top, height: box.height }];
-    });
-    const line = timelineLineFromRowHit(event.clientY - rect.top, boxes, 4);
+    if (Math.abs(deltaYPx) < PINNED_LABEL_DRAG_THRESHOLD_PX) return;
     onPhaseRowChange(drag.phaseId, line);
   };
 
@@ -799,7 +816,7 @@ export function TimelineBlock({
       </div>
       <div
         data-timeline-chart-body
-        className={`relative ${fillAvailableHeight ? "flex-1 min-h-0 flex flex-col" : ""}`}
+        className={`relative ${fillAvailableHeight ? "flex-1 min-h-0 flex flex-col" : ""}${barDragUi ? " overflow-visible" : ""}`}
       >
         {reportDatePercent != null && (
           <div
@@ -833,7 +850,7 @@ export function TimelineBlock({
               key={row}
               data-timeline-row-chart
               data-timeline-row={row}
-              className="border-b border-[#d1d5db] relative overflow-hidden"
+              className={`border-b border-[#d1d5db] relative ${barDragUi ? "overflow-visible" : "overflow-hidden"}`}
               style={{
                 ...rowLayout(markersInRow.length, row),
                 ...(rowWash ? { backgroundColor: rowWash } : {}),
@@ -855,6 +872,7 @@ export function TimelineBlock({
                   const fill = bar.color ?? TIMELINE_BAR_BG;
                   const phaseId = bar.phaseId;
                   const barInteractive = barDragEnabled && Boolean(phaseId);
+                  const draggingThis = Boolean(phaseId && barDragUi?.phaseId === phaseId);
                   return (
                   <div
                     key={`bar-${i}`}
@@ -867,13 +885,18 @@ export function TimelineBlock({
                       width: `${renderedWidth}%`,
                       backgroundColor: fill,
                       opacity: bar.muted ? 0.45 : 1,
-                      ...(barInteractive ? { cursor: "grab" } : {}),
+                      zIndex: draggingThis ? 6 : undefined,
+                      transform: draggingThis ? `translateY(${barDragUi.dy}px)` : undefined,
+                      ...(barInteractive
+                        ? { cursor: draggingThis ? "grabbing" : "grab" }
+                        : {}),
                     }}
                     onPointerDown={
                       barInteractive && phaseId
-                        ? (event) => beginBarDrag(event, phaseId)
+                        ? (event) => beginBarDrag(event, phaseId, row)
                         : undefined
                     }
+                    onPointerMove={barInteractive ? moveBarDrag : undefined}
                     onPointerUp={barInteractive ? (event) => finishBarDrag(event, true) : undefined}
                     onPointerCancel={
                       barInteractive ? (event) => finishBarDrag(event, false) : undefined
@@ -938,7 +961,7 @@ export function TimelineBlock({
                   return (
                     <React.Fragment key={`m-${itemId ?? i}`}>
                       <div
-                        className="absolute z-[2]"
+                        className="absolute z-[2] pointer-events-none"
                         style={{
                           left: `calc(${pinLeftPct}% - ${metrics.markerIconPx / 2}px)`,
                           top: metrics.markerTopPx,

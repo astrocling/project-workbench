@@ -1930,7 +1930,6 @@ export function StatusReportsTab({
                       reportDate={formReportDate}
                       scheduleSource="plan"
                       planDensity={formPlanDensity}
-                      fillAvailableHeight={formVariation === "Modular"}
                       interactive
                       labelOverlay={formTimelineLayout}
                       onLabelLayoutChange={(id, box) =>
