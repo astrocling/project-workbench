@@ -15,6 +15,8 @@ import {
   setTimelineLayoutRow,
   setTimelineLayoutWindow,
   timelineLineFromPointerY,
+  timelineLineFromRowHit,
+  selectTimelineChartRows,
   statusReportMonthHeaderLabel,
   timelineMarkerHangsLeft,
   timelineMarkerStackTop,
@@ -514,19 +516,35 @@ describe("timelinePinnedContentHeightPx", () => {
     ).toBeNull();
   });
 
-  it("sums stacked pinned row heights for advanced plan", () => {
+  it("caps published Standard Advanced height at the bar+pin band, ignoring parked labels", () => {
     const compact = getStatusReportTimelineMetrics("plan", { planDensity: "phases_and_key_dates" });
+    const parked = {
+      ...pinnedTimeline,
+      markers: [
+        { itemId: "m1", label: "Alpha", date: "2026-04-05", shape: "Pin", rowIndex: 2 },
+        { itemId: "m2", label: "Beta", date: "2026-04-06", shape: "BadgeAlert", rowIndex: 2 },
+      ],
+    };
     const height = timelinePinnedContentHeightPx({
-      timeline: pinnedTimeline,
+      timeline: parked,
       scheduleSource: "plan",
       planDensity: "phases_and_key_dates",
+      labelOverlay: {
+        markerLabelLayout: {
+          m2: { cxPct: 40, topPx: 120 },
+        },
+      },
     });
-    const stackedRowMin =
-      compact.rowHeightPx +
-      pinnedLabelStackStepPx(compact.markerFontPx) +
-      pinnedLabelBlockHeightPx(compact.markerFontPx);
-    expect(height).toBeGreaterThan(compact.rowHeightPx * 2);
-    expect(height).toBeGreaterThanOrEqual(stackedRowMin + compact.rowHeightPx + 12);
+    const expected =
+      compact.rowHeightPx * 2 + 12;
+    expect(height).toBe(expected);
+    expect(
+      statusReportTimelineSlotHeightPx({
+        scheduleSource: "plan",
+        planDensity: "phases_and_key_dates",
+        contentHeightPx: height ?? undefined,
+      })
+    ).toBe(Math.max(70, expected));
   });
 });
 
@@ -552,6 +570,130 @@ describe("timelineLineFromPointerY", () => {
     expect(timelineLineFromPointerY(26, 100, 4)).toBe(2);
     expect(timelineLineFromPointerY(99, 100, 4)).toBe(4);
     expect(timelineLineFromPointerY(-10, 100, 4)).toBe(1);
+  });
+});
+
+describe("timelineLineFromRowHit", () => {
+  const occupiedTwo = [
+    { row: 1, top: 0, height: 40 },
+    { row: 2, top: 40, height: 40 },
+  ];
+
+  it("maps pointer Y onto occupied data-timeline-row-chart boxes", () => {
+    expect(timelineLineFromRowHit(10, occupiedTwo, 4)).toBe(1);
+    expect(timelineLineFromRowHit(55, occupiedTwo, 4)).toBe(2);
+  });
+
+  it("assigns the next empty line 1-4 when dropping below the last occupied row", () => {
+    expect(timelineLineFromRowHit(90, occupiedTwo, 4)).toBe(3);
+    expect(
+      timelineLineFromRowHit(
+        130,
+        [
+          { row: 1, top: 0, height: 40 },
+          { row: 2, top: 40, height: 40 },
+          { row: 3, top: 80, height: 40 },
+        ],
+        4
+      )
+    ).toBe(4);
+  });
+
+  it("stays on the last occupied line when all four lines are filled", () => {
+    const four = [
+      { row: 1, top: 0, height: 20 },
+      { row: 2, top: 20, height: 20 },
+      { row: 3, top: 40, height: 20 },
+      { row: 4, top: 60, height: 20 },
+    ];
+    expect(timelineLineFromRowHit(90, four, 4)).toBe(4);
+  });
+});
+
+const wrap4Timeline = {
+  startDate: "2026-01-01",
+  endDate: "2026-12-31",
+  bars: [
+    { label: "Discovery", startDate: "2026-01-01", endDate: "2026-03-01", rowIndex: 1, phaseId: "p1", color: null as string | null },
+    { label: "Design", startDate: "2026-03-01", endDate: "2026-05-01", rowIndex: 2, phaseId: "p2", color: null },
+    { label: "Build", startDate: "2026-05-01", endDate: "2026-08-01", rowIndex: 3, phaseId: "p3", color: null },
+    { label: "UAT", startDate: "2026-08-01", endDate: "2026-10-01", rowIndex: 4, phaseId: "p4", color: null },
+    { label: "Launch", startDate: "2026-10-01", endDate: "2026-12-01", rowIndex: 1, phaseId: "p5", color: null },
+  ],
+  markers: [
+    { label: "Kickoff", date: "2026-01-15", rowIndex: 1, shape: "Pin" },
+    { label: "Go live", date: "2026-10-15", rowIndex: 1, shape: "Pin" },
+  ],
+};
+
+describe("selectTimelineChartRows", () => {
+  it("keeps wrap4 Advanced fill at four active rows instead of expanding Launch to row 5", () => {
+    const selected = selectTimelineChartRows({
+      timeline: wrap4Timeline,
+      fillAvailableHeight: true,
+      scheduleSource: "plan",
+      planDensity: "phases_and_key_dates",
+    });
+    expect(selected.activeRows).toEqual([1, 2, 3, 4]);
+    expect(selected.rowCap).toBe(4);
+    expect(selected.chart.bars.map((bar) => [bar.label, bar.rowIndex])).toEqual([
+      ["Discovery", 1],
+      ["Design", 2],
+      ["Build", 3],
+      ["UAT", 4],
+      ["Launch", 1],
+    ]);
+  });
+
+  it("caps locked unique rows 1-5 so Advanced fill does not draw row 5", () => {
+    const unique = {
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+      bars: [
+        { label: "A", startDate: "2026-01-01", endDate: "2026-02-01", rowIndex: 1, color: null as string | null },
+        { label: "B", startDate: "2026-02-01", endDate: "2026-03-01", rowIndex: 2, color: null },
+        { label: "C", startDate: "2026-03-01", endDate: "2026-04-01", rowIndex: 3, color: null },
+        { label: "D", startDate: "2026-04-01", endDate: "2026-05-01", rowIndex: 4, color: null },
+        { label: "E", startDate: "2026-05-01", endDate: "2026-06-01", rowIndex: 5, color: null },
+      ],
+      markers: [] as { date: string; rowIndex?: number; label?: string; shape?: string }[],
+    };
+    const selected = selectTimelineChartRows({
+      timeline: unique,
+      fillAvailableHeight: true,
+      scheduleSource: "plan",
+      planDensity: "phases_and_key_dates",
+    });
+    expect(selected.activeRows).toEqual([1, 2, 3, 4]);
+    expect(selected.chart.bars.find((bar) => bar.label === "E")?.rowIndex).toBe(5);
+  });
+
+  it("still expands wrapped Condensed Modular fill onto unique rows including 5", () => {
+    const selected = selectTimelineChartRows({
+      timeline: wrap4Timeline,
+      fillAvailableHeight: true,
+      scheduleSource: "plan",
+      planDensity: "phases",
+    });
+    expect(selected.activeRows).toEqual([1, 2, 3, 4, 5]);
+    expect(selected.rowCap).toBe(16);
+    expect(selected.chart.bars.map((bar) => [bar.label, bar.rowIndex])).toEqual([
+      ["Discovery", 1],
+      ["Design", 2],
+      ["Build", 3],
+      ["UAT", 4],
+      ["Launch", 5],
+    ]);
+  });
+
+  it("still expands wrapped Project-timeline fill onto unique rows including 5", () => {
+    const selected = selectTimelineChartRows({
+      timeline: wrap4Timeline,
+      fillAvailableHeight: true,
+      scheduleSource: "timeline",
+    });
+    expect(selected.activeRows).toEqual([1, 2, 3, 4, 5]);
+    expect(selected.rowCap).toBe(16);
   });
 });
 

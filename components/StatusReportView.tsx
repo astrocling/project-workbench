@@ -44,9 +44,6 @@ import {
   type PlanReportListItem,
 } from "@/lib/plan/reportLists";
 import {
-  expandScheduleEntriesToOwnRows,
-  getActiveTimelineRows,
-  getCompactPlanTimelineRows,
   getVisibleBarSegmentsForRow,
   getVisibleMarkersForRow,
   TIMELINE_FILL_ROW_MAX,
@@ -60,8 +57,9 @@ import {
   pinnedLabelStackStepPx,
   PINNED_LABEL_DRAG_THRESHOLD_PX,
   resolvePinnedLabelLayout,
-  timelineLineFromPointerY,
+  timelineLineFromRowHit,
   scaleStatusReportTimelineMetrics,
+  selectTimelineChartRows,
   pickSpacedTimelineMarkers,
   statusReportMonthHeaderLabel,
   statusReportTimelineSlotHeightPx,
@@ -614,17 +612,24 @@ export function TimelineBlock({
     const body = event.currentTarget.closest("[data-timeline-chart-body]");
     if (!(body instanceof HTMLElement)) return;
     const rect = body.getBoundingClientRect();
-    const line = timelineLineFromPointerY(event.clientY - rect.top, rect.height, 4);
+    const boxes = [...body.querySelectorAll("[data-timeline-row-chart]")].flatMap((el) => {
+      if (!(el instanceof HTMLElement)) return [];
+      const row = Number(el.dataset.timelineRow);
+      if (!Number.isInteger(row)) return [];
+      const box = el.getBoundingClientRect();
+      return [{ row, top: box.top - rect.top, height: box.height }];
+    });
+    const line = timelineLineFromRowHit(event.clientY - rect.top, boxes, 4);
     onPhaseRowChange(drag.phaseId, line);
   };
 
-  const chart = fillAvailableHeight ? expandScheduleEntriesToOwnRows(timeline) : timeline;
-  const rowCap = fillAvailableHeight ? TIMELINE_FILL_ROW_MAX : undefined;
-  const activeRows = fillAvailableHeight
-    ? getActiveTimelineRows(chart, TIMELINE_FILL_ROW_MAX)
-    : scheduleSource === "plan"
-      ? getCompactPlanTimelineRows(timeline, reportDate)
-      : getActiveTimelineRows(timeline);
+  const { chart, rowCap, activeRows } = selectTimelineChartRows({
+    timeline,
+    fillAvailableHeight,
+    scheduleSource,
+    planDensity,
+    reportDate,
+  });
   const monthHeaderPx = fillAvailableHeight ? metrics.monthFontPx + 8 : 12 * layoutScale;
 
   const pinnedRowData: Record<
@@ -646,13 +651,14 @@ export function TimelineBlock({
         .filter((id): id is string => Boolean(id));
       pinnedRowData[row] = {
         layout,
-        heightPx:
-          timelinePinnedRowHeightPx(
-            baseMetrics.rowHeightPx,
-            ids,
-            layout,
-            pinnedLabelHeightPx
-          ) * layoutScale,
+        heightPx: interactive
+          ? timelinePinnedRowHeightPx(
+              baseMetrics.rowHeightPx,
+              ids,
+              layout,
+              pinnedLabelHeightPx
+            ) * layoutScale
+          : ROW_HEIGHT_PX,
       };
     }
   }
@@ -825,6 +831,7 @@ export function TimelineBlock({
             <div
               key={row}
               data-timeline-row-chart
+              data-timeline-row={row}
               className="border-b border-[#d1d5db] relative overflow-hidden"
               style={{
                 ...rowLayout(markersInRow.length, row),

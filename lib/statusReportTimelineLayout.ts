@@ -11,9 +11,10 @@ import {
   expandScheduleEntriesToOwnRows,
   getActiveTimelineRows,
   getCompactPlanTimelineRows,
-  getVisibleMarkersForRow,
   TIMELINE_FILL_ROW_MAX,
+  TIMELINE_RENDERABLE_ROW_MAX,
   type PlanReportDensity,
+  type TimelineAxisSlice,
 } from "@/lib/plan/reportSchedule";
 
 export const SR_TIMELINE_ROW_HEIGHT_PX = 18;
@@ -438,6 +439,41 @@ export function timelinePinnedRowHeightPx(
   return max;
 }
 
+/** Chart slice + occupied lines for TimelineBlock / pinned slot height. */
+export function selectTimelineChartRows<T extends TimelineAxisSlice>(opts: {
+  timeline: T;
+  fillAvailableHeight?: boolean;
+  scheduleSource?: "timeline" | "plan" | null;
+  planDensity?: PlanReportDensity | null;
+  reportDate?: string;
+}): { chart: T; rowCap: number | undefined; activeRows: number[] } {
+  const fill = opts.fillAvailableHeight === true;
+  const advanced = usesPromotedTimeline(opts.scheduleSource, opts.planDensity);
+  if (fill && advanced) {
+    return {
+      chart: opts.timeline,
+      rowCap: TIMELINE_RENDERABLE_ROW_MAX,
+      activeRows: getActiveTimelineRows(opts.timeline, TIMELINE_RENDERABLE_ROW_MAX),
+    };
+  }
+  if (fill) {
+    const chart = expandScheduleEntriesToOwnRows(opts.timeline);
+    return {
+      chart,
+      rowCap: TIMELINE_FILL_ROW_MAX,
+      activeRows: getActiveTimelineRows(chart, TIMELINE_FILL_ROW_MAX),
+    };
+  }
+  return {
+    chart: opts.timeline,
+    rowCap: undefined,
+    activeRows:
+      opts.scheduleSource === "plan"
+        ? getCompactPlanTimelineRows(opts.timeline, opts.reportDate)
+        : getActiveTimelineRows(opts.timeline),
+  };
+}
+
 /** Sum of pinned row heights + month header + report-date row (unscaled slide px). */
 export function timelinePinnedContentHeightPx(opts: {
   timeline: LayoutTimelineSlice;
@@ -456,46 +492,17 @@ export function timelinePinnedContentHeightPx(opts: {
 
   const layoutScale = opts.layoutScale ?? 1;
   const fillAvailableHeight = opts.fillAvailableHeight === true;
-  const stackStepPx = pinnedLabelStackStepPx(baseMetrics.markerFontPx);
-  const labelHeightPx = pinnedLabelBlockHeightPx(baseMetrics.markerFontPx);
-  const pinnedOpts = {
-    markerTopPx: baseMetrics.markerTopPx,
-    markerIconPx: baseMetrics.markerIconPx,
-    stackStepPx,
-  };
 
-  const chart = fillAvailableHeight
-    ? expandScheduleEntriesToOwnRows(opts.timeline)
-    : opts.timeline;
-  const rowCap = fillAvailableHeight ? TIMELINE_FILL_ROW_MAX : undefined;
+  const { activeRows } = selectTimelineChartRows({
+    timeline: opts.timeline,
+    fillAvailableHeight,
+    scheduleSource: opts.scheduleSource,
+    planDensity: opts.planDensity,
+    reportDate: opts.reportDate,
+  });
   const startYmd = opts.timeline.startDate.slice(0, 10);
   const endYmd = opts.timeline.endDate.slice(0, 10);
-  const activeRows = fillAvailableHeight
-    ? getActiveTimelineRows(chart, TIMELINE_FILL_ROW_MAX)
-    : opts.scheduleSource === "plan"
-      ? getCompactPlanTimelineRows(opts.timeline, opts.reportDate)
-      : getActiveTimelineRows(opts.timeline);
-
-  let rowsSum = 0;
-  for (const row of activeRows) {
-    const markersInRow = getVisibleMarkersForRow(chart.markers, row, startYmd, endYmd, rowCap);
-    const layout = resolvePinnedLabelLayout(
-      markersInRow,
-      opts.labelOverlay,
-      startYmd,
-      endYmd,
-      pinnedOpts
-    );
-    const ids = markersInRow
-      .map((marker) => marker.itemId)
-      .filter((id): id is string => Boolean(id));
-    rowsSum += timelinePinnedRowHeightPx(
-      baseMetrics.rowHeightPx,
-      ids,
-      layout,
-      labelHeightPx
-    );
-  }
+  const rowsSum = activeRows.length * baseMetrics.rowHeightPx;
 
   const monthHeaderPx = fillAvailableHeight ? baseMetrics.monthFontPx + 8 : 12 * layoutScale;
   const reportDateInRange =
@@ -621,6 +628,37 @@ export function timelineLineFromPointerY(
   if (bodyHeightPx <= 0) return 1;
   const t = Math.min(Math.max(offsetY, 0), bodyHeightPx - 1);
   return Math.min(maxRow, Math.max(1, Math.floor((t / bodyHeightPx) * maxRow) + 1));
+}
+
+export type TimelineRowHitBox = { row: number; top: number; height: number };
+
+/** Map pointer Y onto occupied row boxes; below the last occupied line inserts the next empty 1–maxRow. */
+export function timelineLineFromRowHit(
+  offsetY: number,
+  rows: readonly TimelineRowHitBox[],
+  maxRow = 4
+): number {
+  if (rows.length === 0) return 1;
+  const sorted = [...rows].sort((a, b) => a.top - b.top);
+  for (const box of sorted) {
+    if (offsetY >= box.top && offsetY < box.top + box.height) {
+      return Math.min(maxRow, Math.max(1, box.row));
+    }
+  }
+  const last = sorted[sorted.length - 1];
+  if (offsetY < sorted[0].top) {
+    return Math.min(maxRow, Math.max(1, sorted[0].row));
+  }
+  if (sorted.length < maxRow) {
+    const occupied = new Set(sorted.map((box) => box.row));
+    for (let i = last.row + 1; i <= maxRow; i += 1) {
+      if (!occupied.has(i)) return i;
+    }
+    for (let i = 1; i <= maxRow; i += 1) {
+      if (!occupied.has(i)) return i;
+    }
+  }
+  return Math.min(maxRow, Math.max(1, last.row));
 }
 
 export function setTimelineLayoutRow(

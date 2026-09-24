@@ -48,9 +48,6 @@ import {
   type PlanReportListSlice,
 } from "@/lib/plan/reportLists";
 import {
-  expandScheduleEntriesToOwnRows,
-  getActiveTimelineRows,
-  getCompactPlanTimelineRows,
   getVisibleBarSegmentsForRow,
   getVisibleMarkersForRow,
   TIMELINE_FILL_ROW_MAX,
@@ -79,10 +76,10 @@ import {
   timelinePhaseWash,
   pinnedLabelBlockHeightPx,
   pinnedLabelStackStepPx,
+  selectTimelineChartRows,
   statusReportTimelineChartWidthPx,
   timelinePinnedContentHeightPx,
   timelinePinnedPinBottomY,
-  timelinePinnedRowHeightPx,
   timelineReportDateRowPx,
   truncatePinnedLabelText,
   type StatusReportTimelineMetrics,
@@ -1475,13 +1472,13 @@ function TimelineBlock({
     stackStepPx: pinnedStackStepPx,
   };
 
-  const chart = fillAvailableHeight ? expandScheduleEntriesToOwnRows(timeline) : timeline;
-  const rowCap = fillAvailableHeight ? TIMELINE_FILL_ROW_MAX : undefined;
-  const activeRows = fillAvailableHeight
-    ? getActiveTimelineRows(chart, TIMELINE_FILL_ROW_MAX)
-    : scheduleSource === "plan"
-      ? getCompactPlanTimelineRows(timeline, reportDate)
-      : getActiveTimelineRows(timeline);
+  const { chart, rowCap, activeRows } = selectTimelineChartRows({
+    timeline,
+    fillAvailableHeight,
+    scheduleSource,
+    planDensity,
+    reportDate,
+  });
   const monthHeaderPx = fillAvailableHeight ? metrics.monthFontPx + 8 : 12 * layoutScale;
 
   const pinnedRowData: Record<
@@ -1498,18 +1495,9 @@ function TimelineBlock({
         endYmd,
         pinnedLayoutOpts
       );
-      const ids = markersInRow
-        .map((marker) => marker.itemId)
-        .filter((id): id is string => Boolean(id));
       pinnedRowData[row] = {
         layout,
-        heightPx:
-          timelinePinnedRowHeightPx(
-            baseMetrics.rowHeightPx,
-            ids,
-            layout,
-            pinnedLabelHeightPx
-          ) * layoutScale,
+        heightPx: ROW_HEIGHT,
       };
     }
   }
