@@ -1909,7 +1909,7 @@ export function StatusReportsTab({
                   <ArrangeScheduleFields
                     timeline={formTimeline}
                     layout={formTimelineLayout}
-                    maxRow={timelineLayoutMaxRow(formVariation)}
+                    maxRow={timelineLayoutMaxRow(formVariation, formPlanDensity)}
                     onChange={(next) => {
                       void saveTimelineLayout(next);
                     }}
@@ -1924,7 +1924,7 @@ export function StatusReportsTab({
                       timeline={applyTimelineLayout(
                         formTimeline,
                         formTimelineLayout,
-                        timelineLayoutMaxRow(formVariation)
+                        timelineLayoutMaxRow(formVariation, formPlanDensity)
                       )}
                       reportDate={formReportDate}
                       scheduleSource="plan"

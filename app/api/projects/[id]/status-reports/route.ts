@@ -298,7 +298,10 @@ export async function POST(
         });
         if (
           usePlanSchedule &&
-          !isValidPlanTimeline(pdfData?.timeline, timelineLayoutMaxRow(report.variation))
+          !isValidPlanTimeline(
+            pdfData?.timeline,
+            timelineLayoutMaxRow(report.variation, parsed.data.planDensity)
+          )
         ) {
           const planError = resolvePlanScheduleEmptyError(parsed.data.planDensity);
           const rollback = await rollbackCreatedStatusReport(
@@ -408,7 +411,13 @@ export async function POST(
       return NextResponse.json({ error: PLAN_CREATE_BUILD_FAILED_ERROR }, { status: 500 });
     }
 
-    if (usePlanSchedule && !isValidPlanTimeline(pdfData?.timeline)) {
+    if (
+      usePlanSchedule &&
+      !isValidPlanTimeline(
+        pdfData?.timeline,
+        timelineLayoutMaxRow(report.variation, parsed.data.planDensity)
+      )
+    ) {
       const planError = resolvePlanScheduleEmptyError(parsed.data.planDensity);
       const rollback = await rollbackCreatedStatusReport(
         async (reportId) => {

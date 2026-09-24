@@ -147,6 +147,18 @@ describe("compactPlanToSchedule", () => {
     expect(timelineLayoutMaxRow("Standard")).toBe(4);
   });
 
+  it("uses wrap4 and max row 4 for Advanced on Modular and Standard", () => {
+    expect(compactLanePolicyForVariation("Modular", "phases_and_key_dates")).toBe("wrap4");
+    expect(compactLanePolicyForVariation("Standard", "phases_and_key_dates")).toBe("wrap4");
+    expect(timelineLayoutMaxRow("Modular", "phases_and_key_dates")).toBe(4);
+    expect(timelineLayoutMaxRow("Standard", "phases_and_key_dates")).toBe(4);
+  });
+
+  it("keeps onePhasePerRow and fill max for Condensed Modular", () => {
+    expect(compactLanePolicyForVariation("Modular", "phases")).toBe("onePhasePerRow");
+    expect(timelineLayoutMaxRow("Modular", "phases")).toBe(16);
+  });
+
   it("builds phase bars from min/max item dates with no markers in phases density", () => {
     const result = compactPlanToSchedule(
       [

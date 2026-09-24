@@ -85,7 +85,10 @@ export async function POST(
   // (a timeline is built whenever the project has an end date, with no visible-schedule gate).
   const rebuiltSchedule =
     scheduleSource === "plan"
-      ? isValidPlanTimeline(pdfData.timeline, timelineLayoutMaxRow(report.variation))
+      ? isValidPlanTimeline(
+          pdfData.timeline,
+          timelineLayoutMaxRow(report.variation, planDensity)
+        )
       : pdfData.timeline != null;
 
   if (!rebuiltSchedule) {

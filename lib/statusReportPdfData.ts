@@ -519,7 +519,7 @@ export async function buildStatusReportPdfData(
       if (planJson) {
         const density = resolvePlanDensity(snapshot, options);
         timeline = buildPlanTimelineCandidate(planJson.phases, density, axis, {
-          lanePolicy: compactLanePolicyForVariation(report.variation),
+          lanePolicy: compactLanePolicyForVariation(report.variation, density),
         });
       }
     } else if (shouldBuildTimelineFromLegacy(scheduleSource, timelineLocked)) {
@@ -557,10 +557,11 @@ export async function buildStatusReportPdfData(
   const showBudget = resolveShowBudget(snapshot);
 
   if (timeline && options?.applyTimelineLayoutOverlay !== false) {
+    const planDensity = resolvePlanDensity(snapshot, options);
     timeline = applyTimelineLayout(
       timeline,
       snapshot?.timelineLayout,
-      timelineLayoutMaxRow(report.variation)
+      timelineLayoutMaxRow(report.variation, planDensity)
     );
   }
 

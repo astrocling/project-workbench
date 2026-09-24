@@ -50,11 +50,19 @@ function phaseRowIndex(order: number, lanePolicy: CompactLanePolicy): number {
   return (order % 4) + 1;
 }
 
-export function compactLanePolicyForVariation(variation: string): CompactLanePolicy {
+export function compactLanePolicyForVariation(
+  variation: string,
+  planDensity?: PlanReportDensity | null
+): CompactLanePolicy {
+  if (planDensity != null && planDensity !== "phases") return "wrap4";
   return variation === "Modular" ? "onePhasePerRow" : "wrap4";
 }
 
-export function timelineLayoutMaxRow(variation: string): number {
+export function timelineLayoutMaxRow(
+  variation: string,
+  planDensity?: PlanReportDensity | null
+): number {
+  if (planDensity != null && planDensity !== "phases") return TIMELINE_RENDERABLE_ROW_MAX;
   return variation === "Modular" ? TIMELINE_FILL_ROW_MAX : TIMELINE_RENDERABLE_ROW_MAX;
 }
 
