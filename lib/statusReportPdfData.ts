@@ -557,11 +557,13 @@ export async function buildStatusReportPdfData(
   const showBudget = resolveShowBudget(snapshot);
 
   if (timeline && options?.applyTimelineLayoutOverlay !== false) {
-    const planDensity = resolvePlanDensity(snapshot, options);
+    const scheduleSource = resolveScheduleSource(snapshot, options);
     timeline = applyTimelineLayout(
       timeline,
       snapshot?.timelineLayout,
-      timelineLayoutMaxRow(report.variation, planDensity)
+      scheduleSource === "plan"
+        ? timelineLayoutMaxRow(report.variation, resolvePlanDensity(snapshot, options))
+        : timelineLayoutMaxRow(report.variation)
     );
   }
 

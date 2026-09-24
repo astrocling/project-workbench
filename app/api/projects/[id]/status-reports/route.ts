@@ -300,7 +300,10 @@ export async function POST(
           usePlanSchedule &&
           !isValidPlanTimeline(
             pdfData?.timeline,
-            timelineLayoutMaxRow(report.variation, parsed.data.planDensity)
+            timelineLayoutMaxRow(
+              report.variation,
+              parsed.data.planDensity ?? "phases_and_key_dates"
+            )
           )
         ) {
           const planError = resolvePlanScheduleEmptyError(parsed.data.planDensity);
@@ -415,7 +418,10 @@ export async function POST(
       usePlanSchedule &&
       !isValidPlanTimeline(
         pdfData?.timeline,
-        timelineLayoutMaxRow(report.variation, parsed.data.planDensity)
+        timelineLayoutMaxRow(
+          report.variation,
+          parsed.data.planDensity ?? "phases_and_key_dates"
+        )
       )
     ) {
       const planError = resolvePlanScheduleEmptyError(parsed.data.planDensity);

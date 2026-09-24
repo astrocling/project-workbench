@@ -35,7 +35,7 @@ export type ReportScheduleSlice = {
 
 export const TIMELINE_RENDERABLE_ROW_MIN = 1;
 export const TIMELINE_RENDERABLE_ROW_MAX = 4;
-/** Tall Modular slot: Plan phases no longer wrap onto four Standard lanes. */
+/** Max row for Modular Condensed Plan (one phase per row) and Project-timeline Modular fill slots. */
 export const TIMELINE_FILL_ROW_MAX = 16;
 
 export type CompactLanePolicy = "wrap4" | "onePhasePerRow";
