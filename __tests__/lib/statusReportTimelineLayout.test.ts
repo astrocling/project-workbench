@@ -263,6 +263,10 @@ describe("timeline layout overlay edits", () => {
     expect(setTimelineLayoutRow(undefined, "p1", 1, 9)).toBeUndefined();
   });
 
+  it("places a phase on an explicit line 1-4", () => {
+    expect(setTimelineLayoutRow({ p1: 1 }, "p1", 1, 2, 4)).toEqual({ p1: 2 });
+  });
+
   it("accepts row 5 when maxRow is 16", () => {
     expect(setTimelineLayoutRow(undefined, "p1", 1, 5, 16)).toEqual({ p1: 5 });
     expect(setTimelineLayoutRow(undefined, "p1", 1, 17, 16)).toBeUndefined();

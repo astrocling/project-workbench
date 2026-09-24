@@ -22,6 +22,7 @@ import {
   moveArrangeKeyDate,
   moveArrangePhase,
   setTimelineLayoutLabel,
+  setTimelineLayoutRow,
   setTimelineLayoutWindow,
   toggleTimelineHiddenId,
   type TimelineLayoutOverlay,
@@ -242,6 +243,12 @@ export function ArrangeScheduleFields({
             Boolean(phaseId) &&
             groupIndex < groups.length - 1 &&
             groups[groupIndex + 1]?.bar;
+          const phaseBar = phaseId
+            ? timeline.bars.find((bar) => bar.phaseId === phaseId)
+            : undefined;
+          const originalRow = phaseBar?.rowIndex ?? 1;
+          const currentRow = layout.rows?.[phaseId!] ?? originalRow;
+          const showLineButtons = rowMax <= 4;
           return (
             <div
               key={groupKey}
@@ -292,6 +299,32 @@ export function ArrangeScheduleFields({
                   >
                     <ChevronDown size={14} />
                   </IconButton>
+                  {showLineButtons ? (
+                    <span className="inline-flex items-center gap-0.5 ml-0.5">
+                      {[1, 2, 3, 4].map((line) => (
+                        <button
+                          key={line}
+                          type="button"
+                          aria-label={`Place phase on line ${line}`}
+                          aria-pressed={currentRow === line}
+                          disabled={disabled}
+                          onClick={() =>
+                            onChange({
+                              ...layout,
+                              rows: setTimelineLayoutRow(layout.rows, phaseId!, originalRow, line, 4),
+                            })
+                          }
+                          className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-label-sm font-semibold disabled:opacity-30 ${
+                            currentRow === line
+                              ? "bg-surface-800 text-white dark:bg-surface-100 dark:text-surface-900"
+                              : "text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-dark-raised"
+                          }`}
+                        >
+                          {line}
+                        </button>
+                      ))}
+                    </span>
+                  ) : null}
                 </div>
               ) : (
                 <p className="text-label-sm font-semibold uppercase tracking-wide text-surface-500">
