@@ -14,6 +14,7 @@ import {
   setTimelineLayoutLabel,
   setTimelineLayoutRow,
   setTimelineLayoutWindow,
+  timelineLineFromPointerY,
   statusReportMonthHeaderLabel,
   timelineMarkerHangsLeft,
   timelineMarkerStackTop,
@@ -542,6 +543,15 @@ describe("pinnedLabelCxPctBounds", () => {
     const { minCxPct, maxCxPct } = pinnedLabelCxPctBounds(76, 400);
     expect(minCxPct).toBeCloseTo(9.5);
     expect(maxCxPct).toBeCloseTo(90.5);
+  });
+});
+
+describe("timelineLineFromPointerY", () => {
+  it("maps pointer Y to lines 1-4", () => {
+    expect(timelineLineFromPointerY(0, 100, 4)).toBe(1);
+    expect(timelineLineFromPointerY(26, 100, 4)).toBe(2);
+    expect(timelineLineFromPointerY(99, 100, 4)).toBe(4);
+    expect(timelineLineFromPointerY(-10, 100, 4)).toBe(1);
   });
 });
 

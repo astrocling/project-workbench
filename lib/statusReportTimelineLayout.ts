@@ -614,6 +614,17 @@ function overlayHasContent(layout: TimelineLayoutOverlay): boolean {
   );
 }
 
+/** Map Y in the chart body to a line 1–maxRow (equal bands of the body height). */
+export function timelineLineFromPointerY(
+  offsetY: number,
+  bodyHeightPx: number,
+  maxRow = 4
+): number {
+  if (bodyHeightPx <= 0) return 1;
+  const t = Math.min(Math.max(offsetY, 0), bodyHeightPx - 1);
+  return Math.min(maxRow, Math.max(1, Math.floor((t / bodyHeightPx) * maxRow) + 1));
+}
+
 export function setTimelineLayoutRow(
   rows: Record<string, number> | undefined,
   id: string,

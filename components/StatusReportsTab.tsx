@@ -69,6 +69,7 @@ import type { StatusReportPDFData } from "@/components/pdf/StatusReportDocument"
 import type { TimelineLayoutOverlay } from "@/lib/statusReportTimelineLayout";
 import {
   applyTimelineLayout,
+  setTimelineLayoutRow,
   timelineLayoutFromPreviousSnapshot,
 } from "@/lib/statusReportTimelineLayout";
 import { ArrangeScheduleFields } from "@/components/ArrangeScheduleFields";
@@ -1945,6 +1946,18 @@ export function StatusReportsTab({
                                 delete next[id];
                                 return Object.keys(next).length > 0 ? next : undefined;
                               })(),
+                        })
+                      }
+                      onPhaseRowChange={(phaseId, row) =>
+                        void saveTimelineLayout({
+                          ...formTimelineLayout,
+                          rows: setTimelineLayoutRow(
+                            formTimelineLayout.rows,
+                            phaseId,
+                            formTimeline.bars.find((b) => b.phaseId === phaseId)?.rowIndex ?? 1,
+                            row,
+                            4
+                          ),
                         })
                       }
                       className="mt-2"

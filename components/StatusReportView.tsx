@@ -60,6 +60,7 @@ import {
   pinnedLabelStackStepPx,
   PINNED_LABEL_DRAG_THRESHOLD_PX,
   resolvePinnedLabelLayout,
+  timelineLineFromPointerY,
   scaleStatusReportTimelineMetrics,
   pickSpacedTimelineMarkers,
   statusReportMonthHeaderLabel,
@@ -408,6 +409,12 @@ type LabelDragState = {
   maxTopPx: number;
 };
 
+type BarDragState = {
+  phaseId: string;
+  startClientX: number;
+  startClientY: number;
+};
+
 export function TimelineBlock({
   timeline,
   reportDate,
@@ -419,6 +426,7 @@ export function TimelineBlock({
   fillAvailableHeight = false,
   interactive = false,
   onLabelLayoutChange,
+  onPhaseRowChange,
 }: {
   timeline: NonNullable<StatusReportPDFData["timeline"]>;
   reportDate?: string;
@@ -430,9 +438,11 @@ export function TimelineBlock({
   fillAvailableHeight?: boolean;
   interactive?: boolean;
   onLabelLayoutChange?: (id: string, box: PinnedLabelBox | null) => void;
+  onPhaseRowChange?: (phaseId: string, row: number) => void;
 }) {
   const [dragPreview, setDragPreview] = useState<{ id: string; box: PinnedLabelBox } | null>(null);
   const labelDragRef = useRef<LabelDragState | null>(null);
+  const barDragRef = useRef<BarDragState | null>(null);
   const startMs = new Date(timeline.startDate).getTime();
   const endMs = new Date(timeline.endDate).getTime();
   const totalMs = endMs - startMs || 1;
@@ -565,6 +575,47 @@ export function TimelineBlock({
       ...labelDragBounds(drag.chartWidthPx),
     });
     onLabelLayoutChange(drag.id, box);
+  };
+
+  const barDragEnabled = interactive && Boolean(onPhaseRowChange);
+
+  const beginBarDrag = (event: React.PointerEvent<HTMLElement>, phaseId: string) => {
+    if (!barDragEnabled) return;
+    const target = event.target;
+    if (target instanceof Element && target.closest("[data-timeline-pinned-label]")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    barDragRef.current = {
+      phaseId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+    };
+  };
+
+  const finishBarDrag = (event: React.PointerEvent<HTMLElement>, commit: boolean) => {
+    const drag = barDragRef.current;
+    if (!drag) return;
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // pointer may already be released
+    }
+    barDragRef.current = null;
+    if (!commit || !onPhaseRowChange) return;
+    const deltaXPx = event.clientX - drag.startClientX;
+    const deltaYPx = event.clientY - drag.startClientY;
+    if (
+      Math.abs(deltaXPx) < PINNED_LABEL_DRAG_THRESHOLD_PX &&
+      Math.abs(deltaYPx) < PINNED_LABEL_DRAG_THRESHOLD_PX
+    ) {
+      return;
+    }
+    const body = event.currentTarget.closest("[data-timeline-chart-body]");
+    if (!(body instanceof HTMLElement)) return;
+    const rect = body.getBoundingClientRect();
+    const line = timelineLineFromPointerY(event.clientY - rect.top, rect.height, 4);
+    onPhaseRowChange(drag.phaseId, line);
   };
 
   const chart = fillAvailableHeight ? expandScheduleEntriesToOwnRows(timeline) : timeline;
@@ -739,7 +790,10 @@ export function TimelineBlock({
           </div>
         ))}
       </div>
-      <div className={`relative ${fillAvailableHeight ? "flex-1 min-h-0 flex flex-col" : ""}`}>
+      <div
+        data-timeline-chart-body
+        className={`relative ${fillAvailableHeight ? "flex-1 min-h-0 flex flex-col" : ""}`}
+      >
         {reportDatePercent != null && (
           <div
             className="absolute top-0 bottom-0 w-0.5 -ml-px"
@@ -791,10 +845,12 @@ export function TimelineBlock({
                   const rawWidth = widthPercent(visibleStart, visibleEnd);
                   const renderedWidth = Math.max(rawWidth, 4);
                   const fill = bar.color ?? TIMELINE_BAR_BG;
+                  const phaseId = bar.phaseId;
+                  const barInteractive = barDragEnabled && Boolean(phaseId);
                   return (
                   <div
                     key={`bar-${i}`}
-                    className={`absolute rounded flex items-center px-1.5 overflow-hidden min-w-0${stretchBars ? " top-[2px] bottom-[2px]" : ""}`}
+                    className={`absolute rounded flex items-center px-1.5 overflow-hidden min-w-0${stretchBars ? " top-[2px] bottom-[2px]" : ""}${barInteractive ? " touch-none select-none" : ""}`}
                     style={{
                       ...(stretchBars
                         ? {}
@@ -803,7 +859,17 @@ export function TimelineBlock({
                       width: `${renderedWidth}%`,
                       backgroundColor: fill,
                       opacity: bar.muted ? 0.45 : 1,
+                      ...(barInteractive ? { cursor: "grab" } : {}),
                     }}
+                    onPointerDown={
+                      barInteractive && phaseId
+                        ? (event) => beginBarDrag(event, phaseId)
+                        : undefined
+                    }
+                    onPointerUp={barInteractive ? (event) => finishBarDrag(event, true) : undefined}
+                    onPointerCancel={
+                      barInteractive ? (event) => finishBarDrag(event, false) : undefined
+                    }
                   >
                     {!(fillAvailableHeight && labelCol > 0) && (
                     <span
@@ -886,6 +952,7 @@ export function TimelineBlock({
                         </svg>
                       </div>
                       <div
+                        data-timeline-pinned-label
                         className={`absolute z-[2] flex flex-col items-center${interactive ? " touch-none select-none" : ""}`}
                         style={{
                           left: `${box.cxPct}%`,
