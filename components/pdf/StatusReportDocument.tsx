@@ -1601,7 +1601,11 @@ function TimelineBlock({
               rowLayout(markersInRow.length, row),
               stretchBars
                 ? { minHeight: ROW_HEIGHT }
-                : { overflow: "hidden" },
+                : fillAvailableHeight
+                  ? pinned
+                    ? { overflow: "hidden" }
+                    : {}
+                  : { overflow: "hidden" },
               rowWash ? { backgroundColor: rowWash } : {},
             ]}
           >

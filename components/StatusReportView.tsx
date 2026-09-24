@@ -628,8 +628,16 @@ export function TimelineBlock({
       lockHeight: lanes && !fillAvailableHeight,
     });
 
+  const clipFillHeight = fillAvailableHeight && pinned;
+
   return (
-    <div className={`w-full border border-[#d1d5db] relative ${fillAvailableHeight ? "h-full min-h-0 flex flex-col overflow-hidden" : ""} ${className ?? "mt-1"}`}>
+    <div
+      className={`w-full border border-[#d1d5db] relative ${
+        fillAvailableHeight
+          ? `h-full min-h-0 flex flex-col ${clipFillHeight ? "overflow-hidden" : "overflow-y-auto"}`
+          : ""
+      } ${className ?? "mt-1"}`}
+    >
       <div className={`flex flex-row items-stretch ${fillAvailableHeight ? "flex-1 min-h-0" : ""}`}>
         {labelCol > 0 && (
           <div
@@ -1337,7 +1345,7 @@ function ModularModuleBody({
             planDensity={data.planDensity}
             labelOverlay={data.timelineLayout}
             fillAvailableHeight
-            className="h-full mt-0 overflow-hidden"
+            className="h-full mt-0"
           />
         );
       }
