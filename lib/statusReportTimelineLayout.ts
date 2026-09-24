@@ -27,8 +27,6 @@ export const SR_TIMELINE_MONTH_FONT_PX = 7;
 export const SR_PLAN_LANE_LABEL_COL_PX = 100;
 /** Modular filled slot: phase names live in this rail so bars stay uncluttered. */
 export const SR_FILL_PHASE_LABEL_COL_PX = 112;
-/** Advanced Modular: wide enough for names like "Kickoff and Discovery". */
-export const SR_FILL_ADVANCED_PHASE_LABEL_COL_PX = 240;
 export const SR_TIMELINE_MARKER_MIN_GAP_PCT = 12;
 export const SR_TIMELINE_MONTH_HEADER_PX = 12;
 export const SR_TIMELINE_REPORT_DATE_LABEL_PX = 8;
