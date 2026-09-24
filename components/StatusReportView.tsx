@@ -629,7 +629,7 @@ export function TimelineBlock({
     });
 
   return (
-    <div className={`w-full border border-[#d1d5db] relative ${fillAvailableHeight ? "h-full min-h-0 flex flex-col overflow-y-auto" : ""} ${className ?? "mt-1"}`}>
+    <div className={`w-full border border-[#d1d5db] relative ${fillAvailableHeight ? "h-full min-h-0 flex flex-col overflow-hidden" : ""} ${className ?? "mt-1"}`}>
       <div className={`flex flex-row items-stretch ${fillAvailableHeight ? "flex-1 min-h-0" : ""}`}>
         {labelCol > 0 && (
           <div

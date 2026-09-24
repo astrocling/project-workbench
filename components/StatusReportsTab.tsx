@@ -1947,7 +1947,7 @@ export function StatusReportsTab({
                               })(),
                         })
                       }
-                      className="mt-2 max-h-[360px] overflow-auto"
+                      className="mt-2"
                     />
                   )}
               </div>
