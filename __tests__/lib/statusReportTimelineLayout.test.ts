@@ -38,6 +38,7 @@ import {
   timelinePinnedContentHeightPx,
   timelinePinnedPinBottomY,
   timelinePinnedRowHeightPx,
+  timelinePublishedPinnedRowHeightPx,
   type TimelineLayoutOverlay,
 } from "@/lib/statusReportTimelineLayout";
 
@@ -419,6 +420,14 @@ describe("pinned key-date labels", () => {
     expect(timelinePinnedPinBottomY({ markerTopPx: 16, markerIconPx: 8 })).toBe(24);
   });
 
+  it("sizes published Advanced rows to the bar+pin band", () => {
+    const compact = getStatusReportTimelineMetrics("plan", { planDensity: "phases_and_key_dates" });
+    const published = timelinePublishedPinnedRowHeightPx(compact);
+    expect(published).toBeGreaterThanOrEqual(timelinePinnedPinBottomY(compact));
+    expect(published).toBe(timelinePinnedPinBottomY(compact) + 2);
+    expect(published).toBeGreaterThan(compact.rowHeightPx);
+  });
+
   const markerFontPx = 6;
   const opts = {
     markerTopPx: SR_TIMELINE_MARKER_TOP_PX,
@@ -516,8 +525,9 @@ describe("timelinePinnedContentHeightPx", () => {
     ).toBeNull();
   });
 
-  it("caps published Standard Advanced height at the bar+pin band, ignoring parked labels", () => {
+  it("sizes published Standard Advanced slot from bar+pin row height, ignoring parked labels", () => {
     const compact = getStatusReportTimelineMetrics("plan", { planDensity: "phases_and_key_dates" });
+    const publishedRowHeightPx = timelinePublishedPinnedRowHeightPx(compact);
     const parked = {
       ...pinnedTimeline,
       markers: [
@@ -535,9 +545,9 @@ describe("timelinePinnedContentHeightPx", () => {
         },
       },
     });
-    const expected =
-      compact.rowHeightPx * 2 + 12;
+    const expected = publishedRowHeightPx * 2 + 12;
     expect(height).toBe(expected);
+    expect(publishedRowHeightPx).toBeGreaterThanOrEqual(timelinePinnedPinBottomY(compact));
     expect(
       statusReportTimelineSlotHeightPx({
         scheduleSource: "plan",

@@ -424,6 +424,16 @@ export function timelinePinnedPinBottomY(metrics: {
   return metrics.markerTopPx + metrics.markerIconPx;
 }
 
+export const TIMELINE_PUBLISHED_PIN_PAD_PX = 2;
+
+/** Published Advanced rows: bar+pin band only; labels clip inside the row. */
+export function timelinePublishedPinnedRowHeightPx(
+  metrics: Pick<StatusReportTimelineMetrics, "rowHeightPx" | "markerTopPx" | "markerIconPx">,
+  padPx = TIMELINE_PUBLISHED_PIN_PAD_PX
+): number {
+  return Math.max(metrics.rowHeightPx, timelinePinnedPinBottomY(metrics) + padPx);
+}
+
 export function timelinePinnedRowHeightPx(
   baseRowHeightPx: number,
   markerIds: string[],
@@ -502,7 +512,8 @@ export function timelinePinnedContentHeightPx(opts: {
   });
   const startYmd = opts.timeline.startDate.slice(0, 10);
   const endYmd = opts.timeline.endDate.slice(0, 10);
-  const rowsSum = activeRows.length * baseMetrics.rowHeightPx;
+  const publishedRowHeightPx = timelinePublishedPinnedRowHeightPx(baseMetrics);
+  const rowsSum = activeRows.length * publishedRowHeightPx;
 
   const monthHeaderPx = fillAvailableHeight ? baseMetrics.monthFontPx + 8 : 12 * layoutScale;
   const reportDateInRange =

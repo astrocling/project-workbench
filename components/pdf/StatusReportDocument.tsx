@@ -80,6 +80,7 @@ import {
   statusReportTimelineChartWidthPx,
   timelinePinnedContentHeightPx,
   timelinePinnedPinBottomY,
+  timelinePublishedPinnedRowHeightPx,
   timelineReportDateRowPx,
   truncatePinnedLabelText,
   type StatusReportTimelineMetrics,
@@ -1497,7 +1498,7 @@ function TimelineBlock({
       );
       pinnedRowData[row] = {
         layout,
-        heightPx: ROW_HEIGHT,
+        heightPx: timelinePublishedPinnedRowHeightPx(baseMetrics) * layoutScale,
       };
     }
   }

@@ -73,6 +73,7 @@ import {
   timelinePinnedContentHeightPx,
   timelinePinnedPinBottomY,
   timelinePinnedRowHeightPx,
+  timelinePublishedPinnedRowHeightPx,
   timelineReportDateRowPx,
   type PinnedLabelBox,
   type StatusReportTimelineMetrics,
@@ -658,7 +659,7 @@ export function TimelineBlock({
               layout,
               pinnedLabelHeightPx
             ) * layoutScale
-          : ROW_HEIGHT_PX,
+          : timelinePublishedPinnedRowHeightPx(baseMetrics) * layoutScale,
       };
     }
   }
