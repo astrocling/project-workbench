@@ -269,10 +269,12 @@ export function ArrangeScheduleFields({
                     defaultValue={group.bar.label}
                     key={`${group.bar.id}-${group.bar.label}`}
                     onBlur={(event) => {
+                      const phase = group.bar;
+                      if (!phase) return;
                       const original =
-                        timeline.bars.find((bar) => bar.phaseId === group.bar?.id)?.label ??
-                        group.bar.label;
-                      commitLabel(group.bar.id, original, event.target.value);
+                        timeline.bars.find((bar) => bar.phaseId === phase.id)?.label ??
+                        phase.label;
+                      commitLabel(phase.id, original, event.target.value);
                     }}
                     onKeyDown={(event) => {
                       if (event.key === "Enter") (event.target as HTMLInputElement).blur();
@@ -281,7 +283,11 @@ export function ArrangeScheduleFields({
                   <IconButton
                     label={group.bar.hidden ? "Show phase on slide" : "Hide phase on this slide"}
                     disabled={disabled}
-                    onClick={() => toggleHidden("bar", group.bar.id, !group.bar.hidden)}
+                    onClick={() => {
+                      const phase = group.bar;
+                      if (!phase) return;
+                      toggleHidden("bar", phase.id, !phase.hidden);
+                    }}
                   >
                     {group.bar.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
                   </IconButton>

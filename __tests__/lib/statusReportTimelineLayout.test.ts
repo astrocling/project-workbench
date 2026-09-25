@@ -340,11 +340,35 @@ describe("timelineLayoutFromPreviousSnapshot", () => {
   it("prunes inherited layout onto a new snapshot timeline and keeps unknown ids only when no timeline exists yet", () => {
     expect(
       persistTimelineLayoutOnSnapshot(
-        { timeline: { bars: [{ phaseId: "p1" }], markers: [] } },
+        {
+          timeline: {
+            bars: [
+              {
+                phaseId: "p1",
+                rowIndex: 1,
+                label: "Phase",
+                startDate: "2026-01-01",
+                endDate: "2026-02-01",
+              },
+            ],
+            markers: [],
+          },
+        },
         { hiddenBarIds: ["p1", "gone"], labels: { p1: "Kickoff" } }
       )
     ).toEqual({
-      timeline: { bars: [{ phaseId: "p1" }], markers: [] },
+      timeline: {
+        bars: [
+          {
+            phaseId: "p1",
+            rowIndex: 1,
+            label: "Phase",
+            startDate: "2026-01-01",
+            endDate: "2026-02-01",
+          },
+        ],
+        markers: [],
+      },
       timelineLayout: { hiddenBarIds: ["p1"], labels: { p1: "Kickoff" } },
     });
     expect(

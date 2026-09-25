@@ -925,7 +925,7 @@ export function TimelineBlock({
                   const fill = bar.color ?? TIMELINE_BAR_BG;
                   const phaseId = bar.phaseId;
                   const barInteractive = barDragEnabled && Boolean(phaseId);
-                  const draggingThis = Boolean(phaseId && barDragUi?.phaseId === phaseId);
+                  const drag = phaseId && barDragUi?.phaseId === phaseId ? barDragUi : null;
                   return (
                   <div
                     key={`bar-${i}`}
@@ -938,10 +938,10 @@ export function TimelineBlock({
                       width: `${renderedWidth}%`,
                       backgroundColor: fill,
                       opacity: bar.muted ? 0.45 : 1,
-                      zIndex: draggingThis ? 6 : undefined,
-                      transform: draggingThis ? `translateY(${barDragUi.dy}px)` : undefined,
+                      zIndex: drag ? 6 : undefined,
+                      transform: drag ? `translateY(${drag.dy}px)` : undefined,
                       ...(barInteractive
-                        ? { cursor: draggingThis ? "grabbing" : "grab" }
+                        ? { cursor: drag ? "grabbing" : "grab" }
                         : {}),
                     }}
                     onPointerDown={

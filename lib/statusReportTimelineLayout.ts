@@ -915,11 +915,12 @@ export function moveArrangeKeyDate(
   const groups = groupArrangeSchedule(timeline, layout, maxRow).filter((group) => group.bar);
   const groupIndex = groups.findIndex((group) => group.markers.some((marker) => marker.id === markerId));
   const target = groupIndex >= 0 ? groups[groupIndex + direction] : undefined;
-  if (groupIndex < 0 || !target?.bar) return layout;
+  const targetBar = target?.bar;
+  if (groupIndex < 0 || !targetBar) return layout;
   const marker = timeline.markers.find((item) => item.itemId === markerId);
   if (!marker) return layout;
-  const targetPhase = timeline.bars.find((bar) => bar.phaseId === target.bar.id);
-  const targetRow = displayRow(target.bar.id, targetPhase?.rowIndex ?? 1, layout, maxRow);
+  const targetPhase = timeline.bars.find((bar) => bar.phaseId === targetBar.id);
+  const targetRow = displayRow(targetBar.id, targetPhase?.rowIndex ?? 1, layout, maxRow);
   const original = marker.rowIndex ?? 1;
   const rows = setTimelineLayoutRow(layout.rows, markerId, original, targetRow, maxRow);
   return { ...layout, rows };
