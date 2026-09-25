@@ -9,9 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 How-to for these items is in the [User Guide](docs/USER_GUIDE.md). APIs, schema, and deploy details are in the [Technical Reference](docs/TECHNICAL.md).
 
+## [1.3.5] - 2026-09-25
+
+Patch release: Plan-sourced status reports (**Condensed** / **Advanced**, **Arrange**, four-line pinned key dates) on **Standard**, **Milestones**, and **Modular**; the Modular layout editor; and a status-report create/edit dialog. **Deploy:** no new migrations; redeploy the app.
+
 ### Added
 
 - **Modular layout editor** — Status Reports **Modular** variation composes a 1440×810 grid (Classic / Plan delivery / Budget-forward presets, row shapes, continuation slide). Create/update persist the v1 `{ layout, modules }` document so budget, timeline, and Plan modules survive save.
+- **Plan schedule on status reports** — When Plan is enabled, **Standard**, **Milestones**, and **Modular** can use **Project Plan** as the schedule source (**Condensed** phases only, or **Advanced** phases plus key dates). The compact strip is locked in the report snapshot. **Arrange this report’s schedule** renames, hides, and places phases on lines **1–4**, moves key dates between phases, narrows the month window, and (on Advanced) drags phase bars between lines and key-date names along the lane. A new report copies the previous report’s arrange overlay.
+- **Status report create/edit dialog** — **New report** and **Edit report** open in a dialog over the list. **Escape** or **Close** dismisses it. Preview stacks on top of the dialog. **Refresh milestones on report** for an existing **CDA** report is inside the dialog.
+
+### Changed
+
+- **Advanced Plan slides** — At most four occupied lines (later phases wrap back across those lines). Phase names sit on the bar. Key dates are pins on that line, with the name on a short leader from the bottom of the pin. Names that do not fit clip inside the line. Dropping a phase bar below the last occupied line opens the next empty line (up to 4).
+
+### Documentation
+
+- **CHANGELOG** — This release section.
+- **User Guide** — Schedule source includes **Modular**; **Condensed** / **Advanced** and pinned key dates replace the old above-axis band and bottom rail; Arrange is the phase/key-date list plus the live chart, not a mini Gantt; create/edit is a dialog; CDA milestone refresh is in that dialog; release baseline **1.3.5**.
+- **Plan tab how-to** — New reports and **Refresh schedule** include **Modular**; Arrange controls for four Advanced lines.
+- **Technical Reference** — Create/edit dialog and preview stacking; Advanced drag hit-testing onto an empty fourth line; published pin-row height and Modular Advanced lane heights.
+- **README** — Production release tag example **v1.3.5**.
 
 ## [1.3.4] - 2026-09-15
 

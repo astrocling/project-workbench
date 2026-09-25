@@ -99,13 +99,13 @@ You can also type dates in **Full** grid Start/End cells.
 
 - Set item **Status** to **Not started**, **In progress**, or **Complete** (in **Edit**; **View** shows the same states as icons — hover for the full name). Meetings use **Unscheduled** (range), **Scheduled** (one date), or **Complete**. A **phase** is complete when every item in it is complete. The Plan header shows how many items are complete.
 - **Rpt** chooses whether that phase or item appears on **Plan-sourced** status-report schedules.
-- Short names for a **specific slide** are set on that report’s **Arrange this report’s schedule** board, not on Plan.
+- Short names, hide/show, and which of the four **Advanced** lines a phase uses are set on that report’s **Arrange this report’s schedule** list, not on Plan. **Advanced** slides put the phase name on the bar and each key date on that line (pin plus a short name). **Condensed** is phases only.
 - New key dates and scheduled meetings default to **shown**; tasks, waiting-on-client, and unscheduled meetings default to **hidden** as markers (they still stretch the phase bar).
 - Completed key dates still appear on **new** reports (when **Rpt** is on) but are drawn faded.
 
 ### Default for new reports
 
-On Plan, editors can set **New status reports use** to **Project timeline** or **Project Plan**. That only affects **new** Standard and Milestones reports.
+On Plan, editors can set **New status reports use** to **Project timeline** or **Project Plan**. That affects **new** Standard, Milestones, and Modular reports.
 
 ### After you change Plan
 
@@ -113,7 +113,7 @@ Editing Plan **does not** rewrite saved reports. To update a report that was cre
 
 1. Open **Status Reports**.
 2. **Edit** that report.
-3. Use **Refresh schedule** (confirm the dialog). Per-report arrange tweaks (row, hide, short names) are kept when the same phase or item still exists.
+3. Use **Refresh schedule** (confirm the dialog). Per-report arrange tweaks (line, hide, short names, key-date label positions) are kept when the same phase or item still exists. On **Modular**, the button is available once a timeline module is on the slide.
 
 If Plan has been turned **off** since the report was created, **Refresh schedule** fails until an editor turns Plan back on. The saved slide still shows the old schedule.
 
@@ -127,7 +127,7 @@ If Plan has been turned **off** since the report was created, **Refresh schedule
 - [ ] Items are nested / ordered (item grip)
 - [ ] Gantt dates look right
 - [ ] **Rpt** is on for rows that should appear on slides
-- [ ] New or refreshed **Standard** / **Milestones** reports use **Project Plan** if that is the intended source
+- [ ] New or refreshed **Standard**, **Milestones**, or **Modular** reports use **Project Plan** if that is the intended source
 
 ---
 
