@@ -12,6 +12,7 @@ import {
   Plus,
   ChevronLeft,
   ChevronRight,
+  X,
 } from "lucide-react";
 import { SlackIcon } from "@/components/SlackIcon";
 import { BRAND_COLORS } from "@/lib/brandColors";
@@ -945,6 +946,50 @@ export function StatusReportsTab({
     loadReports();
   }, [loadReports]);
 
+  useEffect(() => {
+    if (!showForm) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      if (showRefreshTimelineModal) {
+        if (!refreshTimelineLoading) setShowRefreshTimelineModal(false);
+        return;
+      }
+      if (showRefreshBudgetModal) {
+        if (!refreshBudgetLoading) setShowRefreshBudgetModal(false);
+        return;
+      }
+      if (showRefreshPlanListsModal) {
+        if (!refreshPlanListsLoading) setShowRefreshPlanListsModal(false);
+        return;
+      }
+      if (showRefreshCdaMilestonesModal) {
+        if (!refreshCdaMilestonesLoading) setShowRefreshCdaMilestonesModal(false);
+        return;
+      }
+      if (previewReportId) return;
+      closeForm();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [
+    showForm,
+    showRefreshTimelineModal,
+    refreshTimelineLoading,
+    showRefreshBudgetModal,
+    refreshBudgetLoading,
+    showRefreshPlanListsModal,
+    refreshPlanListsLoading,
+    showRefreshCdaMilestonesModal,
+    refreshCdaMilestonesLoading,
+    previewReportId,
+    closeForm,
+  ]);
+
   const submitForm = useCallback(async () => {
     setFormError(null);
     if (!editingReportId && (rollups?.missingActuals ?? false)) {
@@ -1485,7 +1530,7 @@ export function StatusReportsTab({
         </div>
         {reportsLoading ? (
           <p className="text-body-sm text-surface-500 dark:text-surface-400">Loading reports…</p>
-        ) : reports.length === 0 && !showForm ? (
+        ) : reports.length === 0 ? (
           <p className="text-body-sm text-surface-500 dark:text-surface-400">No saved reports yet. Create one to export a PDF.</p>
         ) : (
           <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border overflow-hidden">
@@ -1660,10 +1705,30 @@ export function StatusReportsTab({
         )}
 
         {showForm && (
-          <div className="bg-white dark:bg-dark-surface rounded-lg border border-surface-200 dark:border-dark-border p-6 space-y-4">
-            <h3 className="text-title-md font-semibold text-surface-800 dark:text-surface-100">
-              {editingReportId ? "Edit report" : "Create report"}
-            </h3>
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="status-report-form-title"
+          >
+            <div className="flex flex-col w-full max-w-6xl h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)] overflow-hidden rounded-lg border border-surface-200 dark:border-dark-border bg-white dark:bg-dark-surface shadow-lg">
+              <div className="flex items-start justify-between gap-4 shrink-0 px-6 py-4 border-b border-surface-200 dark:border-dark-border">
+                <h3
+                  id="status-report-form-title"
+                  className="text-title-md font-semibold text-surface-800 dark:text-surface-100"
+                >
+                  {editingReportId ? "Edit report" : "Create report"}
+                </h3>
+                <button
+                  type="button"
+                  onClick={closeForm}
+                  aria-label="Close"
+                  className="inline-flex items-center justify-center h-8 w-8 rounded text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-dark-raised focus:outline-none focus:ring-1 focus:ring-jblue-400"
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4 space-y-4">
             <p className="text-body-sm text-surface-500 dark:text-surface-400">
               Biographical data (Account Director, PM, PGM, Key Staff, Period) comes from project settings.{" "}
               <Link href={`/projects/${projectSlug}?tab=settings`} className="text-jblue-600 dark:text-jblue-400 hover:underline">
@@ -1783,6 +1848,25 @@ export function StatusReportsTab({
                 {planListsRefreshSuccess && (
                   <p className="text-body-sm text-emerald-700 dark:text-emerald-400" role="status">
                     {planListsRefreshSuccess}
+                  </p>
+                )}
+              </div>
+            )}
+            {formVariation === "CDA" && editingReportId && canEdit && (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRefreshCdaMilestonesModalError(null);
+                    setShowRefreshCdaMilestonesModal(true);
+                  }}
+                  className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-800 dark:text-surface-100 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
+                >
+                  Refresh milestones on report
+                </button>
+                {cdaMilestonesRefreshSuccess && (
+                  <p className="text-body-sm text-emerald-700 dark:text-emerald-400" role="status">
+                    {cdaMilestonesRefreshSuccess}
                   </p>
                 )}
               </div>
@@ -2390,34 +2474,38 @@ export function StatusReportsTab({
                 placeholder="Rendered as separate page(s) in PDF"
               />
             </div>
-            {formError && (
-              <p className="text-body-sm text-jred-600 dark:text-jred-400">{formError}</p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={submitForm}
-                disabled={formSaving}
-                className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm disabled:opacity-50"
-              >
-                {formSaving ? "Saving…" : editingReportId ? "Update" : "Save"}
-              </button>
-              {savedReportId && (
-                <button
-                  type="button"
-                  onClick={() => setPreviewReportId(savedReportId)}
-                  className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg"
-                >
-                  View
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={closeForm}
-                className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-transparent text-surface-700 dark:text-surface-200 font-medium text-body-sm"
-              >
-                {editingReportId ? "Close" : "Cancel"}
-              </button>
+              </div>
+              <div className="shrink-0 px-6 py-4 border-t border-surface-200 dark:border-dark-border space-y-2">
+                {formError && (
+                  <p className="text-body-sm text-jred-600 dark:text-jred-400">{formError}</p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={submitForm}
+                    disabled={formSaving}
+                    className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-jblue-500 hover:bg-jblue-700 text-white font-semibold text-body-sm disabled:opacity-50"
+                  >
+                    {formSaving ? "Saving…" : editingReportId ? "Update" : "Save"}
+                  </button>
+                  {savedReportId && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewReportId(savedReportId)}
+                      className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-700 dark:text-surface-200 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg"
+                    >
+                      View
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={closeForm}
+                    className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-transparent text-surface-700 dark:text-surface-200 font-medium text-body-sm"
+                  >
+                    {editingReportId ? "Close" : "Cancel"}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -2442,25 +2530,6 @@ export function StatusReportsTab({
                       ? " Saved reports keep milestone dates from when the report was created unless you refresh them."
                       : null}
                   </p>
-                  {editingReportId && canEdit && (
-                    <div className="mt-3 space-y-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRefreshCdaMilestonesModalError(null);
-                          setShowRefreshCdaMilestonesModal(true);
-                        }}
-                        className="inline-flex items-center justify-center h-9 px-4 rounded-md border border-surface-300 dark:border-dark-muted bg-white dark:bg-dark-raised text-surface-800 dark:text-surface-100 font-medium text-body-sm hover:bg-surface-50 dark:hover:bg-dark-bg focus:outline-none focus:ring-1 focus:ring-jblue-400 focus:ring-offset-1"
-                      >
-                        Refresh milestones on report
-                      </button>
-                      {cdaMilestonesRefreshSuccess && (
-                        <p className="text-body-sm text-emerald-700 dark:text-emerald-400" role="status">
-                          {cdaMilestonesRefreshSuccess}
-                        </p>
-                      )}
-                    </div>
-                  )}
                 </div>
                 <div className="flex-1 overflow-auto">
                   {cdaMilestones.length === 0 ? (
