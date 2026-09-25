@@ -69,6 +69,7 @@ import {
   timelineMarkerHangsLeft,
   timelineMarkerPhaseColor,
   timelineMarkerStackTop,
+  publishedChartRowMetrics,
   timelinePhaseRowLayout,
   timelinePhaseWash,
   timelinePinnedContentHeightPx,
@@ -737,20 +738,30 @@ export function TimelineBlock({
         hasLabels: rowData?.hasLabels ?? markerCount > 0,
       });
     }
+    const chartRow = publishedChartRowMetrics({
+      mode: metrics.mode,
+      rowHeightPx: ROW_HEIGHT_PX,
+      markerTopPx: metrics.markerTopPx,
+      markerStepPx: markerStep,
+      markerCount,
+      fillAvailableHeight,
+      pinnedHeightPx:
+        row != null && pinned ? (pinnedRowData[row]?.heightPx ?? ROW_HEIGHT_PX) : undefined,
+    });
     return timelinePhaseRowLayout({
       fillAvailableHeight,
-      rowHeightPx:
-        row != null && pinned
-          ? (pinnedRowData[row]?.heightPx ?? ROW_HEIGHT_PX)
-          : Math.max(
-              ROW_HEIGHT_PX,
-              fillAvailableHeight
-                ? ROW_HEIGHT_PX
-                : metrics.markerTopPx + Math.max(markerCount, 1) * markerStep + 4
-            ),
-      lockHeight: lanes && !fillAvailableHeight,
+      rowHeightPx: chartRow.rowHeightPx,
+      lockHeight: chartRow.lockHeight,
     });
   };
+  const stackMarkers = publishedChartRowMetrics({
+    mode: metrics.mode,
+    rowHeightPx: ROW_HEIGHT_PX,
+    markerTopPx: metrics.markerTopPx,
+    markerStepPx: markerStep,
+    markerCount: 1,
+    fillAvailableHeight,
+  }).stackMarkers;
 
   const dragInsertRow =
     barDragUi != null ? timelineDragInsertRow(activeRows, 4) : null;
@@ -903,7 +914,9 @@ export function TimelineBlock({
               key={row}
               data-timeline-row-chart
               data-timeline-row={row}
-              className={`border-b border-[#d1d5db] relative ${barDragUi ? "overflow-visible" : "overflow-hidden"}`}
+              className={`border-b border-[#d1d5db] relative ${
+                barDragUi || (overlay && !fillAvailableHeight) ? "overflow-visible" : "overflow-hidden"
+              }`}
               style={{
                 ...rowLayout(markersInRow.length, row),
                 ...(rowWash ? { backgroundColor: rowWash } : {}),
@@ -1107,7 +1120,7 @@ export function TimelineBlock({
                               metrics.markerTopPx,
                               i,
                               markerStep,
-                              overlay && !fillAvailableHeight
+                              stackMarkers
                             ),
                             opacity: m.muted ? 0.45 : 1,
                           }

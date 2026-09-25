@@ -72,6 +72,7 @@ import {
   timelineMarkerHangsLeft,
   timelineMarkerPhaseColor,
   timelineMarkerStackTop,
+  publishedChartRowMetrics,
   timelinePhaseRowLayout,
   timelinePhaseWash,
   pinnedLabelBlockHeightPx,
@@ -1543,20 +1544,30 @@ function TimelineBlock({
         hasLabels: rowData?.hasLabels ?? markerCount > 0,
       });
     }
+    const chartRow = publishedChartRowMetrics({
+      mode: metrics.mode,
+      rowHeightPx: ROW_HEIGHT,
+      markerTopPx: metrics.markerTopPx,
+      markerStepPx: markerStep,
+      markerCount,
+      fillAvailableHeight,
+      pinnedHeightPx:
+        row != null && pinned ? (pinnedRowData[row]?.heightPx ?? ROW_HEIGHT) : undefined,
+    });
     return timelinePhaseRowLayout({
       fillAvailableHeight,
-      rowHeightPx:
-        row != null && pinned
-          ? (pinnedRowData[row]?.heightPx ?? ROW_HEIGHT)
-          : Math.max(
-              ROW_HEIGHT,
-              fillAvailableHeight
-                ? ROW_HEIGHT
-                : metrics.markerTopPx + Math.max(markerCount, 1) * markerStep + 4
-            ),
-      lockHeight: lanes && !fillAvailableHeight,
+      rowHeightPx: chartRow.rowHeightPx,
+      lockHeight: chartRow.lockHeight,
     });
   };
+  const stackMarkers = publishedChartRowMetrics({
+    mode: metrics.mode,
+    rowHeightPx: ROW_HEIGHT,
+    markerTopPx: metrics.markerTopPx,
+    markerStepPx: markerStep,
+    markerCount: 1,
+    fillAvailableHeight,
+  }).stackMarkers;
 
   const monthHeader = (
       <View style={[styles.timelineMonthRow, { height: monthHeaderPx }]}>
@@ -1769,7 +1780,7 @@ function TimelineBlock({
                 metrics.markerTopPx,
                 i,
                 markerStep,
-                overlay && !fillAvailableHeight
+                stackMarkers
               );
               return (
               <View

@@ -218,6 +218,39 @@ export function timelinePhaseRowLayout({
   return { minHeight: rowHeightPx };
 }
 
+/**
+ * Published chart row size. Project timeline stays on the 14px overlay so four
+ * rows fit the slide; extra markers sit on the bar instead of stretching the row
+ * over the activity columns.
+ */
+export function publishedChartRowMetrics(opts: {
+  mode: StatusReportTimelineMetrics["mode"];
+  rowHeightPx: number;
+  markerTopPx: number;
+  markerStepPx: number;
+  markerCount: number;
+  fillAvailableHeight: boolean;
+  pinnedHeightPx?: number;
+}): { rowHeightPx: number; lockHeight: boolean; stackMarkers: boolean } {
+  if (opts.mode === "overlay" && !opts.fillAvailableHeight) {
+    return { rowHeightPx: opts.rowHeightPx, lockHeight: true, stackMarkers: false };
+  }
+  const rowHeightPx =
+    opts.mode === "pinned" && opts.pinnedHeightPx != null
+      ? opts.pinnedHeightPx
+      : Math.max(
+          opts.rowHeightPx,
+          opts.fillAvailableHeight
+            ? opts.rowHeightPx
+            : opts.markerTopPx + Math.max(opts.markerCount, 1) * opts.markerStepPx + 4
+        );
+  return {
+    rowHeightPx,
+    lockHeight: opts.mode === "lanes" && !opts.fillAvailableHeight,
+    stackMarkers: false,
+  };
+}
+
 export function scaleStatusReportTimelineMetrics(
   metrics: StatusReportTimelineMetrics,
   scale: number

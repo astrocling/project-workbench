@@ -22,6 +22,7 @@ import {
   timelineMarkerHangsLeft,
   timelineMarkerStackTop,
   timelinePhaseRowLayout,
+  publishedChartRowMetrics,
   timelinePhaseWash,
   statusReportTimelineSlotHeightPx,
   usesPromotedTimeline,
@@ -54,6 +55,24 @@ describe("statusReportTimelineLayout", () => {
     expect(timeline.labelColPx).toBe(0);
     expect(timeline.rowHeightPx * 4).toBeLessThanOrEqual(56);
     expect(omitted).toEqual(timeline);
+  });
+
+  it("keeps project-timeline rows at 14px when a row has several markers", () => {
+    const metrics = getStatusReportTimelineMetrics("timeline");
+    const step = metrics.markerIconPx + metrics.markerFontPx + 4;
+    const box = publishedChartRowMetrics({
+      mode: metrics.mode,
+      rowHeightPx: metrics.rowHeightPx,
+      markerTopPx: metrics.markerTopPx,
+      markerStepPx: step,
+      markerCount: 3,
+      fillAvailableHeight: false,
+    });
+    expect(box).toEqual({ rowHeightPx: 14, lockHeight: true, stackMarkers: false });
+    expect(box.rowHeightPx * 4).toBeLessThanOrEqual(56);
+    expect(
+      timelineMarkerStackTop(metrics.markerTopPx, 2, step, box.stackMarkers)
+    ).toBe(metrics.markerTopPx);
   });
 
   it("uses Plan lanes without a left name column so labels sit in the bars", () => {
