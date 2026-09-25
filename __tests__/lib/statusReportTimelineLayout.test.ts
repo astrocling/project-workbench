@@ -14,6 +14,7 @@ import {
   setTimelineLayoutLabel,
   setTimelineLayoutRow,
   setTimelineLayoutWindow,
+  timelineDragInsertRow,
   timelineLineFromPointerY,
   timelineLineFromRowHit,
   selectTimelineChartRows,
@@ -36,6 +37,8 @@ import {
   SR_TIMELINE_MARKER_ICON_PX,
   SR_TIMELINE_MARKER_TOP_PX,
   timelinePinnedContentHeightPx,
+  timelinePinnedEmptyLaneHeightPx,
+  timelinePinnedFillRowLayout,
   timelinePinnedPinBottomY,
   timelinePinnedRowHeightPx,
   timelinePublishedPinnedRowHeightPx,
@@ -478,6 +481,73 @@ describe("pinned key-date labels", () => {
       )
     ).toBe(72);
   });
+
+  it("keeps an empty Modular Advanced lane at the phase-bar floor", () => {
+    const metrics = getStatusReportTimelineMetrics("plan", {
+      fillAvailableHeight: true,
+      planDensity: "phases_and_key_dates",
+    });
+    const floor = timelinePinnedEmptyLaneHeightPx(metrics);
+    expect(floor).toBe(metrics.barTopPx + (metrics.barHeightPx ?? 0) + 8);
+    expect(floor).toBeLessThan(metrics.rowHeightPx);
+    expect(
+      timelinePinnedFillRowLayout({ contentHeightPx: floor, floorPx: floor, hasLabels: false })
+    ).toEqual({
+      minHeight: floor,
+      height: floor,
+      flexGrow: 0,
+      flexShrink: 0,
+      flexBasis: floor,
+    });
+  });
+
+  it("gives stacked milestone labels a taller lane than a single label", () => {
+    const metrics = getStatusReportTimelineMetrics("plan", {
+      fillAvailableHeight: true,
+      planDensity: "phases_and_key_dates",
+    });
+    const floor = timelinePinnedEmptyLaneHeightPx(metrics);
+    const labelHeightPx = pinnedLabelBlockHeightPx(metrics.markerFontPx);
+    const baseTopPx = metrics.markerTopPx + metrics.markerIconPx + 2;
+    const one = timelinePinnedRowHeightPx(
+      metrics.rowHeightPx,
+      ["a"],
+      { a: { cxPct: 10, topPx: baseTopPx } },
+      labelHeightPx,
+      4
+    );
+    const stacked = timelinePinnedRowHeightPx(
+      metrics.rowHeightPx,
+      ["a", "b"],
+      {
+        a: { cxPct: 10, topPx: baseTopPx },
+        b: { cxPct: 12, topPx: baseTopPx + pinnedLabelStackStepPx(metrics.markerFontPx) },
+      },
+      labelHeightPx,
+      4
+    );
+    const oneLayout = timelinePinnedFillRowLayout({
+      contentHeightPx: one,
+      floorPx: floor,
+      hasLabels: true,
+    });
+    const stackedLayout = timelinePinnedFillRowLayout({
+      contentHeightPx: stacked,
+      floorPx: floor,
+      hasLabels: true,
+    });
+    expect(one).toBeGreaterThan(floor);
+    expect(stacked).toBeGreaterThan(one);
+    expect(oneLayout).toEqual({
+      minHeight: floor,
+      flexGrow: one,
+      flexShrink: 1,
+      flexBasis: one,
+    });
+    expect(stackedLayout.flexBasis).toBe(stacked);
+    expect(stackedLayout.flexGrow).toBe(stacked);
+    expect(stackedLayout.minHeight).toBe(floor);
+  });
 });
 
 describe("timelinePinnedContentHeightPx", () => {
@@ -580,6 +650,20 @@ describe("timelineLineFromPointerY", () => {
     expect(timelineLineFromPointerY(26, 100, 4)).toBe(2);
     expect(timelineLineFromPointerY(99, 100, 4)).toBe(4);
     expect(timelineLineFromPointerY(-10, 100, 4)).toBe(1);
+  });
+});
+
+describe("timelineDragInsertRow", () => {
+  it("offers the fourth line when only three lanes are occupied", () => {
+    expect(timelineDragInsertRow([1, 2, 3], 4)).toBe(4);
+  });
+
+  it("offers a gap before a later occupied line", () => {
+    expect(timelineDragInsertRow([1, 2, 4], 4)).toBe(3);
+  });
+
+  it("offers nothing when all four lines are occupied", () => {
+    expect(timelineDragInsertRow([1, 2, 3, 4], 4)).toBeNull();
   });
 });
 

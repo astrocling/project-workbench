@@ -79,8 +79,12 @@ import {
   selectTimelineChartRows,
   statusReportTimelineChartWidthPx,
   timelinePinnedContentHeightPx,
+  timelinePinnedEmptyLaneHeightPx,
+  timelinePinnedFillRowLayout,
   timelinePinnedPinBottomY,
+  timelinePinnedRowHeightPx,
   timelinePublishedPinnedRowHeightPx,
+  TIMELINE_PINNED_LABEL_ROW_PAD_PX,
   timelineReportDateRowPx,
   truncatePinnedLabelText,
   type StatusReportTimelineMetrics,
@@ -1484,8 +1488,13 @@ function TimelineBlock({
 
   const pinnedRowData: Record<
     number,
-    { layout: Record<string, { cxPct: number; topPx: number }>; heightPx: number }
+    {
+      layout: Record<string, { cxPct: number; topPx: number }>;
+      heightPx: number;
+      hasLabels: boolean;
+    }
   > = {};
+  const pinnedEmptyLanePx = timelinePinnedEmptyLaneHeightPx(baseMetrics) * layoutScale;
   if (pinned) {
     for (const row of activeRows) {
       const markersInRow = getVisibleMarkersForRow(chart.markers, row, startYmd, endYmd, rowCap);
@@ -1496,9 +1505,24 @@ function TimelineBlock({
         endYmd,
         pinnedLayoutOpts
       );
+      const ids = markersInRow
+        .map((marker) => marker.itemId)
+        .filter((id): id is string => Boolean(id));
+      const hasLabels = ids.length > 0;
       pinnedRowData[row] = {
         layout,
-        heightPx: timelinePublishedPinnedRowHeightPx(baseMetrics) * layoutScale,
+        hasLabels,
+        heightPx: fillAvailableHeight
+          ? hasLabels
+            ? timelinePinnedRowHeightPx(
+                baseMetrics.rowHeightPx,
+                ids,
+                layout,
+                pinnedLabelHeightPx,
+                TIMELINE_PINNED_LABEL_ROW_PAD_PX
+              ) * layoutScale
+            : pinnedEmptyLanePx
+          : timelinePublishedPinnedRowHeightPx(baseMetrics) * layoutScale,
       };
     }
   }
@@ -1510,8 +1534,16 @@ function TimelineBlock({
       )
     : activeRows.length * ROW_HEIGHT;
 
-  const rowLayout = (markerCount: number, row?: number) =>
-    timelinePhaseRowLayout({
+  const rowLayout = (markerCount: number, row?: number) => {
+    if (fillAvailableHeight && pinned && row != null) {
+      const rowData = pinnedRowData[row];
+      return timelinePinnedFillRowLayout({
+        contentHeightPx: rowData?.heightPx ?? ROW_HEIGHT,
+        floorPx: pinnedEmptyLanePx,
+        hasLabels: rowData?.hasLabels ?? markerCount > 0,
+      });
+    }
+    return timelinePhaseRowLayout({
       fillAvailableHeight,
       rowHeightPx:
         row != null && pinned
@@ -1524,6 +1556,7 @@ function TimelineBlock({
             ),
       lockHeight: lanes && !fillAvailableHeight,
     });
+  };
 
   const monthHeader = (
       <View style={[styles.timelineMonthRow, { height: monthHeaderPx }]}>

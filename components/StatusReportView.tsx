@@ -57,6 +57,7 @@ import {
   pinnedLabelStackStepPx,
   PINNED_LABEL_DRAG_THRESHOLD_PX,
   resolvePinnedLabelLayout,
+  timelineDragInsertRow,
   timelineLineFromRowHit,
   scaleStatusReportTimelineMetrics,
   selectTimelineChartRows,
@@ -71,9 +72,12 @@ import {
   timelinePhaseRowLayout,
   timelinePhaseWash,
   timelinePinnedContentHeightPx,
+  timelinePinnedEmptyLaneHeightPx,
+  timelinePinnedFillRowLayout,
   timelinePinnedPinBottomY,
   timelinePinnedRowHeightPx,
   timelinePublishedPinnedRowHeightPx,
+  TIMELINE_PINNED_LABEL_ROW_PAD_PX,
   timelineReportDateRowPx,
   type PinnedLabelBox,
   type StatusReportTimelineMetrics,
@@ -446,6 +450,7 @@ export function TimelineBlock({
   const [barDragUi, setBarDragUi] = useState<{ phaseId: string; dy: number } | null>(null);
   const labelDragRef = useRef<LabelDragState | null>(null);
   const barDragRef = useRef<BarDragState | null>(null);
+  const chartBodyRef = useRef<HTMLDivElement | null>(null);
   const startMs = new Date(timeline.startDate).getTime();
   const endMs = new Date(timeline.endDate).getTime();
   const totalMs = endMs - startMs || 1;
@@ -616,11 +621,24 @@ export function TimelineBlock({
     setBarDragUi({ phaseId, dy: 0 });
   };
 
+  const refreshDragHit = (from: HTMLElement, clientY: number) => {
+    const drag = barDragRef.current;
+    if (!drag) return null;
+    const hit = readChartRowBoxes(from);
+    if (hit && hit.rowBoxes.length > 0) {
+      drag.bodyTop = hit.bodyTop;
+      drag.rowBoxes = hit.rowBoxes;
+    }
+    const line = timelineLineFromRowHit(clientY - drag.bodyTop, drag.rowBoxes, 4);
+    drag.lastLine = line;
+    return line;
+  };
+
   const moveBarDrag = (event: React.PointerEvent<HTMLElement>) => {
     const drag = barDragRef.current;
     if (!drag) return;
     const dy = event.clientY - drag.startClientY;
-    drag.lastLine = timelineLineFromRowHit(event.clientY - drag.bodyTop, drag.rowBoxes, 4);
+    refreshDragHit(event.currentTarget, event.clientY);
     setBarDragUi({ phaseId: drag.phaseId, dy });
   };
 
@@ -632,7 +650,7 @@ export function TimelineBlock({
     } catch {
       // pointer may already be released
     }
-    const line = timelineLineFromRowHit(event.clientY - drag.bodyTop, drag.rowBoxes, 4);
+    const line = refreshDragHit(event.currentTarget, event.clientY) ?? drag.lastLine;
     barDragRef.current = null;
     setBarDragUi(null);
     if (!commit || !onPhaseRowChange) return;
@@ -640,6 +658,14 @@ export function TimelineBlock({
     if (Math.abs(deltaYPx) < PINNED_LABEL_DRAG_THRESHOLD_PX) return;
     onPhaseRowChange(drag.phaseId, line);
   };
+
+  const dragPhaseId = barDragUi?.phaseId ?? null;
+  useEffect(() => {
+    if (!dragPhaseId) return;
+    chartBodyRef.current
+      ?.querySelector("[data-timeline-insert-row]")
+      ?.scrollIntoView({ block: "nearest" });
+  }, [dragPhaseId]);
 
   const { chart, rowCap, activeRows } = selectTimelineChartRows({
     timeline,
@@ -652,8 +678,13 @@ export function TimelineBlock({
 
   const pinnedRowData: Record<
     number,
-    { layout: Record<string, { cxPct: number; topPx: number }>; heightPx: number }
+    {
+      layout: Record<string, { cxPct: number; topPx: number }>;
+      heightPx: number;
+      hasLabels: boolean;
+    }
   > = {};
+  const pinnedEmptyLanePx = timelinePinnedEmptyLaneHeightPx(baseMetrics) * layoutScale;
   if (pinned) {
     for (const row of activeRows) {
       const markersInRow = getVisibleMarkersForRow(chart.markers, row, startYmd, endYmd, rowCap);
@@ -667,16 +698,25 @@ export function TimelineBlock({
       const ids = markersInRow
         .map((marker) => marker.itemId)
         .filter((id): id is string => Boolean(id));
+      const hasLabels = ids.length > 0;
+      const contentPx =
+        timelinePinnedRowHeightPx(
+          baseMetrics.rowHeightPx,
+          ids,
+          layout,
+          pinnedLabelHeightPx,
+          fillAvailableHeight ? TIMELINE_PINNED_LABEL_ROW_PAD_PX : 0
+        ) * layoutScale;
       pinnedRowData[row] = {
         layout,
-        heightPx: interactive
-          ? timelinePinnedRowHeightPx(
-              baseMetrics.rowHeightPx,
-              ids,
-              layout,
-              pinnedLabelHeightPx
-            ) * layoutScale
-          : timelinePublishedPinnedRowHeightPx(baseMetrics) * layoutScale,
+        hasLabels,
+        heightPx: fillAvailableHeight
+          ? hasLabels
+            ? contentPx
+            : pinnedEmptyLanePx
+          : interactive
+            ? contentPx
+            : timelinePublishedPinnedRowHeightPx(baseMetrics) * layoutScale,
       };
     }
   }
@@ -688,8 +728,16 @@ export function TimelineBlock({
       )
     : activeRows.length * ROW_HEIGHT_PX;
 
-  const rowLayout = (markerCount: number, row?: number) =>
-    timelinePhaseRowLayout({
+  const rowLayout = (markerCount: number, row?: number) => {
+    if (fillAvailableHeight && pinned && row != null) {
+      const rowData = pinnedRowData[row];
+      return timelinePinnedFillRowLayout({
+        contentHeightPx: rowData?.heightPx ?? ROW_HEIGHT_PX,
+        floorPx: pinnedEmptyLanePx,
+        hasLabels: rowData?.hasLabels ?? markerCount > 0,
+      });
+    }
+    return timelinePhaseRowLayout({
       fillAvailableHeight,
       rowHeightPx:
         row != null && pinned
@@ -702,6 +750,10 @@ export function TimelineBlock({
             ),
       lockHeight: lanes && !fillAvailableHeight,
     });
+  };
+
+  const dragInsertRow =
+    barDragUi != null ? timelineDragInsertRow(activeRows, 4) : null;
 
   const clipFillHeight = fillAvailableHeight && pinned;
 
@@ -815,6 +867,7 @@ export function TimelineBlock({
         ))}
       </div>
       <div
+        ref={chartBodyRef}
         data-timeline-chart-body
         className={`relative ${fillAvailableHeight ? "flex-1 min-h-0 flex flex-col" : ""}${barDragUi ? " overflow-visible" : ""}`}
       >
@@ -1120,6 +1173,21 @@ export function TimelineBlock({
             </div>
           );
         })}
+        {dragInsertRow != null && (
+          <div
+            data-timeline-row-chart
+            data-timeline-row={dragInsertRow}
+            data-timeline-insert-row=""
+            className="border-b border-dashed border-[#9ca3af] relative flex items-center justify-center text-[#6b7280]"
+            style={{
+              height: Math.max(ROW_HEIGHT_PX, 36),
+              flexShrink: 0,
+              fontSize: metrics.barFontPx,
+            }}
+          >
+            Row {dragInsertRow}
+          </div>
+        )}
       </div>
         </div>
       </div>

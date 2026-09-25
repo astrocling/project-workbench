@@ -425,6 +425,10 @@ export function timelinePinnedPinBottomY(metrics: {
 }
 
 export const TIMELINE_PUBLISHED_PIN_PAD_PX = 2;
+/** Air under the phase bar when a Modular Advanced lane has no milestone labels. */
+export const TIMELINE_PINNED_EMPTY_LANE_PAD_PX = 8;
+/** Gap between the lowest pinned label and the lane border. */
+export const TIMELINE_PINNED_LABEL_ROW_PAD_PX = 4;
 
 /** Published Advanced rows: bar+pin band only; labels clip inside the row. */
 export function timelinePublishedPinnedRowHeightPx(
@@ -447,6 +451,52 @@ export function timelinePinnedRowHeightPx(
     if (box) max = Math.max(max, box.topPx + labelHeightPx + padPx);
   }
   return max;
+}
+
+/** Modular Advanced lane with no milestone text: phase bar plus a small pad. */
+export function timelinePinnedEmptyLaneHeightPx(
+  metrics: Pick<StatusReportTimelineMetrics, "barTopPx" | "barHeightPx" | "rowHeightPx">,
+  padPx = TIMELINE_PINNED_EMPTY_LANE_PAD_PX
+): number {
+  const barBottom = metrics.barTopPx + (metrics.barHeightPx ?? metrics.rowHeightPx);
+  return barBottom + padPx;
+}
+
+/**
+ * Modular Advanced published lanes. Empty lanes stay at the bar floor.
+ * Labeled lanes start at their label stack and share leftover module height.
+ */
+export function timelinePinnedFillRowLayout({
+  contentHeightPx,
+  floorPx,
+  hasLabels,
+}: {
+  contentHeightPx: number;
+  floorPx: number;
+  hasLabels: boolean;
+}): {
+  minHeight: number;
+  flexGrow: number;
+  flexShrink: number;
+  flexBasis: number;
+  height?: number;
+} {
+  if (!hasLabels) {
+    return {
+      minHeight: floorPx,
+      height: floorPx,
+      flexGrow: 0,
+      flexShrink: 0,
+      flexBasis: floorPx,
+    };
+  }
+  const contentPx = Math.max(contentHeightPx, floorPx);
+  return {
+    minHeight: floorPx,
+    flexGrow: contentPx,
+    flexShrink: 1,
+    flexBasis: contentPx,
+  };
 }
 
 /** Chart slice + occupied lines for TimelineBlock / pinned slot height. */
@@ -639,6 +689,18 @@ export function timelineLineFromPointerY(
   if (bodyHeightPx <= 0) return 1;
   const t = Math.min(Math.max(offsetY, 0), bodyHeightPx - 1);
   return Math.min(maxRow, Math.max(1, Math.floor((t / bodyHeightPx) * maxRow) + 1));
+}
+
+/** First unused line in 1..maxRow. Null when every line already has a lane. */
+export function timelineDragInsertRow(
+  occupiedRows: readonly number[],
+  maxRow = 4
+): number | null {
+  const occupied = new Set(occupiedRows);
+  for (let row = 1; row <= maxRow; row += 1) {
+    if (!occupied.has(row)) return row;
+  }
+  return null;
 }
 
 export type TimelineRowHitBox = { row: number; top: number; height: number };
